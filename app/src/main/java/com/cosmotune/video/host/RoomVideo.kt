@@ -97,7 +97,7 @@ object RoomVideo : RoomVideoHost {
     /** A video the room wants on the watch page; [PhoneModeHost] hands it to Video and makes Video the mode, then clears it. */
     val opening = MutableStateFlow<PendingVideo?>(null)
 
-    /** Whether this phone plays videos at all: the new look (Video needs its shell) and Video mode switched on. */
+    /** Whether this phone plays videos at all: Video needs the look's shell, and Video mode switched on. */
     fun available(): Boolean = settings != null && AppModes.available(AppMode.VIDEO)
 
     fun inVideoMode(): Boolean = settings?.mode?.value == AppMode.VIDEO

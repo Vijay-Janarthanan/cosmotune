@@ -95,7 +95,6 @@ import com.cosmotune.music.sharedui.resources.cosmo_settings_group_sound
 import com.cosmotune.music.sharedui.resources.cosmo_settings_group_transitions
 import com.cosmotune.music.sharedui.resources.cosmo_settings_group_window
 import com.cosmotune.music.sharedui.resources.cosmo_settings_licenses
-import com.cosmotune.music.sharedui.resources.cosmo_settings_mode_needs_look
 import com.cosmotune.music.sharedui.resources.cosmo_settings_no_results
 import com.cosmotune.music.sharedui.resources.cosmo_settings_open_podio
 import com.cosmotune.music.sharedui.resources.cosmo_settings_open_podio_summary
@@ -223,7 +222,6 @@ enum class SettingsText(internal val res: StringResource) {
     OPEN_READ_SUMMARY(Res.string.cosmo_settings_open_read_summary),
     OPEN_PODIO(Res.string.cosmo_settings_open_podio),
     OPEN_PODIO_SUMMARY(Res.string.cosmo_settings_open_podio_summary),
-    MODE_NEEDS_LOOK(Res.string.cosmo_settings_mode_needs_look),
 }
 
 @Composable

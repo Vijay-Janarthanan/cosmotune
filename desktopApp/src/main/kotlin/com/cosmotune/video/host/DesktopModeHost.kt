@@ -50,7 +50,7 @@ object DesktopModeHost {
 val LocalDesktopPlaySong = staticCompositionLocalOf<((Song) -> Unit)?> { null }
 
 /**
- * Whether Video is the mode that is drawn: the new look is on (there is a shell), the stored mode is Video and Video is available
+ * Whether Video is the mode that is drawn: there is a shell (a CosmoLookTheme), the stored mode is Video and Video is available
  * ([AppModes.available]); the phone's host uses the same rule. It reads the stored mode, so a composable that calls it recomposes when
  * the mode changes, and it keeps [DesktopModeHost.active] equal to the answer.
  */
@@ -200,8 +200,8 @@ fun DesktopVideoPage(contentPadding: PaddingValues) {
 
 /**
  * Music's way into Video on the desktop ("Watch the music video", spec section 9), for the root's provider list (hook table row 10):
- * null while the new look is off (no shell) or Video is not available, so Music draws no such tool. One identity per shell, so the
- * static local changes only when the look does. It also installs the desktop's picture-in-picture window for every mode
+ * null outside a CosmoLookTheme (no shell) or while Video is not available, so Music draws no such tool. One identity per shell, so
+ * the static local does not change. It also installs the desktop's picture-in-picture window for every mode
  * ([com.cosmotune.video.player.InstallDesktopPip]), which belongs in the root for the same reason.
  */
 @Composable

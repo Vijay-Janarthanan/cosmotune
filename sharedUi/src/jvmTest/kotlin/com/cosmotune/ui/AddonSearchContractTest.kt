@@ -64,12 +64,12 @@ class AddonSearchContractTest {
         }
     }
 
-    @Test fun theSwitchHandsEveryAddonParameterToBothPages() {
+    @Test fun theSwitchHandsEveryAddonParameterToThePage() {
         val switch = SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/search/SearchSwitch.kt")
         val names = listOf("searchingAddons", "addonResults", "addonHistory", "onAddonHistoryClick", "onAddonHistoryRemove", "onAddonHistoryClear", "onAddonSongClick")
         val params = SourceContract.names(SourceContract.parameters(switch, "SearchSwitch"))
         assertTrue(params.containsAll(names))
         val code = SourceContract.code(switch)
-        for (name in names) assertEquals(2, Regex("""\b$name = $name\b""").findAll(code).count(), "$name reaches the new page and the old screen")
+        for (name in names) assertEquals(1, Regex("""\b$name = $name\b""").findAll(code).count(), "$name reaches the page, once (the old screen is gone)")
     }
 }

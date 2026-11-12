@@ -16,18 +16,17 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.theme.LocalCosmoShell
 
 /** `.scrim-dim`: the black behind a sheet, 40 % (the spec's "the glass surface over a black 40 % scrim"; Material's own is 32 %). */
 val CosmoSheetScrim: Color = Color.Black.copy(alpha = 0.40f)
 
 /**
  * The scrim for a sheet that paints itself (the song sheet's host passes a transparent container, which the widget bridge leaves to
- * Material): the spec's 40 % black ([CosmoSheetScrim]) while the new look is on, Material's default while it is off.
+ * Material): the spec's 40 % black ([CosmoSheetScrim]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun cosmoSheetScrim(): Color = if (LocalCosmoShell.current != null) CosmoSheetScrim else BottomSheetDefaults.ScrimColor
+fun cosmoSheetScrim(): Color = CosmoSheetScrim
 
 /**
  * The host of the album, playlist and add-to-playlist sheets: Material's `ModalBottomSheet`, with the same names, order and defaults
@@ -57,24 +56,6 @@ fun SurfaceSheetSwitch(
     properties: ModalBottomSheetProperties = ModalBottomSheetDefaults.properties,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (LocalCosmoShell.current == null) {
-        com.cosmotune.ui.bridge.ModalBottomSheet(
-            onDismissRequest = onDismissRequest,
-            modifier = modifier,
-            sheetState = sheetState,
-            sheetMaxWidth = sheetMaxWidth,
-            shape = shape,
-            containerColor = containerColor,
-            contentColor = contentColor,
-            tonalElevation = tonalElevation,
-            scrimColor = scrimColor,
-            dragHandle = dragHandle,
-            contentWindowInsets = contentWindowInsets,
-            properties = properties,
-            content = content,
-        )
-        return
-    }
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier,

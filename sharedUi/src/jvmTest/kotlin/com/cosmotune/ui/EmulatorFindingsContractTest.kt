@@ -28,7 +28,7 @@ class EmulatorFindingsContractTest {
         assertFalse("CosmoMixTile" in SourceContract.read("$ui/library/CosmoLibrary.kt"), "the library draws no fan")
     }
 
-    // ---- the Settings row of the new look is no longer a preview, in every language -----------------------------------------------
+    // ---- the Settings row of the new look: once no longer a preview, now gone with the switch, in every language ---------------------
 
     private val resources = java.io.File(SourceContract.root, "sharedUi/src/commonMain/composeResources")
 
@@ -39,24 +39,6 @@ class EmulatorFindingsContractTest {
     }
 
     private val folders get() = resources.listFiles { f -> f.isDirectory && f.name.startsWith("values") }.orEmpty().map { it.name }.sorted()
-
-    @Test fun theNewLookRowSaysNewLookAndTheRedesignedInterfaceInEnglish() {
-        assertEquals("New look", valueOf("values", "cosmo_new_look"))
-        assertEquals("The redesigned interface. Turn it off to go back to the classic layout.", valueOf("values", "cosmo_new_look_summary"))
-    }
-
-    @Test fun noLanguageKeepsTheOldPreviewWordingAndEveryOtherLanguageHasItsOwnText() {
-        assertEquals(18, folders.size, "the base file and the 17 translations")
-        val english = listOf(valueOf("values", "cosmo_new_look"), valueOf("values", "cosmo_new_look_summary"))
-        for (folder in folders) {
-            for ((i, key) in listOf("cosmo_new_look", "cosmo_new_look_summary").withIndex()) {
-                val value = valueOf(folder, key)
-                assertTrue(value.isNotBlank(), "$folder $key is empty")
-                assertFalse("preview" in value.lowercase() || "Still being built" in value, "$folder $key still calls the new look a preview: $value")
-                if (folder != "values") assertTrue(value != english[i], "$folder $key is still the English text")
-            }
-        }
-    }
 
     // ---- the desktop playlist page has no album column when no row has an album --------------------------------------------------
 
@@ -76,17 +58,16 @@ class EmulatorFindingsContractTest {
     @Test fun theDesktopFramePadsTheContentForTheBarByTheSharedRuleAndOnlyWithASong() {
         val frame = SourceContract.code(SourceContract.functionBody(SourceContract.read(desktopApp), "DesktopFrame")).replace(Regex("\\s+"), " ")
         assertTrue(
-            "LocalCosmoShell.current != null -> com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp" in frame,
-            "the new look pads by the pure rule, with whether a song is selected",
+            "bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp," in frame,
+            "the page pads by the pure rule, with whether a song is selected",
         )
-        assertTrue("compact -> 128.dp" in frame && "else -> 16.dp" in frame, "the old look pads as it did")
     }
 
-    @Test fun theNewLooksSettingsListScrollsBehindTheBarInsteadOfEndingAboveIt() {
+    @Test fun theSettingsListScrollsBehindTheBarInsteadOfEndingAboveIt() {
         val code = SourceContract.code(SourceContract.read(desktopApp)).replace(Regex("\\s+"), " ")
         assertTrue(
-            "val settingsBehindBar = com.cosmotune.ui.theme.LocalCosmoShell.current != null && overlays.settingsPage == DesktopSettingsPage.MAIN" in code,
-            "only the new look's main Settings list, so the old look and the sub-screens are as they were",
+            "val settingsBehindBar = overlays.settingsPage == DesktopSettingsPage.MAIN" in code,
+            "only the main Settings list, so the sub-screens are as they were",
         )
         assertTrue("padding(bottom = if (settingsBehindBar) 0.dp else contentPadding.calculateBottomPadding())" in code, "the box is no shorter than the window then")
         assertTrue("LocalDesktopBottomInset provides if (settingsBehindBar) contentPadding.calculateBottomPadding() else 0.dp" in code, "and its list gets the room as padding")
@@ -106,10 +87,10 @@ class EmulatorFindingsContractTest {
     @Test fun theBoxThatHoldsADesktopPageMovesThePhoneBlockPagesInByTheMissingTwelve() {
         val code = SourceContract.code(SourceContract.read(desktopApp)).replace(Regex("\\s+"), " ")
         assertTrue(
-            "val pageInset = if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) 0f else com.cosmotune.design.ShellMetrics.desktopPageInsetDp( " +
+            "val pageInset = com.cosmotune.design.ShellMetrics.desktopPageInsetDp( " +
                 "pageKeepsPhoneMargin = overlays.settingsPage == null && !overlays.replay && openedArtist == null && openedCollection == null && " +
                 "destination != DesktopDestination.LISTEN_NOW, )" in code,
-            "every page but Settings, Replay, the artist, the collection and Home is made of the phone's blocks; the look off has no inset",
+            "every page but Settings, Replay, the artist, the collection and Home is made of the phone's blocks",
         )
         assertTrue(".padding(horizontal = pageInset.dp), ) { when {" in code, "in the one box the pages stand in, after its pointer handling")
     }
@@ -118,7 +99,7 @@ class EmulatorFindingsContractTest {
         val phone = SourceContract.code(SourceContract.read("app/src/main/java/com/cosmotune/ui/CosmoLookSettingsRows.kt"))
         val desktop = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoLookDesktopToggles.kt"))
         for ((name, code) in listOf("phone" to phone, "desktop" to desktop)) {
-            assertTrue("Res.string.cosmo_new_look)" in code && "Res.string.cosmo_new_look_summary)" in code, "the $name row takes its two texts from the shared strings")
+            assertTrue("Res.string.cosmo_cover_colours)" in code && "Res.string.cosmo_cover_colours_summary)" in code, "the $name first row takes its two texts from the shared strings")
         }
     }
 }

@@ -64,21 +64,16 @@ class NowPlayingContractTest {
 
     @Test fun theNewScreenTakesTheSameList() = assertEquals(oldScreen, parameters(nowPlaying("CosmoNowPlaying.kt"), "CosmoNowPlaying"))
 
-    @Test fun bothBranchesOfTheSwitchPassEveryParameterByName() {
-        val switch = code(nowPlaying("NowPlayingSwitch.kt"))
-        val body = switch.substringAfter("if (LocalCosmoShell.current != null)")
-        val branches = listOf(body.substringBefore("} else {"), body.substringAfter("} else {"))
+    @Test fun theSwitchsOneCallPassesEveryParameterByName() {
+        val body = SourceContract.functionBody(nowPlaying("NowPlayingSwitch.kt"), "NowPlayingSwitch")
         for (name in oldScreen.map { it.substringBefore(":").trim() }) {
-            for ((i, branch) in branches.withIndex()) {
-                assertTrue(Regex("""\b$name = $name\b""").containsMatchIn(branch), "branch $i passes $name = $name")
-            }
+            assertTrue(Regex("""\b$name = $name\b""").containsMatchIn(body), "the call passes $name = $name")
         }
     }
 
-    @Test fun theOldBranchIsTheOldScreenAndTheNewOneIsTheNewScreen() {
-        val switch = code(nowPlaying("NowPlayingSwitch.kt"))
-        assertTrue(switch.substringAfter("if (LocalCosmoShell.current != null)").substringBefore("} else {").contains("CosmoNowPlaying("))
-        assertTrue(switch.substringAfter("} else {").contains("NowPlayingScreen("))
+    @Test fun theSwitchIsTheNewScreenAndNeverTheOldOne() {
+        val body = SourceContract.functionBody(nowPlaying("NowPlayingSwitch.kt"), "NowPlayingSwitch")
+        assertTrue(SourceContract.firstStatement(body).startsWith("CosmoNowPlaying("), "the first statement is the new screen")
     }
 
     @Test fun bothRootsCallTheSwitchAndNotTheOldScreen() {

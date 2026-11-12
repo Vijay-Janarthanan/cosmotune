@@ -41,17 +41,14 @@ patterns, where `<v>` is the version from section 1:
 |---|---|
 | Windows | `Cosmotune-<v>-windows-x64-setup.exe` (the first install; also the download page's link) |
 | Windows | `Cosmotune-<v>-windows-x64.msi` (what the one-click update installs) |
-| Windows | `Cosmotune-<v>-windows-x64-portable.zip` (has a `portable` marker file; updates through the download page) |
-| Linux | `Cosmotune-<v>-linux-x86_64.AppImage` (preferred by the update check) |
-| Linux | `Cosmotune-<v>-linux-amd64.deb` (used if there is no AppImage) |
-| Linux | `Cosmotune-<v>-linux-x86_64.rpm` |
+| Linux | `Cosmotune-<v>-linux-x86_64.AppImage` (the one Linux file; the update check's link) |
 | macOS | `Cosmotune-<v>-macos-arm64.dmg` and `.zip` (Apple Silicon; the update installs the `.zip`) |
 | macOS | `Cosmotune-<v>-macos-x64.dmg` and `.zip` (Intel; the update installs the `.zip`) |
 
 Rules:
 
 - Keep the platform tail exactly as above. The update check matches on the ending
-  (`.AppImage`, then `-linux-amd64.deb` on Linux; `-windows-x64-setup.exe` on Windows), not on the
+  (`.AppImage` on Linux; `-windows-x64-setup.exe` on Windows), not on the
   version, so a rename here silently breaks it.
 - A new Linux variant (arm64, Flatpak, tar.gz) gets its own tail and is **added to
   `installerUrl()` in `DesktopUpdateChecker.kt`**. Pick by architecture; today the check assumes
@@ -103,12 +100,11 @@ Before publishing, confirm each of these on the built files, not just in the sou
 - [ ] Version stamped (`-Pcosmotune.version=<v>`). Launch each built file and check Settings shows the
       same version.
 - [ ] `desktopVersionCode` is higher than the last published build.
-- [ ] The three files are named exactly as in section 3.
+- [ ] The AppImage is named exactly as in section 3.
 - [ ] They are attached to the same release as the Windows files.
 - [ ] The release is not a draft or pre-release (for a real release).
-- [ ] Install the previous release, then the new one over it: deb with `sudo apt install
-      ./Cosmotune-*.deb`, rpm with `sudo dnf upgrade ./Cosmotune-*.rpm`. It must upgrade, not
-      reinstall or conflict.
+- [ ] Run the previous release's AppImage, then the new one: the new one keeps the settings,
+      library and downloads.
 - [ ] With the previous release installed, the "Update available" dialog appears and Download
       opens the correct file for that platform.
 

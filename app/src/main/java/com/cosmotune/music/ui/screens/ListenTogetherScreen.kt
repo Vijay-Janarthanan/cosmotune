@@ -320,7 +320,7 @@ fun ListenTogetherScreen(
     }
 
     sheet?.let { open ->
-        // The Orbit sheet in the new look (the song sheet's surface); the bridge's otherwise.
+        // The Orbit sheet (the song sheet's surface).
         com.cosmotune.ui.sheets.SurfaceSheetSwitch(
             onDismissRequest = {
                 sheet = null

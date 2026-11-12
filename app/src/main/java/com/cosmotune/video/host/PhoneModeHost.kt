@@ -39,8 +39,8 @@ import com.cosmotune.music.playback.MusicLink
  * The phone's root while Video mode exists (hook table row 6): `MainActivity` draws Music's root, `CosmotuneApp`, inside [music], and
  * this host draws it, or Video's screen ([CosmoVideoApp]) in its place, by the stored mode ([com.cosmotune.settings.CosmoLookSettings.mode]).
  *
- * Video is drawn only when the new look is on (there is a shell), the stored mode is Video and Video is available
- * ([AppModes.available]); in every other case Music is drawn, so with the look off, or the mode on Music, the app is as it was. A stored
+ * Video is drawn only when there is a shell (always, under `CosmoLookTheme`), the stored mode is Video and Video is available
+ * ([AppModes.available]); in every other case Music is drawn, so with the mode on Music the app is as it was. A stored
  * mode that is not available (Video, after Video was switched off again) is reset to Music.
  * The two are never composed together: each stands in its own [androidx.compose.runtime.saveable.SaveableStateHolder] slot, so a
  * flip of the mode keeps what a screen saved with `rememberSaveable` (the tab, the scroll position, Video's pages) and brings it back
@@ -57,7 +57,7 @@ import com.cosmotune.music.playback.MusicLink
  * Music serves it.
  *
  * Music's own way into Video, "Watch the music video" in its Now Playing (spec section 9), reads [LocalModeLinks], which this host
- * provides around both slots only while Video is available and the new look is on ([phoneModeLinks]); otherwise Music sees null
+ * provides around both slots only while Video is available and there is a shell ([phoneModeLinks]); otherwise Music sees null
  * and draws no such tool.
  */
 @Composable
@@ -102,13 +102,13 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
         }
         com.cosmotune.music.watch.RoomWatch.opening.value = null
     }
-    // Music's way into Video: no shell (the look off) or Video not available, no links. One identity per shell, so the static local
-    // changes only when the look does.
+    // Music's way into Video: no shell (no theme above) or Video not available, no links. One identity per shell, so the static
+    // local does not change from frame to frame.
     val links = remember(shell, asked) { shell?.let { phoneModeLinks(it.settings, asked) } }
     val profileAction: (@Composable () -> Unit)? = if (shell != null && (mode == AppMode.MANGA || mode == AppMode.READ || mode == AppMode.PODIO || mode == AppMode.WATCH)) {
         { com.cosmotune.ui.chrome.PhoneModeProfileButton(shell.settings, mode) }
     } else null
-    // Live now, around every mode while the new look is on: the pill under each page's top bar, its sheet, and the reminders.
+    // Live now, around every mode: the pill under each page's top bar, its sheet, and the reminders.
     val liveContext = LocalContext.current
     val liveSettings = com.cosmotune.ui.live.rememberLiveNowSettings()
     val live = remember(shell, liveSettings, liveContext) {
@@ -130,7 +130,6 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     CompositionLocalProvider(com.cosmotune.ui.live.LocalLiveNow provides live, com.cosmotune.ui.live.LocalLiveNowInPage provides (live != null)) {
     CompositionLocalProvider(com.cosmotune.ui.blocks.LocalModeProfileAction provides profileAction) {
     CompositionLocalProvider(LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) }) {
-        // The same call tree whether the new look is on or off: the look switch must not rebuild Music's root (part one, D2).
         if (shell != null && mode == AppMode.MANGA) holder.SaveableStateProvider("manga") {
             androidx.activity.compose.BackHandler { shell.settings.setMode(AppMode.MUSIC) }
             val request = MusicLink.pending.collectAsStateWithLifecycle()
@@ -285,7 +284,7 @@ internal fun phoneModeLinks(settings: CosmoLookSettings, asked: MutableState<Pen
  * A video file that another app opens with Cosmotune ("Open with" in a file manager, a gallery, a download) is Video's, and plays in its
  * local player: the activity's launch intent and every later one ([ComponentActivity.addOnNewIntentListener]) are read here, so the
  * activity itself knows nothing of Video. The file is handed to Video as the video [asked] waits for, and the mode becomes Video; where
- * Video is not available (or the new look is off) the file is dropped.
+ * Video is not available the file is dropped.
  */
 @Composable
 private fun OpenVideoFiles(shell: CosmoShellState?, asked: MutableState<PendingVideo?>) {

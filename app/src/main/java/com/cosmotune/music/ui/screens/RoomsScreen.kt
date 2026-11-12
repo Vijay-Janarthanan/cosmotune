@@ -218,7 +218,7 @@ internal fun RoomEntrySheets(entry: RoomEntry, landing: Boolean, onJoined: () ->
         entry.sheet = null
         onJoined()
     }
-    // The Orbit sheet (the song sheet's flat surface and grabber) in the new look; the sheet the bridge draws otherwise.
+    // The Orbit sheet (the song sheet's flat surface and grabber).
     com.cosmotune.ui.sheets.SurfaceSheetSwitch(
         onDismissRequest = dismiss,
         sheetState = sheetState,
@@ -236,11 +236,9 @@ internal fun RoomEntrySheets(entry: RoomEntry, landing: Boolean, onJoined: () ->
                     entry.failure = null
                     entry.sheet = PartySheet.JoinCode
                 },
-                // On a short window the landing scrolls inside the sheet rather than pushing its buttons off the foot. The Orbit
-                // sheet's surface already scrolls its content: a second vertical scroll inside it is measured with an unbounded
-                // height and crashed the app the moment Home's "Start a room" card opened this sheet.
+                // The Orbit sheet's surface already scrolls its content: a second vertical scroll inside it is measured with an
+                // unbounded height and crashed the app the moment Home's "Start a room" card opened this sheet.
                 modifier = Modifier
-                    .then(if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                     .navigationBarsPadding()
                     .padding(bottom = 24.dp),
                 compact = true,

@@ -18,14 +18,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.ManageAccounts
-import androidx.compose.material.icons.rounded.Person
 import com.cosmotune.ui.bridge.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,13 +39,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.ui.icons.CosmotuneIcons
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
@@ -64,49 +60,6 @@ import com.cosmotune.ui.sheets.CosmoDialogBody
 import com.cosmotune.ui.sheets.CosmoDialogCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-/**
- * The account button in the toolbar: the listener's photo, or a person glyph when there is nobody
- * signed in.
- */
-@Composable
-internal fun DesktopAccountButton(
-    avatar: String?,
-    onClick: () -> Unit,
-) {
-    Box(
-        Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (avatar != null) {
-            DesktopArtwork(
-                avatar,
-                Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
-                contentScale = ContentScale.Crop,
-                px = 96,
-            )
-        } else {
-            Box(
-                Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Rounded.Person,
-                    DesktopStrings["accounts", "Accounts"],
-                    tint = Color.White.copy(alpha = 0.85f),
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-        }
-    }
-}
 
 /**
  * The account switcher as an Orbit popover (the kit's float card, as [com.cosmotune.ui.orbit.OrbitMenu] draws it) under the toolbar's

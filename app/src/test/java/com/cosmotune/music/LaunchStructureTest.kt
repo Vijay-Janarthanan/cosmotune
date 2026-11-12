@@ -57,7 +57,7 @@ class LaunchStructureTest {
 
     @Test fun theFirstFrameShowsTheStoredStateNotADefaultCorrectedLater() {
         val stored = mutableMapOf<String, Int>(CosmoLookSettings.KEY_MODE to AppMode.MANGA.ordinal)
-        val flags = mutableMapOf<String, Boolean>(CosmoLookSettings.KEY_NEW_LOOK to false)
+        val flags = mutableMapOf<String, Boolean>(CosmoLookSettings.KEY_AMOLED to true)
         val settings = CosmoLookSettings(object : KeyValueStore {
             override fun getBoolean(key: String, default: Boolean) = flags[key] ?: default
             override fun putBoolean(key: String, value: Boolean) { flags[key] = value }
@@ -67,7 +67,7 @@ class LaunchStructureTest {
         // Read when the settings object is made, with nothing to wait for: the mode and the look the first composition reads are
         // the stored ones.
         assertEquals(AppMode.MANGA, settings.mode.value)
-        assertFalse(settings.newLook.value)
+        assertTrue(settings.amoled.value)
 
         // The theme and the other settings are opened by the application before any activity exists...
         assertTrue("AppSettings.init(this, authStore)" in application)

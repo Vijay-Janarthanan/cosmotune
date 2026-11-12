@@ -4,18 +4,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.music.data.model.HomeShelf
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.ui.screens.MoodGenrePlaylistsScreen
 
 /**
- * The one entry point of a mood's or genre's page: the new page while the new look is on, the old [MoodGenrePlaylistsScreen]
- * while it is off.
- *
- * The parameter list is [MoodGenrePlaylistsScreen]'s, name for name and in the same order, and both branches pass every
- * argument by name, so a parameter that upstream adds to it stops the old branch compiling and gets decided on here.
+ * The one entry point of a mood's or genre's page: [CosmoMoodPage]. The parameter list is upstream's `MoodGenrePlaylistsScreen`'s,
+ * name for name and in the same order, so upstream's call sites still merge.
  */
 @Composable
 fun MoodGenreSwitch(
@@ -27,15 +22,8 @@ fun MoodGenreSwitch(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
-    if (LocalCosmoShell.current != null) {
-        CosmoMoodPage(
-            title = title, state = state, listState = listState, onItemClick = onItemClick, onRetry = onRetry,
-            contentPadding = contentPadding, modifier = modifier,
-        )
-    } else {
-        MoodGenrePlaylistsScreen(
-            title = title, state = state, listState = listState, onItemClick = onItemClick, onRetry = onRetry,
-            contentPadding = contentPadding, modifier = modifier,
-        )
-    }
+    CosmoMoodPage(
+        title = title, state = state, listState = listState, onItemClick = onItemClick, onRetry = onRetry,
+        contentPadding = contentPadding, modifier = modifier,
+    )
 }

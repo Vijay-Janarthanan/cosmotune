@@ -3,6 +3,7 @@ package com.cosmotune.ui
 import com.cosmotune.ui.settings.SettingsCategory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -23,7 +24,7 @@ class SettingsHubContractTest {
         "setAnimatedCanvas", "setAudioCacheLimitBytes", "setAudioQualityCellular", "setAudioQualityWifi", "setAutomixPerformanceMode",
         "setBitPerfectUsb", "setCanvasOverCellular", "setCrossfadeSeconds", "setDolbyAtmos", "setDontRepeatSuggestions", "setDownloadQuality",
         "setExportDownloads", "setFilterNonMusicAudio", "setFullBleedArtwork", "setHideSongStatus", "setHideStatusBarInPlayer", "setHideVolumeBar",
-        "setHighPerformanceMode", "setLastfmEnabled", "setLastfmSessionKey", "setLastfmUsername", "setLegacyMeshGradient", "setLiquidGlass",
+        "setHighPerformanceMode", "setLastfmEnabled", "setLastfmSessionKey", "setLastfmUsername", "setLegacyMeshGradient",
         "setListenBrainzToken", "setLocalMusicFolderUri", "setLoudnessNormalization", "setLoudnessOffOnSpeaker", "setLyricsBlur",
         "setOpenCanvasEnabled", "setOpenCanvasResolution", "setOutputPcmMode", "setPerformanceRefreshRate", "setPreferMusicOnly",
         "setPreferUsbDac", "setReduceAnimation", "setReduceDynamicBlur", "setReplayGenres", "setShowCacheFolder", "setShowNerdStats",
@@ -36,6 +37,7 @@ class SettingsHubContractTest {
         for (setter in phoneSetters) {
             assertTrue(Regex("""AppSettings(::|\.)$setter\b""").containsMatchIn(body), "SettingsScreen still calls AppSettings.$setter")
         }
+        // The one setting that went with the old look: Liquid glass dressed the old bars, which are gone.
     }
 
     @Test fun everyPhoneCallbackIsStillReachable() {

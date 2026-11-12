@@ -16,22 +16,19 @@ import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.browse.CosmoBrowse
-import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.music.data.model.HomeShelf
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.ui.screens.HomeScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * The one entry point of Home: the new screen while the new look is on (the shell exists), the old one while it is off.
+ * The one entry point of Home: [OrbitHome].
  *
- * The parameter list is [HomeScreen]'s, name for name, type for type and in the same order, then [browse] (Explore's moods, for the
- * chip row of the new screen; the old one has no use for it). Both branches pass every argument by name. That is the seam: when
- * upstream adds a parameter to [HomeScreen] the old branch stops compiling, and this file is where the new parameter has to be
- * decided on, instead of silently going missing from the new screen. With the new look off nothing here runs but the old call.
+ * The parameter list is upstream's `HomeScreen`'s (name for name, type for type and in the same order), then [browse] (Explore's
+ * moods, for the chip row), so upstream's call sites still merge; the parameters only the old screen read ([title], [leadHero]) are
+ * accepted and ignored. When upstream adds a parameter to `HomeScreen`, add it here and decide whether [OrbitHome] needs it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,53 +90,28 @@ fun HomeSwitch(
         PersonalPlaylistDialog(playlistSongs + (shownState as? UiState.Success)?.data.orEmpty().flatMap { shelf -> shelf.items.mapNotNull { it.song } },
             currentSong, { playlistOpen = false }, saveGeneratedPlaylist)
     }
-    if (LocalCosmoShell.current != null) {
-        OrbitHome(
-            state = shownState,
-            listState = listState,
-            onItemClick = onItemClick,
-            onRetry = onRetry,
-            refreshing = refreshing,
-            onRefresh = onRefresh,
-            pullState = pullState,
-            modifier = modifier,
-            contentPadding = contentPadding,
-            signedIn = signedIn,
-            onSignIn = onSignIn,
-            onItemLongPress = onItemLongPress,
-            onLoadMore = onLoadMore,
-            loadingMore = loadingMore,
-            recentlyPlayedLoading = recentlyPlayedLoading,
-            currentSong = currentSong,
-            isPlaying = isPlaying,
-            discoveryControls = controls,
-            browse = browse,
-            quickLinks = quickLinks,
-            onPlayPause = onPlayPause,
-            playbackTime = playbackTime,
-        )
-    } else {
-        HomeScreen(
-            discoveryControls = controls,
-            state = shownState,
-            listState = listState,
-            onItemClick = onItemClick,
-            onRetry = onRetry,
-            refreshing = refreshing,
-            onRefresh = onRefresh,
-            pullState = pullState,
-            modifier = modifier,
-            contentPadding = contentPadding,
-            title = title,
-            signedIn = signedIn,
-            onSignIn = onSignIn,
-            onItemLongPress = onItemLongPress,
-            onLoadMore = onLoadMore,
-            loadingMore = loadingMore,
-            recentlyPlayedLoading = recentlyPlayedLoading,
-            leadHero = leadHero,
-            currentSong = currentSong,
-            isPlaying = isPlaying,
-        )
-    }
+    OrbitHome(
+        state = shownState,
+        listState = listState,
+        onItemClick = onItemClick,
+        onRetry = onRetry,
+        refreshing = refreshing,
+        onRefresh = onRefresh,
+        pullState = pullState,
+        modifier = modifier,
+        contentPadding = contentPadding,
+        signedIn = signedIn,
+        onSignIn = onSignIn,
+        onItemLongPress = onItemLongPress,
+        onLoadMore = onLoadMore,
+        loadingMore = loadingMore,
+        recentlyPlayedLoading = recentlyPlayedLoading,
+        currentSong = currentSong,
+        isPlaying = isPlaying,
+        discoveryControls = controls,
+        browse = browse,
+        quickLinks = quickLinks,
+        onPlayPause = onPlayPause,
+        playbackTime = playbackTime,
+    )
 }

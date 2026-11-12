@@ -6,24 +6,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import com.cosmotune.ui.browse.CosmoBrowse
-import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.music.data.model.BrowseItem
 import com.cosmotune.music.data.model.SearchFilter
 import com.cosmotune.music.data.model.SearchHistoryEntity
 import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.ui.screens.SearchScreen
 
 /**
- * The one entry point of Search: the new page (Search with Explore's moods and genres inside it) while the new look is on (the
- * shell exists), the old [SearchScreen] while it is off.
+ * The one entry point of Search: [CosmoSearch] (Search with Explore's moods and genres inside it).
  *
- * The parameter list is [SearchScreen]'s, name for name and in the same order, plus [browse] at the end: Explore's moods and
- * genres, which the roots hand to the new page and the old screen never had. Both branches pass every argument by name. That is
- * the seam: when upstream adds a parameter to [SearchScreen] the old branch stops compiling, and this file is where the new
- * parameter has to be decided on, instead of silently going missing from the new page. With the new look off nothing here runs
- * but the old call.
+ * The parameter list is upstream's `SearchScreen`'s, name for name and in the same order, plus [browse] at the end (Explore's moods
+ * and genres, which the roots hand to the page), so upstream's call sites still merge; when upstream adds one, add it here and decide
+ * whether the page needs it.
  */
 @Composable
 fun SearchSwitch(
@@ -74,39 +69,20 @@ fun SearchSwitch(
     searchIn: com.cosmotune.ui.search.SearchInState? = null,
     browse: CosmoBrowse? = null,
 ) {
-    if (LocalCosmoShell.current != null) {
-        CosmoSearch(
-            query = query, onQueryChange = onQueryChange, filter = filter, currentSong = currentSong, isPlaying = isPlaying,
-            onFilterChange = onFilterChange, results = results, loadingMore = loadingMore, onLoadMore = onLoadMore,
-            listState = listState, scrollResetTrigger = scrollResetTrigger, focusRequested = focusRequested,
-            onFocusHandled = onFocusHandled, onSongClick = onSongClick, onSongLongPress = onSongLongPress,
-            onSongSwipe = onSongSwipe, onTopResultPlay = onTopResultPlay, onTopResultPlaylist = onTopResultPlaylist,
-            onBrowseClick = onBrowseClick, onBrowseLongPress = onBrowseLongPress, history = history, suggestions = suggestions,
-            typeaheadResults = typeaheadResults, onSubmit = onSubmit, onSuggestionClick = onSuggestionClick,
-            onHistoryClick = onHistoryClick, onHistoryRemove = onHistoryRemove, onHistoryClear = onHistoryClear,
-            onTypeaheadLongPress = onTypeaheadLongPress, modifier = modifier, contentPadding = contentPadding,
-            topPadding = topPadding, showField = showField, searchingLibrary = searchingLibrary, libraryResults = libraryResults,
-            onLibrarySongClick = onLibrarySongClick, sourceSwitcher = sourceSwitcher, searchingAddons = searchingAddons,
-            addonResults = addonResults, addonHistory = addonHistory, onAddonHistoryClick = onAddonHistoryClick,
-            onAddonHistoryRemove = onAddonHistoryRemove, onAddonHistoryClear = onAddonHistoryClear,
-            onAddonSongClick = onAddonSongClick, browse = browse, searchIn = searchIn,
-        )
-    } else {
-        SearchScreen(
-            query = query, onQueryChange = onQueryChange, filter = filter, currentSong = currentSong, isPlaying = isPlaying,
-            onFilterChange = onFilterChange, results = results, loadingMore = loadingMore, onLoadMore = onLoadMore,
-            listState = listState, scrollResetTrigger = scrollResetTrigger, focusRequested = focusRequested,
-            onFocusHandled = onFocusHandled, onSongClick = onSongClick, onSongLongPress = onSongLongPress,
-            onSongSwipe = onSongSwipe, onTopResultPlay = onTopResultPlay, onTopResultPlaylist = onTopResultPlaylist,
-            onBrowseClick = onBrowseClick, onBrowseLongPress = onBrowseLongPress, history = history, suggestions = suggestions,
-            typeaheadResults = typeaheadResults, onSubmit = onSubmit, onSuggestionClick = onSuggestionClick,
-            onHistoryClick = onHistoryClick, onHistoryRemove = onHistoryRemove, onHistoryClear = onHistoryClear,
-            onTypeaheadLongPress = onTypeaheadLongPress, modifier = modifier, contentPadding = contentPadding,
-            topPadding = topPadding, showField = showField, searchingLibrary = searchingLibrary, libraryResults = libraryResults,
-            onLibrarySongClick = onLibrarySongClick, sourceSwitcher = sourceSwitcher, searchingAddons = searchingAddons,
-            addonResults = addonResults, addonHistory = addonHistory, onAddonHistoryClick = onAddonHistoryClick,
-            onAddonHistoryRemove = onAddonHistoryRemove, onAddonHistoryClear = onAddonHistoryClear,
-            onAddonSongClick = onAddonSongClick, searchIn = searchIn,
-        )
-    }
+    CosmoSearch(
+        query = query, onQueryChange = onQueryChange, filter = filter, currentSong = currentSong, isPlaying = isPlaying,
+        onFilterChange = onFilterChange, results = results, loadingMore = loadingMore, onLoadMore = onLoadMore,
+        listState = listState, scrollResetTrigger = scrollResetTrigger, focusRequested = focusRequested,
+        onFocusHandled = onFocusHandled, onSongClick = onSongClick, onSongLongPress = onSongLongPress,
+        onSongSwipe = onSongSwipe, onTopResultPlay = onTopResultPlay, onTopResultPlaylist = onTopResultPlaylist,
+        onBrowseClick = onBrowseClick, onBrowseLongPress = onBrowseLongPress, history = history, suggestions = suggestions,
+        typeaheadResults = typeaheadResults, onSubmit = onSubmit, onSuggestionClick = onSuggestionClick,
+        onHistoryClick = onHistoryClick, onHistoryRemove = onHistoryRemove, onHistoryClear = onHistoryClear,
+        onTypeaheadLongPress = onTypeaheadLongPress, modifier = modifier, contentPadding = contentPadding,
+        topPadding = topPadding, showField = showField, searchingLibrary = searchingLibrary, libraryResults = libraryResults,
+        onLibrarySongClick = onLibrarySongClick, sourceSwitcher = sourceSwitcher, searchingAddons = searchingAddons,
+        addonResults = addonResults, addonHistory = addonHistory, onAddonHistoryClick = onAddonHistoryClick,
+        onAddonHistoryRemove = onAddonHistoryRemove, onAddonHistoryClear = onAddonHistoryClear,
+        onAddonSongClick = onAddonSongClick, browse = browse, searchIn = searchIn,
+    )
 }

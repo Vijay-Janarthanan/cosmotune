@@ -12,7 +12,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.cosmotune.design.ReleaseMeta
-import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.music.R
 import com.cosmotune.music.data.canvas.AppleArtistArtRepository
 import com.cosmotune.music.data.canvas.CanvasArtwork
@@ -29,18 +28,15 @@ import com.cosmotune.music.data.model.UiState
 import com.cosmotune.music.data.model.MusicListOrder
 import com.cosmotune.music.data.settings.SongSort
 import com.cosmotune.music.ui.AppUi
-import com.cosmotune.music.ui.screens.DetailScreen
 
 /**
- * The one entry point of the album, playlist and artist pages: the new pages while the new look is on (the shell exists), the old
- * screen while it is off.
+ * The one entry point of the album, playlist and artist pages.
  *
- * The parameter list is [DetailScreen]'s, name for name, with the same defaults and in the same order, plus the new pages' own at
- * the end ([onPlayPause], [onDownloadAll], [onStartRadio]), which the old screen never reads; and the old branch passes every argument of [DetailScreen] by name. That is the seam: when upstream adds a parameter to [DetailScreen] the old branch stops compiling (or the contract
- * test fails), and this file is where the new parameter has to be decided on instead of silently going missing from the new pages.
- * With the new look off nothing here runs but the old call.
+ * The parameter list is upstream's `DetailScreen`'s, name for name, with the same defaults and in the same order, so upstream's call
+ * site still merges, plus the pages' own at the end ([onPlayPause], [onDownloadAll], [onStartRadio]). When upstream adds a parameter,
+ * add it here and decide whether the pages need it.
  *
- * The new branch turns what the old screen did itself into what the pages are given: an artist's page gets Apple's picture (found by
+ * It turns what the old screen did itself into what the pages are given: an artist's page gets Apple's picture (found by
  * name, as the old screen did) and its counts in the app's own words; a release page gets its songs in the order [songSort] says and
  * the track numbers the release itself has, which a sort must not relabel. The release page owns its view controls and receives
  * canonical songs, the global sort as an initial order, and completed downloads from the installed Android UI host.
@@ -77,84 +73,56 @@ fun DetailSwitch(
     onDownloadAll: ((List<Song>) -> Unit)? = null,
     onStartRadio: ((Song) -> Unit)? = null,
 ) {
-    if (LocalCosmoShell.current != null) {
-        if (page.type == BrowseType.ARTIST) {
-            CosmoArtistPage(
-                page = rememberArtistPage(page),
-                heroUrl = null,
-                currentSong = currentSong,
-                isPlaying = isPlaying,
-                listState = listState,
-                contentPadding = contentPadding,
-                activeShelf = activeShelf,
-                onActiveShelfChange = onActiveShelfChange,
-                onSongClick = onSongClick,
-                onSongLongPress = onSongLongPress,
-                onSongSwipe = onSongSwipe,
-                onShuffle = onShuffle,
-                onSectionItemClick = onSectionItemClick,
-                onSectionItemLongPress = onSectionItemLongPress,
-                onToggleSubscription = onToggleSubscription,
-                releaseLibrary = releaseLibrary,
-                onLoadReleaseLibrary = onLoadReleaseLibrary,
-                onToggleReleaseLibrary = onToggleReleaseLibrary,
-                modifier = modifier,
-                onPlayPause = onPlayPause,
-                onStartRadio = onStartRadio,
-            )
-        } else {
-            val raw = (page.songs as? UiState.Success)?.data.orEmpty()
-            val initialOrder = songSort.listOrder(raw.any { it.localDateAddedSeconds != null })
-            val downloadedIds = AppUi.host.downloadedIds()
-            val albumCanvas = rememberAlbumCanvas(page, raw)
-            CosmoReleasePage(
-                page = page,
-                songs = raw,
-                currentSong = currentSong,
-                isPlaying = isPlaying,
-                listState = listState,
-                contentPadding = contentPadding,
-                onSongClick = onSongClick,
-                onSongLongPress = onSongLongPress,
-                onSongSwipe = onSongSwipe,
-                onShuffle = onShuffle,
-                onMore = onMore,
-                onArtistClick = onArtistClick,
-                onAddSuggested = onAddSuggested,
-                onToggleLibrary = onToggleLibrary,
-                modifier = modifier,
-                initialOrder = initialOrder,
-                downloadedIds = downloadedIds,
-                onDownloadAll = onDownloadAll,
-                albumCanvas = albumCanvas,
-                onPlayPause = onPlayPause,
-            )
-        }
-    } else {
-        DetailScreen(
-            page = page,
+    if (page.type == BrowseType.ARTIST) {
+        CosmoArtistPage(
+            page = rememberArtistPage(page),
+            heroUrl = null,
             currentSong = currentSong,
             isPlaying = isPlaying,
+            listState = listState,
+            contentPadding = contentPadding,
+            activeShelf = activeShelf,
+            onActiveShelfChange = onActiveShelfChange,
             onSongClick = onSongClick,
             onSongLongPress = onSongLongPress,
             onSongSwipe = onSongSwipe,
             onShuffle = onShuffle,
             onSectionItemClick = onSectionItemClick,
-            onArtistClick = onArtistClick,
-            onAddSuggested = onAddSuggested,
-            contentPadding = contentPadding,
-            modifier = modifier,
-            listState = listState,
-            activeShelf = activeShelf,
-            onActiveShelfChange = onActiveShelfChange,
             onSectionItemLongPress = onSectionItemLongPress,
-            onMore = onMore,
-            onToggleLibrary = onToggleLibrary,
             onToggleSubscription = onToggleSubscription,
             releaseLibrary = releaseLibrary,
             onLoadReleaseLibrary = onLoadReleaseLibrary,
             onToggleReleaseLibrary = onToggleReleaseLibrary,
-            songSort = songSort,
+            modifier = modifier,
+            onPlayPause = onPlayPause,
+            onStartRadio = onStartRadio,
+        )
+    } else {
+        val raw = (page.songs as? UiState.Success)?.data.orEmpty()
+        val initialOrder = songSort.listOrder(raw.any { it.localDateAddedSeconds != null })
+        val downloadedIds = AppUi.host.downloadedIds()
+        val albumCanvas = rememberAlbumCanvas(page, raw)
+        CosmoReleasePage(
+            page = page,
+            songs = raw,
+            currentSong = currentSong,
+            isPlaying = isPlaying,
+            listState = listState,
+            contentPadding = contentPadding,
+            onSongClick = onSongClick,
+            onSongLongPress = onSongLongPress,
+            onSongSwipe = onSongSwipe,
+            onShuffle = onShuffle,
+            onMore = onMore,
+            onArtistClick = onArtistClick,
+            onAddSuggested = onAddSuggested,
+            onToggleLibrary = onToggleLibrary,
+            modifier = modifier,
+            initialOrder = initialOrder,
+            downloadedIds = downloadedIds,
+            onDownloadAll = onDownloadAll,
+            albumCanvas = albumCanvas,
+            onPlayPause = onPlayPause,
         )
     }
 }

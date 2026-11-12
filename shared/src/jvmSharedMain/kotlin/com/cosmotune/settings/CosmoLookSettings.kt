@@ -1,6 +1,5 @@
 package com.cosmotune.settings
 
-import com.cosmotune.CosmoConfig
 import com.cosmotune.design.AppMode
 import com.cosmotune.design.Intensity
 import com.cosmotune.design.VideoView
@@ -22,16 +21,17 @@ interface KeyValueStore {
     fun putString(key: String, value: String) {}
 }
 
-/** The switches of the new look (spec section 7; the v2 Settings board) and the colour intensity. Main thread only. */
+/**
+ * The look's settings (spec section 7; the v2 Settings board) and the colour intensity. Main thread only. The old look and its
+ * switch are gone: a `new_look` value an older build stored is never read.
+ */
 class CosmoLookSettings(private val store: KeyValueStore) {
-    private val newLookFlow = MutableStateFlow(store.getBoolean(KEY_NEW_LOOK, CosmoConfig.NEW_LOOK_DEFAULT))
     private val coverColoursFlow = MutableStateFlow(store.getBoolean(KEY_COVER_COLOURS, true))
     private val intensityFlow = MutableStateFlow(Intensity.clamp(store.getInt(KEY_INTENSITY, Intensity.DEFAULT)))
     private val modeFlow = MutableStateFlow(modeOf(store.getInt(KEY_MODE, AppMode.MUSIC.ordinal)))
     private val npControlsMinimizedFlow = MutableStateFlow(store.getBoolean(KEY_NP_CONTROLS_MINIMIZED, false))
     private val amoledFlow = MutableStateFlow(store.getBoolean(KEY_AMOLED, false))
     private val videoViewFlow = MutableStateFlow(VideoView.kept(store.getInt(KEY_VIDEO_VIEW, VideoView.WHOLE.ordinal)))
-    val newLook: StateFlow<Boolean> = newLookFlow.asStateFlow()
     val coverColours: StateFlow<Boolean> = coverColoursFlow.asStateFlow()
 
     /** How much colour the cover brings: 0 Calm, 1 Balanced (the default), 2 Rich. See [Intensity.multiplier]. */
@@ -69,7 +69,6 @@ class CosmoLookSettings(private val store: KeyValueStore) {
 
     fun setAmoled(on: Boolean) { store.putBoolean(KEY_AMOLED, on); amoledFlow.value = on }
 
-    fun setNewLook(on: Boolean) { store.putBoolean(KEY_NEW_LOOK, on); newLookFlow.value = on }
     fun setCoverColours(on: Boolean) { store.putBoolean(KEY_COVER_COLOURS, on); coverColoursFlow.value = on }
 
     /** [index] is held to 0..2 before it is kept. */
@@ -91,7 +90,6 @@ class CosmoLookSettings(private val store: KeyValueStore) {
 
     companion object {
         const val KEY_MODE = "app_mode"
-        const val KEY_NEW_LOOK = "new_look"
         const val KEY_COVER_COLOURS = "cover_colours"
         const val KEY_INTENSITY = "intensity"
         const val KEY_NP_CONTROLS_MINIMIZED = "np_controls_minimized"

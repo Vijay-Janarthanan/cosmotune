@@ -138,7 +138,6 @@ import com.cosmotune.music.ui.components.SpotifyImportAlert
 import com.cosmotune.music.ui.screens.AccountAndScrobblingScreen
 import com.cosmotune.music.ui.screens.DiscordScreen
 import com.cosmotune.music.ui.screens.EqualizerScreen
-import com.cosmotune.music.ui.screens.HistoryScreen
 import com.cosmotune.music.ui.screens.LibraryReplayEntry
 import com.cosmotune.music.ui.screens.libraryDeviceItems
 import com.cosmotune.music.ui.screens.SPOTIFY_BROWSE_ID
@@ -203,22 +202,14 @@ import com.cosmotune.music.ui.MainViewModel
 import com.cosmotune.music.ui.SearchSource
 import com.cosmotune.music.ui.components.BottomFadeScrim
 import com.cosmotune.music.ui.components.FloatingBarsTapGuard
-import com.cosmotune.music.ui.components.BottomTab
 import com.cosmotune.music.ui.components.FLOATING_BAR_MAX_WIDTH
-import com.cosmotune.music.ui.components.FloatingBottomBar
-import com.cosmotune.music.ui.components.GlassNavBar
-import com.cosmotune.music.ui.components.floatingtabbar.rememberFloatingTabBarScrollConnection
-import com.cosmotune.music.ui.components.FrostedTopBar
 import com.cosmotune.music.ui.components.LocalAppBackdrop
 import com.cosmotune.music.ui.components.LocalLiquidGlassEnabled
 import com.cosmotune.music.ui.components.backdrop.backdrops.LayerBackdrop
 import com.cosmotune.music.ui.components.backdrop.backdrops.layerBackdrop
 import com.cosmotune.music.ui.components.backdrop.backdrops.rememberLayerBackdrop
-import com.cosmotune.music.ui.components.isGlassSupported
-import com.cosmotune.music.ui.components.MiniPlayer
 import com.cosmotune.music.ui.components.QueueActionNotice
 import com.cosmotune.music.ui.components.QueueActionNoticeHost
-import com.cosmotune.music.ui.components.TopBarAccountButton
 import com.cosmotune.music.ui.screens.SegmentedControl
 import com.cosmotune.music.ui.components.SearchField
 import com.cosmotune.music.sharedui.resources.Res as SharedRes
@@ -234,7 +225,6 @@ import com.cosmotune.music.ui.icons.CosmotuneIcons
 import androidx.media3.common.Player
 import com.cosmotune.music.data.YtMusicRepository
 import com.cosmotune.ui.nowplaying.NowPlayingSwitch
-import com.cosmotune.music.ui.player.PlayerSheetMotion
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.window.DialogWindowProvider
@@ -250,19 +240,8 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.offset
-import com.cosmotune.music.ui.components.MiniPlayerPull
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.layout.onSizeChanged
-import com.cosmotune.music.ui.player.LocalPlayerDock
-import com.cosmotune.music.ui.player.PlayerDock
-import com.cosmotune.music.ui.screens.DetailScreen
-import com.cosmotune.music.ui.screens.ExploreScreen
-import com.cosmotune.music.ui.screens.LocalMusicScreen
-import com.cosmotune.music.ui.screens.HomeScreen
-import com.cosmotune.music.ui.screens.LibraryGridPage
-import com.cosmotune.music.ui.screens.LibraryScreen
-import com.cosmotune.music.ui.screens.MoodGenrePlaylistsScreen
-import com.cosmotune.music.ui.screens.SearchScreen
 import com.cosmotune.music.data.settings.SongSort
 import com.cosmotune.music.ui.replay.ReplayScreen
 import com.cosmotune.music.ui.replay.cards
@@ -279,7 +258,6 @@ import com.cosmotune.music.ui.theme.rememberArtworkPalette
 import com.cosmotune.music.data.canvas.AppleArtistArtRepository
 import com.cosmotune.music.data.canvas.keyColors
 import com.cosmotune.music.ui.theme.SystemBarIcons
-import com.cosmotune.music.ui.utils.guardSheetFromContentTouches
 import com.cosmotune.music.ui.utils.rememberIosOverscrollFactory
 import com.cosmotune.music.ui.performance.resolvePerformanceRefreshRate
 import dev.chrisbanes.haze.HazeState
@@ -334,8 +312,7 @@ class MainActivity : AppCompatActivity() {
             }
             // Video is dark first: while it is the mode, "follow the system" is dark; only an explicit Light choice makes it light.
             val look = com.cosmotune.ui.settings.rememberCosmoLookSettings()
-            val videoMode = look.newLook.collectAsStateWithLifecycle().value &&
-                look.mode.collectAsStateWithLifecycle().value == com.cosmotune.design.AppMode.VIDEO &&
+            val videoMode = look.mode.collectAsStateWithLifecycle().value == com.cosmotune.design.AppMode.VIDEO &&
                 com.cosmotune.design.AppModes.available(com.cosmotune.design.AppMode.VIDEO)
             val darkTheme = when (theme) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme() || videoMode
@@ -448,25 +425,10 @@ private fun CosmotuneApp(
     appBackdrop: LayerBackdrop,
     viewModel: MainViewModel = viewModel(),
 ) {
-    val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current
+    val cosmoShell = checkNotNull(com.cosmotune.ui.theme.LocalCosmoShell.current) { "CosmotuneApp is composed under CosmoLookTheme" }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val hazeState = remember { HazeState() }
-    // Recording the backdrop layer costs a draw pass, so it only runs when a
-    // liquid-glass surface (the nav bar or artwork-page back button) can sample it.
-    val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported()
-    // "Reduce dynamic blur" keeps the glass bar's *shape* â€” the folding
-    // now-playing-and-tabs component is a layout, not an effect, and dropping
-    // back to the two stacked bars would be answering a question about material
-    // with a different screen. What it drops is the sampling: the surfaces fill
-    // solid (see [Modifier.liquidGlass]) and the whole-page layer recording
-    // below goes with them, which is the part that costs a draw pass.
-    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val glassSamplesBackdrop = glassActive && !reduceDynamicBlur
-    // What folds [GlassNavBar] between its expanded and inline shapes. Held here
-    // rather than inside the bar because the page's scroll is what drives it,
-    // and the page is a sibling of the bar rather than a child.
-    val navBarScroll = rememberFloatingTabBarScrollConnection()
     val selectedTabState = rememberSaveable { mutableIntStateOf(0) }
     /**
      * Whether the player's sheet is up. The player is always a full-screen
@@ -475,38 +437,7 @@ private fun CosmotuneApp(
      * permanent pane.
      */
     var showNowPlaying by remember { mutableStateOf(false) }
-    // Where the two ends of opening and closing the player meet: the mini
-    // player's cover reports itself here, the sheet its offset, and the player
-    // flies its artwork between them â€” see [PlayerDock].
-    val playerDock = remember { PlayerDock() }
-    // Who moves the player sheet when the app does rather than M3: a tap's
-    // open, the pull up from the mini player, and every close â€” see
-    // [PlayerSheetMotion].
-    val playerSheetScope = rememberCoroutineScope()
-    val playerSheetMotion = remember {
-        PlayerSheetMotion(
-            scope = playerSheetScope,
-            dock = playerDock,
-            shown = { showNowPlaying },
-            setShown = { showNowPlaying = it },
-        )
-    }
-    playerSheetMotion.windowInfo = LocalWindowInfo.current
-    // "Reduce animation" keeps the player as it always was: M3's own slide up
-    // and down, its own scrim and window animations, no pull from the mini
-    // player and no artwork flying between the two. Everything below that
-    // takes part in the docking asks for [activeDock] / this, never for the
-    // dock or the motion directly.
-    val reducePlayerMotion by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
-    val activeDock = playerDock.takeIf { !reducePlayerMotion }
-    playerSheetMotion.flingVelocity = with(LocalDensity.current) { PLAYER_PULL_FLING_VELOCITY.toPx() }
-    // How the app takes the player down, whatever for: a back press, or a page
-    // opened from inside it. Set straight to false, the sheet left in one frame
-    // on its window's own exit animation â€” the old fast drop, with a copy of the
-    // artwork slipping down out of the mini player's cover after it.
-    val dismissPlayer: () -> Unit = {
-        if (reducePlayerMotion || cosmoShell != null) showNowPlaying = false else playerSheetMotion.close()
-    }
+    val dismissPlayer: () -> Unit = { showNowPlaying = false }
     // The far end of the relay from a widget's artwork. Cleared here rather than
     // where it was set, so the request is spent by being served â€” see
     // [PlayerDeepLink.handled]. The sheet itself is gated on there being a track,
@@ -717,12 +648,11 @@ private fun CosmotuneApp(
     val results by viewModel.results.collectAsStateWithLifecycle()
     val exploreState by viewModel.explore.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
-    // The tab the page reads: the saved one, except what has no door in the look that is on (Releases in the old look) or is no tab at
-    // all, which is Home. It is decided here, where the tab is read, so no frame composes such a page first.
+    // The tab the page reads: the saved one, except a number that is no tab at all, which is Home. It is decided here, where the tab
+    // is read, so no frame composes such a page first.
     var selectedTab by com.cosmotune.ui.chrome.ShownTab(selectedTabState) { stored ->
         com.cosmotune.design.TabRedirect.shown(
             stored,
-            newLook = cosmoShell != null,
             homeTab = TAB_HOME,
             releasesTab = TAB_RELEASES,
         )
@@ -877,7 +807,7 @@ private fun CosmotuneApp(
             returnToMode = null
             modeDestination = null
             // A shared link or a deliberately opened Music page takes precedence over the return trip.
-            if (MusicLink.pending.value == null && detail == null) cosmoShell?.settings?.setMode(origin)
+            if (MusicLink.pending.value == null && detail == null) cosmoShell.settings.setMode(origin)
         }
     }
 
@@ -954,7 +884,7 @@ private fun CosmotuneApp(
     }
     val controller = rememberMediaController()
     val player = rememberPlayerState(controller)
-    cosmoShell?.FollowCover(player.song, player.queue.getOrNull(player.queueIndex + 1))
+    cosmoShell.FollowCover(player.song, player.queue.getOrNull(player.queueIndex + 1))
     // A resume in a party is performed on the instant the server schedules, not
     // when it was pressed, and nothing about the player moves in between â€” so
     // the transport spends that round trip drawn as though the tap never landed.
@@ -1175,14 +1105,8 @@ private fun CosmotuneApp(
     val replayLabel = stringResource(R.string.replay)
     val queueLabel = stringResource(R.string.queue)
     val sharedLinkLabel = stringResource(R.string.shared_link)
-    val tabs = remember(homeLabel, exploreLabel, libraryLabel, searchLabel) {
-        listOf(
-            BottomTab(homeLabel, CosmotuneIcons.Home),
-            BottomTab(exploreLabel, CosmotuneIcons.TabExplore),
-            BottomTab(libraryLabel, CosmotuneIcons.TabLibrary),
-            BottomTab(searchLabel, CosmotuneIcons.TabSearch),
-        )
-    }
+    // The top bar's title of each tab, by its number.
+    val tabLabels = listOf(homeLabel, exploreLabel, libraryLabel, searchLabel)
 
     val scope = rememberCoroutineScope()
 
@@ -2587,7 +2511,7 @@ private fun CosmotuneApp(
     Box(
         Modifier
             .fillMaxSize()
-            .then(if (cosmoShell != null) Modifier.cosmoAmbientGround() else Modifier.background(MaterialTheme.colorScheme.background)),
+            .cosmoAmbientGround(),
     ) {
         // A pushed album/artist/playlist page replaces the tab content but
         // leaves the tab bar and mini player in place.
@@ -2650,7 +2574,7 @@ private fun CosmotuneApp(
                 !showSources && !showListenTogether && !showEqualizer && !showReplay && selectedMoodGenre == null &&
                 selectedTab != TAB_HOME,
         ) {
-            selectedTab = if (selectedTab == TAB_SEARCH && cosmoShell != null) searchReturnTab else TAB_HOME
+            selectedTab = if (selectedTab == TAB_SEARCH) searchReturnTab else TAB_HOME
         }
         BackHandler(enabled = showUpdateDialog) { showUpdateDialog = false }
         BackHandler(enabled = showListenBrainzLogin) { showListenBrainzLogin = false }
@@ -2671,9 +2595,9 @@ private fun CosmotuneApp(
         // a row, and the player is the right. Off a tablet the row has the
         // one child it always had and changes nothing.
         Row(Modifier.fillMaxSize()) {
-            // While the new look's player covers the window, the page under it is out of the accessibility tree: a screen reader
-            // would otherwise walk the hidden page behind the player.
-            val pageCovered = cosmoShell != null && showNowPlaying && playerSong != null
+            // While the player covers the window, the page under it is out of the accessibility tree: a screen reader would otherwise
+            // walk the hidden page behind the player.
+            val pageCovered = showNowPlaying && playerSong != null
             Box(Modifier.weight(1f).fillMaxHeight().then(if (pageCovered) Modifier.clearAndSetSemantics {} else Modifier)) {
                 AnimatedContent(
                     targetState = when {
@@ -2734,30 +2658,7 @@ private fun CosmotuneApp(
                             fadeIn(tween(180)) togetherWith fadeOut(tween(180))
                         }
                     },
-                    modifier = Modifier
-                        .hazeSource(hazeState)
-                        .then(
-                            if (glassActive) {
-                                Modifier
-                                    // Not under "reduce dynamic blur": nothing
-                                    // samples the layer then, and recording a
-                                    // whole page into one for no reader is the
-                                    // cost that setting exists to remove.
-                                    .then(
-                                        if (glassSamplesBackdrop) {
-                                            Modifier.layerBackdrop(appBackdrop)
-                                        } else {
-                                            Modifier
-                                        },
-                                    )
-                                    // Every page's scroll passes through here, so
-                                    // the glass bar collapses on all of them
-                                    // without each one having to know about it.
-                                    .nestedScroll(navBarScroll)
-                            } else {
-                                Modifier
-                            },
-                        ),
+                    modifier = Modifier.hazeSource(hazeState),
                     label = "content",
                 ) { key ->
                     // Every branch below reads `key` rather than the state that
@@ -3439,9 +3340,8 @@ private fun CosmotuneApp(
                             onTypeaheadLongPress = openSongMenu,
                             contentPadding = listPadding,
                             topPadding = topBarContentPadding(),
-                            // Orbit draws the big search pill on the page itself; the old look keeps the field in
-                            // the top bar (see the bar's accessory).
-                            showField = cosmoShell != null,
+                            // Orbit draws the big search pill on the page itself.
+                            showField = true,
                             // The settings page's own two-state selector, so the
                             // app has one look for "pick one of these".
                             sourceSwitcher = {
@@ -3679,11 +3579,6 @@ private fun CosmotuneApp(
                         detail.type == BrowseType.ARTIST) &&
                     !isLocalDetail && !showDiscord && !showHistory && !showSettings &&
                     !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay
-                val chromePageColor = if (isDetailVisible) {
-                    detailPalette.background
-                } else {
-                    MaterialTheme.colorScheme.background
-                }
                 // This is the bottom floor itself turned upside down, not a
                 // separately maintained approximation. Both edges therefore
                 // share the same curve, height and page-aware colour â€” including
@@ -3707,7 +3602,7 @@ private fun CosmotuneApp(
                     }
                 }
                 BottomFadeScrim(
-                    pageColor = if (cosmoShell != null) Color(cosmoShell.colors.palette.backgroundTop) else chromePageColor,
+                    pageColor = Color(cosmoShell.colors.palette.backgroundTop),
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .rotate(180f)
@@ -3731,8 +3626,8 @@ private fun CosmotuneApp(
                         detail != null -> detail.title
                         selectedMoodGenre != null -> selectedMoodGenre?.title.orEmpty()
                         selectedTab == TAB_RELEASES -> releasesLabel
-                        else -> tabs[selectedTab].let {
-                            if (it.label == "Play") stringResource(R.string.listen_now) else it.label
+                        else -> tabLabels[selectedTab].let {
+                            if (it == "Play") stringResource(R.string.listen_now) else it
                         }
                     },
                     // Every page, in either material, uses separated floating
@@ -3768,55 +3663,18 @@ private fun CosmotuneApp(
                         showListenTogether -> ({ showListenTogether = false })
                         showEqualizer -> ({ showEqualizer = false })
                         settingsSubScreen != null -> ({ settingsSubScreen = null })
-                        // In the new look a settings page has no back of its own: this one steps back as the system's does (the
-                        // search, then the page, then Settings itself), so it is the one back button on the screen.
-                        showSettings && cosmoShell != null && backDispatcher != null -> ({ backDispatcher.onBackPressed() })
+                        // A settings page has no back of its own: this one steps back as the system's does (the search, then the
+                        // page, then Settings itself), so it is the one back button on the screen.
+                        showSettings && backDispatcher != null -> ({ backDispatcher.onBackPressed() })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
                         detailActiveShelf != null -> ({ detailActiveShelf = null })
                         detail != null -> ({ viewModel.closeDetail(); Unit })
                         selectedMoodGenre != null -> ({ viewModel.closeMoodGenre(); Unit })
-                        cosmoShell != null && selectedTab == TAB_SEARCH -> ({ selectedTab = searchReturnTab })
+                        selectedTab == TAB_SEARCH -> ({ selectedTab = searchReturnTab })
                         else -> null
                     },
                     modifier = Modifier.align(Alignment.TopCenter),
-                    // Only on the Search tab itself, not on anything pushed over it.
-                    accessory = if (
-                        cosmoShell == null &&
-                        selectedTab == TAB_SEARCH && detail == null && selectedMoodGenre == null &&
-                        libraryShowAll == null && !showSettings && !showAccountScrobbling &&
-                        !showSources && !showListenTogether && !showEqualizer && !showDiscord &&
-                        !showHistory && !showReplay
-                    ) {
-                        {
-                            // The search field lives up here in the bar, beside the
-                            // account photo, so it answers the nav bar's Search tap
-                            // itself: focus and keyboard, the way the page used to.
-                            val keyboard = LocalSoftwareKeyboardController.current
-                            LaunchedEffect(searchFocusRequested) {
-                                if (searchFocusRequested) {
-                                    searchFieldFocus.requestFocus()
-                                    keyboard?.show()
-                                    searchFocusRequested = false
-                                }
-                            }
-                            SearchField(
-                                query = query,
-                                onQueryChange = viewModel::onQueryChange,
-                                onSubmit = viewModel::submitSearch,
-                                focusRequester = searchFieldFocus,
-                                placeholder = org.jetbrains.compose.resources.stringResource(
-                                    if (searchSource == SearchSource.LIBRARY) {
-                                        SharedRes.string.search_library_hint
-                                    } else if (searchSource == SearchSource.ADDONS) {
-                                        SharedRes.string.search_addons_hint
-                                    } else {
-                                        SharedRes.string.search_hint
-                                    },
-                                ),
-                            )
-                        }
-                    } else null,
                     actions = {
                         // This is intentionally scoped to Listen together: the
                         // round-trip time is meaningful while coordinating a
@@ -4002,7 +3860,7 @@ private fun CosmotuneApp(
                             // Discord, Spotify): the root shows one page by the order of its `when`, so without this the entry would only
                             // close the drawer.
                             // Search is the same button in the same place on every root page of the mode (DESIGN_SYSTEM.md 4.1, 5.2).
-                            if (cosmoShell != null && detail == null && selectedMoodGenre == null && selectedTab != TAB_SEARCH &&
+                            if (detail == null && selectedMoodGenre == null && selectedTab != TAB_SEARCH &&
                                 libraryShowAll == null && !showHistory && !showReplay && !showDiscord && !showSpotify
                             ) {
                                 IconButton(
@@ -4098,18 +3956,7 @@ private fun CosmotuneApp(
                     },
                 )
 
-                // Drawn before the bars so their own glass reads on top of it.
-                if (cosmoShell == null) BottomFadeScrim(
-                    withMiniPlayer = player.song != null,
-                    // Not the wash: by the foot of the screen the page has finished
-                    // easing out of it and into this, so this is what is actually
-                    // under the tab bar.
-                    pageColor = chromePageColor,
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                )
-
-                // Whichever bar is drawing reports its height here, for the
-                // guard to read at layout â€” never in composition, see the guard.
+                // The bar reports its height here, for the guard to read at layout â€” never in composition, see the guard.
                 val floatingBarsHeight = remember { mutableIntStateOf(0) }
                 FloatingBarsTapGuard(
                     barsHeight = { floatingBarsHeight.intValue },
@@ -4139,8 +3986,8 @@ private fun CosmotuneApp(
                     }
                 }
 
-                // The new look's floating chrome (tab capsule and mini capsule). The upstream bars below stay as the else branch.
-                if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(
+                // The floating chrome (tab capsule and mini capsule).
+                com.cosmotune.ui.shell.CosmoBottomChrome(
                     tabs = listOf(
                         CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(exploreLabel, CosmoIcons.Explore, CosmoIcons.ExploreFill),
                         CosmoTab(releasesLabel, CosmoIcons.Bell, CosmoIcons.BellFill), CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill),
@@ -4155,223 +4002,14 @@ private fun CosmotuneApp(
                     hazeState = hazeState, onHeightChanged = { floatingBarsHeight.intValue = it },
                     notices = { QueueActionNoticeHost(queueNotice) },
                     modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = FLOATING_BAR_MAX_WIDTH).fillMaxWidth(),
-                ) else
-                if (glassActive) Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .widthIn(max = FLOATING_BAR_MAX_WIDTH)
-                        .fillMaxWidth()
-                        .onSizeChanged { floatingBarsHeight.intValue = it.height },
-                ) {
-                    QueueActionNoticeHost(queueNotice)
-                    // Liquid glass replaces the two stacked bars with the single
-                    // component they are stacked to imitate: the now playing
-                    // controls dock into the tab bar rather than riding above it,
-                    // and the pair folds together on scroll. See [GlassNavBar].
-                    GlassNavBar(
-                        tabs = tabs,
-                        selectedIndex = selectedTab,
-                        onTabSelected = onTabSelected,
-                        scrollConnection = navBarScroll,
-                        song = player.song,
-                        isPlaying = player.isPlaying,
-                        isLoading = playPauseBusy,
-                        onPlayPause = {
-                            togglePlayPause()
-                        },
-                        onNext = { controller?.seekToNextMediaItem() },
-                        onPrevious = { controller?.seekToPrevious() },
-                        onExpand = if (reducePlayerMotion) {
-                            { showNowPlaying = true }
-                        } else {
-                            playerSheetMotion::open
-                        },
-                        controlsLocked = controlsLocked,
-                        onBlockedControl = showHostOnlyNotice,
-                        dock = activeDock,
-                        pull = playerSheetMotion.takeIf { !reducePlayerMotion },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                } else Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        // Capped and centred rather than run to the page's edges
-                        // â€” see [FLOATING_BAR_MAX_WIDTH]. It sits on the Column
-                        // rather than on each bar so the two are held to the same
-                        // width and keep the shared left and right edge they have
-                        // on a phone. Before fillMaxWidth, so the fill has
-                        // already been bounded by the time it is applied.
-                        .widthIn(max = FLOATING_BAR_MAX_WIDTH)
-                        .fillMaxWidth()
-                        .onSizeChanged { floatingBarsHeight.intValue = it.height },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    QueueActionNoticeHost(queueNotice)
-                    player.song?.let { song ->
-                        MiniPlayer(
-                            song = song,
-                            isPlaying = player.isPlaying,
-                            isLoading = playPauseBusy,
-                            hazeState = hazeState,
-                            onPlayPause = {
-                                togglePlayPause()
-                            },
-                            onNext = { controller?.seekToNextMediaItem() },
-                            onPrevious = { controller?.seekToPrevious() },
-                            onExpand = if (reducePlayerMotion) {
-                                { showNowPlaying = true }
-                            } else {
-                                playerSheetMotion::open
-                            },
-                            controlsLocked = controlsLocked,
-                            onBlockedControl = showHostOnlyNotice,
-                            dock = activeDock,
-                            pull = playerSheetMotion.takeIf { !reducePlayerMotion },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
-                    FloatingBottomBar(
-                        tabs = tabs,
-                        selectedIndex = selectedTab,
-                        hazeState = hazeState,
-                        onTabSelected = onTabSelected,
-                    )
-                }
-            }
-
-        }
-
-        val playerRaised = showNowPlaying && playerSong != null
-
-        // The new look's player: a layer over the window that grows out of the mini capsule. The sheet below is the old path.
-        if (cosmoShell != null) playerSong?.let { song ->
-            com.cosmotune.ui.shell.CosmoPlayerOverlay(open = showNowPlaying, onDismiss = { showNowPlaying = false }, shell = cosmoShell) { _, _ -> nowPlaying(song) }
-        }
-
-        // ---- Now Playing ----
-        if (playerRaised && cosmoShell == null) {
-            // What rememberModalBottomSheetState builds, but able to start open,
-            // and with every hide routed through [playerSheetMotion] â€” a drag
-            // released low, a back press, a tap on the scrim. Refused here and
-            // carried out there, on a curve slow enough to watch the artwork
-            // fly home on, rather than on the sheet's own.
-            val sheetDensity = LocalDensity.current
-            val confirmSheetValue: (SheetValue) -> Boolean = { value ->
-                // Read when asked, not when the sheet was made: the setting
-                // can change while the player is up.
-                if (value == SheetValue.Hidden && !reducePlayerMotion) {
-                    playerSheetMotion.close()
-                    false
-                } else {
-                    true
-                }
-            }
-            val nowPlayingSheetState = rememberSaveable(
-                saver = SheetState.Saver(
-                    skipPartiallyExpanded = true,
-                    confirmValueChange = confirmSheetValue,
-                    density = sheetDensity,
-                    skipHiddenState = false,
-                ),
-            ) {
-                SheetState(
-                    skipPartiallyExpanded = true,
-                    density = sheetDensity,
-                    // Already open when the app is the one raising it: its
-                    // content is held down, and slid up, by the motion.
-                    initialValue = if (playerSheetMotion.holding) SheetValue.Expanded else SheetValue.Hidden,
-                    confirmValueChange = confirmSheetValue,
                 )
             }
-            DisposableEffect(nowPlayingSheetState) {
-                playerSheetMotion.sheet = nowPlayingSheetState
-                playerDock.sheetOffset = playerSheetMotion::position
-                onDispose {
-                    playerDock.sheetOffset = null
-                    playerSheetMotion.onSheetGone()
-                }
-            }
-            ModalBottomSheet(
-                onDismissRequest = { showNowPlaying = false },
-                sheetState = nowPlayingSheetState,
-                // None of M3's: it follows the sheet's own animation, which is
-                // no longer what moves the player. The player draws its own,
-                // off where the player actually is â€” see the content below.
-                scrimColor = if (reducePlayerMotion) BottomSheetDefaults.ScrimColor else Color.Transparent,
-                // The player fills the screen and paints its own background to
-                // the very top, so the sheet's default 28.dp top corners would
-                // only cut two notches out of the artwork behind the status bar.
-                // Square, and not clipped along its top â€” see [PlayerSheetShape].
-                shape = PlayerSheetShape,
-                containerColor = Color.Transparent,
-                dragHandle = null,
-                contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-                // M3 caps a bottom sheet at [BottomSheetDefaults.SheetMaxWidth]
-                // (640.dp) and centres it once the window is wider than that â€”
-                // built for a sheet that's meant to look like a sheet next to
-                // visible content either side. This one is the whole player;
-                // capped at 640dp on a tablet it renders as a narrow card with
-                // the page it's supposed to be covering visible down both
-                // sides. Unspecified opts out of the cap entirely, so the
-                // sheet always spans the full window this app draws it for.
-                sheetMaxWidth = Dp.Unspecified,
-                // Back is the app's to carry out, like every other close â€” see
-                // the handler below. Left to M3, a back press is the one close
-                // that never asks `confirmValueChange`: the sheet hides itself
-                // straight away on its own curve, then the window leaves on its
-                // exit animation with the artwork still drawn in it.
-                properties = ModalBottomSheetProperties(shouldDismissOnBackPress = reducePlayerMotion),
-            ) {
-                // With M3's own back off, the dialog's dispatcher ends here.
-                // Composed ahead of the player, so the player's own handlers â€”
-                // the lyrics and the queue putting themselves away first â€” are
-                // newer and are asked before this one.
-                BackHandler(enabled = !reducePlayerMotion) { playerSheetMotion.close() }
-                // Keeps a sheet still "settling" after a lyrics or queue
-                // scroll from taking the next touch meant for that list.
-                // See [PlayerSheetMotion.attachWindow].
-                val sheetWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
-                DisposableEffect(sheetWindow, reducePlayerMotion) {
-                    if (!reducePlayerMotion) playerSheetMotion.attachWindow(sheetWindow)
-                    onDispose { }
-                }
-                Box(
-                    Modifier
-                        // Where the app is holding the player, if it is â€” see
-                        // [PlayerSheetMotion.contentOffsetPx]. Placement only.
-                        .offset { IntOffset(0, playerSheetMotion.contentOffsetPx()) }
-                        // The dim behind the player, from the window's top to
-                        // its bottom whatever the player's offset, and as deep
-                        // as the player is open.
-                        .drawBehind {
-                            val open = playerDock.openFraction()
-                            // Not at all under a portrait player that is fully up:
-                            // its own background is opaque, and a full-screen
-                            // blend behind it is paid on every frame the window
-                            // draws for nothing anyone can see.
-                            if (!reducePlayerMotion && open > 0f && !(open >= 1f && playerDock.attached)) {
-                                val top = playerSheetMotion.position().takeUnless { it.isNaN() } ?: 0f
-                                drawRect(
-                                    color = Color.Black.copy(alpha = PLAYER_SCRIM_ALPHA * open),
-                                    topLeft = Offset(0f, -top.toInt().toFloat()),
-                                    size = Size(size.width, size.height),
-                                )
-                            }
-                        }
-                        .guardSheetFromContentTouches(nowPlayingSheetState)
-                        // The sheet fills the window, so its height is the
-                        // whole of its travel: hidden sits that far down.
-                        .onSizeChanged {
-                            playerDock.sheetTravel = it.height.toFloat()
-                            playerSheetMotion.laidOut = true
-                        },
-                ) {
-                    CompositionLocalProvider(LocalPlayerDock provides activeDock) {
-                        nowPlaying(playerSong)
-                    }
-                }
-            }
+
+        }
+
+        // The player: a layer over the window that grows out of the mini capsule.
+        playerSong?.let { song ->
+            com.cosmotune.ui.shell.CosmoPlayerOverlay(open = showNowPlaying, onDismiss = { showNowPlaying = false }, shell = cosmoShell) { _, _ -> nowPlaying(song) }
         }
 
         // ---- Replay stories ----
@@ -5133,33 +4771,6 @@ private const val SEEK_END_GUARD_MS = 1_000L
  */
 private val DETAIL_TITLE_DROP = 320.dp
 
-/**
- * How fast, a second, a mini-player pull has to be moving when the finger
- * lifts to decide open or closed on its own, wherever it got to â€” see
- * [MiniPlayerPull]. A flick is a whole gesture; only a slow pull is judged by
- * the distance it covered.
- */
-private val PLAYER_PULL_FLING_VELOCITY = 400.dp
-
-/** M3's own scrim strength, which the player's dim stands in for. */
-private const val PLAYER_SCRIM_ALPHA = 0.32f
-
-/**
- * The player sheet's shape: square, as [RectangleShape] was, but reaching a
- * whole sheet's height above the sheet's top edge.
- *
- * The sheet's Surface clips its content to this shape, and on the way down to
- * the mini player the artwork travels ahead of the sheet carrying it â€” up
- * above the sheet's top edge, where a plain rectangle cut it off mid-air,
- * leaving only its lower part to arrive in the bar. Nothing else is drawn
- * outside the sheet (its background is transparent and it casts no shadow),
- * so at rest this is the rectangle it replaces.
- */
-private object PlayerSheetShape : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
-        Outline.Rectangle(Rect(0f, -size.height, size.width, size.height))
-}
-
 private const val TAB_HOME = 0
 private const val TAB_EXPLORE = 1
 private const val TAB_LIBRARY = 2
@@ -5168,7 +4779,7 @@ private const val TAB_SEARCH = 3
 /** Appended, so the numbers a saved state holds keep their meaning. */
 private const val TAB_RELEASES = 4
 
-/** The new look's dock, in its order (DESIGN_SYSTEM.md 5.2). */
+/** The dock, in its order (DESIGN_SYSTEM.md 5.2). */
 private val MUSIC_DOCK = listOf(TAB_HOME, TAB_EXPLORE, TAB_RELEASES, TAB_LIBRARY)
 
 /**

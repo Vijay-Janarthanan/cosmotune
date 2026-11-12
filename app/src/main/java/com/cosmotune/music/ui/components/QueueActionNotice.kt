@@ -39,41 +39,16 @@ fun QueueActionNoticeHost(
     modifier: Modifier = Modifier,
 ) {
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
-    // The new look's toast rises and fades in by itself; the host must not slide it a second time.
-    val newLook = com.cosmotune.ui.theme.LocalCosmoShell.current != null
-
+    // The toast rises and fades in by itself; the host must not slide it a second time.
     AnimatedContent(
         targetState = notice,
-        transitionSpec = {
-            if (reduceAnimation || newLook) {
-                EnterTransition.None togetherWith ExitTransition.None
-            } else {
-                (fadeIn() + slideInVertically { height -> height / 2 }) togetherWith
-                    (fadeOut() + slideOutVertically { height -> height / 2 })
-            }
-        },
+        transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
         contentKey = { it?.id },
         label = "queueActionNotice",
         modifier = modifier.fillMaxWidth(),
     ) { current ->
         if (current != null) {
-            if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) com.cosmotune.ui.sheets.CosmoToast(current.message) else Surface(
-                color = Color(0xFF282828),
-                contentColor = Color.White,
-                shape = RoundedCornerShape(CosmoRadii.rXs),
-                shadowElevation = 4.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 8.dp)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-            ) {
-                Text(
-                    text = current.message,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                )
-            }
+            com.cosmotune.ui.sheets.CosmoToast(current.message)
         }
     }
 }

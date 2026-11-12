@@ -1,31 +1,8 @@
 package com.cosmotune.music.desktop
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.Dp
-import com.cosmotune.music.ui.icons.CosmotuneIcons
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material.icons.automirrored.rounded.Sort
-import androidx.compose.material.icons.rounded.Check
-import com.cosmotune.ui.bridge.DropdownMenu
-import com.cosmotune.ui.bridge.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -222,49 +199,25 @@ internal fun <T : Any> DesktopPointerMenuHost(
 }
 
 /**
- * The phone's sort for a Library "Show all" grid: the one thing its cards carry is a title. With the new look the button is the
- * page's round Orbit button and the choices an [OrbitMenu], the one in force solid ink.
+ * The phone's sort for a Library "Show all" grid: the one thing its cards carry is a title. The button is the page's round Orbit
+ * button and the choices an [OrbitMenu], the one in force solid ink.
  */
 @Composable
 internal fun DesktopLibrarySortMenu() {
     val sort by DesktopAppUiHost.librarySort.collectAsState()
     var open by remember { mutableStateOf(false) }
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        Box {
-            OrbitPageButton(CosmoIcons.Sort, DesktopStrings["sort_library", "Sort library"], onClick = { open = true }, on = open)
-            OrbitMenu(
-                open = open,
-                onDismiss = { open = false },
-                items = LibrarySort.entries.map { option ->
-                    OrbitMenuItem(librarySortLabel(option), selected = option == sort) { DesktopAppUiHost.setLibrarySort(option) }
-                },
-                fonts = orbitFonts(),
-                look = orbitLook(),
-                width = 240.dp,
-            )
-        }
-        return
-    }
     Box {
-        DesktopToolbarButton(onClick = { open = true }) {
-            Icon(Icons.AutoMirrored.Rounded.Sort, DesktopStrings["sort_library", "Sort library"], tint = Color.White)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            LibrarySort.entries.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(librarySortLabel(option)) },
-                    trailingIcon = if (option == sort) {
-                        { Icon(Icons.Rounded.Check, contentDescription = null) }
-                    } else {
-                        null
-                    },
-                    onClick = {
-                        DesktopAppUiHost.setLibrarySort(option)
-                        open = false
-                    },
-                )
-            }
-        }
+        OrbitPageButton(CosmoIcons.Sort, DesktopStrings["sort_library", "Sort library"], onClick = { open = true }, on = open)
+        OrbitMenu(
+            open = open,
+            onDismiss = { open = false },
+            items = LibrarySort.entries.map { option ->
+                OrbitMenuItem(librarySortLabel(option), selected = option == sort) { DesktopAppUiHost.setLibrarySort(option) }
+            },
+            fonts = orbitFonts(),
+            look = orbitLook(),
+            width = 240.dp,
+        )
     }
 }
 
@@ -275,60 +228,3 @@ private fun librarySortLabel(option: LibrarySort): String = when (option) {
     LibrarySort.TITLE_DESC -> DesktopStrings["sort_title_descending", "Alphabetical (Z to A)"]
 }
 
-/**
- * The phone's Play control on a release or artist page (DetailScreen's `PlayPill`): a white
- * surface with black on it, so the primary action survives every palette. A release asks for the
- * icon-only circle; an artist keeps the labelled pill.
- */
-@Composable
-internal fun DesktopPlayPill(
-    label: String,
-    onClick: () -> Unit,
-    iconOnly: Boolean = false,
-    size: Dp = 50.dp,
-) {
-    Row(
-        Modifier
-            .then(if (iconOnly) Modifier.size(size) else Modifier.height(size))
-            .clip(CircleShape)
-            .background(Color.White)
-            .clickable(onClick = onClick)
-            .then(if (iconOnly) Modifier else Modifier.padding(horizontal = 32.dp)),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            CosmotuneIcons.Play,
-            contentDescription = if (iconOnly) label else null,
-            tint = Color.Black,
-            modifier = Modifier.size(if (iconOnly) size * 0.44f else 18.dp),
-        )
-        if (!iconOnly) {
-            Spacer(Modifier.width(8.dp))
-            Text(label, style = MaterialTheme.typography.titleMedium, color = Color.Black)
-        }
-    }
-}
-
-/**
- * The phone's round icon button beside Play (DetailScreen's `CircleIconButton`): a translucent
- * disc — the phone's is glass over the page's artwork tint — with the glyph in white.
- */
-@Composable
-internal fun DesktopCircleButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    size: Dp = 50.dp,
-) {
-    Box(
-        Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.12f))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription, tint = Color.White, modifier = Modifier.size(size * 0.44f))
-    }
-}

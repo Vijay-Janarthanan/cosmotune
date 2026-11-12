@@ -198,6 +198,10 @@ object PlayerPlatform {
     val host: PlayerHost
         get() = installed ?: error("PlayerPlatform.install() was never called")
 
+    /** The host, or null before [install] (a window or dialog drawn before the app installs it, a test that draws one piece). */
+    val hostOrNull: PlayerHost?
+        get() = installed
+
     fun install(host: PlayerHost) {
         installed = host
     }

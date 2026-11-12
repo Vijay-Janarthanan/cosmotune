@@ -50,9 +50,9 @@ import dev.chrisbanes.haze.materials.HazeMaterials
 /**
  * Shared compact selector for every visible YouTube account avatar.
  *
- * With the new look on, it is the app's one account sheet ([com.cosmotune.ui.account.AccountSheet], which Video's avatar opens too):
+ * It is the app's one account sheet ([com.cosmotune.ui.account.AccountSheet], which Video's avatar opens too):
  * who is signed in, "Signed in to YouTube & YouTube Music" or "Sign in again" when the sign-in expired, every channel of every
- * login to switch to, Add account, Sign out (the active login) and Settings. With it off, the old overlay below.
+ * login to switch to, Add account, Sign out (the active login) and Settings.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -68,61 +68,7 @@ fun AccountProfileSelector(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        SharedAccountSheet(accounts, activeAccountId, activeProfileId, onSelect, onAddAccount, onRemoveAccount, onOpenSettings, onDismiss)
-        return
-    }
-    var managing by remember { mutableStateOf(false) }
-    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val shape = MaterialTheme.shapes.extraLarge
-    Column(
-        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = .48f))
-            .clickable(onClick = onDismiss),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Surface(
-            color = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = shape,
-            modifier = Modifier
-                .padding(top = 56.dp, start = 20.dp, end = 20.dp)
-                .fillMaxWidth()
-                .clip(shape)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
-                    } else {
-                        Modifier.optimizedHazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.thin(MaterialTheme.colorScheme.surface),
-                        )
-                    },
-                )
-                .clickable(onClick = {}),
-        ) {
-            LazyColumn {
-                item { Text(stringResource(R.string.switch_account), style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(20.dp, 18.dp, 20.dp, 8.dp)) }
-                accounts.forEach { account ->
-                item {
-                    Text(account.email.ifBlank { account.name.ifBlank { stringResource(R.string.accounts) } },
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(20.dp, 12.dp, 20.dp, 4.dp))
-                }
-                items(account.profiles.size) { index ->
-                    val profile = account.profiles[index]
-                    ProfileRow(profile, account.accountId == activeAccountId && profile.profileId == activeProfileId,
-                        managing, { onSelect(account, profile); onDismiss() }, { onRemoveAccount(account) })
-                }
-                }
-                item { SelectorAction(Icons.Rounded.Add, stringResource(R.string.add_account), onAddAccount) }
-                item { SelectorAction(Icons.Rounded.ManageAccounts, stringResource(R.string.manage_accounts)) { managing = !managing } }
-                item { SelectorAction(Icons.Rounded.Settings, stringResource(R.string.settings), onOpenSettings) }
-            }
-        }
-    }
+    SharedAccountSheet(accounts, activeAccountId, activeProfileId, onSelect, onAddAccount, onRemoveAccount, onOpenSettings, onDismiss)
 }
 
 @Composable private fun ProfileRow(profile: YouTubeProfile, selected: Boolean, managing: Boolean,

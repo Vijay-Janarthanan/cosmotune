@@ -80,29 +80,21 @@ import com.cosmotune.music.desktop.DesktopArtwork
 import com.cosmotune.music.desktop.DesktopStrings
 
 /*
- * The desktop's rows in the new look (`v2/screens-v2.css` `.d2-tracks li`): 54 dp, radius 18, 16 dp in from each side, washed in
- * the cover's colour while the song plays, an 8 % state layer on hover. This file holds the song row of History, Downloads and
- * Local Music, and the pieces the collection page's rows share with it (the surface, the hover-revealed actions, the bars).
+ * The pieces the desktop's song rows share (`v2/screens-v2.css` `.d2-tracks li`): the hover and wash animations of a row, its
+ * hover-revealed actions and the duration's type, and the locals the root fills for them. The rows themselves are the collection
+ * page's (`CollectionTrackRow`, on the shared `OrbitTrackRow`).
  */
-
-/** `.d2-tracks li`: the row's height (`BlockMetrics.DESKTOP_ROW_DP`) and its corner radius. */
-internal val DESKTOP_ROW_HEIGHT: Dp = BlockMetrics.DESKTOP_ROW_DP.dp
-internal val DESKTOP_ROW_RADIUS: Dp = 18.dp
-
-/** `.d2-tracks li { padding: 0 16px }`. */
-internal val DESKTOP_ROW_PADDING: Dp = 16.dp
 
 /** The size of an action button of a row: the desktop's pointer does not need the phone's 48 dp. */
 internal val DESKTOP_ROW_ACTION: Dp = 32.dp
 
-/** `.d2-tracks li` columns: the number or the bars take 36 dp, the duration 60. */
-internal val DESKTOP_NUMBER_COLUMN: Dp = 36.dp
+/** `.d2-tracks li` columns: the duration takes 60 dp. */
 internal val DESKTOP_DURATION_COLUMN: Dp = 60.dp
 
 /**
  * Whether the audio is playing right now (not paused), for the bars of the playing row. The old pages cannot see it (`playback` is a
- * local of the root composable), so the root provides it once, next to the playing song, and the three functions below start their
- * `isPlaying` from it. False where nothing provides it (a render, a test).
+ * local of the root composable), so the root provides it once, next to the playing song, and the pages start their `isPlaying`
+ * from it. False where nothing provides it (a render, a test).
  */
 internal val LocalCosmoPlaying = compositionLocalOf { false }
 
@@ -119,147 +111,9 @@ internal fun rememberStableAction(action: () -> Unit): () -> Unit {
     return remember { { latest() } }
 }
 
-/** The state layer on hover, the playing row's wash (`.d2-tracks li.is-playing`: the container at 60 %) and the faint stripe. */
-private const val HOVER_LAYER = 0.08f
-private const val PLAYING_WASH = 0.6f
-private const val STRIPE_LAYER = 0.025f
-
-/**
- * `DesktopSongRow` in the new look. It takes the old row's parameters, in the same order, and two more at the end: [isCurrent] says
- * the row is the song that is playing (it is washed, its title is in the accent and the bars stand where a number would), and
- * [isPlaying] that the bars move (from [LocalCosmoPlaying], which the root fills with the player's own flag). The old row's own function
- * reads the playing song from a local that only its file can see, so its delegate passes [isCurrent] and leaves [isPlaying] at its default.
- *
- * It is 54 dp tall: the number or a 40 dp cover, the title over the artist, the like heart and the download and add buttons (shown
- * while the pointer is over the row or it has the keyboard focus, and always while the song is liked, downloading or downloaded),
- * the duration, and the page's own menu button when [menu] is given.
- */
-@Composable
-internal fun CosmoDesktopSongRow(
-    song: Song,
-    liked: Boolean,
-    onClick: (Song) -> Unit,
-    onToggleLike: ((Song) -> Unit)?,
-    onDownload: ((Song) -> Unit)? = null,
-    onAddToPlaylist: ((Song) -> Unit)? = null,
-    downloaded: Boolean = false,
-    downloadInProgress: Boolean = false,
-    number: Int? = null,
-    menu: (@Composable (Song) -> Unit)? = null,
-    isCurrent: Boolean = false,
-    isPlaying: Boolean = LocalCosmoPlaying.current,
-) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    val chrome = rememberCosmoRowChrome(current = isCurrent)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = DESKTOP_ROW_HEIGHT)
-            .desktopSongContextMenu(song)
-            .cosmoDesktopRow(chrome, colors, striped = false, enabled = true, onClick = { onClick(song) })
-            .padding(horizontal = DESKTOP_ROW_PADDING),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (number != null) {
-            Box(Modifier.width(DESKTOP_NUMBER_COLUMN), contentAlignment = Alignment.CenterStart) {
-                if (isCurrent) CosmoDesktopEqualiser(playing = isPlaying) else DesktopRowNumber(number)
-            }
-        } else {
-            CoverFrame(size = 40.dp, radius = 10.dp, shadow = false) {
-                DesktopArtwork(song.thumbnailUrl, Modifier.fillMaxSize(), px = ROW_ART_PX)
-            }
-            Spacer(Modifier.width(14.dp))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                style = type.forText(type.desktopRowTitle(), song.title),
-                color = Color(if (isCurrent) palette.accentStrong else palette.textPrimary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (song.artist.isNotBlank()) {
-                Text(
-                    text = song.artist,
-                    style = type.forText(type.desktopRowSubtitle(), song.artist),
-                    color = Color(palette.textSecondary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        // A cover leaves no room for the bars in front, so the row that is playing shows them after its words.
-        if (isCurrent && number == null) {
-            Spacer(Modifier.width(14.dp))
-            CosmoDesktopEqualiser(playing = isPlaying)
-        }
-        DesktopSourceQuality(song)
-        Spacer(Modifier.width(8.dp))
-        CosmoDesktopRowActions(
-            song = song,
-            reveal = chrome.reveal,
-            liked = liked,
-            onToggleLike = onToggleLike,
-            onDownload = onDownload,
-            downloaded = downloaded,
-            downloadInProgress = downloadInProgress,
-            onAddToPlaylist = onAddToPlaylist,
-            onRemove = null,
-            reserveRemove = false,
-        )
-        Text(
-            text = song.durationText ?: "—",
-            modifier = Modifier.width(DESKTOP_DURATION_COLUMN),
-            style = type.desktopRowDuration(),
-            color = Color(palette.textTertiary),
-            textAlign = TextAlign.End,
-            maxLines = 1,
-        )
-        menu?.invoke(song)
-    }
-}
-
-/** The title of a desktop row (`.d2-tracks li b`): Hanken Grotesk 14 sp, weight 650. */
-internal fun CosmoType.desktopRowTitle(): TextStyle =
-    TextStyle(fontFamily = textFamily, fontWeight = FontWeight(650), fontSize = 14.sp, lineHeight = 14.sp * 1.3f)
-
-/** The line under it (`.d2-tracks li .txt span`): 12.5 sp. */
-internal fun CosmoType.desktopRowSubtitle(): TextStyle =
-    TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Normal, fontSize = 12.5.sp, lineHeight = 12.5.sp * 1.35f)
-
 /** The duration and the other faint numbers of a row: 13 sp with tabular figures, so a column of them lines up. */
 internal fun CosmoType.desktopRowDuration(): TextStyle =
     TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 13.sp * 1.3f).tabular()
-
-/** A track number (`.d2-tracks li .no`): faint, 14 sp, tabular. */
-@Composable
-internal fun DesktopRowNumber(number: Int) {
-    val type = LocalCosmoType.current
-    Text(
-        text = "$number",
-        style = type.desktopRowDuration().copy(fontSize = 14.sp, lineHeight = 14.sp * 1.3f),
-        color = Color(LocalCosmoColors.current.palette.textTertiary),
-        maxLines = 1,
-    )
-}
-
-/**
- * The tier the row's source offered (an add-on's Lossless, Hi-Res Lossless, Dolby Atmos or High quality; a local file's
- * container), drawn with the player badge's glyph and label ([SourceQualityBadge]) in the accent. Unlabelled and LOW rows get none.
- */
-@Composable
-private fun DesktopSourceQuality(song: Song) {
-    val quality = song.sourceQualityBadge() ?: return
-    val type = LocalCosmoType.current
-    SourceQualityBadge(
-        quality = quality,
-        color = Color(LocalCosmoColors.current.palette.accentStrong),
-        style = type.desktopRowSubtitle().copy(fontWeight = FontWeight(650), fontSize = 11.sp, letterSpacing = 0.5.sp),
-        modifier = Modifier.padding(horizontal = 8.dp),
-    )
-}
 
 // ---- the surface of a row ----
 
@@ -287,34 +141,6 @@ internal fun rememberCosmoRowChrome(current: Boolean): CosmoRowChrome {
     val reveal = animateFloatAsState(if (hovered || focusWithin.value) 1f else 0f, CosmoMotion.effects(reduced), label = "row actions")
     return remember(interaction) { CosmoRowChrome(interaction, hover, wash, reveal, focusWithin) }
 }
-
-/**
- * The look of a row: a [DESKTOP_ROW_RADIUS] clip with, behind its content, the faint stripe when [striped], the wash of the playing
- * song and the hover layer; a click that leaves the focus ring of the page's colour while the keyboard is on it. The colours are
- * resolved while drawing, so a palette fade repaints the row without recomposing it.
- */
-@Composable
-internal fun Modifier.cosmoDesktopRow(
-    chrome: CosmoRowChrome,
-    colors: CosmoColors,
-    striped: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-): Modifier = this
-    .cosmoFocusRing(chrome.interaction, DESKTOP_ROW_RADIUS)
-    .onFocusChanged { chrome.focusWithin.value = it.hasFocus }
-    .clip(RoundedCornerShape(DESKTOP_ROW_RADIUS))
-    .drawBehind {
-        val radius = CornerRadius(DESKTOP_ROW_RADIUS.toPx())
-        if (striped) drawRoundRect(colors.live(CoverField.TEXT_PRIMARY).copy(alpha = STRIPE_LAYER), cornerRadius = radius)
-        val wash = chrome.wash.value
-        if (wash > 0.001f) drawRoundRect(colors.live(CoverField.ACCENT_CONTAINER).copy(alpha = PLAYING_WASH * wash), cornerRadius = radius)
-        val hover = chrome.hover.value
-        if (hover > 0.001f) drawRoundRect(colors.live(CoverField.TEXT_PRIMARY).copy(alpha = HOVER_LAYER * hover), cornerRadius = radius)
-    }
-    // a row that does nothing (a Spotify track with no match) does not answer the pointer either
-    .then(if (enabled) Modifier.hoverable(chrome.interaction) else Modifier)
-    .clickable(interactionSource = chrome.interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
 
 // ---- the actions of a row ----
 
@@ -419,57 +245,3 @@ private fun DownloadingMark(label: String, onClick: () -> Unit, modifier: Modifi
         CosmoLoadingBlob(Modifier.size(16.dp))
     }
 }
-
-// ---- the bars ----
-
-/**
- * The equaliser (`.eq`): three 3 dp bars, 2 dp apart, 14 dp tall, in the accent, at their rest heights; while [playing] they bounce,
- * each on its own beat. Under reduced motion they stand still. The heights are read while drawing and a row that is not playing has
- * no animation running at all. (`CosmoEqualiser` of the list rows is internal to `sharedUi`, so this is the desktop's copy.)
- */
-@Composable
-internal fun CosmoDesktopEqualiser(playing: Boolean, modifier: Modifier = Modifier) {
-    val colors = LocalCosmoColors.current
-    val reduced = LocalReducedMotion.current
-    val label = DesktopStrings["now_playing", "Now playing"]
-    val box = modifier
-        .size(BARS_WIDTH, BlockMetrics.EQ_HEIGHT_DP.dp)
-        .semantics { contentDescription = label }
-    if (playing && !reduced) {
-        val transition = rememberInfiniteTransition(label = "equaliser")
-        val phases = List(3) { index ->
-            transition.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(tween(BEAT_MS + index * BEAT_STEP_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-                label = "equaliser bar $index",
-            )
-        }
-        BarsBox(box, colors) { index ->
-            val rest = BlockMetrics.equaliserRest(index)
-            rest + (BlockMetrics.equaliserPeak(index) - rest) * phases[index].value
-        }
-    } else {
-        BarsBox(box, colors) { index -> BlockMetrics.equaliserRest(index) }
-    }
-}
-
-@Composable
-private fun BarsBox(modifier: Modifier, colors: CosmoColors, height: (Int) -> Float) {
-    Box(
-        modifier.drawBehind {
-            val ink = colors.live(CoverField.ACCENT)
-            val bar = BlockMetrics.EQ_BAR_DP.dp.toPx()
-            val gap = BlockMetrics.EQ_GAP_DP.dp.toPx()
-            val radius = CornerRadius(BlockMetrics.EQ_RADIUS_DP.dp.toPx())
-            for (index in 0..2) {
-                val h = height(index) * size.height
-                drawRoundRect(ink, Offset(index * (bar + gap), size.height - h), Size(bar, h), radius)
-            }
-        },
-    )
-}
-
-private val BARS_WIDTH = (3 * BlockMetrics.EQ_BAR_DP + 2 * BlockMetrics.EQ_GAP_DP).dp
-private const val BEAT_MS = 480
-private const val BEAT_STEP_MS = 90

@@ -14,7 +14,8 @@ import kotlin.test.fail
 
 /**
  * What no screenshot can check, read from the sources of the album, playlist and artist pages: the switch that has the old screen's
- * parameter list and passes everything by name in both branches, the one-line call site in `MainActivity.kt`, the draw-phase rule
+ * parameter list and hands every one of them to the new pages (the old screen is no longer called), the one-line call site in
+ * `MainActivity.kt`, the draw-phase rule
  * for the live palette, the keys of the lists, and the numbers and rules of the pages that are pure (the find-in-list filter and
  * the numbers of the boards).
  */
@@ -90,19 +91,13 @@ class PagesContractTest {
         )
     }
 
-    @Test fun theOldBranchPassesEveryParameterByName() {
-        val src = SourceContract.read(switchPath)
-        val body = SourceContract.functionBody(src, "DetailSwitch")
-        val old = call(body, "DetailScreen")
-        SourceContract.assertPassesEveryParameter(old, names(SourceContract.read(screenPath), "DetailScreen"))
-        assertTrue(arguments(old).all { Regex("""^\w+ = """).containsMatchIn(it) }, "every argument of the old call is by name")
-    }
-
-    @Test fun theSwitchTestsTheShellFirstAndTheOldScreenIsItsElseBranch() {
+    @Test fun theSwitchChoosesOnlyBetweenTheNewPagesAndNeverCallsTheOldScreen() {
         val body = SourceContract.functionBody(SourceContract.read(switchPath), "DetailSwitch")
         val statement = SourceContract.firstStatement(body)
-        assertTrue(statement.startsWith("if (LocalCosmoShell.current != null) {"), "the first statement tests the shell: $statement")
-        assertTrue("} else { DetailScreen(" in statement, "the old screen is the else branch")
+        assertTrue(statement.startsWith("if (page.type == BrowseType.ARTIST) { CosmoArtistPage("), "the first statement picks the artist page or the release page: $statement")
+        assertTrue("} else {" in statement && "CosmoReleasePage(" in statement.substringAfter("} else {"), "the release page is the else branch")
+        assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "and that choice is the whole body")
+        assertTrue(!Regex("""(?<![\w.])DetailScreen\(""").containsMatchIn(body), "the old screen is not called")
     }
 
     @Test fun theNewBranchCallsThePagesByNameWithEveryParameterTheyTake() {
@@ -120,11 +115,10 @@ class PagesContractTest {
         }
     }
 
-    @Test fun everyParameterOfTheOldScreenReachesTheNewBranch() {
+    @Test fun everyParameterOfTheOldScreenReachesTheNewPages() {
         val body = SourceContract.functionBody(SourceContract.read(switchPath), "DetailSwitch")
-        val newBranch = body.substringBefore("DetailScreen(")
-        val missing = names(SourceContract.read(screenPath), "DetailScreen").filterNot { Regex("""\b$it\b""").containsMatchIn(newBranch) }
-        assertTrue(missing.isEmpty(), "the new pages hear about every parameter of DetailScreen; missing in the new branch: $missing")
+        val missing = names(SourceContract.read(screenPath), "DetailScreen").filterNot { Regex("""\b$it\b""").containsMatchIn(body) }
+        assertTrue(missing.isEmpty(), "the new pages hear about every parameter of DetailScreen; missing: $missing")
     }
 
     @Test fun theSignaturesOfThePagesAreThoseOfTheBrief() {

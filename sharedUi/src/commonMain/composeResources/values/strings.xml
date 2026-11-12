@@ -204,8 +204,6 @@
     <string name="member_since">Member since</string>
     <string name="import_spotify">Import Spotify</string>
     <string name="import_spotify_subtitle">From a playlist link</string>
-    <string name="cosmo_new_look">New look</string>
-    <string name="cosmo_new_look_summary">The redesigned interface. Turn it off to go back to the classic layout.</string>
     <string name="cosmo_cover_colours">Colours follow the cover</string>
     <string name="cosmo_cover_colours_summary">The whole app takes its colour from the song that is playing</string>
     <string name="cosmo_look_preview">Preview the look</string>
@@ -366,7 +364,6 @@
     <string name="cosmo_settings_open_read_summary">Books and manga keep their own sources and reader settings</string>
     <string name="cosmo_settings_open_podio">Open Podio</string>
     <string name="cosmo_settings_open_podio_summary">Podcasts and radio; Podio’s Settings tab leads back here</string>
-    <string name="cosmo_settings_mode_needs_look">Turn on the new look in Appearance to use this mode</string>
     <string name="cosmo_settings_section_account">Account</string>
     <string name="cosmo_settings_section_listening">Listening</string>
     <string name="cosmo_settings_section_yours">Make it yours</string>
@@ -405,7 +402,6 @@
     <string name="cosmo_theme_light">Light</string>
     <string name="cosmo_theme_dark">Dark</string>
     <string name="cosmo_theme_summary">Follow the system, or keep Cosmotune light or dark</string>
-    <string name="cosmo_theme_light_only_classic">The classic look is dark only; turn on the new look to choose</string>
     <string name="cosmo_room_tab_now_playing">Now Playing</string>
     <string name="cosmo_room_tab_chat">Chat</string>
     <string name="cosmo_room_tab_people">People</string>

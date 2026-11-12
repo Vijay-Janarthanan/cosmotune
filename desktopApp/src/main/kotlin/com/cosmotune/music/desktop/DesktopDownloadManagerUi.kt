@@ -1,6 +1,5 @@
 package com.cosmotune.music.desktop
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,28 +13,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.Disc
 import com.cosmotune.ui.orbit.OrbitPillButton
@@ -76,20 +68,10 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
                     color = if (failed > 0 && !busy) DesktopDestructive else dimColor,
                 )
             }
-            if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-                if (busy) {
-                    OrbitPillButton(DesktopStrings["cancel_all", "Cancel all"], DesktopDownloadQueue::cancelAll, orbitFonts(), orbitLook(), height = 36.dp)
-                } else if (items.isNotEmpty()) {
-                    OrbitPillButton(DesktopStrings["clear", "Clear"], DesktopDownloadQueue::clearFinished, orbitFonts(), orbitLook(), height = 36.dp)
-                }
-            } else if (busy) {
-                TextButton(onClick = DesktopDownloadQueue::cancelAll) {
-                    Text(DesktopStrings["cancel_all", "Cancel all"], color = dimColor)
-                }
+            if (busy) {
+                OrbitPillButton(DesktopStrings["cancel_all", "Cancel all"], DesktopDownloadQueue::cancelAll, orbitFonts(), orbitLook(), height = 36.dp)
             } else if (items.isNotEmpty()) {
-                TextButton(onClick = DesktopDownloadQueue::clearFinished) {
-                    Text(DesktopStrings["clear", "Clear"], color = dimColor)
-                }
+                OrbitPillButton(DesktopStrings["clear", "Clear"], DesktopDownloadQueue::clearFinished, orbitFonts(), orbitLook(), height = 36.dp)
             }
         }
 
@@ -101,97 +83,13 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
         } else {
             LazyColumn(
                 Modifier.fillMaxWidth().heightIn(max = 360.dp),
-                verticalArrangement = Arrangement.spacedBy(if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 8.dp else 2.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(items, key = { it.song.videoId }) { item -> DownloadRow(item) }
+                items(items, key = { it.song.videoId }) { item -> OrbitDownloadRow(item) }
             }
         }
         Spacer(Modifier.height(12.dp))
         DesktopDialogButtons(null, {}, DesktopStrings["done", "Done"], onDismiss)
-    }
-}
-
-@Composable
-private fun DownloadRow(item: DesktopDownloadItem) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return OrbitDownloadRow(item)
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DesktopArtwork(
-            item.song.thumbnailUrl,
-            Modifier.size(40.dp).clip(RoundedCornerShape(CosmoRadii.rSm)),
-            px = 120,
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                item.song.title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = inkColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            when (val state = item.state) {
-                is DesktopDownloadState.Queued -> Text(
-                    DesktopStrings["queued", "Queued"],
-                    style = MaterialTheme.typography.bodySmall,
-                    color = dimColor,
-                )
-                is DesktopDownloadState.Running -> Column {
-                    Text(
-                        if (state.fraction > 0f) {
-                            "Downloading · ${(state.fraction * 100).toInt()}%"
-                        } else {
-                            "Downloading"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = dimColor,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    // A length the server never stated leaves the bar indeterminate rather than
-                    // pinned at zero, which reads as stalled.
-                    if (state.fraction > 0f) {
-                        LinearProgressIndicator(
-                            progress = { state.fraction },
-                            modifier = Modifier.fillMaxWidth().height(3.dp),
-                            color = DesktopAccent,
-                            trackColor = inkColor.copy(alpha = 0.15f),
-                        )
-                    } else {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth().height(3.dp),
-                            color = DesktopAccent,
-                            trackColor = inkColor.copy(alpha = 0.15f),
-                        )
-                    }
-                }
-                is DesktopDownloadState.Failed -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Rounded.ErrorOutline,
-                        contentDescription = null,
-                        tint = DesktopAccent,
-                        modifier = Modifier.size(13.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        state.reason,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = DesktopAccent,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-        if (item.state is DesktopDownloadState.Failed) {
-            IconButton(onClick = { DesktopDownloadQueue.retry(item.song.videoId) }) {
-                Icon(Icons.Rounded.Refresh, DesktopStrings["retry", "Retry"], tint = dimColor, modifier = Modifier.size(18.dp))
-            }
-        }
-        IconButton(onClick = { DesktopDownloadQueue.cancel(item.song.videoId) }) {
-            Icon(Icons.Rounded.Close, DesktopStrings["cancel", "Cancel"], tint = dimColor, modifier = Modifier.size(18.dp))
-        }
     }
 }
 

@@ -644,124 +644,29 @@ private fun FrostedSortMenu(
     onFlipDateDirection: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // The new look: the Orbit menu (the video view menu's popover), under the top bar's end, the one in force solid ink.
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        val dateActive = selected == SongSort.DATE_ADDED_ASC || selected == SongSort.DATE_ADDED_DESC
-        val dateLabel = stringResource(R.string.sort_date_added_toggle)
-        val newest = stringResource(R.string.sort_date_added)
-        val oldest = stringResource(R.string.sort_date_added_oldest)
-        val labels = SongSort.entries.associateWith { it.localizedLabel() }
-        Box(Modifier.fillMaxSize()) {
-            Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 52.dp, end = 16.dp).size(1.dp)) {
-                com.cosmotune.ui.orbit.OrbitMenu(
-                    open = true, onDismiss = onDismiss, fonts = com.cosmotune.ui.orbit.orbitFonts(), look = com.cosmotune.ui.orbit.orbitLook(),
-                    header = "Sort",
-                    items = buildList {
-                        // Date added is one row: tapping it flips the direction and leaves the menu up, as before.
-                        add(com.cosmotune.ui.orbit.OrbitMenuItem(
-                            dateLabel, if (dateActive) (if (selected == SongSort.DATE_ADDED_ASC) oldest else newest) else null,
-                            if (selected == SongSort.DATE_ADDED_ASC) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
-                            selected = dateActive, keepOpen = true, onClick = onFlipDateDirection,
-                        ))
-                        SongSort.entries.filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }.forEach { option ->
-                            add(com.cosmotune.ui.orbit.OrbitMenuItem(labels.getValue(option), selected = option == selected, keepOpen = true) { onSelect(option) })
-                        }
-                    },
-                )
-            }
-        }
-        return
-    }
-    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val shape = MaterialTheme.shapes.extraLarge
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = .48f))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.TopEnd,
-    ) {
-        Surface(
-            color = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = shape,
-            modifier = Modifier
-                .padding(top = 56.dp, end = 20.dp)
-                .width(IntrinsicSize.Max)
-                .clip(shape)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
-                    } else {
-                        Modifier.optimizedHazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.thin(MaterialTheme.colorScheme.surface),
-                        )
-                    },
-                )
-                .clickable(onClick = {}),
-        ) {
-            Column(Modifier.padding(vertical = 8.dp)) {
-                // Date added is one row, Spotify-style: the arrow on it shows
-                // the direction — up for newest first, down for oldest — and
-                // tapping flips it, the rotation animating the flip. Up is
-                // also where a fresh activation lands, newest first being the
-                // point of the feature.
-                val dateActive = selected == SongSort.DATE_ADDED_ASC ||
-                    selected == SongSort.DATE_ADDED_DESC
-                val arrowRotation by animateFloatAsState(
-                    targetValue = if (selected == SongSort.DATE_ADDED_ASC) 180f else 0f,
-                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 200),
-                    label = "dateAddedArrow",
-                )
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .clickable(role = Role.Button) { onFlipDateDirection() }
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.sort_date_added_toggle),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (dateActive) {
-                        Icon(
-                            Icons.Rounded.ArrowUpward,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.rotate(arrowRotation),
-                        )
+    // The Orbit menu (the video view menu's popover), under the top bar's end, the one in force solid ink.
+    val dateActive = selected == SongSort.DATE_ADDED_ASC || selected == SongSort.DATE_ADDED_DESC
+    val dateLabel = stringResource(R.string.sort_date_added_toggle)
+    val newest = stringResource(R.string.sort_date_added)
+    val oldest = stringResource(R.string.sort_date_added_oldest)
+    val labels = SongSort.entries.associateWith { it.localizedLabel() }
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 52.dp, end = 16.dp).size(1.dp)) {
+            com.cosmotune.ui.orbit.OrbitMenu(
+                open = true, onDismiss = onDismiss, fonts = com.cosmotune.ui.orbit.orbitFonts(), look = com.cosmotune.ui.orbit.orbitLook(),
+                header = "Sort",
+                items = buildList {
+                    // Date added is one row: tapping it flips the direction and leaves the menu up, as before.
+                    add(com.cosmotune.ui.orbit.OrbitMenuItem(
+                        dateLabel, if (dateActive) (if (selected == SongSort.DATE_ADDED_ASC) oldest else newest) else null,
+                        if (selected == SongSort.DATE_ADDED_ASC) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
+                        selected = dateActive, keepOpen = true, onClick = onFlipDateDirection,
+                    ))
+                    SongSort.entries.filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }.forEach { option ->
+                        add(com.cosmotune.ui.orbit.OrbitMenuItem(labels.getValue(option), selected = option == selected, keepOpen = true) { onSelect(option) })
                     }
-                }
-                SongSort.entries
-                    .filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }
-                    .forEach { option ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 44.dp)
-                                .clickable(role = Role.Button) { onSelect(option) }
-                                .padding(horizontal = 20.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                option.localizedLabel(),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (option == selected) {
-                                Icon(
-                                    Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
-            }
+                },
+            )
         }
     }
 }

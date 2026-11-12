@@ -25,7 +25,6 @@ import com.cosmotune.music.ui.AppUi
 import com.cosmotune.music.ui.AppUiHost
 import com.cosmotune.music.ui.player.PlayerHost
 import com.cosmotune.music.ui.player.PlayerPlatform
-import com.cosmotune.music.ui.screens.SearchScreen
 import com.cosmotune.ui.search.CosmoSearch
 import com.cosmotune.ui.theme.CosmoBrandPalettes
 import com.cosmotune.ui.theme.CosmoColors
@@ -87,18 +86,9 @@ class AddonSearchInteractionTest {
     private class Taps { var youtube = 0; var addon: Song? = null; var history: String? = null }
 
     @Composable
-    private fun Page(newLook: Boolean, query: String, results: UiState<List<Song>>?, history: List<String>, taps: Taps) {
+    private fun Page(query: String, results: UiState<List<Song>>?, history: List<String>, taps: Taps) {
         val listState = rememberLazyListState()
-        if (newLook) CosmoSearch(
-            query = query, onQueryChange = {}, filter = SearchFilter.ALL, currentSong = null, isPlaying = false, onFilterChange = {},
-            results = null, loadingMore = false, onLoadMore = {}, listState = listState, scrollResetTrigger = 0, focusRequested = false,
-            onFocusHandled = {}, onSongClick = { _, _ -> taps.youtube++ }, onSongLongPress = {}, onSongSwipe = {}, onTopResultPlay = {},
-            onTopResultPlaylist = {}, onBrowseClick = {}, history = emptyList(), suggestions = emptyList(), typeaheadResults = emptyList(),
-            onSubmit = {}, onSuggestionClick = {}, onHistoryClick = {}, onHistoryRemove = {}, onHistoryClear = {},
-            contentPadding = PaddingValues(0.dp), topPadding = 0.dp, showField = false,
-            searchingAddons = true, addonResults = results, addonHistory = history, onAddonHistoryClick = { taps.history = it },
-            onAddonSongClick = { songs, index -> taps.addon = songs[index] },
-        ) else SearchScreen(
+        CosmoSearch(
             query = query, onQueryChange = {}, filter = SearchFilter.ALL, currentSong = null, isPlaying = false, onFilterChange = {},
             results = null, loadingMore = false, onLoadMore = {}, listState = listState, scrollResetTrigger = 0, focusRequested = false,
             onFocusHandled = {}, onSongClick = { _, _ -> taps.youtube++ }, onSongLongPress = {}, onSongSwipe = {}, onTopResultPlay = {},
@@ -110,11 +100,11 @@ class AddonSearchInteractionTest {
         )
     }
 
-    private fun resultsShowTheTierAndPlayFromTheAddonList(newLook: Boolean) = withRowHosts {
+    private fun resultsShowTheTierAndPlayFromTheAddonList() = withRowHosts {
         val taps = Taps()
-        compose.setContent { NewLook { Page(newLook, "mix", UiState.Success(listOf(stereo, atmos)), emptyList(), taps) } }
+        compose.setContent { NewLook { Page("mix", UiState.Success(listOf(stereo, atmos)), emptyList(), taps) } }
         // The new look words a catalogue's Atmos tag as an offer ("Atmos available"), never as Atmos playing.
-        compose.onAllNodesWithText(if (newLook) "Atmos available" else "Dolby Atmos", substring = true, useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodesWithText("Atmos available", substring = true, useUnmergedTree = true).assertCountEquals(1)
         compose.onAllNodesWithText("Lossless", substring = false, useUnmergedTree = true).assertCountEquals(1)
         compose.onAllNodesWithText("Songs", substring = false, useUnmergedTree = true).assertCountEquals(0)
         compose.onNodeWithText("Atmos mix", substring = true).performClick()
@@ -122,24 +112,21 @@ class AddonSearchInteractionTest {
         assertEquals(0, taps.youtube, "an add-on row is not played as a YouTube search hit")
     }
 
-    private fun recentWordsShowUntilSomethingIsSubmitted(newLook: Boolean) = withRowHosts {
+    private fun recentWordsShowUntilSomethingIsSubmitted() = withRowHosts {
         val taps = Taps()
-        compose.setContent { NewLook { Page(newLook, "", null, listOf("aurora", "hans zimmer"), taps) } }
-        compose.onNodeWithText(if (newLook) "Recent" else "Recent searches", ignoreCase = true).assertExists()
+        compose.setContent { NewLook { Page("", null, listOf("aurora", "hans zimmer"), taps) } }
+        compose.onNodeWithText("Recent", ignoreCase = true).assertExists()
         compose.onNodeWithText("hans zimmer").performClick()
         assertEquals("hans zimmer", taps.history)
     }
 
-    private fun anEmptyAnswerSaysNoAddonHasIt(newLook: Boolean) = withRowHosts {
-        compose.setContent { NewLook { Page(newLook, "zzz", UiState.Success(emptyList()), listOf("aurora"), Taps()) } }
+    private fun anEmptyAnswerSaysNoAddonHasIt() = withRowHosts {
+        compose.setContent { NewLook { Page("zzz", UiState.Success(emptyList()), listOf("aurora"), Taps()) } }
         compose.onNodeWithText("No addon has “zzz”.", substring = true).assertExists()
         compose.onAllNodesWithText("aurora").assertCountEquals(0)
     }
 
-    @Test fun newLookResults() = resultsShowTheTierAndPlayFromTheAddonList(newLook = true)
-    @Test fun classicResults() = resultsShowTheTierAndPlayFromTheAddonList(newLook = false)
-    @Test fun newLookRecents() = recentWordsShowUntilSomethingIsSubmitted(newLook = true)
-    @Test fun classicRecents() = recentWordsShowUntilSomethingIsSubmitted(newLook = false)
-    @Test fun newLookNoMatch() = anEmptyAnswerSaysNoAddonHasIt(newLook = true)
-    @Test fun classicNoMatch() = anEmptyAnswerSaysNoAddonHasIt(newLook = false)
+    @Test fun results() = resultsShowTheTierAndPlayFromTheAddonList()
+    @Test fun recents() = recentWordsShowUntilSomethingIsSubmitted()
+    @Test fun noMatch() = anEmptyAnswerSaysNoAddonHasIt()
 }

@@ -33,7 +33,7 @@ jobs:
 
   linux:
     needs: version-check
-    name: Linux · AppImage, deb, rpm
+    name: Linux · AppImage
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
       - name: Packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm fakeroot binutils file
+          sudo apt-get install -y binutils file
           curl -sSL -o appimagetool.AppImage \
             https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool.AppImage
@@ -76,13 +76,13 @@ jobs:
         with:
           target: desktop
 
-      - name: Build deb, rpm and the app image
+      - name: Build the app image
         env:
           # the desktop Google sign-in client; either a repository variable or a secret works, and a build without them offers guest sync only
           GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.GOOGLE_DESKTOP_CLIENT_ID || secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET || vars.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: |
-          ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:createDistributable \
+          ./gradlew :desktopApp:createDistributable \
             -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Upload Linux test diagnostics
@@ -113,8 +113,6 @@ jobs:
         run: |
           v=${{ steps.version.outputs.value }}
           mkdir -p dist
-          cp desktopApp/build/compose/binaries/main/deb/*.deb "dist/Cosmotune-$v-linux-amd64.deb"
-          cp desktopApp/build/compose/binaries/main/rpm/*.rpm "dist/Cosmotune-$v-linux-x86_64.rpm"
           ls -lh dist
 
       - uses: actions/upload-artifact@v4
@@ -124,7 +122,7 @@ jobs:
 
   windows:
     needs: version-check
-    name: Windows · installer, msi, portable
+    name: Windows · installer, msi
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -221,10 +219,6 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/Cosmotune-$v-windows-x64.msi"
           Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/Cosmotune-$v-windows-x64-setup.exe"
-          # The marker tells a portable copy from an installed one: it updates through the download page, never the installer.
-          New-Item -ItemType File -Force desktopApp/build/compose/binaries/main/app/Cosmotune/portable | Out-Null
-          7z a -tzip -mx=5 "dist/Cosmotune-$v-windows-x64-portable.zip" `
-            "desktopApp/build/compose/binaries/main/app/Cosmotune/*" | Out-Null
           Get-ChildItem dist | Format-Table Name, Length
 
       - uses: actions/upload-artifact@v4

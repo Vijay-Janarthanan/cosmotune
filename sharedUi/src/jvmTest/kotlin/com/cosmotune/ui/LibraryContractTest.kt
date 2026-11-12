@@ -9,8 +9,9 @@ import kotlin.test.fail
 
 /**
  * What cannot be seen without a window, read from the sources (there is no Compose UI test harness here and none is to be
- * added): the three entry switches of the Library, the "Show all" grid and History, the five call sites, and the rules the new
- * pages were written under. The pure rules are `LibrarySegmentsTest` in `shared`.
+ * added): the three entry switches of the Library, the "Show all" grid and History (upstream's parameter lists, each body the one
+ * new call), the five call sites, and the rules the new pages were written under. The pure rules are `LibrarySegmentsTest` in
+ * `shared`.
  */
 class LibraryContractTest {
     private val library = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/library"
@@ -45,54 +46,40 @@ class LibraryContractTest {
         assertEquals(old, params(lib("CosmoLibraryGrid"), "CosmoLibraryGrid"))
     }
 
-    @Test fun historyScreenAndItsReplacementsTakeTheSameList() {
-        val old = params(SourceContract.read(oldHistory), "HistoryScreen")
-        assertEquals(10, old.size, "the old history screen's list was read (${old.size})")
+    @Test fun historySwitchKeepsTheOldHistoryScreensListAndCosmoHistoryTakesIt() {
+        // upstream's HistoryScreen list, name for name (the old screen itself is deleted)
+        val old = listOf(
+            "state: UiState<List<Song>>", "listState: LazyListState", "onSongClick: (List<Song>, Int) -> Unit", "onSongLongPress: (Song) -> Unit",
+            "onSongSwipe: (Song) -> Unit", "onRetry: () -> Unit", "contentPadding: PaddingValues", "currentSong: Song? = null",
+            "isPlaying: Boolean = false", "modifier: Modifier = Modifier",
+        )
         assertEquals(old, params(SourceContract.read(historySwitch), "HistorySwitch"))
         assertEquals(old, params(lib("CosmoHistory"), "CosmoHistory"))
     }
 
-    // ---- the seams: both branches, by name ---------------------------------------------------------------------------
+    // ---- the seams: the one call, by name ----------------------------------------------------------------------------
 
-    /** The new branch (after the `if`, before `} else {`) and the old branch of a switch's first statement. */
-    private fun branches(src: String, name: String): Pair<String, String> {
-        val statement = SourceContract.firstStatement(SourceContract.functionBody(src, name))
-        assertTrue(statement.startsWith("if (LocalCosmoShell.current != null) {"), "$name starts with the shell test: $statement")
-        val body = statement.removePrefix("if (LocalCosmoShell.current != null) {")
-        assertTrue("} else {" in body, "$name has an else branch")
-        return body.substringBefore("} else {") to body.substringAfter("} else {")
+    private fun checkSwitch(src: String, name: String, newCall: String, oldCall: String) {
+        val body = SourceContract.functionBody(src, name)
+        val statement = SourceContract.firstStatement(body)
+        assertTrue(statement.startsWith("$newCall("), "$name is the one call of $newCall: ${statement.take(60)}")
+        assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "$name: the call is the whole body")
+        SourceContract.assertPassesEveryParameter(statement, SourceContract.names(params(src, name)))
     }
 
-    private fun checkSwitch(src: String, name: String, newCall: String, oldCall: String, oldParams: List<String>) {
-        val (new, old) = branches(src, name)
-        assertTrue(new.trim().startsWith("$newCall("), "$name's new branch is $newCall: ${new.trim().take(60)}")
-        assertTrue(old.trim().startsWith("$oldCall("), "$name's old branch is $oldCall: ${old.trim().take(60)}")
-        val names = SourceContract.names(oldParams)
-        SourceContract.assertPassesEveryParameter(new, names)
-        SourceContract.assertPassesEveryParameter(old, names)
-    }
+    @Test fun librarySwitchIsTheOneCallAndPassesEveryParameterByName() =
+        checkSwitch(lib("LibrarySwitch"), "LibrarySwitch", "CosmoLibrary", "LibraryScreen")
 
-    @Test fun bothBranchesOfLibrarySwitchPassEveryParameterByName() {
-        checkSwitch(lib("LibrarySwitch"), "LibrarySwitch", "CosmoLibrary", "LibraryScreen", params(SourceContract.read(oldLibrary), "LibraryScreen"))
-        val (new, old) = branches(lib("LibrarySwitch"), "LibrarySwitch")
-        for (name in listOf("currentSong", "isPlaying", "onSongClick", "onSongLongPress")) {
-            assertTrue(Regex("""\b$name = $name\b""").containsMatchIn(new), "the new page gets $name")
-            assertFalse(Regex("""\b$name = $name\b""").containsMatchIn(old), "the old screen never had $name")
-        }
-    }
+    @Test fun libraryGridSwitchIsTheOneCallAndPassesEveryParameterByName() =
+        checkSwitch(lib("LibraryGridSwitch"), "LibraryGridSwitch", "CosmoLibraryGrid", "LibraryGridPage")
 
-    @Test fun bothBranchesOfLibraryGridSwitchPassEveryParameterByName() =
-        checkSwitch(lib("LibraryGridSwitch"), "LibraryGridSwitch", "CosmoLibraryGrid", "LibraryGridPage", params(SourceContract.read(oldLibrary), "LibraryGridPage"))
+    @Test fun historySwitchIsTheOneCallAndPassesEveryParameterByName() =
+        checkSwitch(SourceContract.read(historySwitch), "HistorySwitch", "CosmoHistory", "HistoryScreen")
 
-    @Test fun bothBranchesOfHistorySwitchPassEveryParameterByName() =
-        checkSwitch(SourceContract.read(historySwitch), "HistorySwitch", "CosmoHistory", "HistoryScreen", params(SourceContract.read(oldHistory), "HistoryScreen"))
-
-    @Test fun theOldScreensAreStillWhatTheyWereCalledAndAreNotEditedHere() {
-        // the old functions keep their names and the file they live in: the switch is the only place that changed
+    @Test fun theOldLibraryScreensAreStillWhatTheyWereCalledAndAreNotEditedHere() {
+        // the old functions keep their names and the file they live in (upstream's; nothing calls them now)
         assertTrue(Regex("""\bfun LibraryScreen\(""").containsMatchIn(SourceContract.read(oldLibrary)))
         assertTrue(Regex("""\bfun LibraryGridPage\(""").containsMatchIn(SourceContract.read(oldLibrary)))
-        assertTrue(Regex("""\bfun HistoryScreen\(""").containsMatchIn(SourceContract.read(oldHistory)))
-        assertTrue("LocalCosmoShell" !in SourceContract.read(oldLibrary) && "LocalCosmoShell" !in SourceContract.read(oldHistory), "the old screens know nothing of the look")
     }
 
     // ---- the five call sites ------------------------------------------------------------------------------------------
@@ -296,7 +283,8 @@ class LibraryContractTest {
         val phone = SourceContract.code(SourceContract.read("app/src/main/java/com/cosmotune/music/MainActivity.kt"))
         assertTrue("com.cosmotune.ui.library.LocalMusicSwitch(" in phone, "the phone's folders go through the switch")
         val desktop = SourceContract.code(SourceContract.read(desktopApp))
-        assertTrue("destination == DesktopDestination.LOCAL_MUSIC && cosmoShell != null -> DesktopDeviceMusic(" in desktop && "if (cosmoShell != null) DesktopDeviceMusic(" in desktop)
+        assertTrue("destination == DesktopDestination.LOCAL_MUSIC -> DesktopDeviceMusic(" in desktop, "the desktop's local music is the device page")
+        assertTrue("destination == DesktopDestination.HISTORY -> {" in desktop, "History keeps its own branch")
     }
 
     @Test fun everyStringTheNewPagesNameExists() {

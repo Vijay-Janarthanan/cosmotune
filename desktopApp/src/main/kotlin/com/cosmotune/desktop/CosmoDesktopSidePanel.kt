@@ -17,7 +17,6 @@ import com.cosmotune.ui.orbit.ORBIT_SIDE_PANEL_SHAPE
 import com.cosmotune.ui.orbit.OrbitSidePanelHeader
 import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.orbit.orbitSidePanelFill
-import com.cosmotune.ui.theme.LocalCosmoShell
 
 /**
  * The card of the side panel in Orbit: the lyrics or Up next stand in one flat panel beside the page instead of in a column cut off
@@ -28,15 +27,12 @@ import com.cosmotune.ui.theme.LocalCosmoShell
  * untouched. It is a function and not an extension of `Modifier` because the one upstream line that takes it does so by its full
  * name, without an import.
  *
- * With the new look off the modifier is the identity, so `DesktopSidePanelColumn` looks exactly as it did.
- *
  * While the mode is Video ([com.cosmotune.video.host.desktopVideoShown]) the music side panel stands aside: the modifier measures
  * the column as usual but places nothing, so neither the card nor the lyrics or the queue inside it are drawn or answer a click.
  * The column keeps its width: it is set by an upstream modifier in front of this one, which a modifier behind it cannot undo.
  */
 @Composable
 internal fun cosmoDesktopSidePanelCard(): Modifier {
-    if (LocalCosmoShell.current == null) return Modifier
     if (com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopWatchShown()) return Modifier.layout { measurable, constraints ->
         val placeable = measurable.measure(constraints)
         layout(placeable.width, placeable.height) {}
@@ -50,7 +46,7 @@ internal fun cosmoDesktopSidePanelCard(): Modifier {
 
 /**
  * The head of the panel in Orbit: "Lyrics" or "Up next" in the wide section face and the round close button ([onClose]). The queue
- * is headed here too (in the old look it heads itself): Up next's groups follow under it.
+ * is headed here too: Up next's groups follow under it.
  */
 @Composable
 internal fun CosmoDesktopSidePanelHeader(lyrics: Boolean, onClose: () -> Unit) {
@@ -62,12 +58,11 @@ internal fun CosmoDesktopSidePanelHeader(lyrics: Boolean, onClose: () -> Unit) {
 }
 
 /**
- * The content's inset inside the card with the new look: 20 dp at the sides for the lyrics (the head's own), 12 dp for Up next's rows
- * (whose cards carry their own 10 dp in), and 14 dp above the card's end. Null with the look off: the column's own padding stands.
+ * The content's inset inside the card: 20 dp at the sides for the lyrics (the head's own), 12 dp for Up next's rows (whose cards
+ * carry their own 10 dp in), and 14 dp above the card's end.
  */
 @Composable
-internal fun cosmoDesktopSidePanelInset(lyrics: Boolean): Modifier? {
-    if (LocalCosmoShell.current == null) return null
+internal fun cosmoDesktopSidePanelInset(lyrics: Boolean): Modifier {
     return Modifier.padding(start = if (lyrics) 20.dp else 12.dp, end = if (lyrics) 20.dp else 12.dp, bottom = 14.dp)
 }
 

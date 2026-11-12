@@ -16,14 +16,14 @@ import kotlin.test.assertTrue
 
 /**
  * What cannot be seen without a window, pinned by reading the source (there is no Compose UI test harness here and none is to be
- * added): the seam of the three entry switches (Search, Explore, a mood's page), the six call sites in the roots, the old
- * screen's behaviour that the new one copies, and the rules the new pages were written under.
+ * added): the seam of the three entry switches (Search, Explore, a mood's page: upstream's parameter lists, each body the one new
+ * call), the six call sites in the roots, the old Search screen's behaviour that the new one copied (the old screen itself is
+ * gone), and the rules the new pages were written under.
  */
 class SearchContractTest {
     private val dir = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/search"
     private fun search(name: String): String = SourceContract.read("$dir/$name.kt")
     private val old = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/screens"
-    private val oldSearch get() = SourceContract.read("$old/SearchScreen.kt")
     private val oldExplore get() = SourceContract.read("$old/ExploreScreen.kt")
     private val mainActivity = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
     private val desktopApp = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
@@ -31,19 +31,16 @@ class SearchContractTest {
     private fun params(src: String, name: String) = SourceContract.parameters(src, name)
     private fun names(src: String, name: String) = SourceContract.names(params(src, name))
 
-    /** The two branches of a switch: what runs with the new look on, and what runs with it off. */
-    private fun branches(src: String, switch: String): Pair<String, String> {
-        val body = SourceContract.code(SourceContract.functionBody(src, switch)).substringAfter("if (LocalCosmoShell.current != null)")
-        return body.substringBefore("} else {") to body.substringAfter("} else {")
-    }
+    /** The body of a switch, white space collapsed. */
+    private fun flatBody(src: String, switch: String): String = SourceContract.functionBody(src, switch).replace(Regex("\\s+"), " ")
 
     // ---- the seams: the parameter lists ----
 
-    @Test fun searchSwitchTakesSearchScreensListNameForNameAndTypeForTypeAndBrowseLast() {
-        val oldList = params(oldSearch, "SearchScreen")
-        assertEquals(45, oldList.size, "the old screen's list was read (37, the seven of the Add-ons source, BC-31, and Search in)")
+    @Test fun searchSwitchKeepsSearchScreensListAndBrowseLast() {
         val switch = params(search("SearchSwitch"), "SearchSwitch")
-        assertEquals(oldList + "browse: CosmoBrowse? = null", switch)
+        assertEquals(46, switch.size, "upstream's SearchScreen list (37, the seven of the Add-ons source, BC-31, and Search in), then browse: $switch")
+        assertEquals("browse: CosmoBrowse? = null", switch.last())
+        assertEquals(listOf("query", "onQueryChange", "filter"), SourceContract.names(switch).take(3), "in upstream's order")
     }
 
     @Test fun theOldScreensDefaultForTheLibraryTapSurvives() {
@@ -68,27 +65,23 @@ class SearchContractTest {
         assertEquals(oldList, params(search("CosmoMoodPage"), "CosmoMoodPage"))
     }
 
-    // ---- the seams: both branches ----
+    // ---- the seams: the one call ----
 
-    @Test fun bothBranchesOfEachSwitchPassEveryParameterByNameAndTheOldOnesPassNothingElse() {
-        data class Case(val file: String, val switch: String, val new: String, val oldCall: String, val oldList: List<String>)
+    @Test fun eachSwitchIsTheOneNewCallAndPassesEveryParameterByName() {
+        data class Case(val file: String, val switch: String, val new: String, val oldCall: String)
         val cases = listOf(
-            Case("SearchSwitch", "SearchSwitch", "CosmoSearch(", "SearchScreen(", names(oldSearch, "SearchScreen") + "browse"),
-            Case("ExploreSwitch", "ExploreSwitch", "CosmoBrowsePage(", "ExploreScreen(", names(oldExplore, "ExploreScreen")),
-            Case("MoodGenreSwitch", "MoodGenreSwitch", "CosmoMoodPage(", "MoodGenrePlaylistsScreen(", names(oldExplore, "MoodGenrePlaylistsScreen")),
+            Case("SearchSwitch", "SearchSwitch", "CosmoSearch(", "SearchScreen("),
+            Case("ExploreSwitch", "ExploreSwitch", "CosmoBrowsePage(", "ExploreScreen("),
+            Case("MoodGenreSwitch", "MoodGenreSwitch", "CosmoMoodPage(", "MoodGenrePlaylistsScreen("),
         )
         for (case in cases) {
-            val (new, oldBranch) = branches(search(case.file), case.switch)
-            assertTrue(new.contains(case.new), "${case.switch}: the new look runs ${case.new}")
-            assertTrue(oldBranch.contains(case.oldCall), "${case.switch}: the old look runs ${case.oldCall}")
-            for (name in case.oldList) {
-                assertTrue(Regex("""\b$name = $name\b""").containsMatchIn(new), "${case.switch}: the new branch passes $name = $name")
+            val src = search(case.file)
+            val body = flatBody(src, case.switch)
+            assertTrue(body.startsWith("{ ${case.new}") && body.endsWith(") }"), "${case.switch}: the body is the one call of ${case.new} $body")
+            assertEquals(1, Regex(Regex.escape(case.new)).findAll(body).count(), "${case.switch}: one call")
+            for (name in names(src, case.switch)) {
+                assertTrue(Regex("""\b$name = $name\b""").containsMatchIn(body), "${case.switch}: passes $name = $name")
             }
-            // the old screens never had `browse`: it must not reach them
-            for (name in case.oldList.filter { it != "browse" }) {
-                assertTrue(Regex("""\b$name = $name\b""").containsMatchIn(oldBranch), "${case.switch}: the old branch passes $name = $name")
-            }
-            assertFalse(Regex("""\bbrowse = browse\b""").containsMatchIn(oldBranch), "${case.switch}: the old branch does not get browse")
         }
     }
 
@@ -120,15 +113,15 @@ class SearchContractTest {
             "the desktop hands over the Explore state; selecting the destination clears the mood, so it comes first",
         )
         assertTrue(desktop.indexOf("showField = true,") in 0 until desktop.indexOf("browse = com.cosmotune.ui.browse.CosmoBrowse("), "the desktop draws the page's search pill")
-        assertTrue("showField = cosmoShell != null," in phone, "the phone draws the pill with Orbit on; the old look keeps the bar's field")
+        assertTrue("showField = true," in phone, "the phone draws the page's search pill too")
         assertTrue(desktop.indexOf("browse = com.cosmotune.ui.browse.CosmoBrowse(") < desktop.indexOf("destination == DesktopDestination.LIBRARY"), "the argument is inside the Search call")
     }
 
     // ---- what the new page copies from the old one ----
 
     @Test fun theThreeEffectsAndTheTwoFlagsAreTheOldScreensWordForWord() {
+        // copied from the old screen while it was there, word for word; the old screen is gone, the copy stays
         val new = SourceContract.code(search("CosmoSearch"))
-        val oldCode = SourceContract.code(oldSearch)
         val lines = listOf(
             "LaunchedEffect(focusRequested) {",
             "if (focusRequested && showField) {",
@@ -145,8 +138,7 @@ class SearchContractTest {
             "if (!loadingMore && total > 0 && lastVisible >= total - 4) onLoadMore()",
         )
         for (line in lines) {
-            assertTrue(line in oldCode, "the old screen has: $line")
-            assertTrue(line in new, "CosmoSearch has, as the old screen: $line")
+            assertTrue(line in new, "CosmoSearch has, as the old screen had: $line")
         }
         assertTrue("com.cosmotune.music.ui.screens.SearchScreen" in search("CosmoSearch"), "a comment names the source of the copy")
     }

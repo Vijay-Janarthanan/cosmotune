@@ -17,7 +17,6 @@ import com.cosmotune.music.sharedui.resources.cosmo_amoled_summary
 import com.cosmotune.music.sharedui.resources.cosmo_theme
 import com.cosmotune.music.sharedui.resources.cosmo_theme_dark
 import com.cosmotune.music.sharedui.resources.cosmo_theme_light
-import com.cosmotune.music.sharedui.resources.cosmo_theme_light_only_classic
 import com.cosmotune.music.sharedui.resources.cosmo_theme_summary
 import com.cosmotune.music.sharedui.resources.cosmo_theme_system
 import com.cosmotune.ui.settings.rememberCosmoLookSettings
@@ -48,14 +47,12 @@ internal object DesktopSystemTheme {
 /**
  * Whether the desktop draws its dark theme: [DesktopAppearanceSettings.themeMode] resolved against the system's theme (asked again
  * every [DesktopSystemTheme.POLL_MS] while the choice is System, so a change in Windows' settings reaches an open window) and the
- * phone's rule that Video is dark first. The classic look is dark only: its colours are fixed dark ones. Every desktop window
- * reads this: the main window's theme, the mini player, the tray flyout.
+ * phone's rule that Video is dark first. Every desktop window reads this: the main window's theme, the mini player, the tray flyout.
  */
 @Composable
 internal fun rememberDesktopDark(): Boolean {
     val choice by DesktopAppearanceSettings.themeMode.collectAsState()
     val look = rememberCosmoLookSettings()
-    val newLook by look.newLook.collectAsState()
     val mode by look.mode.collectAsState()
     var systemDark by remember { mutableStateOf(DesktopSystemTheme.dark()) }
     if (choice == ThemeChoice.SYSTEM) {
@@ -67,34 +64,29 @@ internal fun rememberDesktopDark(): Boolean {
         }
     }
     val videoFirst = mode == AppMode.VIDEO && AppModes.available(AppMode.VIDEO)
-    return !newLook || choice.isDark(systemDark, videoFirst)
+    return choice.isDark(systemDark, videoFirst)
 }
 
 /**
  * The top of Settings > Appearance: Theme, the phone's own choice of System, Light and Dark as Orbit's segmented chips under its
  * row, then Pure black, which only the dark theme has and is drawn disabled otherwise. A choice goes through the app's theme choice
- * ([com.cosmotune.ui.theme.LocalThemeChoice]: the same cross-fade as the account popover's switch). The classic look is dark only,
- * so there the choice is drawn disabled and says so. [visible] is the settings page's own search filter.
+ * ([com.cosmotune.ui.theme.LocalThemeChoice]: the same cross-fade as the account popover's switch). [visible] is the settings page's
+ * own search filter.
  */
 @Composable
 internal fun DesktopThemeRows(visible: @Composable (String, String) -> Boolean) {
     val look = rememberCosmoLookSettings()
-    val newLook by look.newLook.collectAsState()
     val amoled by look.amoled.collectAsState()
     val choice by DesktopAppearanceSettings.themeMode.collectAsState()
     val host = com.cosmotune.ui.theme.LocalThemeChoice.current
     val dark = com.cosmotune.ui.theme.LocalCosmoColors.current.dark
     val title = stringResource(SharedRes.string.cosmo_theme)
-    val summary = stringResource(
-        if (newLook) SharedRes.string.cosmo_theme_summary
-        else SharedRes.string.cosmo_theme_light_only_classic,
-    )
+    val summary = stringResource(SharedRes.string.cosmo_theme_summary)
     if (visible(title, summary)) {
         com.cosmotune.ui.settings.CosmoSettingsRow(
             icon = com.cosmotune.ui.orbit.themeGlyph(choice),
             title = title,
             subtitle = summary,
-            enabled = newLook,
         )
         val options = listOf(ThemeChoice.SYSTEM, ThemeChoice.LIGHT, ThemeChoice.DARK)
         com.cosmotune.ui.settings.CosmoSettingsSegmented(
@@ -110,12 +102,11 @@ internal fun DesktopThemeRows(visible: @Composable (String, String) -> Boolean) 
                 end = com.cosmotune.ui.settings.CosmoSettingsInsets.side,
                 bottom = 12.dp,
             ),
-            enabled = newLook,
         )
     }
     val blackTitle = stringResource(SharedRes.string.cosmo_amoled)
     val blackSummary = stringResource(SharedRes.string.cosmo_amoled_summary)
-    if (newLook && visible(blackTitle, blackSummary)) {
+    if (visible(blackTitle, blackSummary)) {
         // Only the dark theme has a black page; in light it stays as it was set, drawn disabled.
         com.cosmotune.ui.settings.CosmoSettingsRow(
             title = blackTitle,

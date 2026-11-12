@@ -81,22 +81,24 @@ class VisualPolishContractTest {
 
     private val mainActivity = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
 
-    @Test fun theSurfaceSheetIsASwitchOfTheBridgesSheet() {
+    @Test fun theSurfaceSheetTakesTheBridgesSheetsParametersAndIsTheSongSheetsSurface() {
         val src = SourceContract.read("$ui/sheets/SurfaceSheetSwitch.kt")
         val bridge = SourceContract.read("$ui/bridge/SheetBridge.kt")
         assertEquals(SourceContract.parameters(bridge, "ModalBottomSheet"), SourceContract.parameters(src, "SurfaceSheetSwitch"), "the same parameters, names, types, defaults and order")
         val body = SourceContract.functionBody(src, "SurfaceSheetSwitch")
         val first = SourceContract.firstStatement(body)
-        assertTrue(first.startsWith("if (LocalCosmoShell.current == null) { com.cosmotune.ui.bridge.ModalBottomSheet("), "the look off is the old call: $first")
-        SourceContract.assertPassesEveryParameter(first, SourceContract.names(SourceContract.parameters(src, "SurfaceSheetSwitch")))
-        val on = body.substringAfter(first)
+        assertTrue(first.startsWith("androidx.compose.material3.ModalBottomSheet("), "the one statement is Material's sheet with the look's surface: $first")
         for (line in listOf(
-            "androidx.compose.material3.ModalBottomSheet(", "shape = RectangleShape", "containerColor = Color.Transparent", "tonalElevation = 0.dp",
+            "shape = RectangleShape", "containerColor = Color.Transparent", "tonalElevation = 0.dp",
             "scrimColor = CosmoSheetScrim", "dragHandle = null", "contentWindowInsets = contentWindowInsets", "CosmoSheetSurface(content = content)",
-        )) assertTrue(line in on, "the look on: $line")
+        )) assertTrue(line in first, "the sheet: $line")
+        // the caller's own values reach Material's sheet where the look does not decide them
+        for (name in listOf("onDismissRequest", "modifier", "sheetState", "sheetMaxWidth", "contentColor", "properties")) {
+            assertTrue("$name = $name" in first, "passes $name = $name")
+        }
         val code = SourceContract.code(src)
         assertTrue("val CosmoSheetScrim: Color = Color.Black.copy(alpha = 0.40f)" in code, "the spec's 40 % black")
-        assertTrue("if (LocalCosmoShell.current != null) CosmoSheetScrim else BottomSheetDefaults.ScrimColor" in code, "Material's default while the look is off")
+        assertTrue("fun cosmoSheetScrim(): Color = CosmoSheetScrim" in code, "the song sheet's scrim is the spec's, always")
     }
 
     @Test fun theTwoHostsCallTheSwitchAndTheSongSheetTakesTheSpecsScrim() {
@@ -177,12 +179,13 @@ class VisualPolishContractTest {
     // ---- every skeleton of the new look is the cover's ---------------------------------------------------------------------------
 
     @Test fun everySkeletonOfTheNewLookDrawsTheCoversSkeletonColours() {
-        // the shared skeletons: every block is a ShimmerBox, which hands over to CosmoShimmer (skelBase, skelShine) as its first statement
+        // the shared skeletons: every block is a ShimmerBox, which is the one call of CosmoShimmer (skelBase, skelShine)
         val skeletons = SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/Skeletons.kt")
         val shimmer = SourceContract.functionBody(skeletons, "ShimmerBox")
-        assertTrue(
-            SourceContract.firstStatement(shimmer).startsWith("if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoShimmer("),
-            "ShimmerBox is the cover's shimmer in the new look",
+        assertEquals(
+            "{ com.cosmotune.ui.states.CosmoShimmer(modifier = modifier, shape = shape) }",
+            shimmer.replace(Regex("\\s+"), " "),
+            "ShimmerBox is the cover's shimmer and nothing else",
         )
         val rest = SourceContract.code(skeletons).replace(shimmer, "").lines().filterNot { it.trimStart().startsWith("import ") }.joinToString("\n")
         for (paint in listOf("drawRect", "background(", "drawWithCache", "drawBehind", "MaterialTheme.colorScheme")) {

@@ -8,12 +8,11 @@ import androidx.compose.ui.Modifier
 import com.cosmotune.ui.chrome.CosmoActionStyle
 import com.cosmotune.ui.chrome.LocalCosmoActionStyle
 import com.cosmotune.ui.components.CosmoGlassActionButton
-import com.cosmotune.ui.theme.LocalCosmoShell
 
 /**
  * Material's `IconButton` with the same parameters, names, order and defaults (material3 1.3.x), so an upstream file takes it by
- * changing one import line. It is Material's own button everywhere except in the actions slot of the new top bar, where the look
- * is on and the slot's style is [CosmoActionStyle.GLASS]: there it is a glass circle ([CosmoGlassActionButton]) and [colors] and
+ * changing one import line. It is Material's own button everywhere except in the actions slot of the top bar, where the slot's
+ * style is [CosmoActionStyle.GLASS]: there it is a glass circle ([CosmoGlassActionButton]) and [colors] and
  * [interactionSource] are ignored, the palette decides the colours.
  */
 @Composable
@@ -25,7 +24,7 @@ fun IconButton(
     interactionSource: MutableInteractionSource? = null,
     content: @Composable () -> Unit,
 ) {
-    if (LocalCosmoShell.current == null || LocalCosmoActionStyle.current != CosmoActionStyle.GLASS) {
+    if (LocalCosmoActionStyle.current != CosmoActionStyle.GLASS) {
         androidx.compose.material3.IconButton(
             onClick = onClick,
             modifier = modifier,

@@ -24,7 +24,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** The new look's state while the switch is on; null while it is off, so old call sites keep the old chrome. */
+/** The look's state, provided by every [CosmoLookTheme]; null only outside one (the TV's root, a window opened before its theme). */
 val LocalCosmoShell = staticCompositionLocalOf<CosmoShellState?> { null }
 val LocalCosmoColors = staticCompositionLocalOf<CosmoColors> { error("CosmoLookTheme is not installed") }
 val LocalReducedMotion = staticCompositionLocalOf { false }
@@ -47,13 +47,12 @@ fun EnsureCosmoLook(content: @Composable () -> Unit) {
 }
 
 /**
- * The app theme with the new look switch in it. [legacy] is the old theme call (CosmotuneTheme on the
- * phone, the desktop MaterialTheme). The structure below is the same whether the switch is on or off,
- * so turning it on in Settings keeps every remembered state of the app.
+ * The app theme: the Orbit look. [legacy] is the platform's Material theme call (CosmotuneTheme on the phone, the desktop
+ * MaterialTheme); it is the base the look's Material scheme and type are made from ([toColorScheme] and [toMaterialTypography]
+ * copy it), so every Material field the look does not set keeps the platform's value.
  *
- * With the switch on, the old screens also take the new look through Material: the cover palette as the colour scheme
- * ([toColorScheme]), the type, the corners and the ripple ([toMaterialTypography], [CosmoMaterialShapes], [CosmoRipple]), and
- * the ambient text colour as the content colour.
+ * Material widgets also take the look: the cover palette as the colour scheme ([toColorScheme]), the type, the corners and the
+ * ripple ([toMaterialTypography], [CosmoMaterialShapes], [CosmoRipple]), and the ambient text colour as the content colour.
  *
  * [themeChoice] is where the platform keeps the theme the person chose (System, Light, Dark); the profile menus offer it through
  * [LocalThemeChoice], and a change made there or in Settings cross-fades ([ThemeChoiceRoot]). [dark] is what that choice resolves to.
@@ -67,37 +66,33 @@ fun CosmoLookTheme(
     content: @Composable () -> Unit,
 ) {
     val settings = rememberCosmoLookSettings()
-    val newLook by settings.newLook.collectAsStateWithLifecycle()
     val shell = remember(settings) { CosmoShellState(settings, dark) }
     val reduced = rememberReducedMotion()
-    PaletteFollower(shell, newLook, dark, reduced)
+    PaletteFollower(shell, dark, reduced)
     // The theme choice for the chrome that changes it (the profile menus), and the cross-fade such a change goes through.
     ThemeChoiceRoot(themeChoice, reduced) {
     legacy {
         val legacyScheme = MaterialTheme.colorScheme
         val legacyTypography = MaterialTheme.typography
-        val legacyShapes = MaterialTheme.shapes
         val target = shell.palette.target
         val type = rememberCosmoType()
-        val scheme = if (newLook) remember(target, legacyScheme) { target.toColorScheme(legacyScheme) } else legacyScheme
+        val scheme = remember(target, legacyScheme) { target.toColorScheme(legacyScheme) }
         MaterialTheme(
             colorScheme = scheme,
-            typography = if (newLook) remember(type, legacyTypography) { type.toMaterialTypography(legacyTypography) } else legacyTypography,
-            shapes = if (newLook) CosmoMaterialShapes else legacyShapes,
+            typography = remember(type, legacyTypography) { type.toMaterialTypography(legacyTypography) },
+            shapes = CosmoMaterialShapes,
         ) {
-            // The locals below are provided whether the switch is on or off (their values differ), never `content` itself
-            // inside an `if`: another call tree would throw away the app's state when the switch flips. The box around them is there
-            // in both cases too; with the switch on it also tells the focus rings whether the keyboard is in use.
-            FocusModalityRoot(enabled = newLook) {
+            // The box tells the focus rings whether the keyboard is in use.
+            FocusModalityRoot(enabled = true) {
                 CompositionLocalProvider(
                     LocalCosmoType provides type,
-                    LocalCosmoShell provides (if (newLook) shell else null),
+                    LocalCosmoShell provides shell,
                     LocalCosmoColors provides shell.colors,
                     LocalReducedMotion provides reduced,
                     LocalCosmoLookInstalled provides true,
                     // The ambient ground's text colour for an untinted icon or text; Material surfaces still set their own.
-                    LocalContentColor provides (if (newLook) Color(target.textPrimary) else LocalContentColor.current),
-                    LocalRippleConfiguration provides (if (newLook) CosmoRipple else LocalRippleConfiguration.current),
+                    LocalContentColor provides Color(target.textPrimary),
+                    LocalRippleConfiguration provides CosmoRipple,
                     content = content,
                 )
             }
@@ -127,7 +122,7 @@ private const val COVER_GRACE_MS = 1_500L
  * of what the palette is made from, so a change of either loads it again.
  */
 @Composable
-private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Boolean, reduced: Boolean) {
+private fun PaletteFollower(shell: CosmoShellState, dark: Boolean, reduced: Boolean) {
     val context = LocalPlatformContext.current
     val coverColours by shell.settings.coverColours.collectAsStateWithLifecycle()
     val intensityIndex by shell.settings.intensity.collectAsStateWithLifecycle()
@@ -145,8 +140,7 @@ private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Bool
     // Whether the palette on screen stands for "no cover" (the setting off, or nothing with a cover): the next cover is then
     // shown as it is, not held to the settle threshold against the stand-in it replaces.
     var showedMissing by remember { mutableStateOf(false) }
-    LaunchedEffect(newLook, coverColours, dark, amoled, brand, url, intensity) {
-        if (!newLook) return@LaunchedEffect
+    LaunchedEffect(coverColours, dark, amoled, brand, url, intensity) {
         // No address yet: give it time, unless the palette on screen is the other theme's, which cannot wait.
         if (coverColours && url == null && shell.coverPalette.targetDark == dark) delay(COVER_GRACE_MS)
         val missing = !coverColours || url == null
@@ -174,13 +168,13 @@ private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Bool
             launch { if (chrome != null) shell.palette.show(chrome, dark, reducedNow, animate) else shell.palette.finishFade(reducedNow, animate) }
         }
     }
-    // The old look, or a theme or AMOLED flip with the colours not following the cover: the One palette, at once.
-    LaunchedEffect(newLook, coverColours, dark, amoled) {
-        if (!newLook || !coverColours) shell.palette.show(com.cosmotune.theme.OnePalette.of(dark, amoled), dark, reducedNow, animate = false)
+    // A theme or AMOLED flip with the colours not following the cover: the One palette, at once.
+    LaunchedEffect(coverColours, dark, amoled) {
+        if (!coverColours) shell.palette.show(com.cosmotune.theme.OnePalette.of(dark, amoled), dark, reducedNow, animate = false)
     }
     val nextUrl = shell.nextCoverUrl
-    LaunchedEffect(newLook, coverColours, dark, amoled, nextUrl, intensity) {
+    LaunchedEffect(coverColours, dark, amoled, nextUrl, intensity) {
         // Warms the cache, so the next fade starts with the audio, not after the cover loads.
-        if (newLook && coverColours && nextUrl != null) CoverPaletteLoader.load(context, nextUrl, dark, amoled = amoled, intensity = intensity)
+        if (coverColours && nextUrl != null) CoverPaletteLoader.load(context, nextUrl, dark, amoled = amoled, intensity = intensity)
     }
 }

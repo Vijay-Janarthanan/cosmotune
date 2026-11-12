@@ -3,22 +3,18 @@ package com.cosmotune.ui.nowplaying
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
-import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.data.lyrics.LyricsSource
 import com.cosmotune.music.data.model.LikeStatus
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.ui.LyricsProviderState
-import com.cosmotune.music.ui.player.NowPlayingScreen
 
 /**
- * The one entry point of Now Playing: the new screen while the new look is on (the shell exists), the old one while it is off.
+ * The one entry point of Now Playing: [CosmoNowPlaying].
  *
- * The parameter list is [NowPlayingScreen]'s, name for name and in the same order, and both branches pass every argument by
- * name. That is the seam: when upstream adds a parameter to [NowPlayingScreen] the old branch stops compiling, and this file is
- * where the new parameter has to be decided on, instead of silently going missing from the new screen. With the new look off
- * nothing here runs but the old call.
+ * The parameter list is upstream's `NowPlayingScreen`'s, name for name and in the same order, so upstream's call sites still merge;
+ * when upstream adds one, add it here and pass it on if the screen needs it (`NowPlayingContractTest` checks every one is passed).
  */
 @Composable
 fun NowPlayingSwitch(
@@ -71,35 +67,18 @@ fun NowPlayingSwitch(
     windowHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
-    if (LocalCosmoShell.current != null) {
-        CosmoNowPlaying(
-            song = song, playedBy = playedBy, isPlaying = isPlaying, isLoading = isLoading, position = position,
-            durationMs = durationMs, audioVersionSwitching = audioVersionSwitching, qualityUpgraded = qualityUpgraded, queue = queue,
-            queueIndex = queueIndex, hasPrevious = hasPrevious, hasNext = hasNext, repeatMode = repeatMode, shuffleEnabled = shuffleEnabled,
-            autoplayEnabled = autoplayEnabled, signedIn = signedIn, accountName = accountName, likeStatus = likeStatus,
-            onToggleLike = onToggleLike, onPlayPause = onPlayPause, onNext = onNext, onPrevious = onPrevious,
-            onBlockedControl = onBlockedControl, onSeek = onSeek, onSeekFraction = onSeekFraction, onToggleShuffle = onToggleShuffle,
-            onCycleRepeat = onCycleRepeat, onToggleAutoplay = onToggleAutoplay, onJumpTo = onJumpTo, onRemoveFromQueue = onRemoveFromQueue,
-            onMoveInQueue = onMoveInQueue, onQueueDragActiveChange = onQueueDragActiveChange, onClearQueue = onClearQueue,
-            onOpenMenu = onOpenMenu, onOpenAlbum = onOpenAlbum, onOpenArtist = onOpenArtist, onOpenPlaybackSource = onOpenPlaybackSource,
-            onListenTogether = onListenTogether, lyrics = lyrics, lyricsSource = lyricsSource, lyricsProviderStates = lyricsProviderStates,
-            onSelectLyricsProvider = onSelectLyricsProvider, lyricsUnavailable = lyricsUnavailable, lyricsOffsetOpen = lyricsOffsetOpen,
-            onDismissLyricsOffset = onDismissLyricsOffset, windowWidth = windowWidth, windowHeight = windowHeight, modifier = modifier,
-        )
-    } else {
-        NowPlayingScreen(
-            song = song, playedBy = playedBy, isPlaying = isPlaying, isLoading = isLoading, position = position,
-            durationMs = durationMs, audioVersionSwitching = audioVersionSwitching, qualityUpgraded = qualityUpgraded, queue = queue,
-            queueIndex = queueIndex, hasPrevious = hasPrevious, hasNext = hasNext, repeatMode = repeatMode, shuffleEnabled = shuffleEnabled,
-            autoplayEnabled = autoplayEnabled, signedIn = signedIn, accountName = accountName, likeStatus = likeStatus,
-            onToggleLike = onToggleLike, onPlayPause = onPlayPause, onNext = onNext, onPrevious = onPrevious,
-            onBlockedControl = onBlockedControl, onSeek = onSeek, onSeekFraction = onSeekFraction, onToggleShuffle = onToggleShuffle,
-            onCycleRepeat = onCycleRepeat, onToggleAutoplay = onToggleAutoplay, onJumpTo = onJumpTo, onRemoveFromQueue = onRemoveFromQueue,
-            onMoveInQueue = onMoveInQueue, onQueueDragActiveChange = onQueueDragActiveChange, onClearQueue = onClearQueue,
-            onOpenMenu = onOpenMenu, onOpenAlbum = onOpenAlbum, onOpenArtist = onOpenArtist, onOpenPlaybackSource = onOpenPlaybackSource,
-            onListenTogether = onListenTogether, lyrics = lyrics, lyricsSource = lyricsSource, lyricsProviderStates = lyricsProviderStates,
-            onSelectLyricsProvider = onSelectLyricsProvider, lyricsUnavailable = lyricsUnavailable, lyricsOffsetOpen = lyricsOffsetOpen,
-            onDismissLyricsOffset = onDismissLyricsOffset, windowWidth = windowWidth, windowHeight = windowHeight, modifier = modifier,
-        )
-    }
+    CosmoNowPlaying(
+        song = song, playedBy = playedBy, isPlaying = isPlaying, isLoading = isLoading, position = position,
+        durationMs = durationMs, audioVersionSwitching = audioVersionSwitching, qualityUpgraded = qualityUpgraded, queue = queue,
+        queueIndex = queueIndex, hasPrevious = hasPrevious, hasNext = hasNext, repeatMode = repeatMode, shuffleEnabled = shuffleEnabled,
+        autoplayEnabled = autoplayEnabled, signedIn = signedIn, accountName = accountName, likeStatus = likeStatus,
+        onToggleLike = onToggleLike, onPlayPause = onPlayPause, onNext = onNext, onPrevious = onPrevious,
+        onBlockedControl = onBlockedControl, onSeek = onSeek, onSeekFraction = onSeekFraction, onToggleShuffle = onToggleShuffle,
+        onCycleRepeat = onCycleRepeat, onToggleAutoplay = onToggleAutoplay, onJumpTo = onJumpTo, onRemoveFromQueue = onRemoveFromQueue,
+        onMoveInQueue = onMoveInQueue, onQueueDragActiveChange = onQueueDragActiveChange, onClearQueue = onClearQueue,
+        onOpenMenu = onOpenMenu, onOpenAlbum = onOpenAlbum, onOpenArtist = onOpenArtist, onOpenPlaybackSource = onOpenPlaybackSource,
+        onListenTogether = onListenTogether, lyrics = lyrics, lyricsSource = lyricsSource, lyricsProviderStates = lyricsProviderStates,
+        onSelectLyricsProvider = onSelectLyricsProvider, lyricsUnavailable = lyricsUnavailable, lyricsOffsetOpen = lyricsOffsetOpen,
+        onDismissLyricsOffset = onDismissLyricsOffset, windowWidth = windowWidth, windowHeight = windowHeight, modifier = modifier,
+    )
 }

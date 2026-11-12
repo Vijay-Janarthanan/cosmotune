@@ -36,11 +36,10 @@ Nothing else has to be installed first — no JDK, no codec pack.
 | macOS | `Cosmotune-<version>-macos-arm64.dmg` | For Apple Silicon Macs (M1/M2/M3/M4/later). Drag to Applications. |
 | macOS | `Cosmotune-<version>-macos-x64.dmg` | For Intel Macs. Drag to Applications. |
 | Linux | `Cosmotune-<version>-linux-x86_64.AppImage` | `chmod +x` it and run. No install, works on any distribution. |
-| Linux | `Cosmotune-<version>-linux-amd64.deb` | `sudo apt install ./Cosmotune-*.deb` on Debian, Ubuntu and derivatives. |
-| Linux | `Cosmotune-<version>-linux-x86_64.rpm` | `sudo dnf install ./Cosmotune-*.rpm` on Fedora, RHEL and openSUSE. |
 | Windows | `Cosmotune-<version>-windows-x64-setup.exe` | The ordinary installer. Installs for the current user, so it never asks for an administrator. |
-| Windows | `Cosmotune-<version>-windows-x64.msi` | The same thing for anyone who deploys by MSI. |
-| Windows | `Cosmotune-<version>-windows-x64-portable.zip` | Unzip anywhere and run `Cosmotune.exe`. Installs nothing and adds no Start menu entry; the app still keeps its settings (registry key `HKCU\Software\JavaSoft\Prefs\com.cosmotune.desktop`), caches, log and downloads (`.cache\cosmotune`, `.local\state\cosmotune`, `.local\share\cosmotune` and `Music\Cosmotune` in your user folder) outside the zip's folder. |
+
+Each release also carries `Cosmotune-<version>-windows-x64.msi` and `Cosmotune-<version>-macos-<arch>.zip`. They are the files
+**Update now** installs (Windows runs the MSI silently, macOS swaps the zipped app in); download the setup.exe or the dmg instead.
 
 **macOS Gatekeeper.** Unsigned binaries built locally or downloaded outside the Mac App Store
 may trigger a macOS security prompt ("Cosmotune is damaged and can't be opened" or "unidentified developer").
@@ -50,15 +49,13 @@ To clear the quarantine flag, run:
 xattr -cr /Applications/Cosmotune.app
 ```
 
-The Linux packages are built on Ubuntu 22.04 against its glibc, so they install
-on that release and anything newer.
+The AppImage is built on Ubuntu 22.04 against its glibc, so it runs on that
+release and anything newer.
 
-**Linux system libraries.** The packages carry their own Java runtime and codecs
-but not the desktop's own graphics stack, and jpackage cannot derive that list —
-so the deb and rpm declare only `xdg-utils`. Any machine running a desktop
-session already has what is needed (GTK 3, X11 or XWayland, GL, ALSA); a minimal
-or headless install does not, and will fail at startup rather than at install
-time.
+**Linux system libraries.** The AppImage carries its own Java runtime and codecs
+but not the desktop's own graphics stack. Any machine running a desktop session
+already has what is needed (GTK 3, X11 or XWayland, GL, ALSA); a minimal or
+headless install does not, and will fail at startup.
 
 **Windows and the Visual C++ runtime.** The Automix analyser is linked against a
 static C runtime, so on almost every machine there is nothing to install. If
@@ -84,13 +81,9 @@ On macOS:
 # Output is at: desktopApp/build/compose/binaries/main/app/Cosmotune.app
 ```
 
-On Linux — `rpm`, `fakeroot` and `binutils` must be installed for the packages,
-and `file` for the AppImage:
+On Linux — `binutils` and `file` must be installed for the AppImage:
 
 ```bash
-bash ./gradlew :desktopApp:packageDeb
-bash ./gradlew :desktopApp:packageRpm
-
 # The AppImage is wrapped around the app image jpackage produces.
 bash ./gradlew :desktopApp:createDistributable
 desktopApp/packaging/appimage.sh \

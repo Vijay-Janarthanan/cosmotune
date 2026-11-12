@@ -9,9 +9,9 @@ import kotlin.test.fail
 
 /**
  * What no render can show, read from the source of the desktop chrome and of its wiring in `DesktopApp.kt` and
- * `DesktopPlayerSheet.kt`: the five edit sites that put the new bars, the new player and the new padding in place of the old
- * ones with the old code as the `else` (so that with the switch off every line takes its old branch), the player bar's
- * signature, and the rule that no colour is made once and kept and that the playhead is read in three small places.
+ * `DesktopPlayerSheet.kt`: the five sites that put the bars, the player and the page padding in place (the old look's bars, sheet
+ * and padding are gone), the player bar's signature, and the rule that no colour is made once and kept and that the playhead is
+ * read in three small places.
  */
 class DesktopChromeStructureTest {
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "settings.gradle.kts").isFile }
@@ -160,24 +160,37 @@ class DesktopChromeStructureTest {
 
     // ---- DesktopApp.kt and DesktopPlayerSheet.kt: the edit sites ----
 
-    @Test fun theTopBarIsTheNewOneUnderTheSwitchAndTheOldOneIsTheElseBranch() {
-        val text = app
-        val call = text.indexOf("if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopTopBar(")
-        assertTrue(call >= 0, "the new top bar is called under `if (cosmoShell != null)`")
-        val old = text.indexOf("DesktopTopBar(\n                        compact = compact,", call)
-        assertTrue(old > call, "the old call follows with its own arguments")
-        assertEquals("else", text.substring(call, old).trimEnd().substringAfterLast(")").trim(), "directly after the new call comes `else`, then the old call")
-        assertTrue("navHistory.isNotEmpty()" in text.substring(call, old) && "::goBack" in text.substring(call, old), "back is the app's one way back")
+    /** The text of the call whose name starts at [at] in [text], up to its closing bracket (and a trailing lambda's, if any). */
+    private fun callFrom(text: String, at: Int): String {
+        var depth = 0
+        var i = text.indexOf('(', at)
+        while (i < text.length) {
+            when (text[i]) {
+                '(' -> depth++
+                ')' -> if (--depth == 0) break
+            }
+            i++
+        }
+        return text.substring(at, i + 1)
     }
 
-    @Test fun theBottomBarIsThePhonesChromeUnderTheSwitchAndTheOldOneIsTheElseBranch() {
+    @Test fun theTopBarIsTheNewOneAndNothingElse() {
         val text = app
-        val call = text.indexOf("if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(")
-        assertTrue(call >= 0, "the shared chrome is called under `if (cosmoShell != null)`")
-        val old = text.indexOf("DesktopBottomChrome(\n                        compact = compact,", call)
-        assertTrue(old > call, "the old call follows with its own arguments")
-        val between = text.substring(call, old)
-        assertEquals("else", between.trimEnd().substringAfterLast(")").trim(), "directly after the new call comes `else`, then the old call")
+        val call = text.indexOf("com.cosmotune.desktop.CosmoDesktopTopBar(")
+        assertTrue(call >= 0, "the top bar is called")
+        assertEquals("topBar = { compact ->", text.substring(text.lastIndexOf("topBar = {", call), call).trim(), "it is the whole of the lambda's start")
+        val args = callFrom(text, call)
+        assertEquals("}", text.substring(call + args.length).trimStart().take(1), "and nothing follows it in the lambda")
+        assertTrue("navHistory.isNotEmpty()" in args && "::goBack" in args, "back is the app's one way back")
+    }
+
+    @Test fun theBottomBarIsThePhonesChromeAndNothingElse() {
+        val text = app
+        val call = text.indexOf("com.cosmotune.ui.shell.CosmoBottomChrome(")
+        assertTrue(call >= 0, "the shared chrome is called")
+        assertEquals("bottomBar = { compact ->", text.substring(text.lastIndexOf("bottomBar = {", call), call).trim(), "it is the whole of the lambda's start")
+        val between = callFrom(text, call)
+        assertEquals("}", text.substring(call + between.length).trimStart().take(1), "and nothing follows it in the lambda")
         // DESIGN_SYSTEM.md 5.2: Home, Explore, Releases and Library; Search is the top bar's button.
         for (key in listOf("\"home\"", "SharedRes.string.explore", "SharedRes.string.cosmo_releases", "\"library\"")) assertTrue(key in between, "the tab label $key")
         assertTrue("\"search\"" !in between, "no Search tab")
@@ -187,9 +200,9 @@ class DesktopChromeStructureTest {
         assertTrue("hazeState = LocalDesktopHaze.current" in between, "the capsules blur the page behind them")
     }
 
-    @Test fun thePlayerBarIsMountedBeforeTheSheetUnderTheSwitch() {
+    @Test fun thePlayerBarIsMountedBeforeTheSheet() {
         val text = app
-        val host = text.indexOf("if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopPlayerBarHost(overlays.sidePanel != null) { m ->")
+        val host = text.indexOf("com.cosmotune.desktop.CosmoDesktopPlayerBarHost(overlays.sidePanel != null) { m ->")
         val sheet = text.indexOf("DesktopPlayerSheet(\n                        visible = overlays.nowPlaying && selectedSong != null,")
         assertTrue(host in 0 until sheet, "the bar is drawn first, so the player that grows out of it is drawn over it")
         val block = text.substring(host, sheet)
@@ -199,27 +212,21 @@ class DesktopChromeStructureTest {
         assertTrue("selectedSong?.let { current ->" in block, "it draws nothing while no song is selected")
     }
 
-    @Test fun thePagePaddingHasALineForTheNewShellAndKeepsTheOldTwo() {
-        val text = app
+    @Test fun thePagePaddingIsWhatFloatsOverThePage() {
+        val text = app.replace(Regex("\\s+"), " ")
         // P4-20: exactly what floats over the page (the wide bar's footprint, the compact window's phone chrome), no longer 168 dp for both
-        val at = Regex("""bottom = when \{\s*com\.cosmotune\.ui\.theme\.LocalCosmoShell\.current != null ->""").find(text)?.range?.first ?: -1
-        assertTrue(at >= 0, "the padding under the page while the new shell is on is the first branch of a `when`")
-        val rest = text.substring(at, at + 500).replace(Regex("\\s+"), " ")
         assertTrue(
-            "com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp" in rest,
+            "bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp," in text,
             "the bar's footprint in a wide window with a song, the phone chrome's height in a compact one, nothing for a wide one without (P4-22)",
         )
-        assertTrue("compact -> 128.dp" in rest && "else -> 16.dp" in rest, "the old two follow, so with the switch off nothing changes")
     }
 
-    @Test fun theSheetHandsTheNewLookToTheSharedOverlayAndKeepsItsOwnBodyForTheOldOne() {
+    @Test fun theSheetIsTheSharedOverlayAndNothingElse() {
         val text = sheet
-        val first = text.indexOf("com.cosmotune.ui.theme.LocalCosmoShell.current?.let { shell ->\n        com.cosmotune.ui.shell.CosmoPlayerOverlay(visible, onDismiss, shell) { w, h ->")
-        assertTrue(first >= 0, "the first statement of the sheet hands over to the overlay")
-        assertTrue("LocalPlayerVolumeLabel provides DesktopStrings[\"d_volume\", \"Volume\"]) { content(w, h) }" in text, "the player's own bar names its volume bar in the desktop's words")
-        assertTrue(text.indexOf("return\n    }", first) in first until text.indexOf("var mounted by remember"), "and the sheet returns before its old body")
-        val body = text.indexOf("var mounted by remember { mutableStateOf(visible) }")
-        assertTrue(body > first, "the old body follows")
+        val first = text.indexOf("val shell = com.cosmotune.ui.theme.LocalCosmoShell.current ?: return\n    com.cosmotune.ui.shell.CosmoPlayerOverlay(visible, onDismiss, shell) { w, h ->")
+        assertTrue(first >= 0, "the sheet is the overlay (and nothing outside a theme)")
+        assertTrue("com.cosmotune.ui.shell.LocalPlayerVolumeLabel provides DesktopStrings[\"d_volume\", \"Volume\"]," in text, "the player's own bar names its volume bar in the desktop's words")
+        assertTrue("LocalVisualsPresentation provides { dismiss, body -> DesktopVisualsPresentation(dismiss, body) }" in text, "the visuals open in the desktop's own window")
         assertEquals(1, Regex("""fun DesktopPlayerSheet\(""").findAll(text).count())
         assertTrue(text.substring(text.indexOf("fun DesktopPlayerSheet("), first).count { it == '\n' } < 10, "it is the first statement of the function")
     }

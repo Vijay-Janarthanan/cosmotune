@@ -182,12 +182,10 @@ class ModeHooksContractTest {
             VideoSourceContract.firstStatement(VideoSourceContract.functionBody(panel, "CosmoDesktopSidePanel")),
         )
         val card = VideoSourceContract.functionBody(panel, "cosmoDesktopSidePanelCard").replace(Regex("\\s+"), " ")
-        assertTrue("if (LocalCosmoShell.current == null) return Modifier" in card, "with the look off the modifier is still the identity")
         assertTrue(
             "if (com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopWatchShown()) return Modifier.layout {" in card && "layout(placeable.width, placeable.height) {}" in card,
             "measured, not placed",
         )
-        assertTrue(card.indexOf("desktopVideoShown()") > card.indexOf("LocalCosmoShell.current == null"), "the look-off answer comes first")
         assertTrue(card.endsWith(".clip(ORBIT_SIDE_PANEL_SHAPE) .background(fill) }"), "Music's card is the flat Orbit panel")
     }
 

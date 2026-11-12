@@ -7,8 +7,8 @@ import kotlin.test.assertTrue
 
 /**
  * What no render can show, read from the sources of the sheets, menus, dialogs and toasts (`com.cosmotune.ui.sheets`) and of the
- * upstream sites that take them: the delegates (each is the first statement of its function, or the named condition, and names
- * every parameter it uses), the menu style passed through to the rows, the sheet that never takes a `HazeState` (E7: a sheet opens
+ * upstream sites that take them: the delegates (each is the whole body of its function, or the one site it replaced, and names
+ * every parameter it uses; the old bodies are gone), the menu style passed through to the rows, the sheet that never takes a `HazeState` (E7: a sheet opens
  * in its own window and draws the solid glass), the draw-phase rule for the live palette, and the numbers of the spec.
  */
 class SheetsContractTest {
@@ -30,10 +30,15 @@ class SheetsContractTest {
     private val songMenu = SourceContract.read("$desktop/DesktopSongMenuUi.kt")
     private val desktopApp = SourceContract.read("$desktop/DesktopApp.kt")
 
-    private val look = "if (com.cosmotune.ui.theme.LocalCosmoShell.current != null)"
     private val menuStyle = "menu = LocalActionRowStyle.current == ActionRowStyle.Menu"
 
     private fun firstStatement(src: String, function: String): String = SourceContract.firstStatement(SourceContract.functionBody(src, function))
+
+    /** Fails unless the body of [function] is its first statement and nothing else. */
+    private fun assertWholeBody(src: String, function: String) {
+        val statement = firstStatement(src, function)
+        assertEquals("{ $statement }", SourceContract.functionBody(src, function).replace(Regex("\\s+"), " "), "$function is its one statement and nothing else")
+    }
     private fun code(src: String): String = SourceContract.code(src)
     private fun flat(src: String): String = code(src).replace(Regex("\\s+"), " ")
 
@@ -88,7 +93,7 @@ class SheetsContractTest {
 
     // ---- the delegates in the song sheet ----------------------------------------------------------------------------------
 
-    @Test fun everySongSheetDelegateIsTheFirstStatementOfItsFunctionAndNamesWhatItUses() {
+    @Test fun everySongSheetDelegateIsTheWholeBodyOfItsFunctionAndNamesWhatItUses() {
         val expected = mapOf(
             "TintedSheet" to ("CosmoSheetSurface" to listOf("modifier", "content")),
             "ActionRow" to ("CosmoActionRow" to listOf("icon", "label", "value", "tint", "enabled", "onClick")),
@@ -99,12 +104,12 @@ class SheetsContractTest {
         for ((function, target) in expected) {
             val statement = firstStatement(songSheet, function)
             assertTrue(
-                statement.startsWith("$look return com.cosmotune.ui.sheets.${target.first}("),
+                statement.startsWith("com.cosmotune.ui.sheets.${target.first}("),
                 "the first statement of $function is the delegate to ${target.first}, but it is: $statement",
             )
             SourceContract.assertPassesEveryParameter(statement, target.second)
-            // the old body follows the delegate: the look off runs it unchanged
-            assertTrue(SourceContract.functionBody(songSheet, function).length > statement.length + 20, "$function keeps its old body")
+            // the old body is gone: the delegate is all there is
+            assertWholeBody(songSheet, function)
         }
     }
 
@@ -132,17 +137,20 @@ class SheetsContractTest {
         assertTrue("internal enum class ActionRowStyle { Sheet, Menu }" in code, "the enum is the old one")
     }
 
-    @Test fun theSongSheetTakesTheCoverPaletteWhileTheLookIsOnAndKeepsTheMenuBranch() {
+    @Test fun theSongSheetTakesTheCoverPaletteAndKeepsTheMenuBranch() {
         val code = flat(songSheet)
-        val chain = Regex("""val palette = if \(menu\) \{ neutralMenuPalette\(\) \} else if \(com\.cosmotune\.ui\.theme\.LocalCosmoShell\.current != null\) \{ com\.cosmotune\.ui\.sheets\.cosmoSheetPalette\(\) \} else \{ rememberArtworkPalette\(song\.thumbnailUrl, artPx = ROW_ART_PX\) \}""")
-        assertTrue(chain.containsMatchIn(code), "the palette is the menu's, then the cover's while the look is on, then the track's own")
+        assertTrue(
+            "val palette = if (menu) { neutralMenuPalette() } else { com.cosmotune.ui.sheets.cosmoSheetPalette() }" in code,
+            "the palette is the menu's, else the cover's",
+        )
     }
 
     // ---- the other phone sites --------------------------------------------------------------------------------------------
 
-    @Test fun theAlbumSheetHeaderIsTheFirstStatementOfItsFunctionAndPassesWhatItShows() {
+    @Test fun theAlbumSheetHeaderIsTheWholeBodyOfItsFunctionAndPassesWhatItShows() {
         val statement = firstStatement(browseSheet, "BrowseSheetHeader")
-        assertTrue(statement.startsWith("$look return com.cosmotune.ui.sheets.CosmoSheetHeader("), "the delegate, but it is: $statement")
+        assertTrue(statement.startsWith("com.cosmotune.ui.sheets.CosmoSheetHeader("), "the delegate, but it is: $statement")
+        assertWholeBody(browseSheet, "BrowseSheetHeader")
         for (part in listOf("title = target.title", "imageUrl = target.thumbnailUrl")) assertTrue(part in statement, "the header passes $part")
         // the old fallback of a card without a subtitle, and the round picture of an artist, are kept
         assertTrue("subtitle = target.subtitle.ifBlank { target.type.localizedNoun()" in statement, "the subtitle falls back to the kind of thing it is")
@@ -152,12 +160,10 @@ class SheetsContractTest {
         assertFalse("rememberArtworkPalette" in code(browseSheet), "the album sheet reads no artwork palette")
     }
 
-    @Test fun theToastReplacesTheSurfaceOnlyWhileTheLookIsOnAndTheHostIsUntouched() {
+    @Test fun theToastIsTheNoticeAndTheHostDoesNotSlideItASecondTime() {
         val code = flat(notice)
-        assertEquals(1, Regex(Regex.escape("$look com.cosmotune.ui.sheets.CosmoToast(current.message) else Surface(")).findAll(code).count(), "one condition in front of the Surface")
-        assertTrue("AnimatedContent(" in code && "if (reduceAnimation || newLook)" in code && "EnterTransition.None togetherWith ExitTransition.None" in code, "the host keeps its reduce-animation rule, and does not slide the new toast a second time")
-        assertTrue(code.indexOf("val newLook = com.cosmotune.ui.theme.LocalCosmoShell.current != null") in 0 until code.indexOf("AnimatedContent("), "the look is read once, in composition, before the transition lambda")
-        assertTrue("liveRegion = LiveRegionMode.Polite" in code, "the old notice keeps its live region")
+        assertEquals(1, Regex(Regex.escape("if (current != null) { com.cosmotune.ui.sheets.CosmoToast(current.message) }")).findAll(code).count(), "the notice is the toast")
+        assertTrue("AnimatedContent(" in code && "transitionSpec = { EnterTransition.None togetherWith ExitTransition.None }," in code, "the host does not slide the toast: it rises and fades in by itself")
         assertTrue("contentKey = { it?.id }" in code, "a repeated action still restarts the notice")
         val toast = flat(sheet("CosmoToast"))
         assertTrue("liveRegion = LiveRegionMode.Polite" in toast, "the new toast is read out politely too")
@@ -177,10 +183,10 @@ class SheetsContractTest {
         assertTrue("private val DISC = 24.dp" in pick, "a 24 dp disc")
     }
 
-    @Test fun theHeldRowMenuTakesTheMenuSurfaceWithOneCondition() {
+    @Test fun theHeldRowMenuTakesTheMenuSurface() {
         val code = flat(held)
-        val site = ".pointerInput(Unit) {} .then($look Modifier.cosmoMenuSurface() else Modifier.clip(menuShape).background(plate).border(0.5.dp, hairline, menuShape))"
-        assertTrue(site in code, "the menu's container takes cosmoMenuSurface while the look is on and keeps the old plate otherwise")
+        val site = ".pointerInput(Unit) {} .cosmoMenuSurface(),"
+        assertTrue(site in code, "the menu's container is cosmoMenuSurface")
         assertTrue("import com.cosmotune.ui.sheets.cosmoMenuSurface" in held.replace("\r\n", "\n"), "the extension is imported")
     }
 
@@ -189,30 +195,30 @@ class SheetsContractTest {
     @Test fun theDialogPanelTakesTheGlassCardAfterThePageBranchAndKeepsTheInnerRule() {
         val body = flat(SourceContract.functionBody(surfaces, "DesktopDialogPanel"))
         val page = body.indexOf("if (!popup && LocalDesktopPanelIsPage.current) {")
-        val card = body.indexOf("$look { com.cosmotune.ui.sheets.CosmoDialogCard(")
-        val old = body.indexOf(".background(DesktopScrim)")
-        assertTrue(page in 0 until card && card < old, "order: the page branch, then the glass card, then the old card")
-        val statement = body.substring(card, old)
-        SourceContract.assertPassesEveryParameter(statement, listOf("onDismiss"))
-        assertTrue("maxWidth = maxWidth.dp" in statement, "the old width")
-        assertTrue("hazeState = LocalDesktopHaze.current" in statement, "the window's backdrop")
-        assertTrue("CompositionLocalProvider(LocalDesktopPanelIsPage provides false) { content() }" in statement, "anything it opens in turn is a card")
-        assertTrue("return }" in statement, "the old card is not drawn as well")
+        val card = body.indexOf("com.cosmotune.ui.sheets.CosmoDialogCard(")
+        assertTrue(page in 0 until card, "order: the page branch, then the glass card")
+        val statement = body.substring(card)
+        assertEquals(
+            "com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = maxWidth.dp, hazeState = LocalDesktopHaze.current) { CompositionLocalProvider(LocalDesktopPanelIsPage provides false) { content() } } }",
+            statement,
+            "the card, with the old width and the window's backdrop, is the rest of the body; anything it opens in turn is a card",
+        )
         assertEquals(listOf("onDismiss: () -> Unit", "maxWidth: Int", "popup: Boolean = false", "content: @Composable ColumnScope.() -> Unit"), SourceContract.parameters(surfaces, "DesktopDialogPanel"))
     }
 
-    @Test fun thePlaylistDialogFrameTakesTheSameCardAsItsFirstStatement() {
+    @Test fun thePlaylistDialogFrameIsTheSameCard() {
         val statement = firstStatement(playlistUi, "DesktopDialogFrame")
-        assertTrue(statement.startsWith("$look { com.cosmotune.ui.sheets.CosmoDialogCard("), "the first statement is the card, but it is: $statement")
+        assertTrue(statement.startsWith("com.cosmotune.ui.sheets.CosmoDialogCard("), "the first statement is the card, but it is: $statement")
         SourceContract.assertPassesEveryParameter(statement, listOf("onDismiss"))
-        for (part in listOf("maxWidth = 480.dp", "hazeState = LocalDesktopHaze.current", "{ content() }", "return }")) assertTrue(part in statement, "the frame has $part")
+        for (part in listOf("maxWidth = 480.dp", "hazeState = LocalDesktopHaze.current", "{ content() }")) assertTrue(part in statement, "the frame has $part")
+        assertWholeBody(playlistUi, "DesktopDialogFrame")
     }
 
     @Test fun theDesktopSongMenuTakesTheMenuSurfaceAndTheHazeIsVisibleToTheDialogFiles() {
         val code = flat(songMenu)
         assertTrue(
-            ".widthIn(min = 232.dp, max = 340.dp) .then($look Modifier.cosmoMenuSurface() else Modifier.clip(shape).desktopCard(shape).padding(vertical = 6.dp))" in code,
-            "the menu's card takes cosmoMenuSurface while the look is on",
+            ".widthIn(min = 232.dp, max = 340.dp) .then(Modifier.cosmoMenuSurface())" in code,
+            "the menu's card is cosmoMenuSurface",
         )
         assertTrue(".heightIn(max = 460.dp) .verticalScroll(rememberScrollState())" in code, "the menu still scrolls under its cap")
         assertTrue("import com.cosmotune.ui.sheets.cosmoMenuSurface" in songMenu.replace("\r\n", "\n"), "the extension is imported")

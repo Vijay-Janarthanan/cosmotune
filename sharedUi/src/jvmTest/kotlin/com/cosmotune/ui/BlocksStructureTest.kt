@@ -9,8 +9,8 @@ import kotlin.test.fail
 
 /**
  * What no screenshot can check, read from the sources of the content blocks (rows, cards, shelves, headers, tiles, moods and the
- * search field): the two delegates in the upstream files, the draw-phase rule for the live palette, the roles and the 48 dp
- * targets, the swipe numbers the song row inherits, and the signatures other screens call.
+ * search field): the two delegates in the upstream files (each the whole body of its function), the draw-phase rule for the live
+ * palette, the roles and the 48 dp targets, the swipe numbers the song row inherited, and the signatures other screens call.
  */
 class BlocksStructureTest {
     private val dir = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/blocks"
@@ -27,13 +27,15 @@ class BlocksStructureTest {
 
     // ---- the delegates ----
 
-    @Test fun theSongRowDelegateIsTheFirstStatementAndPassesEveryParameterButTheColourKnobs() {
+    @Test fun theSongRowDelegateIsTheWholeBodyAndPassesEveryParameterButTheColourKnobs() {
         val src = SourceContract.read(common)
-        val statement = SourceContract.firstStatement(SourceContract.functionBody(src, "SongRow"))
+        val body = SourceContract.functionBody(src, "SongRow")
+        val statement = SourceContract.firstStatement(body)
         assertTrue(
-            statement.startsWith("if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.blocks.CosmoSongRow("),
+            statement.startsWith("com.cosmotune.ui.blocks.CosmoSongRow("),
             "the first statement of SongRow is the delegate, but it is: $statement",
         )
+        assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "the delegate is the whole body: the old row is gone")
         val knobs = setOf("rowBackground", "subtitleColor", "activeTint", "searchPlayingStyle")
         val names = SourceContract.names(SourceContract.parameters(src, "SongRow"))
         assertTrue(knobs.all { it in names }, "the four colour knobs are still SongRow parameters: $names")
@@ -48,13 +50,15 @@ class BlocksStructureTest {
         assertTrue(taken.containsAll(passed), "CosmoSongRow takes ${passed - taken.toSet()} too")
     }
 
-    @Test fun theSearchFieldDelegateIsTheFirstStatementAndPassesEveryParameter() {
+    @Test fun theSearchFieldDelegateIsTheWholeBodyAndPassesEveryParameter() {
         val src = SourceContract.read(searchField)
-        val statement = SourceContract.firstStatement(SourceContract.functionBody(src, "SearchField"))
+        val body = SourceContract.functionBody(src, "SearchField")
+        val statement = SourceContract.firstStatement(body)
         assertTrue(
-            statement.startsWith("if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.blocks.CosmoSearchField("),
+            statement.startsWith("com.cosmotune.ui.blocks.CosmoSearchField("),
             "the first statement of SearchField is the delegate, but it is: $statement",
         )
+        assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "the delegate is the whole body: the old field is gone")
         val names = SourceContract.names(SourceContract.parameters(src, "SearchField"))
         assertEquals(setOf("query", "onQueryChange", "onSubmit", "focusRequester", "placeholder", "modifier"), names.toSet())
         SourceContract.assertPassesEveryParameter(statement, names)
@@ -155,20 +159,11 @@ class BlocksStructureTest {
     // ---- the swipe ----
 
     @Test fun theSwipeThresholdsAreThoseOfTheOldSongRow() {
-        val old = SourceContract.code(SourceContract.read(common))
-        fun first(pattern: String): Float = Regex(pattern).find(old)?.groupValues?.get(1)?.toFloat() ?: fail("the old SongRow no longer has $pattern")
-        val commit = first("""abs\(offset\) >= boxWidth \* ([0-9.]+)f""")
-        val positional = first("""positionalThreshold = \{ distance -> distance \* ([0-9.]+)f \}""")
-        val armAt = first("""val armAt = boxWidth \* ([0-9.]+)f""")
-        val rearm = first("""travelled < armAt \* ([0-9.]+)f""")
-        assertEquals(0.45f, commit)
-        assertEquals(0.5f, positional)
-        assertEquals(0.45f, armAt)
-        assertEquals(0.8f, rearm)
-        assertEquals(commit, BlockMetrics.SWIPE_COMMIT)
-        assertEquals(positional, BlockMetrics.SWIPE_POSITIONAL_THRESHOLD)
-        assertEquals(armAt, BlockMetrics.SWIPE_COMMIT)
-        assertEquals(rearm, BlockMetrics.SWIPE_REARM)
+        // the old SongRow's numbers (commit and arm at 45 % of the width, Material's threshold at half the distance, re-arm at 80 %
+        // of the arm), read from it while it was there; its body is gone, the numbers stay
+        assertEquals(0.45f, BlockMetrics.SWIPE_COMMIT)
+        assertEquals(0.5f, BlockMetrics.SWIPE_POSITIONAL_THRESHOLD)
+        assertEquals(0.8f, BlockMetrics.SWIPE_REARM)
     }
 
     @Test fun theNewSongRowSwipesWithThoseNumbersAndTheSameHaptics() {

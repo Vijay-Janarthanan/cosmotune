@@ -339,8 +339,6 @@ helper.
 | File | For |
 | :-- | :-- |
 | [Cosmotune-windows-x64-setup.exe](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-windows-x64-setup.exe) | The installer (64-bit Windows) |
-| [Cosmotune-windows-x64.msi](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-windows-x64.msi) | The same, as an MSI package |
-| [Cosmotune-windows-x64-portable.zip](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-windows-x64-portable.zip) | No installation: unzip and run |
 
 <details>
 <summary>Installing on Windows</summary>
@@ -350,9 +348,6 @@ entry. The installer is not signed, so SmartScreen may say "Windows protected yo
 This is needed only for the first install: after that, **Update now** in Cosmotune downloads the new version, installs it and opens
 Cosmotune again. If you install into a folder such as Program Files, Windows asks for permission on each update.
 
-For the portable zip, unzip it anywhere and run `Cosmotune.exe`, keeping the folder together. A portable copy updates through the
-download page.
-
 </details>
 
 ### Linux
@@ -360,8 +355,6 @@ download page.
 | File | For |
 | :-- | :-- |
 | [Cosmotune-linux-x86_64.AppImage](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-linux-x86_64.AppImage) | Any distribution, no installation |
-| [Cosmotune-linux-amd64.deb](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-linux-amd64.deb) | Debian, Ubuntu, Linux Mint and others |
-| [Cosmotune-linux-x86_64.rpm](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-linux-x86_64.rpm) | Fedora, openSUSE and others |
 
 <details>
 <summary>Installing on Linux</summary>
@@ -373,7 +366,8 @@ chmod +x Cosmotune-linux-x86_64.AppImage
 ./Cosmotune-linux-x86_64.AppImage
 ```
 
-Debian or Ubuntu: `sudo apt install ./Cosmotune-linux-amd64.deb`. Fedora: `sudo dnf install ./Cosmotune-linux-x86_64.rpm`.
+It runs on any distribution and installs nothing. A copy installed earlier from the `.deb` or `.rpm`, which are no longer published,
+can be removed with `sudo apt remove cosmotune` or `sudo dnf remove cosmotune`; its settings stay.
 
 </details>
 
@@ -383,8 +377,6 @@ Debian or Ubuntu: `sudo apt install ./Cosmotune-linux-amd64.deb`. Fedora: `sudo 
 | :-- | :-- |
 | [Cosmotune-macos-arm64.dmg](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-arm64.dmg) | Apple Silicon (M1 and later) |
 | [Cosmotune-macos-x64.dmg](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-x64.dmg) | Intel |
-
-The same builds also come as a zipped app ([Apple Silicon](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-arm64.zip), [Intel](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-x64.zip)).
 
 <details>
 <summary>Installing on macOS</summary>

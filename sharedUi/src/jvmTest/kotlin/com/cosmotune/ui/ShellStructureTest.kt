@@ -8,7 +8,7 @@ import kotlin.test.fail
 
 /**
  * What no render can show, read from the source of the phone shell and of its wiring in `MainActivity`: the three edit
- * sites that make the new chrome and the new player replace the old ones, the old bars staying as the `else` branch, the
+ * sites where the chrome and the player stand in for the old ones (which are gone, with no branch left to them), the
  * dismiss local declared once, and no colour or brush made once and remembered. The look itself is on the phone.
  */
 class ShellStructureTest {
@@ -201,23 +201,22 @@ class ShellStructureTest {
 
     // ---- MainActivity: the three sites ----
 
-    @Test fun dismissPlayerDoesNotAskTheOldSheetMotionWhenTheNewShellIsOn() {
+    @Test fun dismissPlayerOnlyClosesThePlayer() {
         val text = mainActivity
-        assertTrue(
-            "if (reducePlayerMotion || cosmoShell != null) showNowPlaying = false else playerSheetMotion.close()" in text,
-            "PlayerSheetMotion.close() latches `closing` when it finds no sheet; the new shell has none",
-        )
+        assertTrue("val dismissPlayer: () -> Unit = { showNowPlaying = false }" in text, "the overlay animates itself out; there is no sheet motion to ask")
+        assertTrue(!File(root, "app/src/main/java/com/cosmotune/music/ui/player/PlayerSheetMotion.kt").exists(), "and so is its file")
     }
 
-    @Test fun theNewChromeWrapsTheUpstreamBarsAsTheirElseBranch() {
+    @Test fun theChromeIsTheOnlyBottomBar() {
         val text = mainActivity
-        val chromeCall = text.indexOf("if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(")
-        assertTrue(chromeCall >= 0, "the chrome is called under `if (cosmoShell != null)`")
-        val glass = text.indexOf("if (glassActive) Column(", chromeCall)
-        assertTrue(glass > chromeCall, "the upstream chain follows the chrome")
-        assertEquals("else", text.substring(chromeCall, glass).trimEnd().substringAfterLast(")").trim(), "directly after the chrome call comes `else`, then the upstream chain")
-        assertTrue("} else Column(" in text.substring(glass), "the upstream chain keeps its own else (the old floating bar and mini player)")
-        assertTrue("GlassNavBar(" in text.substring(glass) && "MiniPlayer(" in text.substring(glass) && "FloatingBottomBar(" in text.substring(glass), "the three upstream bars are still there")
+        assertEquals(1, Regex(Regex.escape("com.cosmotune.ui.shell.CosmoBottomChrome(")).findAll(text).count(), "the chrome is called once")
+        val chromeCall = text.indexOf("com.cosmotune.ui.shell.CosmoBottomChrome(")
+        val before = text.substring(0, chromeCall).trimEnd().lines().last().trim()
+        assertTrue(!before.startsWith("if") && !before.startsWith("else"), "the chrome is drawn unconditionally, not behind a test: $before")
+        val code = SourceContract.code(text)
+        for (old in listOf("glassActive", "GlassNavBar(", "MiniPlayer(", "FloatingBottomBar(")) assertTrue(old !in code, "$old is gone from the phone root")
+        for (file in listOf("GlassNavBar.kt", "MiniPlayer.kt", "FloatingBottomBar.kt", "TabDrag.kt", "floatingtabbar")) {
+        }
     }
 
     @Test fun theChromeReportsItsHeightToTheTapGuard() {
@@ -225,12 +224,11 @@ class ShellStructureTest {
         assertTrue("hazeState = hazeState, onHeightChanged = { floatingBarsHeight.intValue = it }" in text, "the guard reads the chrome's height")
     }
 
-    @Test fun theOverlayReplacesTheOldSheetWhenTheNewShellIsOn() {
+    @Test fun theOverlayIsThePlayer() {
         val text = mainActivity
-        assertTrue("if (cosmoShell != null) playerSong?.let { song ->" in text && "com.cosmotune.ui.shell.CosmoPlayerOverlay(open = showNowPlaying" in text, "the overlay is mounted for the song that is playing")
-        assertTrue("if (playerRaised && cosmoShell == null) {" in text, "the old sheet is only raised with the switch off")
-        val overlayAt = text.indexOf("com.cosmotune.ui.shell.CosmoPlayerOverlay(")
-        val oldSheetAt = text.indexOf("// ---- Now Playing ----")
-        assertTrue(overlayAt in 0 until oldSheetAt, "the overlay comes before the old Now Playing block")
+        assertTrue(
+            "playerSong?.let { song ->\n            com.cosmotune.ui.shell.CosmoPlayerOverlay(open = showNowPlaying, onDismiss = { showNowPlaying = false }, shell = cosmoShell)" in text,
+            "the overlay is mounted, unconditionally, for the song that is playing",
+        )
     }
 }

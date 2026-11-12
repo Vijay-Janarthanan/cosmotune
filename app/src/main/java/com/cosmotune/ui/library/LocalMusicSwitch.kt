@@ -15,18 +15,15 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.data.settings.LocalMusicSort
 import com.cosmotune.music.download.DownloadedCollection
-import com.cosmotune.music.ui.screens.LocalMusicScreen
 import com.cosmotune.music.ui.screens.localizedLabel
 import com.cosmotune.music.ui.screens.sortedForLibrary
-import com.cosmotune.ui.theme.LocalCosmoShell
 
 /**
- * The one entry point of the Downloads and Local Music pages: Orbit's page ([CosmoDeviceMusic]) while the new look is on (the shell
- * exists), the old tabbed one while it is off. It is in `app` because [LocalMusicScreen], the sort settings and the columns' store
- * are. The parameter list is [LocalMusicScreen]'s, name for name and in the same order.
+ * The one entry point of the Downloads and Local Music pages: Orbit's page ([CosmoDeviceMusic]). It is in `app` because the sort
+ * settings and the columns' store are. The parameter list is upstream's `LocalMusicScreen`'s, name for name and in the same order.
  *
- * The Orbit page keeps the folder's own sort ([AppSettings.downloadedMusicSort] or [AppSettings.localMusicSort]) and its columns
- * (the `cosmotune_library_view` preferences, one key per folder), as the old page did.
+ * The page keeps the folder's own sort ([AppSettings.downloadedMusicSort] or [AppSettings.localMusicSort]) and its columns (the
+ * `cosmotune_library_view` preferences, one key per folder), as the old page did.
  */
 @Composable
 fun LocalMusicSwitch(
@@ -47,15 +44,6 @@ fun LocalMusicSwitch(
     onUploadToWebDav: ((List<Song>) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    if (LocalCosmoShell.current == null) {
-        LocalMusicScreen(
-            songs = songs, onSongClick = onSongClick, onSongLongPress = onSongLongPress, onSongSwipe = onSongSwipe, onShuffle = onShuffle,
-            contentPadding = contentPadding, emptyMessage = emptyMessage, onFindMusic = onFindMusic, onCollectionLongPress = onCollectionLongPress,
-            collections = collections, isDownloads = isDownloads, currentSong = currentSong, isPlaying = isPlaying,
-            onDeleteDownloads = onDeleteDownloads, onUploadToWebDav = onUploadToWebDav, modifier = modifier,
-        )
-        return
-    }
     val sort by if (isDownloads) AppSettings.downloadedMusicSort.collectAsStateWithLifecycle() else AppSettings.localMusicSort.collectAsStateWithLifecycle()
     val sorted = remember(songs, sort) { songs.sortedForLibrary(sort) }
     val prefs = LocalContext.current.getSharedPreferences("cosmotune_library_view", Context.MODE_PRIVATE)

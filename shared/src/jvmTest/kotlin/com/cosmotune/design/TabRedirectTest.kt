@@ -14,26 +14,18 @@ class TabRedirectTest {
     private val search = 3
     private val releases = 4
 
-    private fun shown(stored: Int, newLook: Boolean) = TabRedirect.shown(stored, newLook = newLook, homeTab = home, releasesTab = releases)
+    private fun shown(stored: Int) = TabRedirect.shown(stored, homeTab = home, releasesTab = releases)
 
-    @Test fun exploreIsATabOfItsOwnInTheNewLook() {
-        assertEquals(explore, shown(explore, newLook = true))
-    }
-
-    @Test fun theOldLookKeepsItsExploreTab() {
-        assertEquals(explore, shown(explore, newLook = false))
-    }
-
-    @Test fun releasesIsShownInTheNewLookAndHasNoDoorInTheOld() {
-        assertEquals(releases, shown(releases, newLook = true))
-        assertEquals(home, shown(releases, newLook = false))
+    @Test fun exploreAndReleasesAreTabsOfTheirOwn() {
+        assertEquals(explore, shown(explore))
+        assertEquals(releases, shown(releases))
     }
 
     @Test fun aNumberSavedByAnOlderBuildKeepsItsPage() {
-        for (newLook in listOf(true, false)) for (tab in listOf(home, explore, library, search)) assertEquals(tab, shown(tab, newLook))
+        for (tab in listOf(home, explore, library, search)) assertEquals(tab, shown(tab))
     }
 
     @Test fun aSavedNumberThatIsNoTabIsHome() {
-        for (newLook in listOf(true, false)) for (tab in listOf(-1, 5, 99)) assertEquals(home, shown(tab, newLook))
+        for (tab in listOf(-1, 5, 99)) assertEquals(home, shown(tab))
     }
 }

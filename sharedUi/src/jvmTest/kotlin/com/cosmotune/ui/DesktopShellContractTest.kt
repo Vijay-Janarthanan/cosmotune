@@ -6,11 +6,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * What cannot be seen without a window, pinned by reading the source (the desktop's files live in `desktopApp/`): the new
- * sidebar and the delegate that hands the old one's state to it, the three tabs of a narrow window, the profile drawer on the top
- * bar's avatar with its five entries, the side panel's glass card and the sites in `DesktopApp.kt` and `DesktopSidePanel.kt`
- * that choose them. With the new look off every site takes its old branch, so what is pinned here is the seam: the old body
- * after the delegate, the old call after the new one, the card only under the look.
+ * What cannot be seen without a window, pinned by reading the source (the desktop's files live in `desktopApp/`): the
+ * sidebar and the upstream function that hands its state to it, the four tabs of a narrow window, the profile drawer on the top
+ * bar's avatar with its entries, the side panel's card and the sites in `DesktopApp.kt` and `DesktopSidePanel.kt` that call them.
+ * The old look is gone: every site calls the new piece and nothing else, and the old sidebar, bars and panel head are not there.
  */
 class DesktopShellContractTest {
     private val desktopDir = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/"
@@ -81,12 +80,12 @@ class DesktopShellContractTest {
 
     // ---- Step 2: the sidebar delegate ----------------------------------------------------------------------------------------
 
-    @Test fun theSidebarDelegateIsTheFirstStatementOfTheOldSidebar() {
+    @Test fun theUpstreamSidebarIsOnlyTheCallOfTheNewOne() {
         val body = SourceContract.functionBody(app, "DesktopSidebar")
         val first = SourceContract.firstStatement(body)
-        val head = "if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopSidebar("
-        assertTrue(first.startsWith(head), "the first statement is the delegate: ${first.take(160)}")
-        assertEquals(1, Regex("""\bfun DesktopSidebar\(""").findAll(app).count(), "one old sidebar")
+        val head = "com.cosmotune.desktop.CosmoDesktopSidebar("
+        assertTrue(first.startsWith(head), "the first statement is the call: ${first.take(160)}")
+        assertEquals(1, Regex("""\bfun DesktopSidebar\(""").findAll(app).count(), "one sidebar function")
     }
 
     @Test fun theDelegatePassesTheSidebarsWholeStateAndEveryDestination() {
@@ -113,14 +112,11 @@ class DesktopShellContractTest {
         assertTrue("DesktopDownloadQueue.active" in first && "aside =" in first, "the Downloads row shows the queued count as its aside")
     }
 
-    @Test fun theOldSidebarBodyFollowsTheDelegateUnchanged() {
+    @Test fun nothingOfTheOldSidebarIsLeft() {
         val body = SourceContract.functionBody(app, "DesktopSidebar")
-        val rest = body.substringAfter(SourceContract.firstStatement(body))
-        for (kept in listOf(
-            "DesktopSearchField(", "desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f)", "DesktopSidebarItem(CosmotuneIcons.Home", "Your playlists will appear here",
-            "DesktopSidebarItem(Icons.Rounded.Settings", "SIDEBAR_CAPTION_HEIGHT", "searchFocusRequester.requestFocus()",
-        )) assertTrue(kept in rest, "the old body still has `$kept`")
-        assertEquals(1, Regex("""\bfun DesktopSidebarItem\(""").findAll(app).count(), "the old row is still declared")
+        // SourceContract reads with LF line ends; a statement of the body starts four spaces in (its closing bracket does not count).
+        val statements = body.lines().filter { Regex("^ {4}[^ )]").containsMatchIn(it) }
+        assertEquals(1, statements.size, "the call is the whole body: $statements")
     }
 
     // ---- Step 1: the new sidebar ---------------------------------------------------------------------------------------------
@@ -230,10 +226,9 @@ class DesktopShellContractTest {
         val text = app
         val start = text.indexOf("bottomBar = { compact ->")
         assertTrue(start >= 0, "the bottomBar lambda")
-        val call = text.indexOf("if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(", start)
-        val old = text.indexOf("DesktopBottomChrome(\n                        compact = compact,", call)
-        assertTrue(call in start..old && old > call, "the new chrome, then the old call")
-        return text.substring(call, old)
+        val call = text.indexOf("com.cosmotune.ui.shell.CosmoBottomChrome(", start)
+        assertTrue(call > start && text.substring(start, call).trim() == "bottomBar = { compact ->", "the lambda is the shared chrome and only that")
+        return callAt(text.substring(call), "com.cosmotune.ui.shell.CosmoBottomChrome(")
     }
 
     @Test fun aNarrowWindowHasFourTabsHomeExploreReleasesLibraryAndSearchIsTheBarsButton() {
@@ -277,9 +272,10 @@ class DesktopShellContractTest {
 
     @Test fun theTopBarCallPassesTheAccountNameAndSixEntriesInOrder() {
         val text = app
-        val callAt = text.indexOf("if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopTopBar(")
+        val callAt = text.indexOf("com.cosmotune.desktop.CosmoDesktopTopBar(")
         assertTrue(callAt >= 0)
-        val call = squash(balanced(text, text.indexOf('(', callAt + "if (cosmoShell != null) com.cosmotune.desktop".length)))
+        assertEquals("topBar = { compact ->", text.substring(text.lastIndexOf("topBar = {", callAt), callAt).trim(), "the top bar lambda is the new bar and only that")
+        val call = squash(balanced(text, text.indexOf('(', callAt + "com.cosmotune.desktop".length)))
         // The selected YouTube profile's name and picture, then the login's (upstream #614; DesktopAccountDisplayTest).
         assertTrue("accountName = activeAccount.shownName(activeProfileId)," in call, call)
         assertTrue("activeAccount.shownAvatar(activeProfileId)," in call, call)
@@ -299,58 +295,45 @@ class DesktopShellContractTest {
         assertTrue("overlays.settingsPage = DesktopSettingsPage.EQUALIZER" in equaliser, "the statement of the Settings row's onOpenEqualizer: $equaliser")
         assertTrue(settings.startsWith("com.cosmotune.ui.components.CosmoIcons.Settings, DesktopStrings[\"settings\", \"Settings\"],"), settings)
         assertTrue("openSettings()" in settings, settings)
-        val old = text.indexOf("DesktopTopBar(\n                        compact = compact,", callAt)
-        assertTrue(old > callAt, "the old bar follows as the else branch")
-        assertEquals("else", text.substring(callAt, old).trimEnd().substringAfterLast(")").trim())
     }
 
-    @Test fun thereIsOneCtrlKShortcutOnlyUnderTheLookAndOutsideMacOs() {
+    @Test fun thereIsOneCtrlKShortcutOutsideMacOs() {
         val code = squash(appCode)
         assertTrue(
-            "cosmoShell != null && !DesktopPlatform.isMac && event.isCtrlPressed && event.key == Key.K -> { searchFocusRequested = true true }" in code,
-            "the key cap on the new field says Ctrl K, so Ctrl K focuses it; with the look off nothing is added",
+            "!DesktopPlatform.isMac && event.isCtrlPressed && event.key == Key.K -> { searchFocusRequested = true true }" in code,
+            "the key cap on the field says Ctrl K, so Ctrl K focuses it",
         )
+        assertEquals(1, Regex("""event\.key == Key\.K\b""").findAll(code).count(), "one Ctrl K")
         assertTrue("import androidx.compose.ui.input.key.isCtrlPressed" in app, "the import")
         assertTrue("DesktopPlatform.isMac && event.isMetaPressed && event.key == Key.F -> { searchFocusRequested = true" in code, "the macOS shortcut is as it was")
     }
 
     // ---- Step 5: the side panel ----------------------------------------------------------------------------------------------
 
-    @Test fun theColumnIsStillTheOldOneWithTheCardChosenByTheLookThroughTheModifierChain() {
+    @Test fun theColumnTakesTheCardTheHeadAndTheInsetAndNothingOfTheOldPanel() {
         val text = panelFile
         val code = squash(SourceContract.code(text))
         assertTrue(
             "Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().then(com.cosmotune.desktop.cosmoDesktopSidePanelCard())) {" in code,
             "the column's own row takes the card as one more modifier",
         )
-        assertTrue(
-            "if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))" in code,
-            "the 1 dp rule beside the page is the old look's: the card is the edge now",
-        )
-        assertTrue(
-            "if (which == DesktopSidePanel.QUEUE && com.cosmotune.ui.theme.LocalCosmoShell.current == null) {" in code,
-            "the queue's own sidebar glass is a second layer over the card's: the old look's",
-        )
-        for (kept in listOf("private val SIDE_PANEL_WIDTH = 360.dp", "private const val SLIDE_MS = 260", "expandHorizontally(", "shrinkHorizontally(", "onClick = onClose", "DesktopToolbarButton(onClick = onClose")) {
-            assertTrue(kept in code, "the width, the slide and the close button stay: `$kept`")
+        assertFalse("DesktopDivider" in code, "no 1 dp rule beside the page: the card is the edge")
+        assertFalse("desktopChromeGlass" in code, "no second glass layer for the queue over the card")
+        for (kept in listOf("private val SIDE_PANEL_WIDTH = 360.dp", "private const val SLIDE_MS = 260", "expandHorizontally(", "shrinkHorizontally(")) {
+            assertTrue(kept in code, "the width and the slide stay: `$kept`")
         }
-        // The Orbit head and inset choose by the look in front of the old ones, which are their look-off branches, unchanged.
-        assertTrue(
-            "if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) com.cosmotune.desktop.CosmoDesktopSidePanelHeader(which == DesktopSidePanel.LYRICS, onClose) else Row(" in code,
-            "the head is Orbit's with the look on, the old row without",
-        )
-        assertTrue("com.cosmotune.desktop.cosmoDesktopSidePanelInset(which == DesktopSidePanel.LYRICS) ?: Modifier.padding(" in code, "the inset likewise")
+        assertTrue("com.cosmotune.desktop.CosmoDesktopSidePanelHeader(which == DesktopSidePanel.LYRICS, onClose)" in code, "the head is Orbit's, with the close button")
+        assertTrue(".then(com.cosmotune.desktop.cosmoDesktopSidePanelInset(which == DesktopSidePanel.LYRICS))" in code, "the content's inset is the card's")
         assertTrue("com.cosmotune.desktop.CosmoDesktopSidePanelContent { content(which) }" in code, "what the panel holds is told whether the song plays")
         // `com.cosmotune.music` is the file's own package since the rename (FORK.md); only the calls into our code count.
-        assertEquals(7, Regex("""com\.cosmotune(?!\.music\b)""").findAll(SourceContract.code(text)).count(), "five lines choose by the look and no more")
-        assertTrue("desktopChromeGlass" in text, "the old glass call is still in the file")
+        assertEquals(4, Regex("""com\.cosmotune(?!\.music\b)""").findAll(SourceContract.code(text)).count(), "four calls into the card's file and no more")
     }
 
-    @Test fun theCardIsTheBoardsAndExistsOnlyUnderTheLook() {
+    @Test fun theCardIsTheBoards() {
         val code = SourceContract.code(panel)
         assertEquals(listOf("open: Boolean", "content: @Composable () -> Unit"), SourceContract.parameters(panel, "CosmoDesktopSidePanel"))
         val body = squash(SourceContract.functionBody(panel, "cosmoDesktopSidePanelCard"))
-        assertTrue(body.startsWith("{ if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) return Modifier") || body.startsWith("{ if (LocalCosmoShell.current == null) return Modifier"), "with the look off the modifier is the identity: $body")
+        assertTrue(body.startsWith("{ if (com.cosmotune.video.host.desktopVideoShown()"), "the card is there whatever the look (only another mode puts it aside): $body")
         assertTrue("top = PANEL_MARGIN" in body && "end = PANEL_MARGIN" in body && "bottom = ShellMetrics.desktopBarFootprintDp().dp" in body, "margins 14 (top, end) and the player bar's footprint at the bottom: $body")
         assertTrue(".clip(ORBIT_SIDE_PANEL_SHAPE)" in body, "the Orbit panel's corners of 28: $body")
         assertFalse("cosmoGlass" in code || "LocalDesktopHaze" in code, "Orbit: a flat panel, no glass over the window's haze")
@@ -384,6 +367,6 @@ class DesktopShellContractTest {
         }
         val panelRows = table.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopSidePanel.kt`") }
         assertEquals(1, panelRows.size, "one row for DesktopSidePanel.kt")
-        assertTrue("cosmoDesktopSidePanelCard" in panelRows.single() && "DesktopDivider" in panelRows.single(), "the row names the card and the divider")
+        assertTrue("cosmoDesktopSidePanelCard" in panelRows.single(), "the row names the card")
     }
 }

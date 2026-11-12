@@ -110,16 +110,9 @@ fun CosmoTopBar(
                     onInk = Color(palette.backgroundTop),
                     touch = 48.dp,
                 )
-            } else if (LocalCosmoShell.current != null) {
+            } else {
                 // A root page leads with the mode switcher (DESIGN_SYSTEM.md 4.2): the same pill in every mode, glyph only once scrolled.
                 com.cosmotune.ui.kit.KitModeSwitcher(collapsed = scrolled)
-            } else {
-                Icon(
-                    painter = painterResource(Res.drawable.ic_logo),
-                    contentDescription = null,
-                    tint = brandMarkColor(LocalCosmoColors.current.dark),
-                    modifier = Modifier.size(TopBarMetrics.LOGO_WIDTH, TopBarMetrics.LOGO_HEIGHT),
-                )
             }
             if (accessory != null) {
                 // The page's own control takes the rest of the row, with the bar's gap before the actions.

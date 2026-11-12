@@ -8,8 +8,9 @@ import kotlin.test.assertTrue
 /**
  * What cannot be seen without a window, pinned by reading the source (the phone's files live in `app/`): the two switches of the
  * phone chrome (the top bar and the profile button), and the six sites in `MainActivity` that put them, the drawer's five
- * entries, the three tabs with Explore inside Search and the lifted fade band in place. With the new look off every site takes
- * the old branch, so what is pinned here is the seam: the same parameter lists, every argument by name, the old call kept.
+ * entries, the dock's tabs with Search as the bar's button and the lifted fade band in place. The old bar and avatar button are
+ * gone (`FrostedTopBar.kt` keeps only the bar's metrics), so what is pinned here is the seam: upstream's parameter lists, kept so
+ * its call sites still merge, and the one new call with its arguments.
  */
 class PhoneChromeContractTest {
     private val chromeDir = "app/src/main/java/com/cosmotune/ui/chrome/"
@@ -49,34 +50,37 @@ class PhoneChromeContractTest {
 
     // ---- the top bar switch -----------------------------------------------------------------------------------------------
 
-    @Test fun theTopBarSwitchTakesFrostedTopBarsParametersNameForNameAndTypeForType() {
-        val old = SourceContract.parameters(frosted, "FrostedTopBar")
-        assertEquals(12, old.size, "the old bar's list was read: $old")
-        assertEquals(old, SourceContract.parameters(topBarSwitch, "TopBarSwitch"))
+    /** Upstream's `FrostedTopBar` parameter list, name for name and in its order (the old bar itself is gone). */
+    private val frostedTopBarNames = listOf(
+        "title", "scrolled", "modifier", "transparentBackdrop", "artworkPageChrome", "backButtonHazeState", "trailingTitle", "onBack",
+        "refreshing", "pullFraction", "accessory", "actions",
+    )
+
+    @Test fun theTopBarSwitchKeepsUpstreamsFrostedTopBarParameterList() {
+        val params = SourceContract.parameters(topBarSwitch, "TopBarSwitch")
+        assertEquals(frostedTopBarNames, SourceContract.names(params))
+        assertTrue("pullFraction: () -> Float = { 0f }" in params && "backButtonHazeState: HazeState? = null" in params, "with upstream's types and defaults: $params")
     }
 
-    @Test fun theSwitchLivesInTheChromePackageOfTheAppAndAsksTheShell() {
+    @Test fun theSwitchLivesInTheChromePackageOfTheAppAndIsTheOneCall() {
         val src = topBarSwitch
         assertTrue(src.contains("package com.cosmotune.ui.chrome"), "TopBarSwitch is in com.cosmotune.ui.chrome")
         val body = SourceContract.functionBody(src, "TopBarSwitch")
-        assertTrue(
-            SourceContract.firstStatement(body).startsWith("if (LocalCosmoShell.current != null) {"),
-            "the first statement asks whether the new look is on",
-        )
+        val first = SourceContract.firstStatement(body)
+        assertTrue(first.startsWith("CosmoTopBar("), "the first statement is the bar: $first")
+        assertEquals("{ $first }", squash(body), "and it is the whole body")
     }
 
-    @Test fun theOldBranchPassesEveryParameterByNameToFrostedTopBar() {
-        val body = SourceContract.functionBody(topBarSwitch, "TopBarSwitch")
-        val oldBranch = body.substringAfter("} else {")
-        assertTrue(oldBranch.contains("FrostedTopBar("), "the else branch is the old bar")
-        SourceContract.assertPassesEveryParameter(oldBranch, SourceContract.names(SourceContract.parameters(frosted, "FrostedTopBar")))
+    @Test fun theOldBarsFileKeepsTheMetrics() {
+        val src = SourceContract.code(frosted)
+        for (metric in listOf("val TopBarContentHeight = 52.dp", "val TopBarContentGap = 12.dp", "fun topBarHeight(): Dp", "fun topBarContentPadding(): Dp")) {
+            assertTrue(metric in src, "the bar's metrics stay: $metric")
+        }
     }
 
-    @Test fun theNewBranchCallsCosmoTopBarWithTheBriefsArgumentsAndNoneOfTheMaterialOnes() {
+    @Test fun theSwitchCallsCosmoTopBarWithTheBriefsArgumentsAndNoneOfTheMaterialOnes() {
         val body = SourceContract.functionBody(topBarSwitch, "TopBarSwitch")
-        val newBranch = body.substringBefore("} else {")
-        assertTrue(newBranch.contains("CosmoTopBar("), "the if branch is the new bar")
-        val call = callArguments(newBranch, "CosmoTopBar(")
+        val call = callArguments(body, "CosmoTopBar(")
         assertEquals(
             "title = title, scrolled = scrolled, height = topBarHeight(), modifier = modifier, trailingTitle = trailingTitle, " +
                 "onBack = onBack, refreshing = refreshing, pullFraction = pullFraction, accessory = accessory, actions = actions",
@@ -90,33 +94,31 @@ class PhoneChromeContractTest {
     // ---- the profile button switch ----------------------------------------------------------------------------------------
 
     @Test fun theProfileSwitchTakesTheAccountButtonsParametersPlusTheEntries() {
-        val old = SourceContract.parameters(frosted, "TopBarAccountButton")
-        assertEquals(4, old.size, "the old button's list was read: $old")
-        assertEquals(old + "entries: List<CosmoDrawerEntry> = emptyList()", SourceContract.parameters(profileSwitch, "ProfileButtonSwitch"))
+        assertEquals(
+            listOf(
+                "account: Account?", "onClick: () -> Unit", "onSwipeProfile: ((forward: Boolean) -> Boolean)? = null", "modifier: Modifier = Modifier",
+                "entries: List<CosmoDrawerEntry> = emptyList()",
+            ),
+            SourceContract.parameters(profileSwitch, "ProfileButtonSwitch"),
+            "upstream's TopBarAccountButton list, then the drawer's entries",
+        )
     }
 
-    @Test fun theProfileSwitchAsksTheShellAndKeepsTheOldButtonAsItsElseBranch() {
+    @Test fun theProfileSwitchIsTheOneCallOfTheNewButton() {
         val src = profileSwitch
         assertTrue(src.contains("package com.cosmotune.ui.chrome"), "ProfileButtonSwitch is in com.cosmotune.ui.chrome")
         val body = SourceContract.functionBody(src, "ProfileButtonSwitch")
-        assertTrue(SourceContract.firstStatement(body).startsWith("if (LocalCosmoShell.current != null) {"), "the first statement asks whether the new look is on")
-        val oldBranch = body.substringAfter("} else {")
-        assertTrue(oldBranch.contains("TopBarAccountButton("), "the else branch is the old button")
-        assertEquals(
-            "account = account, onClick = onClick, onSwipeProfile = onSwipeProfile, modifier = modifier",
-            callArguments(oldBranch, "TopBarAccountButton("),
-            "the old call passes its four parameters by name and nothing else",
-        )
+        val first = SourceContract.firstStatement(body)
+        assertTrue(first.startsWith("CosmoProfileButton("), "the first statement is the new button: $first")
+        assertEquals("{ $first }", squash(body), "and it is the whole body")
     }
 
     @Test fun theNewButtonGetsTheAvatarTheNameWithSignInAsItsFallbackAndTheEntries() {
         val body = SourceContract.functionBody(profileSwitch, "ProfileButtonSwitch")
-        val newBranch = body.substringBefore("} else {")
-        assertTrue(newBranch.contains("CosmoProfileButton("), "the if branch is the new button")
         assertEquals(
             "avatarUrl = account?.thumbnailUrl, name = account?.name ?: stringResource(R.string.sign_in), " +
                 "subtitle = account?.email?.takeIf { it.isNotBlank() }, entries = entries, onAccount = onClick, modifier = modifier",
-            callArguments(newBranch, "CosmoProfileButton("),
+            callArguments(body, "CosmoProfileButton("),
         )
     }
 
@@ -135,16 +137,17 @@ class PhoneChromeContractTest {
         val call = callArguments(mainCode, "com.cosmotune.ui.chrome.TopBarSwitch(")
         val names = listOf(
             "title", "transparentBackdrop", "artworkPageChrome", "backButtonHazeState", "trailingTitle", "scrolled", "refreshing",
-            "pullFraction", "onBack", "modifier", "accessory", "actions",
+            "pullFraction", "onBack", "modifier", "actions",
         )
         for (name in names) assertTrue(Regex("""\b$name = """).containsMatchIn(call), "the call still passes $name (the switch decides what the new bar needs)")
-        assertEquals(names.sorted(), SourceContract.names(SourceContract.parameters(frosted, "FrostedTopBar")).sorted(), "and those are all of the old bar's parameters")
+        // the one argument that went with the old look: the Search tab's field in the bar (the page draws its own pill now)
+        assertEquals((names + "accessory").sorted(), frostedTopBarNames.sorted(), "and those, with the accessory left at its default, are all of upstream's bar's parameters")
     }
 
     @Test fun theProfileButtonCallPassesSixDrawerEntriesAndTheOldArguments() {
         val call = callArguments(mainCode, "com.cosmotune.ui.chrome.ProfileButtonSwitch(")
         assertTrue(call.contains("account = account,"), "account")
-        assertTrue(call.contains("onSwipeProfile = { forward -> viewModel.stepProfile(forward) },"), "the old swipe stays, the old branch still uses it")
+        assertTrue(call.contains("onSwipeProfile = { forward -> viewModel.stepProfile(forward) },"), "upstream's swipe argument stays, so its call site still merges")
         assertTrue(call.contains("if (signedIn) {") && call.contains("viewModel.loadChannels()") && call.contains("showAccountSelector = true") && call.contains("else showSettings = true"), "the head's tap is the old avatar tap")
         assertTrue(call.contains("entries = listOf("), "the entries come as a list")
         assertEquals(6, Regex("""\bcom\.cosmotune\.ui\.chrome\.CosmoDrawerEntry\(""").findAll(call).count(), "six entries, fully qualified")
@@ -191,23 +194,21 @@ class PhoneChromeContractTest {
     @Test fun theTopFadeIsTheCoverGroundOnEveryPageNotOnlyOnTabs() {
         val text = main
         assertTrue(
-            "pageColor = if (cosmoShell != null) Color(cosmoShell.colors.palette.backgroundTop) else chromePageColor," in text,
+            "pageColor = Color(cosmoShell.colors.palette.backgroundTop)," in text,
             "the new album and artist pages draw no artwork ground, so the top fade is the cover ground there too",
         )
         assertFalse("cosmoShell != null && !isDetailVisible" in text, "the detail-page exception is gone")
     }
 
-    @Test fun theFadeBandUnderTheCapsulesIsOnlyDrawnWithTheLookOffAndTheTapGuardStays() {
+    @Test fun theTopFadeIsTheOneFadeAndTheTapGuardStays() {
         val text = main
-        val guarded = Regex("""if \(cosmoShell == null\) BottomFadeScrim\(\s*withMiniPlayer = player\.song != null,""")
-        assertEquals(1, guarded.findAll(text).count(), "the bottom fade is under `if (cosmoShell == null)`")
-        assertEquals(2, Regex("""\bBottomFadeScrim\(""").findAll(mainCode).count(), "the top fade and the bottom fade are the only two calls")
-        assertEquals(1, Regex("""if \(cosmoShell == null\) BottomFadeScrim\(""").findAll(text).count(), "only the second one is guarded: the top fade is the page's cover ground")
+        assertEquals(1, Regex("""\bBottomFadeScrim\(""").findAll(mainCode).count(), "the top fade is the one call left: the bottom fade went with the old bars")
         assertTrue("FloatingBarsTapGuard(\n                    barsHeight = { floatingBarsHeight.intValue }," in text, "the tap guard stays, it reads the chrome's height")
     }
 
     @Test fun theDockHasFourTabsHomeExploreReleasesLibraryAndSearchIsTheBarsButton() {
-        val chrome = main.substringAfter("// The new look's floating chrome (tab capsule and mini capsule).").substringBefore("selectedIndex = ")
+        val chrome = main.substringAfter("// The floating chrome (tab capsule and mini capsule).").substringBefore("selectedIndex = ")
+        assertTrue(chrome.length < main.length, "the chrome's comment is found")
         assertEquals(4, Regex("""\bCosmoTab\(""").findAll(chrome).count(), "four tabs")
         assertTrue(
             "CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(exploreLabel, CosmoIcons.Explore, CosmoIcons.ExploreFill), " +
@@ -227,8 +228,8 @@ class PhoneChromeContractTest {
         assertTrue("selectedIndex = if (selectedTab == TAB_SEARCH || showSettings) -1 else MUSIC_DOCK.indexOf(selectedTab)," in text, "Search and Settings light no tab")
         assertTrue("onTabSelected = { index -> onTabSelected(MUSIC_DOCK[index]) }," in text, "the one tab handler is the root's")
         assertTrue("LaunchedEffect(selectedTab) { if (selectedTab != TAB_SEARCH) searchReturnTab = selectedTab }" in text, "the tab Search returns to")
-        assertTrue("cosmoShell != null && selectedTab == TAB_SEARCH -> ({ selectedTab = searchReturnTab })" in text, "the bar's back button returns there")
-        assertTrue("selectedTab = if (selectedTab == TAB_SEARCH && cosmoShell != null) searchReturnTab else TAB_HOME" in text, "and so does the system's")
+        assertTrue("selectedTab == TAB_SEARCH -> ({ selectedTab = searchReturnTab })" in text, "the bar's back button returns there")
+        assertTrue("selectedTab = if (selectedTab == TAB_SEARCH) searchReturnTab else TAB_HOME" in text, "and so does the system's")
     }
 
     @Test fun theTabConstantsAreUntouched() {
@@ -245,18 +246,20 @@ class PhoneChromeContractTest {
         val text = main
         assertFalse("androidx.compose.runtime.SideEffect { selectedTab = TAB_SEARCH }" in text, "no correction after the frame")
         assertEquals(1, Regex(Regex.escape("com.cosmotune.design.TabRedirect.shown(")).findAll(text).count(), "one derivation")
-        assertTrue("newLook = cosmoShell != null" in text, "only the new look")
-                assertTrue(text.indexOf("val onTabSelected: (Int) -> Unit = { index ->") > 0, "the one tab handler is still there")
+        assertTrue(
+            "com.cosmotune.design.TabRedirect.shown( stored, homeTab = TAB_HOME, releasesTab = TAB_RELEASES, )" in squash(text),
+            "the derivation has no look to ask about",
+        )
+        assertTrue(text.indexOf("val onTabSelected: (Int) -> Unit = { index ->") > 0, "the one tab handler is still there")
     }
 
     // ---- the upstream bars and the log ---------------------------------------------------------------------------------------
 
-    @Test fun theUpstreamBarsAreStillThereForTheLookOff() {
+    @Test fun theChromeIsTheBottomBarAndTheMetricsFileNeedsNothingOfOurs() {
         val src = frosted
-        assertTrue(Regex("""\nfun FrostedTopBar\(""").containsMatchIn(src) && Regex("""\nfun TopBarAccountButton\(""").containsMatchIn(src), "both old composables are declared, untouched")
-        // The file's own package is `com.cosmotune.music` since the rename (FORK.md); any other `com.cosmotune` is an edit.
-        assertFalse(Regex("""com\.cosmotune(?!\.music\b)""").containsMatchIn(src), "no edit in the old bar's file")
-        assertTrue("if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(" in main && "if (glassActive) Column(" in main && "FloatingBottomBar(" in main, "part one's chrome and the old chain are still the two branches")
+        // The file's own package is `com.cosmotune.music` since the rename (FORK.md); any other `com.cosmotune` is ours.
+        assertFalse(Regex("""com\.cosmotune(?!\.music\b)""").containsMatchIn(src), "the metrics left in the old bar's file need nothing of ours")
+        assertTrue("com.cosmotune.ui.shell.CosmoBottomChrome(" in mainCode, "the chrome is the bottom bar")
     }
 
     @Test fun theForkLogHasOneRowForTheSixSitesWithFourColumns() {
