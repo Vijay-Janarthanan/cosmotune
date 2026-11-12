@@ -54,6 +54,8 @@ import com.cosmotune.video.ui.actions.rememberDownloadedIds
 import com.cosmotune.video.ui.actions.rememberVideoActions
 import com.cosmotune.video.ui.blocks.VideoActionsSheet
 import com.cosmotune.video.ui.blocks.VideoCard
+import com.cosmotune.video.ui.shell.rememberKept
+import com.cosmotune.video.feed.StableFeed
 import com.cosmotune.video.ui.blocks.VideoCardBody
 import com.cosmotune.video.ui.blocks.VideoSheetContext
 import com.cosmotune.video.ui.blocks.uniqueKeys
@@ -183,11 +185,19 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     // All is the mixed feed; a kiosk's chip is that kiosk alone.
     var all by rememberSaveable { mutableStateOf(true) }
     val rankingTime = remember(regionKey) { System.currentTimeMillis() }
-    val stream = remember(all, accountItems, subscriptionsShelf, forYou, kioskVideos, history, rankingTime) {
+    val ranked = remember(all, accountItems, subscriptionsShelf, forYou, kioskVideos, history, rankingTime) {
         if (all) HomePlanner.rankForHome(HomePlanner.stream(accountItems, subscriptionsShelf, forYou, kioskVideos), history, rankingTime) else kioskVideos
     }
+    // The feed is arranged from several lists that each grow, so a fresh arrangement moves what is already on screen. What is shown is
+    // kept instead (and kept with the page, for the way back from a video): a fresh arrangement only adds the cards that are new.
+    val homeKeep = rememberKept("home-stream") { StableFeed() }
+    val stream = remember(ranked, all, model.selectedId, settings.homeHiddenVideos, settings.homeHiddenChannels) {
+        homeKeep.update(if (all) "all" else "kiosk:${model.selectedId}", ranked) {
+            it.id in settings.homeHiddenVideos || (it.channelId != null && it.channelId in settings.homeHiddenChannels)
+        }
+    }
     // All leads with the colour card (the feed's first video) and the row of the channels you follow; the feed under them leaves both out.
-    val hero = if (all) stream.firstOrNull() else null
+    val hero = if (all) stream.firstOrNull { !it.isPlaylistCard } else null
     val subscriptionRow = remember(all, subscriptionsShelf, hero) { if (all) subscriptionsShelf.filter { it.id != hero?.id }.take(SUBSCRIPTION_ROW) else emptyList() }
     val rest = remember(stream, hero, subscriptionRow) {
         val shown = subscriptionRow.mapTo(HashSet()) { it.id }.apply { hero?.let { add(it.id) } }
@@ -210,7 +220,7 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     val openShorts = { navigator.push(VideoRoute.Shorts(ShortsOrigin.Home)) }
 
     val refreshAll: () -> Unit = {
-        graph.account.invalidate(); accountFeed?.start(force = true); model.retry()
+        homeKeep.reset(); graph.account.invalidate(); accountFeed?.start(force = true); model.retry()
         scope.launch { refreshFeed(graph.feed, force = true) }
     }
     val chips: @Composable (Modifier) -> Unit = { modifier ->
@@ -289,7 +299,7 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
         exhausted = phase == KioskPhase.READY && !model.hasMore && (!all || accountFeed == null || accountFeed.exhausted),
     )
     val onOpen: (VideoItem) -> Unit = { actions.play(it, stream) }
-    val onMore: (VideoItem) -> Unit = { sheet = HomeSheet(it, stream) }
+    val onMore: (VideoItem) -> Unit = { if (!it.isPlaylistCard) sheet = HomeSheet(it, stream) }
     val onChannel: (VideoItem) -> Unit = { item -> item.channelId?.let { navigator.push(VideoRoute.Channel(it)) } }
     val refreshing = phase == KioskPhase.LOADING
     val isDownloaded: (VideoItem) -> Boolean = { it.id in downloaded }
