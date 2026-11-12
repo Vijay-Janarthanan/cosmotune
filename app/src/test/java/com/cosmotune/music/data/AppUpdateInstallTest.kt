@@ -28,4 +28,38 @@ class AppUpdateInstallTest {
         AppUpdateChecker.lastAttemptMs = now - 61 * 60_000L
         assertTrue(AppUpdateChecker.isCheckDue(now, UpdateTrigger.RETURNED))
     }
+
+    @Test fun manifestsAllowUpdatesWithoutUserAction() {
+        for (manifest in listOf("src/main/AndroidManifest.xml", "../tv/src/main/AndroidManifest.xml")) {
+            val text = java.io.File(manifest).readText()
+            assertTrue(manifest, "android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" in text)
+        }
+    }
+
+    @Test fun foregroundReturnIsAComebackNotALaunch() {
+        val tracker = ForegroundTracker()
+        assertFalse("the launch's own start", tracker.started())
+        assertFalse("a second screen while one is showing", tracker.started())
+        tracker.stopped()
+        tracker.stopped()
+        assertTrue("back after every screen had gone", tracker.started())
+        assertTrue(tracker.inFront)
+    }
+
+    @Test fun watchForegroundOnlyInTheMainProcessAfterItsSetup() {
+        val app = java.io.File("src/main/java/com/cosmotune/music/CosmotuneApplication.kt").readText()
+        val auxiliaryReturn = app.indexOf("endsWith(\":mangaverification\") }) return")
+        val proxy = app.indexOf("ExtrasStore.install(this)")
+        val watch = app.indexOf("AppUpdateChecker.watchForeground(this)")
+        assertTrue("registered after the side processes leave and after the proxy is set", watch > auxiliaryReturn && watch > proxy && auxiliaryReturn > 0)
+    }
+
+    @Test fun secondInstallTapIsIgnored() {
+        AppUpdateChecker.endInstall()
+        assertTrue(AppUpdateChecker.beginInstall())
+        assertFalse(AppUpdateChecker.beginInstall())
+        AppUpdateChecker.endInstall()
+        assertTrue(AppUpdateChecker.beginInstall())
+        AppUpdateChecker.endInstall()
+    }
 }

@@ -289,7 +289,9 @@ object AppUpdateChecker {
         }
         val app = context.applicationContext
         // The copy into the session is the APK's whole size: off the UI thread.
+        if (!beginInstall()) return
         thread(name = "cosmotune-update-install") {
+            var sessionId = -1
             runCatching {
                 val installer = app.packageManager.packageInstaller
                 val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
@@ -299,6 +301,7 @@ object AppUpdateChecker {
                     }
                 }
                 val id = installer.createSession(params)
+                sessionId = id
                 installer.openSession(id).use { session ->
                     session.openWrite("cosmotune.apk", 0, file.length()).use { out ->
                         file.inputStream().use { it.copyTo(out) }
@@ -311,7 +314,10 @@ object AppUpdateChecker {
                     )
                     session.commit(status.intentSender)
                 }
-            }.onFailure { reportInstallFailure(it.message ?: "The update was not installed.") }
+            }.onFailure {
+                if (sessionId >= 0) runCatching { app.packageManager.packageInstaller.abandonSession(sessionId) }
+                reportInstallFailure(it.message ?: "The update was not installed.")
+            }
         }
     }
 
@@ -326,6 +332,7 @@ object AppUpdateChecker {
 
     /** The install did not go through: the card shows why, with Try again. */
     fun reportInstallFailure(message: String) {
+        endInstall()
         _download.value = DownloadState.Failed(message)
     }
 
@@ -336,25 +343,37 @@ object AppUpdateChecker {
     internal fun isCheckDue(nowMs: Long, trigger: com.cosmotune.update.UpdateTrigger): Boolean =
         com.cosmotune.update.UpdateCheckSchedule.shouldCheck(nowMs, lastAttemptMs, trigger)
 
+    /** Whether a screen of the app is showing; [UpdateInstallReceiver] asks it before opening Android's "Install?" screen. */
+    val foreground = ForegroundTracker()
+
     /**
-     * Looks again whenever one of the app's screens comes back to the front, when the schedule says so (at most once an hour).
-     * Registered once from the Application, so the activities themselves stay untouched.
+     * Looks again when the app comes back to the front after every screen had gone (not at launch, which checks on its own, and not
+     * when one screen opens another), when the schedule says so (at most once an hour). Registered once from the Application, so
+     * the activities themselves stay untouched.
      */
     fun watchForeground(app: android.app.Application) {
         app.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: android.app.Activity) {
+                if (!foreground.started()) return
                 (activity as? androidx.lifecycle.LifecycleOwner)?.lifecycleScope?.launch {
                     checkIfDue(com.cosmotune.update.UpdateTrigger.RETURNED)
                 }
             }
+            override fun onActivityStopped(activity: android.app.Activity) = foreground.stopped()
             override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) = Unit
             override fun onActivityResumed(activity: android.app.Activity) = Unit
             override fun onActivityPaused(activity: android.app.Activity) = Unit
-            override fun onActivityStopped(activity: android.app.Activity) = Unit
             override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) = Unit
             override fun onActivityDestroyed(activity: android.app.Activity) = Unit
         })
     }
+
+    private val installing = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** One install at a time: false while one is already being handed to Android (a second tap on Install). */
+    internal fun beginInstall(): Boolean = installing.compareAndSet(false, true)
+
+    internal fun endInstall() = installing.set(false)
 
     /** The app came back to the front: look again when the schedule says so. */
     suspend fun checkIfDue(trigger: com.cosmotune.update.UpdateTrigger) {

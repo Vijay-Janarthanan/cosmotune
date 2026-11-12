@@ -23,7 +23,10 @@ class UpdateInstallReceiver : BroadcastReceiver() {
             @Suppress("DEPRECATION")
             val confirm = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
             else intent.getParcelableExtra(Intent.EXTRA_INTENT)
-            confirm?.let { context.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            confirm ?: return
+            // Android blocks a screen opened from the background; then a notification opens it instead.
+            if (AppUpdateChecker.foreground.inFront && runCatching { context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) return
+            updateNotification(context, "Cosmotune update ready", "Tap to install", confirm, CONFIRM_ID)
             return
         }
         AppUpdateChecker.installStatusFailure(status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE))
@@ -38,27 +41,31 @@ class UpdateInstallReceiver : BroadcastReceiver() {
 class UpdatedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
-        val notifications = NotificationManagerCompat.from(context)
-        if (!notifications.areNotificationsEnabled()) return
         val pm = context.packageManager
         val launch = (pm.getLeanbackLaunchIntentForPackage(context.packageName) ?: pm.getLaunchIntentForPackage(context.packageName)) ?: return
-        val manager = context.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Updates", NotificationManager.IMPORTANCE_DEFAULT))
-        }
-        val open = PendingIntent.getActivity(context, 0, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val notification = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification_logo)
-            .setContentTitle("Cosmotune updated")
-            .setContentText("Tap to open")
-            .setContentIntent(open)
-            .setAutoCancel(true)
-            .build()
-        runCatching { notifications.notify(NOTIFICATION_ID, notification) }
+        updateNotification(context, "Cosmotune updated", "Tap to open", launch, UPDATED_ID)
     }
+}
 
-    private companion object {
-        const val CHANNEL = "updates"
-        const val NOTIFICATION_ID = 7_023
+private const val CHANNEL = "updates"
+private const val UPDATED_ID = 7_023
+private const val CONFIRM_ID = 7_024
+
+/** A notification on the Updates channel that opens [target]; nothing when notifications are off. */
+private fun updateNotification(context: Context, title: String, text: String, target: Intent, id: Int) {
+    val notifications = NotificationManagerCompat.from(context)
+    if (!notifications.areNotificationsEnabled()) return
+    val manager = context.getSystemService(NotificationManager::class.java)
+    if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null) {
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Updates", NotificationManager.IMPORTANCE_DEFAULT))
     }
+    val open = PendingIntent.getActivity(context, id, target, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    val notification = NotificationCompat.Builder(context, CHANNEL)
+        .setSmallIcon(R.drawable.ic_notification_logo)
+        .setContentTitle(title)
+        .setContentText(text)
+        .setContentIntent(open)
+        .setAutoCancel(true)
+        .build()
+    runCatching { notifications.notify(id, notification) }
 }

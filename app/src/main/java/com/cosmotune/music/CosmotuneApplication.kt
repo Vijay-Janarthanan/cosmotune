@@ -46,8 +46,6 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         com.cosmotune.diagnostics.CrashNotes.configure(filesDir)
-        // Phone and TV look for a newer release when one of their screens comes back to the front, not only at launch.
-        com.cosmotune.music.data.AppUpdateChecker.watchForeground(this)
         val uncaught = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, failure ->
             runCatching { com.cosmotune.diagnostics.CrashNotes.record(failure) }
@@ -59,6 +57,9 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         LegacyDataMigration.run(this)
         // Before any HTTP client exists: the proxy and offline mode from Extras.
         com.cosmotune.music.data.settings.ExtrasStore.install(this)
+        // Phone and TV look for a newer release when the app comes back to the front, not only at launch (main process only,
+        // after the proxy and offline mode are in place).
+        com.cosmotune.music.data.AppUpdateChecker.watchForeground(this)
         // The player is drawn by the shared UI module; this is what it reads
         // underneath — settings, the Canvas decoder, outputs, the party.
         AndroidStreamHooks.installEarly()
