@@ -39,14 +39,14 @@ patterns, where `<v>` is the version from section 1:
 
 | Platform | File |
 |---|---|
-| Windows | `Cosmotune-<v>-windows-x64-setup.exe` (what the update check downloads) |
-| Windows | `Cosmotune-<v>-windows-x64.msi` |
-| Windows | `Cosmotune-<v>-windows-x64-portable.zip` |
+| Windows | `Cosmotune-<v>-windows-x64-setup.exe` (the first install; also the download page's link) |
+| Windows | `Cosmotune-<v>-windows-x64.msi` (what the one-click update installs) |
+| Windows | `Cosmotune-<v>-windows-x64-portable.zip` (has a `portable` marker file; updates through the download page) |
 | Linux | `Cosmotune-<v>-linux-x86_64.AppImage` (preferred by the update check) |
 | Linux | `Cosmotune-<v>-linux-amd64.deb` (used if there is no AppImage) |
 | Linux | `Cosmotune-<v>-linux-x86_64.rpm` |
-| macOS | `Cosmotune-<v>-macos-arm64.dmg` (Apple Silicon; also `.pkg` and `.zip`) |
-| macOS | `Cosmotune-<v>-macos-x64.dmg` (Intel; also `.pkg` and `.zip`) |
+| macOS | `Cosmotune-<v>-macos-arm64.dmg` and `.zip` (Apple Silicon; the update installs the `.zip`) |
+| macOS | `Cosmotune-<v>-macos-x64.dmg` and `.zip` (Intel; the update installs the `.zip`) |
 
 Rules:
 
@@ -60,8 +60,13 @@ Rules:
 
 macOS builds are unsigned. Clear the quarantine flag with `xattr -cr /Applications/Cosmotune.app`.
 If the app will not start, a missing library may need installing first with Homebrew
-(`brew install <library>`; the exact library still has to be confirmed). The update check does not
-look for macOS files yet, so Mac users get the release page.
+(`brew install <library>`; the exact library still has to be confirmed). Since 1.0.23 there is no
+`.pkg`: it installed a bundle owned by the system, which the one-click update cannot replace without a password.
+
+One-click updates (1.0.23): `desktopApp/.../desktop/update/`. The app downloads `-windows-x64.msi` or
+`-macos-<arch>.zip` into the state folder's `updates`, quits, and a script (`WindowsUpdateScript`,
+`MacUpdateScript`) installs it and opens Cosmotune again, leaving `update-result.txt` for the next launch.
+A portable copy, Linux and a Mac app run from its disk image get the download page instead.
 
 ## 4. How the app finds an update
 

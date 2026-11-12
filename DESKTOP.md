@@ -35,7 +35,6 @@ Nothing else has to be installed first — no JDK, no codec pack.
 |---|---|---|
 | macOS | `Cosmotune-<version>-macos-arm64.dmg` | For Apple Silicon Macs (M1/M2/M3/M4/later). Drag to Applications. |
 | macOS | `Cosmotune-<version>-macos-x64.dmg` | For Intel Macs. Drag to Applications. |
-| macOS | `Cosmotune-<version>-macos-*.pkg` | Standard macOS installer package for automated or managed installations. |
 | Linux | `Cosmotune-<version>-linux-x86_64.AppImage` | `chmod +x` it and run. No install, works on any distribution. |
 | Linux | `Cosmotune-<version>-linux-amd64.deb` | `sudo apt install ./Cosmotune-*.deb` on Debian, Ubuntu and derivatives. |
 | Linux | `Cosmotune-<version>-linux-x86_64.rpm` | `sudo dnf install ./Cosmotune-*.rpm` on Fedora, RHEL and openSUSE. |
@@ -79,9 +78,6 @@ On macOS:
 ```bash
 # Builds the disk image (.dmg) installer
 ./gradlew :desktopApp:packageDmg
-
-# Builds the .pkg installer
-./gradlew :desktopApp:packagePkg
 
 # Standalone Cosmotune.app bundle
 ./gradlew :desktopApp:createDistributable

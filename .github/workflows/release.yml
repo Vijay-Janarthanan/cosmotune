@@ -178,6 +178,12 @@ jobs:
         run: |
           .\gradlew.bat :desktopApp:packageMsi :desktopApp:packageExe :desktopApp:createDistributable "-Pcosmotune.version=${{ steps.version.outputs.value }}"
 
+      - name: The installer asks where to install and adds a desktop shortcut
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem desktopApp/build/compose/binaries/main/msi/*.msi | Select-Object -First 1
+          ./tools/check-msi.ps1 -Msi $msi.FullName
+
       - name: The analyser and models are in the jar
         shell: bash
         run: |
@@ -215,6 +221,8 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/Cosmotune-$v-windows-x64.msi"
           Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/Cosmotune-$v-windows-x64-setup.exe"
+          # The marker tells a portable copy from an installed one: it updates through the download page, never the installer.
+          New-Item -ItemType File -Force desktopApp/build/compose/binaries/main/app/Cosmotune/portable | Out-Null
           7z a -tzip -mx=5 "dist/Cosmotune-$v-windows-x64-portable.zip" `
             "desktopApp/build/compose/binaries/main/app/Cosmotune/*" | Out-Null
           Get-ChildItem dist | Format-Table Name, Length
@@ -226,7 +234,7 @@ jobs:
 
   macos:
     needs: version-check
-    name: macOS · dmg, pkg, zip (${{ matrix.arch }})
+    name: macOS · dmg, zip (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
@@ -269,13 +277,13 @@ jobs:
         with:
           target: desktop
 
-      - name: Build DMG, PKG and the app bundle
+      - name: Build the DMG and the app bundle
         env:
           # the desktop Google sign-in client; either a repository variable or a secret works, and a build without them offers guest sync only
           GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.GOOGLE_DESKTOP_CLIENT_ID || secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET || vars.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: |
-          ./gradlew :desktopApp:packageDmg :desktopApp:packagePkg :desktopApp:createDistributable \
+          ./gradlew :desktopApp:packageDmg :desktopApp:createDistributable \
             -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Upload macOS test diagnostics
@@ -317,9 +325,6 @@ jobs:
           mkdir -p dist
           for f in desktopApp/build/compose/binaries/main/dmg/*.dmg; do
             [ -f "$f" ] && cp "$f" "dist/Cosmotune-$v-macos-$arch.dmg"
-          done
-          for f in desktopApp/build/compose/binaries/main/pkg/*.pkg; do
-            [ -f "$f" ] && cp "$f" "dist/Cosmotune-$v-macos-$arch.pkg"
           done
           ditto -c -k --keepParent desktopApp/build/compose/binaries/main/app/Cosmotune.app "dist/Cosmotune-$v-macos-$arch.zip"
           ls -lh dist

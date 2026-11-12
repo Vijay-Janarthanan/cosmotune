@@ -345,9 +345,13 @@ helper.
 <details>
 <summary>Installing on Windows</summary>
 
-Run the installer: it installs for your user account and adds a Start menu shortcut. The installer is not signed, so SmartScreen
-may say "Windows protected your PC": choose **More info**, then **Run anyway**. For the portable zip, unzip it anywhere and run
-`Cosmotune.exe`, keeping the folder together.
+Run the installer: it asks where to install (your own user folder is suggested), and adds a desktop shortcut and a Start menu
+entry. The installer is not signed, so SmartScreen may say "Windows protected your PC": choose **More info**, then **Run anyway**.
+This is needed only for the first install: after that, **Update now** in Cosmotune downloads the new version, installs it and opens
+Cosmotune again. If you install into a folder such as Program Files, Windows asks for permission on each update.
+
+For the portable zip, unzip it anywhere and run `Cosmotune.exe`, keeping the folder together. A portable copy updates through the
+download page.
 
 </details>
 
@@ -380,15 +384,16 @@ Debian or Ubuntu: `sudo apt install ./Cosmotune-linux-amd64.deb`. Fedora: `sudo 
 | [Cosmotune-macos-arm64.dmg](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-arm64.dmg) | Apple Silicon (M1 and later) |
 | [Cosmotune-macos-x64.dmg](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-x64.dmg) | Intel |
 
-The same builds also come as an installer package ([Apple Silicon](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-arm64.pkg), [Intel](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-x64.pkg))
-and as a zipped app ([Apple Silicon](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-arm64.zip), [Intel](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-x64.zip)).
+The same builds also come as a zipped app ([Apple Silicon](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-arm64.zip), [Intel](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-macos-x64.zip)).
 
 <details>
 <summary>Installing on macOS</summary>
 
 Open the disk image and drag Cosmotune to Applications. Cosmotune is not signed by Apple. If macOS will not open it, right-click
 the app and choose **Open**, or open **System Settings > Privacy & Security** and choose **Open Anyway**. If macOS says the app is
-damaged, open Terminal and run `xattr -cr /Applications/Cosmotune.app`, then open it again.
+damaged, open Terminal and run `xattr -cr /Applications/Cosmotune.app`, then open it again. This is needed only for the first
+install: after that, **Update now** in Cosmotune downloads the new version, replaces the app and opens it again. Run Cosmotune from
+Applications, not from the disk image, for that to work.
 
 Video mode's player has not been verified on macOS yet: the music side is complete there, but video playback may not start. Reports
 from Mac users are welcome.

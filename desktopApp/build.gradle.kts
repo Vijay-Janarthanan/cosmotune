@@ -688,8 +688,8 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(
+                // No .pkg: it installs a bundle owned by the system, which the one-click update cannot replace (1.0.23).
                 TargetFormat.Dmg,
-                TargetFormat.Pkg,
                 TargetFormat.Exe,
                 TargetFormat.Msi,
                 TargetFormat.Deb,
@@ -774,7 +774,8 @@ compose.desktop {
                 upgradeUuid = "d4f2b6a1-3c58-4e7f-9a21-6b0c8e5d7f34"
                 menuGroup = "Cosmotune"
                 shortcut = true
-                dirChooser = false
+                // The installer asks where to install (the per-user folder suggested); updates go into the folder chosen.
+                dirChooser = true
                 perUserInstall = true
             }
         }
