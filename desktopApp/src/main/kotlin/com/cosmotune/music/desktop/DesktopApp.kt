@@ -537,12 +537,26 @@ fun CosmotuneDesktopApp() {
     var personalPositionStash by remember { mutableStateOf(0L) }
     var personalPlayingStash by remember { mutableStateOf(false) }
     val persistence = remember { DesktopPersistence() }
-    var availableUpdate by remember { mutableStateOf<DesktopUpdateChecker.UpdateInfo?>(null) }
+    // The update offer, its one-click download and install, and the put-off state the top bar's pill reads (DesktopUpdates).
+    val updates = com.cosmotune.desktop.update.DesktopUpdates.updater
+    val updateOffer by updates.offer.collectAsState()
+    val updatePostponed by updates.postponed.collectAsState()
+    val updateStep by updates.step.collectAsState()
+    val updateFailure by updates.lastFailure.collectAsState()
     var whatsNewWelcome by remember { mutableStateOf<DesktopUpdateChecker.WelcomeInfo?>(null) }
     LaunchedEffect(Unit) {
-        availableUpdate = DesktopUpdateChecker.check()
+        updates.refresh(com.cosmotune.update.UpdateTrigger.LAUNCH)
         // An offered update comes first; the welcome of this build waits for a launch with nothing newer out.
-        if (availableUpdate == null) whatsNewWelcome = DesktopUpdateChecker.checkWelcome(persistence)
+        if (updates.offer.value == null && updates.lastFailure.value == null) whatsNewWelcome = DesktopUpdateChecker.checkWelcome(persistence)
+        // While it runs (the tray included) it looks again; the schedule decides how often.
+        while (true) {
+            kotlinx.coroutines.delay(com.cosmotune.update.UpdateCheckSchedule.MIN_GAP_MS)
+            updates.refresh(com.cosmotune.update.UpdateTrigger.PERIODIC)
+        }
+    }
+    // The window coming back from the tray or the Dock looks too, at most once an hour.
+    LaunchedEffect(Unit) {
+        DesktopWindowVisibility.visible.collect { shown -> if (shown) updates.refresh(com.cosmotune.update.UpdateTrigger.RETURNED) }
     }
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     var query by remember { mutableStateOf("") }
@@ -3525,21 +3539,30 @@ fun CosmotuneDesktopApp() {
         // offer and the welcome below stand inside the theme: their Orbit cards read its colours and type, and throw without it.
         com.cosmotune.ui.providers.ProviderVerificationHost()
         // The update in Orbit: the release's Highlights (never its whole notes, which the quiet link opens), the version line with
-        // the installer's size, and Update now (the installer in the browser) beside Later.
-        availableUpdate?.let { update ->
+        // the package's size, and Update now (download, install, open again) beside Later, which leaves the top bar's Update pill.
+        updateOffer?.takeIf { !updatePostponed }?.let { update ->
+            val asset = updates.packageOf(update)
             com.cosmotune.ui.whatsnew.WhatsNewDialog(
-                whatsNew = com.cosmotune.ui.whatsnew.WhatsNew(
-                    version = update.version,
-                    highlights = update.highlights,
-                    primary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_update_now", "Update now"]) {
-                        DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
-                        availableUpdate = null
-                    },
-                    secondary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_later", "Later"]) { availableUpdate = null },
-                    onFullNotes = { DesktopExternalLinks.open(update.releaseUrl) },
-                    meta = com.cosmotune.ui.whatsnew.whatsNewMeta(DesktopUpdateChecker.currentVersion, update.version, update.downloadSize),
+                whatsNew = com.cosmotune.desktop.update.DesktopUpdateCard.of(
+                    info = update,
+                    step = updateStep,
+                    install = updates.install,
+                    oneClickSize = asset?.size,
+                    oneClick = asset != null,
+                    currentVersion = DesktopUpdateChecker.currentVersion,
+                    failure = updateFailure,
+                    actions = com.cosmotune.desktop.update.UpdateCardActions(
+                        update = { updates.startUpdate(scope) },
+                        later = updates::postpone,
+                        cancel = updates::cancel,
+                        downloadPage = { DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl) },
+                        fullNotes = { DesktopExternalLinks.open(update.releaseUrl) },
+                    ),
                 ),
-                onDismiss = { availableUpdate = null },
+                onDismiss = {
+                    updates.clearFailure()
+                    updates.postpone()
+                },
             )
         }
         whatsNewWelcome?.let { welcome ->

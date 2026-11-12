@@ -104,6 +104,8 @@ internal fun CosmoDesktopTopBar(
                 }
                 // Live now, in every mode: the pill of the match or live show followed, which opens its panel; nothing when none is live.
                 DesktopLiveNowPill()
+                // An update put off with Later, in every mode: one click opens its card again. It draws nothing otherwise.
+                com.cosmotune.desktop.update.DesktopUpdatePill(Modifier.padding(end = 8.dp))
                 // The room, on every page and in every mode (the bar is the one piece of chrome they all keep): one click opens it.
                 // It draws nothing outside a room.
                 com.cosmotune.ui.room.LocalRoomLauncher.current?.takeIf { it.inRoom }?.let { launcher ->
