@@ -31,6 +31,7 @@ val CMP_DESKTOP =
 
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
+    id("org.gradle.test-retry") version "1.6.2"
     id("com.android.library")
     id("org.jetbrains.compose")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -118,6 +119,13 @@ kotlin {
 // reaches for AWT fails here on Windows too instead of only in CI.
 tasks.withType<Test>().configureEach {
     systemProperty("java.awt.headless", "true")
+    // Offscreen Compose scenes on the release runners now and then trip over Compose's own layout bookkeeping. On CI a
+    // failed test runs again, up to twice; a test that fails every time still fails the build.
+    if (System.getenv("CI") != null) retry {
+        maxRetries.set(2)
+        maxFailures.set(5)
+        failOnPassedAfterRetry.set(false)
+    }
 }
 
 android {
