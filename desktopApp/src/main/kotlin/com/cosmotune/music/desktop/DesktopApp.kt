@@ -528,8 +528,6 @@ private enum class DesktopRepeatMode {
 @Composable
 fun CosmotuneDesktopApp() {
     val scope = rememberCoroutineScope()
-    // Opens a provider's verification by itself when a search or stream needs it, and closes it on completion.
-    com.cosmotune.ui.providers.ProviderVerificationHost()
     // Filled once the audio engine exists. Local playback helpers use this single hook so every
     // transport and queue gesture reaches Listen Together without duplicating protocol logic.
     val partySyncHolder = remember { arrayOfNulls<DesktopPartySync>(1) }
@@ -545,39 +543,6 @@ fun CosmotuneDesktopApp() {
         availableUpdate = DesktopUpdateChecker.check()
         // An offered update comes first; the welcome of this build waits for a launch with nothing newer out.
         if (availableUpdate == null) whatsNewWelcome = DesktopUpdateChecker.checkWelcome(persistence)
-    }
-    // The update in Orbit: the release's Highlights (never its whole notes, which the quiet link opens), the version line with
-    // the installer's size, and Update now (the installer in the browser) beside Later.
-    availableUpdate?.let { update ->
-        com.cosmotune.ui.whatsnew.WhatsNewDialog(
-            whatsNew = com.cosmotune.ui.whatsnew.WhatsNew(
-                version = update.version,
-                highlights = update.highlights,
-                primary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_update_now", "Update now"]) {
-                    DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
-                    availableUpdate = null
-                },
-                secondary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_later", "Later"]) { availableUpdate = null },
-                onFullNotes = { DesktopExternalLinks.open(update.releaseUrl) },
-                meta = com.cosmotune.ui.whatsnew.whatsNewMeta(DesktopUpdateChecker.currentVersion, update.version, update.downloadSize),
-            ),
-            onDismiss = { availableUpdate = null },
-        )
-    }
-    whatsNewWelcome?.let { welcome ->
-        val close = {
-            DesktopUpdateChecker.welcomeSeen(persistence)
-            whatsNewWelcome = null
-        }
-        com.cosmotune.ui.whatsnew.WhatsNewDialog(
-            whatsNew = com.cosmotune.ui.whatsnew.WhatsNew(
-                version = welcome.version,
-                highlights = welcome.highlights,
-                primary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_got_it", "Got it"], close),
-                onFullNotes = { DesktopExternalLinks.open(welcome.releaseUrl) },
-            ),
-            onDismiss = close,
-        )
     }
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     var query by remember { mutableStateOf("") }
@@ -3556,6 +3521,42 @@ fun CosmotuneDesktopApp() {
         legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) },
         themeChoice = DesktopThemeChoice,
     ) {
+        // Opens a provider's verification by itself when a search or stream needs it, and closes it on completion. It, the update
+        // offer and the welcome below stand inside the theme: their Orbit cards read its colours and type, and throw without it.
+        com.cosmotune.ui.providers.ProviderVerificationHost()
+        // The update in Orbit: the release's Highlights (never its whole notes, which the quiet link opens), the version line with
+        // the installer's size, and Update now (the installer in the browser) beside Later.
+        availableUpdate?.let { update ->
+            com.cosmotune.ui.whatsnew.WhatsNewDialog(
+                whatsNew = com.cosmotune.ui.whatsnew.WhatsNew(
+                    version = update.version,
+                    highlights = update.highlights,
+                    primary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_update_now", "Update now"]) {
+                        DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
+                        availableUpdate = null
+                    },
+                    secondary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_later", "Later"]) { availableUpdate = null },
+                    onFullNotes = { DesktopExternalLinks.open(update.releaseUrl) },
+                    meta = com.cosmotune.ui.whatsnew.whatsNewMeta(DesktopUpdateChecker.currentVersion, update.version, update.downloadSize),
+                ),
+                onDismiss = { availableUpdate = null },
+            )
+        }
+        whatsNewWelcome?.let { welcome ->
+            val close = {
+                DesktopUpdateChecker.welcomeSeen(persistence)
+                whatsNewWelcome = null
+            }
+            com.cosmotune.ui.whatsnew.WhatsNewDialog(
+                whatsNew = com.cosmotune.ui.whatsnew.WhatsNew(
+                    version = welcome.version,
+                    highlights = welcome.highlights,
+                    primary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_got_it", "Got it"], close),
+                    onFullNotes = { DesktopExternalLinks.open(welcome.releaseUrl) },
+                ),
+                onDismiss = close,
+            )
+        }
         val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current
         cosmoShell?.FollowCover(selectedSong, liveQueue.songs.getOrNull(liveQueue.index + 1))
         val sharedPlaylistLink by desktopSharedPlaylist.collectAsState()

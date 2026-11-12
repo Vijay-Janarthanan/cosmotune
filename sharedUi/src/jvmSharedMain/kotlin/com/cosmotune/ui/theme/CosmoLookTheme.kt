@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.LocalPlatformContext
 import com.cosmotune.theme.PaletteChoice
@@ -27,6 +28,23 @@ import kotlinx.coroutines.launch
 val LocalCosmoShell = staticCompositionLocalOf<CosmoShellState?> { null }
 val LocalCosmoColors = staticCompositionLocalOf<CosmoColors> { error("CosmoLookTheme is not installed") }
 val LocalReducedMotion = staticCompositionLocalOf { false }
+/** True under a [CosmoLookTheme]; [EnsureCosmoLook] reads it so a window opened outside the theme gets one of its own. */
+val LocalCosmoLookInstalled = staticCompositionLocalOf { false }
+
+/**
+ * [content] under the Orbit look even when no [CosmoLookTheme] stands above it, such as a dialog a host opens before or outside
+ * its theme (an update offer at launch, the TV's root): light or dark as the Material theme around it is (the TV's is dark),
+ * rather than the "not installed" crash. Under a theme it adds nothing.
+ */
+@Composable
+fun EnsureCosmoLook(content: @Composable () -> Unit) {
+    if (LocalCosmoLookInstalled.current) {
+        content()
+    } else {
+        val darkAround = MaterialTheme.colorScheme.background.luminance() < 0.5f
+        CosmoLookTheme(dark = darkAround, legacy = { it() }, content = content)
+    }
+}
 
 /**
  * The app theme with the new look switch in it. [legacy] is the old theme call (CosmotuneTheme on the
@@ -76,6 +94,7 @@ fun CosmoLookTheme(
                     LocalCosmoShell provides (if (newLook) shell else null),
                     LocalCosmoColors provides shell.colors,
                     LocalReducedMotion provides reduced,
+                    LocalCosmoLookInstalled provides true,
                     // The ambient ground's text colour for an untinted icon or text; Material surfaces still set their own.
                     LocalContentColor provides (if (newLook) Color(target.textPrimary) else LocalContentColor.current),
                     LocalRippleConfiguration provides (if (newLook) CosmoRipple else LocalRippleConfiguration.current),

@@ -213,11 +213,15 @@ fun CosmoDialogActions(
 /**
  * A dialog in a window of its own (Android's dialog window, the desktop's dialog layer), for a caller anywhere in the tree: the
  * window dims and closes on a click outside, and the [CosmoDialogCard] (without a scrim of its own) stands in it, at most [maxWidth].
+ * It works with or without a [com.cosmotune.ui.theme.CosmoLookTheme] above it ([com.cosmotune.ui.theme.EnsureCosmoLook]).
  */
 @Composable
 fun CosmoDialog(onDismiss: () -> Unit, maxWidth: Dp = 460.dp, properties: DialogProperties? = null, content: @Composable ColumnScope.() -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = properties ?: DialogProperties(usePlatformDefaultWidth = false)) {
-        CosmoDialogCard(onDismiss = onDismiss, maxWidth = maxWidth, scrim = false, content = content)
+        // The card needs the Orbit look; a host that opens this before or outside its theme gets the dark one, not a crash.
+        com.cosmotune.ui.theme.EnsureCosmoLook {
+            CosmoDialogCard(onDismiss = onDismiss, maxWidth = maxWidth, scrim = false, content = content)
+        }
     }
 }
 
