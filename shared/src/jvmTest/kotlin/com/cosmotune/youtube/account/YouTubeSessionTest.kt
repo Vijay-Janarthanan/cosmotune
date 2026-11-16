@@ -154,6 +154,27 @@ class YouTubeSessionTest {
         assertIs<YouTubeAuthState.SignedIn>(s.state.value)
     }
 
+    @Test fun anExpiredSignInIsNotSentWithRequestsUntilItIsAliveAgain() = runTest {
+        val transport = FakeTransport()
+        val s = session(transport)
+        s.install(login)
+        assertEquals(login, s.requestCookie, "a live sign-in is sent")
+        // Mid-session expiry: every way back failed. A dead sign-in sent with a public read (Up next, Home) is answered 401,
+        // where the same request as a guest works.
+        transport.rotate = { _, _ -> SessionTransport.Answer(401, emptyList()) }
+        transport.page = { SessionTransport.Answer(200, emptyList(), SIGNED_OUT_PAGE) }
+        assertEquals(YouTubeSession.Refresh.EXPIRED, s.refresh(verify = true))
+        assertIs<YouTubeAuthState.Expired>(s.state.value)
+        assertNull(s.requestCookie, "an expired sign-in browses as a guest")
+        assertEquals(login, s.cookie, "the jar itself stays, so a later check can bring it back")
+        // A later check finds it signed in again: requests carry it again.
+        transport.rotate = { _, _ -> SessionTransport.Answer(200, emptyList()) }
+        transport.page = { SessionTransport.Answer(200, emptyList(), SIGNED_IN_PAGE) }
+        s.refresh(verify = true)
+        assertIs<YouTubeAuthState.SignedIn>(s.state.value)
+        assertEquals(login, s.requestCookie)
+    }
+
     // ---- The silent refresh ---------------------------------------------------------------------------------------------
 
     @Test fun theFirstSignedRequestWaitsForARotationAndItsCookiesAreKept() = runTest {

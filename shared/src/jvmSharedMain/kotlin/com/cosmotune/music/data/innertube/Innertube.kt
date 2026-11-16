@@ -477,7 +477,7 @@ object Innertube {
 
     /** The current [SignedScope]; rotates the jar first when it is due, as any signed request does. */
     suspend fun signedScope(): SignedScope {
-        if (cookie != null) ensureSessionScope()
+        if (YouTubeSession.shared.requestCookie != null) ensureSessionScope()
         ensureVisitorData()
         ensureWebClientVersion()
         val session = scope
@@ -899,7 +899,7 @@ object Innertube {
     suspend fun pingAtr(baseUrl: String, cpn: String): Int {
         // Playback can outlive the Activity that restored the session. Ensure
         // the selected profile's headers exist before this first history ping.
-        if (cookie != null) ensureSessionScope()
+        if (YouTubeSession.shared.requestCookie != null) ensureSessionScope()
         val session = scope
         return client.get(baseUrl) {
             parameter("cpn", cpn)
@@ -913,7 +913,7 @@ object Innertube {
         cpn: String,
         extras: HttpRequestBuilder.() -> Unit,
     ): Int {
-        if (cookie != null) ensureSessionScope()
+        if (YouTubeSession.shared.requestCookie != null) ensureSessionScope()
         val session = scope
         return client.get(baseUrl) {
             parameter("ver", "2")
@@ -1217,7 +1217,7 @@ object Innertube {
         // likes, playlists, account menus and all their continuations pass
         // through it. Waiting here makes restoration process-wide rather than
         // a special case implemented by whichever screen happened to open.
-        if (cookie != null) ensureSessionScope()
+        if (YouTubeSession.shared.requestCookie != null) ensureSessionScope()
         val session = scope
         val clientVersion = webRemixVersion
         val response = withRetry {
@@ -1361,7 +1361,7 @@ object Innertube {
         endpoint: String,
         bodyExtras: JsonObjectBuilder.() -> Unit,
     ): JsonObject {
-        if (cookie != null) ensureSessionScope()
+        if (YouTubeSession.shared.requestCookie != null) ensureSessionScope()
         ensureVisitorData()
         ensureWebClientVersion()
         val session = scope
@@ -1490,7 +1490,8 @@ object Innertube {
      * with it. Anonymous requests report nothing.
      */
     private suspend fun <T> signed(block: suspend (sent: String?) -> T): T {
-        val sent = cookie
+        // An expired sign-in goes as a guest: sent, it is only refused (Up next stayed empty this way).
+        val sent = session.requestCookie
         try {
             return block(sent)
         } catch (e: ResponseException) {

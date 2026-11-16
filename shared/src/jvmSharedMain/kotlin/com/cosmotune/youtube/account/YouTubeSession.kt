@@ -88,6 +88,13 @@ class YouTubeSession(
     /** [cookieState]'s value. */
     val cookie: String? get() = cookieFlow.value
 
+    /**
+     * The sign-in a request should carry: [cookie], or null while the sign-in has expired. A dead sign-in sent with a public read
+     * (Up next, Home) is refused, where the same request as a guest is answered; it is the guest browsing the app starts in when
+     * it finds the stored sign-in expired. The jar stays, so the periodic check can still find it alive and lift the expiry.
+     */
+    val requestCookie: String? get() = cookieFlow.value.takeUnless { stateFlow.value is YouTubeAuthState.Expired }
+
     /** The jar behind [cookie]. */
     val currentJar: YouTubeCookieJar get() = synchronized(lock) { jar }
 
@@ -410,6 +417,9 @@ class YouTubeSession(
             if (googleRotation != null && synchronized(lock) { applyGoogle(googleRotation.setCookies) }) changed = true
         }
         val refused = rotation?.status == 401 || rotation?.status == 403
+        // Names and statuses only, never values: what a dropped sign-in did is otherwise invisible in the log.
+        Log.d(TAG, "rotation: " + (rotation?.let { "HTTP ${it.status}, set ${YouTubeCookieJar.describeSetCookies(it.setCookies, clock())}" }
+            ?: "no answer") + "; jar ${jar.names.sorted().joinToString(",")}")
         // The attempt counts, whatever it answered: an endpoint that keeps failing is not asked again on every request.
         lastRotationMs = clock()
         if (changed) persistNow()
@@ -460,9 +470,13 @@ class YouTubeSession(
             .getOrNull() ?: return null
         if (generation != gen) return null
         if (synchronized(lock) { applyYouTube(answer.setCookies) }) schedulePersist()
-        if (answer.status == 401 || answer.status == 403) return false
+        if (answer.status == 401 || answer.status == 403) {
+            Log.d(TAG, "sign-in check: HTTP ${answer.status}")
+            return false
+        }
         if (answer.status !in 200..299) return null
         val loggedIn = YouTubePageConfig.parse(answer.body).loggedIn
+        Log.d(TAG, "sign-in check: HTTP ${answer.status}, LOGGED_IN=$loggedIn, set ${YouTubeCookieJar.describeSetCookies(answer.setCookies, clock())}")
         if (loggedIn == true) {
             synchronized(lock) {
                 if (generation != gen) return null

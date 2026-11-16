@@ -117,4 +117,14 @@ class YouTubeCookieJarTest {
     }
 
     private fun sha1(text: String) = MessageDigest.getInstance("SHA-1").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+
+    @Test fun theLogDescriptionOfSetCookiesNamesThemWithoutTheirValues() {
+        val described = YouTubeCookieJar.describeSetCookies(listOf(
+            "__Secure-1PSIDTS=secretvalue123; Domain=.youtube.com; Path=/; Secure",
+            "SIDCC=; Domain=.youtube.com; Max-Age=0",
+        ), 0L)
+        assertEquals("__Secure-1PSIDTS@youtube.com, SIDCC@youtube.com (cleared)", described)
+        assertFalse("secretvalue123" in described)
+        assertEquals("none", YouTubeCookieJar.describeSetCookies(emptyList(), 0L))
+    }
 }

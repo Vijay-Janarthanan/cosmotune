@@ -124,6 +124,15 @@ class YouTubeCookieJar private constructor(private val entries: Map<String, Stri
             return SetCookie(name, value, domain, expired)
         }
 
+        /**
+         * What a response's `Set-Cookie` headers did, for the log: names, domains and which were cleared, never a value
+         * ("__Secure-1PSIDTS@youtube.com, SIDCC@youtube.com (cleared)").
+         */
+        fun describeSetCookies(raw: List<String>, nowMs: Long): String =
+            raw.mapNotNull { parseSetCookie(it, nowMs) }.joinToString { cookie ->
+                cookie.name + (cookie.domain?.let { "@$it" } ?: "") + if (cookie.expired) " (cleared)" else ""
+            }.ifEmpty { "none" }
+
         /** The domain of the jar both clients send. */
         const val YOUTUBE_DOMAIN = "youtube.com"
 

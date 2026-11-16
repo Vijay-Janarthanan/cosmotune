@@ -155,7 +155,11 @@ internal object DesktopWebSignIn {
         private fun complete(result: Result<String>) {
             if (done) return
             done = true
-            if (result.isSuccess) DesktopTrackLog.log("sign-in: ${service.name} session captured in the sign-in window")
+            if (result.isSuccess) {
+                // The cookie names only, never a value: which ones the sign-in carried is what a dropped sign-in comes down to.
+                val names = result.getOrNull().orEmpty().split(';').map { it.substringBefore('=').trim() }.filter(String::isNotEmpty)
+                DesktopTrackLog.log("sign-in: ${service.name} session captured in the sign-in window (${names.sorted().joinToString(",")})")
+            }
             stage.close()
             discard()
             // Cosmotune keeps its own copy of the session; the window's goes with it.
