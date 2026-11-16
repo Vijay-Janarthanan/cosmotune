@@ -76,7 +76,11 @@ internal object DesktopUpdates {
         val pid = ProcessHandle.current().pid()
         val log = File(updatesDir, "install.log")
         when (val install = updater.install) {
-            is DesktopInstall.WindowsInstalled -> WindowsUpdateScript.launch(WindowsUpdateScript.text(pid, pkg, install, resultFile, log), updatesDir)
+            is DesktopInstall.WindowsInstalled -> {
+                // Each update leaves what each step did in update-steps.log, beside the installer's own log.
+                val steps = File(updatesDir, "update-steps.log").apply { delete() }
+                WindowsUpdateScript.launch(WindowsUpdateScript.text(pid, pkg, install, resultFile, log, steps), updatesDir)
+            }
             is DesktopInstall.MacBundle -> MacUpdateScript.launch(MacUpdateScript.text(pid, pkg, install, resultFile, log), updatesDir)
             else -> error("This copy of Cosmotune updates through the download page")
         }

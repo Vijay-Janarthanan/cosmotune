@@ -50,7 +50,8 @@ internal object DesktopUpdateCard {
                 meta = (install as? DesktopInstall.Browser)?.reason ?: whatsNewMeta(currentVersion, info.version, info.downloadSize),
             )
             else -> {
-                val permission = if (install is DesktopInstall.WindowsInstalled && !install.writable) " · Windows will ask for permission" else ""
+                // Cosmotune installs for all users, so Windows asks every time (WindowsUpdateScript).
+                val permission = if (install is DesktopInstall.WindowsInstalled) " · Windows will ask for permission" else ""
                 card(
                     WhatsNewAction("Update now", actions.update),
                     WhatsNewAction("Later", actions.later),

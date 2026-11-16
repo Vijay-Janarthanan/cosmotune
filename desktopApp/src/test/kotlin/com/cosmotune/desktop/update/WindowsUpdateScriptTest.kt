@@ -12,20 +12,28 @@ import kotlin.test.assertTrue
 
 class WindowsUpdateScriptTest {
     private val tmp: File = Files.createTempDirectory("cosmotune win update").toFile()
+    private val steps = File(tmp, "update-steps.log")
+    private val legacyCode = "{45CF57A7-BB69-338B-BAD5-379C7B37609E}"
 
     private fun install(dir: File, writable: Boolean = true) = DesktopInstall.WindowsInstalled(dir, File(dir, "Cosmotune.exe"), writable)
 
     @Test fun scriptQuotesAwkwardPaths() {
         val dir = File("C:\\Users\\O'Neil\\My Apps\\Cosmotune")
-        val text = WindowsUpdateScript.text(1, File("C:\\Users\\O'Neil\\Temp\\it's.msi"), install(dir), File("C:\\r.txt"), File("C:\\l.txt"))
+        val text = WindowsUpdateScript.text(1, File("C:\\Users\\O'Neil\\Temp\\it's.msi"), install(dir), File("C:\\r.txt"), File("C:\\l.txt"), File("C:\\s.txt"))
         assertTrue("'C:\\Users\\O''Neil\\My Apps\\Cosmotune'" in text, text)
         assertTrue("'C:\\Users\\O''Neil\\Temp\\it''s.msi'" in text, text)
     }
 
-    @Test fun scriptElevatesOnlyWhenNotWritable() {
-        val dir = File("C:\\Cosmotune")
-        assertFalse("RunAs" in WindowsUpdateScript.text(1, File("a.msi"), install(dir), File("r"), File("l")))
-        assertTrue("RunAs" in WindowsUpdateScript.text(1, File("a.msi"), install(dir, writable = false), File("r"), File("l")))
+    @Test fun installingAlwaysAsksWindowsForPermission() {
+        // Cosmotune installs for all users, wherever its folder is, so even a folder this user can write to needs the prompt.
+        val text = WindowsUpdateScript.text(1, File("a.msi"), install(File("C:\\Cosmotune")), File("r"), File("l"), File("s"))
+        assertTrue("-Verb RunAs" in text, text)
+    }
+
+    @Test fun theUpgradeCodeIsTheInstallers() {
+        val gradle = File("build.gradle.kts").readText()
+        val uuid = Regex("upgradeUuid = \"([0-9a-fA-F-]+)\"").find(gradle)!!.groupValues[1]
+        assertEquals("{${uuid.uppercase()}}", WindowsUpdateScript.UPGRADE_CODE)
     }
 
     @Test fun failedResultBecomesMessageOnce() {
@@ -39,20 +47,25 @@ class WindowsUpdateScriptTest {
         assertFalse(result.exists())
     }
 
-    private fun runScript(installerExit: Int): Triple<File, File, File> {
+    /**
+     * Runs the real script against a stand-in installer (which records each call and exits with [installExit], or [removeExit]
+     * for a removal) and a stand-in Cosmotune, without the permission prompt.
+     */
+    private fun runScript(installExit: Int, legacy: String? = null, removeExit: Int = 0): Triple<File, File, File> {
         assumeTrue(System.getProperty("os.name").startsWith("Windows"))
         val dir = File(tmp, "O'Neil apps José").apply { mkdirs() }
         val installed = File(tmp, "installed.txt")
         val relaunched = File(tmp, "relaunched.txt")
         val fakeInstaller = File(tmp, "fake installer.cmd").apply {
-            writeText("@echo off\r\necho %*> \"${installed.path}\"\r\nexit /b $installerExit\r\n")
+            writeText("@echo off\r\necho %*>> \"${installed.path}\"\r\nif \"%1\"==\"/x\" exit /b $removeExit\r\nexit /b $installExit\r\n")
         }
         val fakeApp = File(dir, "Cosmotune.cmd").apply { writeText("@echo off\r\necho started> \"${relaunched.path}\"\r\n") }
         val result = File(tmp, "update-result.txt")
         val ended = ProcessBuilder("cmd", "/c", "exit").start().apply { waitFor() }
         val text = WindowsUpdateScript.text(
             ended.pid(), File(tmp, "Cosmotune-9.9.9-windows-x64.msi"),
-            DesktopInstall.WindowsInstalled(dir, fakeApp, writable = true), result, File(tmp, "install.log"), installer = fakeInstaller.path,
+            DesktopInstall.WindowsInstalled(dir, fakeApp, writable = true), result, File(tmp, "install.log"), steps,
+            upgradeCode = null, legacyProductCode = legacy, installer = fakeInstaller.path, elevate = false,
         )
         val script = WindowsUpdateScript.write(text, tmp)
         val run = ProcessBuilder("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script.path).inheritIO().start()
@@ -64,14 +77,35 @@ class WindowsUpdateScriptTest {
 
     @Test fun installsAndRelaunches() {
         val (installed, relaunched, result) = runScript(0)
-        assertTrue(installed.readText().contains("/qn"), installed.readText())
-        assertTrue(installed.readText().contains("INSTALLDIR="), installed.readText())
+        val calls = installed.readText()
+        assertTrue(calls.contains("/qn") && calls.contains("INSTALLDIR="), calls)
+        assertFalse("/x " in calls, "nothing to remove: $calls")
         assertTrue(relaunched.exists(), "Cosmotune was opened again")
         assertEquals("ok", result.readText().trim())
+        val log = steps.readText()
+        assertTrue("install finished: 0" in log && "opened" in log, log)
     }
 
     @Test fun failedInstallRelaunchesOldAndRecordsFailure() {
         val (_, relaunched, result) = runScript(1603)
+        assertTrue(relaunched.exists(), "the old Cosmotune was opened again")
+        assertEquals("failed 1603", result.readText().trim())
+    }
+
+    @Test fun aCopyForThisUserOnlyIsRemovedFirstAndTheNewOneGoesIntoTheSameFolder() {
+        val (installed, relaunched, result) = runScript(0, legacy = legacyCode)
+        val calls = installed.readText()
+        assertTrue("/x $legacyCode" in calls, "the copy for this user only is removed: $calls")
+        assertTrue(calls.indexOf("/x ") < calls.indexOf("/i "), "removed before the new one goes into its folder: $calls")
+        // Up to the "é", which the stand-in (a .cmd) records in the console's code page; the relaunch below shows the path arrives whole.
+        assertTrue("INSTALLDIR=\"${File(tmp, "O'Neil apps Jos").path}" in calls, calls)
+        assertTrue(relaunched.exists(), "Cosmotune was opened again from its folder")
+        assertEquals("ok", result.readText().trim())
+    }
+
+    @Test fun aRemovalThatFailedInstallsNothingAndKeepsTheOldCopy() {
+        val (installed, relaunched, result) = runScript(0, legacy = legacyCode, removeExit = 1603)
+        assertFalse("/i " in installed.readText(), "no install over a copy that is still there: ${installed.readText()}")
         assertTrue(relaunched.exists(), "the old Cosmotune was opened again")
         assertEquals("failed 1603", result.readText().trim())
     }

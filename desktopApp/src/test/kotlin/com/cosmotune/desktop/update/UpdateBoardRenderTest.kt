@@ -77,7 +77,8 @@ class UpdateBoardRenderTest {
 
     @Test fun cardWordsPerState() {
         assertEquals("Update now", card(UpdateStep.Idle).primary.label)
-        assertEquals("1.0.22 → 1.0.23 · 151 MB", card(UpdateStep.Idle).meta)
+        // Cosmotune installs for all users, so Windows asks whatever the folder.
+        assertEquals("1.0.22 → 1.0.23 · 151 MB · Windows will ask for permission", card(UpdateStep.Idle).meta)
         assertEquals(
             "1.0.22 → 1.0.23 · 151 MB · Windows will ask for permission",
             card(UpdateStep.Idle, windows.copy(writable = false)).meta,

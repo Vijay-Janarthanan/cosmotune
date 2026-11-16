@@ -36,10 +36,16 @@ Nothing else has to be installed first — no JDK, no codec pack.
 | macOS | `Cosmotune-<version>-macos-arm64.dmg` | For Apple Silicon Macs (M1/M2/M3/M4/later). Drag to Applications. |
 | macOS | `Cosmotune-<version>-macos-x64.dmg` | For Intel Macs. Drag to Applications. |
 | Linux | `Cosmotune-<version>-linux-x86_64.AppImage` | `chmod +x` it and run. No install, works on any distribution. |
-| Windows | `Cosmotune-<version>-windows-x64-setup.exe` | The ordinary installer. Installs for the current user, so it never asks for an administrator. |
+| Windows | `Cosmotune-<version>-windows-x64-setup.exe` | The ordinary installer. Installs for all users into the folder you choose (Program Files suggested), with a Start menu entry and a desktop shortcut. Windows asks for permission. |
 
 Each release also carries `Cosmotune-<version>-windows-x64.msi` and `Cosmotune-<version>-macos-<arch>.zip`. They are the files
-**Update now** installs (Windows runs the MSI silently, macOS swaps the zipped app in); download the setup.exe or the dmg instead.
+**Update now** installs (Windows runs the MSI into the folder Cosmotune is in, after Windows' permission prompt; macOS swaps the
+zipped app in); download the setup.exe or the dmg instead. On Windows each update writes what it did, step by step, to
+`.local\state\cosmotune\updates\update-steps.log` in your user folder, beside the installer's own `install.log`.
+
+Cosmotune 1.0.23 and 1.0.24 installed for the current user only. Their first update to 1.0.25 or later removes that copy and
+installs for all users into the same folder, behind one permission prompt. Windows refuses to install the same version again from
+the other file (the setup.exe over the MSI, or the other way round) with error 1638: uninstall first, or use **Update now**.
 
 **macOS Gatekeeper.** Unsigned binaries built locally or downloaded outside the Mac App Store
 may trigger a macOS security prompt ("Cosmotune is damaged and can't be opened" or "unidentified developer").

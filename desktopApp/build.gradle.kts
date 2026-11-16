@@ -791,9 +791,11 @@ compose.desktop {
                 upgradeUuid = "d4f2b6a1-3c58-4e7f-9a21-6b0c8e5d7f34"
                 menuGroup = "Cosmotune"
                 shortcut = true
-                // The installer asks where to install (the per-user folder suggested); updates go into the folder chosen.
+                // Installs for all users and asks where (Program Files suggested), so any folder works, Program Files included: a
+                // per-user installer cannot write there (1.0.23 offered it and failed with error 1303). Updates go into the folder
+                // chosen, through Windows' permission prompt (WindowsUpdateScript).
                 dirChooser = true
-                perUserInstall = true
+                perUserInstall = false
             }
         }
     }

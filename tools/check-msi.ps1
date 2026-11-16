@@ -1,4 +1,5 @@
-# Checks the built Windows installer: it must let the person choose the install folder and must add a desktop shortcut.
+# Checks the built Windows installer: it must install for all users, let the person choose the install folder and add a desktop
+# shortcut.
 # Usage: ./tools/check-msi.ps1 -Msi <path to Cosmotune.msi>
 param([Parameter(Mandatory = $true)][string]$Msi)
 
@@ -24,8 +25,13 @@ $dialogs = Rows 'SELECT `Dialog` FROM `Dialog`'
 Write-Host "Shortcut folders: $($shortcuts -join ', ')"
 Write-Host "Installer dialogs: $($dialogs -join ', ')"
 
+$allUsers = Rows "SELECT ``Value`` FROM ``Property`` WHERE ``Property`` = 'ALLUSERS'"
+Write-Host "ALLUSERS: $($allUsers -join ', ')"
+
 $failed = $false
+# For all users: a per-user installer cannot write to Program Files, which the folder dialog offers (1.0.23, error 1303).
+if (-not ($allUsers -contains '1')) { Write-Host 'The installer does not install for all users.'; $failed = $true }
 if (-not ($shortcuts -contains 'DesktopFolder')) { Write-Host 'No desktop shortcut in the installer.'; $failed = $true }
 if (-not ($dialogs | Where-Object { $_ -match 'InstallDir|Browse' })) { Write-Host 'The installer does not ask where to install.'; $failed = $true }
 if ($failed) { exit 1 }
-Write-Host 'The installer asks where to install and adds a desktop shortcut.'
+Write-Host 'The installer installs for all users, asks where to install and adds a desktop shortcut.'

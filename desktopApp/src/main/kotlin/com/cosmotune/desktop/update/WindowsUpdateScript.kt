@@ -3,46 +3,109 @@ package com.cosmotune.desktop.update
 import java.io.File
 
 /**
- * The PowerShell script that finishes a Windows update after Cosmotune has quit: it waits for the app's process to end (the tray
- * included, so the single-instance lock is free), installs the downloaded MSI quietly into the folder Cosmotune is installed in,
- * writes how it went to the result file ([UpdateResult]) and opens Cosmotune again, the new one or, when the install failed, the
- * old one, which Windows Installer leaves in place. A folder this user cannot change (such as Program Files) is installed through
- * Windows' permission prompt.
+ * The PowerShell script that finishes a Windows update after Cosmotune has quit. It waits for the app's process to end (the tray
+ * included, so the single-instance lock is free), installs through Windows' permission prompt (Windows Installer's own), writes how
+ * it went to the result file ([UpdateResult]) and opens Cosmotune again: the new one or, when the install failed or the prompt was
+ * declined, the old one, which is still in place. Every step goes to `steps`, so an update that did not come back can be read
+ * afterwards.
+ *
+ * Cosmotune installs for all users (from 1.0.25). A copy installed for this user only (1.0.23 and 1.0.24) cannot be upgraded by an
+ * all-users installer, which looks only for all-users copies; Windows Installer says which kind each installed copy is (its
+ * `AssignmentType`). Such a copy is removed first and the new one installed into the same folder, both behind one prompt (the script
+ * runs itself again with `-Install`): installing first and removing after would take the new copy's files with the old one when the
+ * folder is the same.
  */
 internal object WindowsUpdateScript {
+    /** The installer's upgrade code: `upgradeUuid` in desktopApp/build.gradle.kts. */
+    const val UPGRADE_CODE = "{D4F2B6A1-3C58-4E7F-9A21-6B0C8E5D7F34}"
+
     fun text(
         pid: Long,
         msi: File,
         install: DesktopInstall.WindowsInstalled,
         resultFile: File,
         log: File,
+        steps: File,
+        upgradeCode: String? = UPGRADE_CODE,
+        legacyProductCode: String? = null,
         installer: String = "msiexec.exe",
+        elevate: Boolean = true,
     ): String {
-        val elevate = if (install.writable) "" else " -Verb RunAs"
+        val runAs = if (elevate) " -Verb RunAs" else ""
         return """
+            |param([switch]${'$'}Install, [string]${'$'}Legacy)
             |${'$'}ErrorActionPreference = 'Continue'
             |${'$'}msi = ${quote(msi.path)}
             |${'$'}dir = ${quote(install.dir.path.trimEnd('\\'))}
             |${'$'}exe = ${quote(install.exe.path)}
             |${'$'}result = ${quote(resultFile.path)}
             |${'$'}log = ${quote(log.path)}
+            |${'$'}steps = ${quote(steps.path)}
             |${'$'}installer = ${quote(installer)}
-            |try { Wait-Process -Id $pid -Timeout 120 -ErrorAction SilentlyContinue } catch {}
-            |Start-Sleep -Milliseconds 500
+            |${'$'}upgradeCode = ${upgradeCode?.let(::quote) ?: "\$null"}
+            |function Step([string]${'$'}line) {
+            |    try { Add-Content -LiteralPath ${'$'}steps -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  ' + ${'$'}line) -Encoding UTF8 } catch {}
+            |}
             |${'$'}arguments = @('/i', ('"' + ${'$'}msi + '"'), '/qn', '/norestart', ('INSTALLDIR="' + ${'$'}dir + '"'), '/l*v', ('"' + ${'$'}log + '"'))
+            |
+            |if (${'$'}Install) {
+            |    # Behind the one permission prompt: remove the copy for this user only, then install for all users into its folder.
+            |    Step ('removing the copy for this user only: ' + ${'$'}Legacy)
+            |    ${'$'}removal = Start-Process -FilePath ${'$'}installer -ArgumentList @('/x', ${'$'}Legacy, '/qn', '/norestart', '/l*v', ('"' + ${'$'}log + '.remove.log"')) -Wait -PassThru
+            |    Step ('removed: ' + ${'$'}removal.ExitCode)
+            |    if (${'$'}removal.ExitCode -ne 0 -and ${'$'}removal.ExitCode -ne 3010 -and ${'$'}removal.ExitCode -ne 1605) { exit ${'$'}removal.ExitCode }
+            |    ${'$'}process = Start-Process -FilePath ${'$'}installer -ArgumentList ${'$'}arguments -Wait -PassThru
+            |    exit ${'$'}process.ExitCode
+            |}
+            |
+            |Step 'waiting for Cosmotune to close'
+            |try { Wait-Process -Id $pid -Timeout 120 -ErrorAction Stop } catch { Step ('wait: ' + ${'$'}_.Exception.Message) }
+            |Start-Sleep -Milliseconds 500
+            |${'$'}legacy = ${legacyProductCode?.let(::quote) ?: "\$null"}
+            |if (-not ${'$'}legacy -and ${'$'}upgradeCode) {
+            |    # Windows Installer says which kind each installed copy is: 1 for all users, otherwise for this user only.
+            |    try {
+            |        ${'$'}wi = New-Object -ComObject WindowsInstaller.Installer
+            |        foreach (${'$'}code in ${'$'}wi.GetType().InvokeMember('RelatedProducts', 'GetProperty', ${'$'}null, ${'$'}wi, @(${'$'}upgradeCode))) {
+            |            ${'$'}kind = ${'$'}wi.GetType().InvokeMember('ProductInfo', 'GetProperty', ${'$'}null, ${'$'}wi, @(${'$'}code, 'AssignmentType'))
+            |            Step ('installed copy ' + ${'$'}code + ': ' + ${'$'}(if (${'$'}kind -eq '1') { 'for all users' } else { 'for this user only' }))
+            |            if (${'$'}kind -ne '1') { ${'$'}legacy = ${'$'}code }
+            |        }
+            |    } catch { Step ('could not list the installed copies: ' + ${'$'}_.Exception.Message) }
+            |}
+            |Step 'installing'
             |try {
-            |    ${'$'}process = Start-Process -FilePath ${'$'}installer -ArgumentList ${'$'}arguments -Wait -PassThru$elevate
+            |    if (${'$'}legacy) {
+            |        ${'$'}self = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ('"' + ${'$'}PSCommandPath + '"'), '-Install', '-Legacy', ${'$'}legacy)
+            |        ${'$'}process = Start-Process -FilePath 'powershell.exe' -ArgumentList ${'$'}self -Wait -PassThru$runAs -ErrorAction Stop
+            |    } else {
+            |        ${'$'}process = Start-Process -FilePath ${'$'}installer -ArgumentList ${'$'}arguments -Wait -PassThru$runAs -ErrorAction Stop
+            |    }
             |    ${'$'}code = ${'$'}process.ExitCode
             |} catch {
+            |    Step ('the install did not start: ' + ${'$'}_.Exception.Message)
             |    ${'$'}code = 1223
             |}
+            |Step ('install finished: ' + ${'$'}code)
             |if (${'$'}code -eq 0 -or ${'$'}code -eq 3010) {
             |    Set-Content -LiteralPath ${'$'}result -Value 'ok'
             |    Remove-Item -LiteralPath ${'$'}msi -ErrorAction SilentlyContinue
             |} else {
             |    Set-Content -LiteralPath ${'$'}result -Value ('failed ' + ${'$'}code)
             |}
-            |Start-Process -FilePath ${'$'}exe
+            |Step ('opening ' + ${'$'}exe)
+            |try {
+            |    Start-Process -FilePath ${'$'}exe -WorkingDirectory ${'$'}dir -ErrorAction Stop
+            |    Step 'opened'
+            |} catch {
+            |    Step ('could not open it: ' + ${'$'}_.Exception.Message)
+            |    try {
+            |        Start-Process -FilePath 'explorer.exe' -ArgumentList ('"' + ${'$'}exe + '"') -ErrorAction Stop
+            |        Step 'opened through Explorer'
+            |    } catch {
+            |        Step ('Explorer could not open it either: ' + ${'$'}_.Exception.Message)
+            |    }
+            |}
             |""".trimMargin()
     }
 
@@ -61,7 +124,7 @@ internal object WindowsUpdateScript {
      */
     fun write(script: String, workDir: File): File {
         workDir.mkdirs()
-        return File(workDir, "cosmotune-update.ps1").apply { writeText("\uFEFF" + script, Charsets.UTF_8) }
+        return File(workDir, "cosmotune-update.ps1").apply { writeText("﻿" + script, Charsets.UTF_8) }
     }
 
     /** A PowerShell literal: single quotes, an apostrophe doubled. */
