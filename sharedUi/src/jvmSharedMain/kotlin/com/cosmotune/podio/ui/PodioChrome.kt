@@ -53,6 +53,8 @@ internal class PodioEnv(
     val onToggle: () -> Unit,
     /** The playhead run on between readings, so the playing row's orbit glides; without one the orbit follows the readings. */
     val head: LivePlayhead? = null,
+    /** Seek the active episode without replacing it or its podcast rate. */
+    val onSeek: (Long) -> Unit = {},
 ) {
     /** How far through what is playing, 0..1, or null for a live stream or nothing known. Read while drawing. */
     fun playedFraction(): Float? = playback.durationMs.takeIf { it > 0 }?.let { head?.fraction(it) ?: (playback.positionMs.toFloat() / it).coerceIn(0f, 1f) }

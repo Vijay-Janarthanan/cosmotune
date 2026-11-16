@@ -356,11 +356,14 @@ private fun DirectoryRow(d: com.cosmotune.watch.DirectoryLink, ink: Color, fonts
  */
 @Composable
 internal fun WatchDialog(label: String, title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    com.cosmotune.ui.sheets.CosmoDialog(onDismiss = onDismiss, maxWidth = 540.dp) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 16.dp)) {
+    com.cosmotune.ui.sheets.CosmoDialog(onDismiss = onDismiss, maxWidth = 720.dp) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val side = if (maxWidth < 400.dp) 16.dp else 24.dp
+        Column(Modifier.fillMaxWidth().heightIn(max = 720.dp).verticalScroll(rememberScrollState()).padding(start = side, end = side, top = 24.dp, bottom = 16.dp)) {
             com.cosmotune.ui.sheets.CosmoDialogHeading(label, title, null)
             Spacer(Modifier.height(16.dp))
             content()
+        }
         }
     }
 }

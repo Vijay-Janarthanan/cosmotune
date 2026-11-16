@@ -85,7 +85,7 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
                 Modifier.fillMaxWidth().heightIn(max = 360.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(items, key = { it.song.videoId }) { item -> OrbitDownloadRow(item) }
+                items(items, key = { it.jobId }) { item -> OrbitDownloadRow(item) }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -109,7 +109,7 @@ private fun OrbitDownloadRow(item: DesktopDownloadItem) {
     }
     OrbitSongRow(
         title = item.song.title,
-        subtitle = line,
+        subtitle = com.cosmotune.music.data.downloads.ProviderDownloadChoice.parse(item.quality)?.let { "${it.qualityId} · $line" } ?: line,
         cover = item.song.thumbnailUrl,
         fonts = fonts,
         look = look,
@@ -128,10 +128,10 @@ private fun OrbitDownloadRow(item: DesktopDownloadItem) {
         } else null,
     ) {
         if (state is DesktopDownloadState.Failed) {
-            OrbitRoundButton(Icons.Rounded.Refresh, DesktopStrings["retry", "Retry"], look.ink, { DesktopDownloadQueue.retry(item.song.videoId) }, size = 36.dp)
+            OrbitRoundButton(Icons.Rounded.Refresh, DesktopStrings["retry", "Retry"], look.ink, { DesktopDownloadQueue.retry(item.jobId) }, size = 36.dp)
             Spacer(Modifier.width(6.dp))
         }
-        OrbitRoundButton(CosmoIcons.Close, DesktopStrings["cancel", "Cancel"], look.ink, { DesktopDownloadQueue.cancel(item.song.videoId) }, size = 36.dp)
+        OrbitRoundButton(CosmoIcons.Close, DesktopStrings["cancel", "Cancel"], look.ink, { DesktopDownloadQueue.cancel(item.jobId) }, size = 36.dp)
     }
 }
 

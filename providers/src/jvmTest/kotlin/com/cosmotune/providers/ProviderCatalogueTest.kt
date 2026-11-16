@@ -5,6 +5,16 @@ import org.junit.Test
 import kotlin.test.*
 
 class ProviderCatalogueTest {
+    @Test fun exactPageRequestsRejectNamesakesAndTranslatedLabelsRetainTheirOriginalIds() {
+        val wrong = Json.parseToJsonElement("""{"id":"other-singer","name":"Same Name"}""").jsonObject
+        assertNull(ProviderCatalogue.collection("fixture", "artist", wrong, "chosen-singer"))
+        val translated = Json.parseToJsonElement("""{"id":"chosen-album","name":"翻訳された題名","tracks":[{"id":"recording","title":"Song","artists":[{"id":"chosen-singer","name":"Same Name"}]}]}""").jsonObject
+        val page = assertNotNull(ProviderCatalogue.collection("fixture", "album", translated, "chosen-album"))
+        val song = page.tracks.single().song()
+        assertEquals("chosen-album", ProviderBrowseKey.parse(assertNotNull(song.albumId))?.id)
+        assertEquals("chosen-singer", ProviderBrowseKey.parse(assertNotNull(song.artistId))?.id)
+        assertEquals("src:sflx-fixture::recording", song.videoId)
+    }
     @Test fun structuredArtistIdentityWinsOverAConflictingFlatCreditAndArtworkCannotEscapeToTheImageLoader() {
         val raw = Json.parseToJsonElement("""{"id":"song","name":"A recording","artist":"Wrong artist","artists":[{"id":"artist","name":"Tyler, the Creator"}],"cover_url":"file:///private/secret.png"}""").jsonObject
         val track = requireNotNull(ProviderCatalogue.track("fixture", raw))

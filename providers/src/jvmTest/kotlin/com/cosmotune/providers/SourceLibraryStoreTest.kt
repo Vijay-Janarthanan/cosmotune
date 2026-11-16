@@ -15,6 +15,22 @@ class SourceLibraryStoreTest {
         albumId = ProviderBrowseKey("fixture", "album", "album").encode(), albumName = "A release", sourceQuality = "LOSSLESS", sourceHiRes = true)
     private fun store(file: File) = SourceLibraryStore(file, UnsealedProviderFiles)
 
+    @Test fun namesakeFollowsRemainDistinctAndSparseRefreshKeepsOnlyTheSameIdentityPortrait() = runBlocking<Unit> {
+        val file = File(temporary.newFolder(), "library.bin")
+        val art = "cosmotune-artwork://provider/fixture/${"a".repeat(64)}"
+        val chosen = SourceCataloguePage(ProviderCollection(ProviderBrowseKey("fixture", "artist", "chosen"), "Same name", artwork = art), listOf(song()))
+        val other = chosen.copy(collection = chosen.collection.copy(key = ProviderBrowseKey("fixture", "artist", "other"), artwork = null))
+        val first = store(file)
+        first.follow(chosen, true); first.follow(other, true)
+        first.follow(chosen.copy(collection = chosen.collection.copy(title = "翻訳名", artwork = null)), true)
+        val restored = store(file)
+        assertEquals(setOf("chosen", "other"), restored.state.value.followed.map { requireNotNull(ProviderBrowseKey.parse(it.id)).id }.toSet())
+        assertEquals(art, restored.savedPage(chosen.collection.key.encode())?.collection?.artwork)
+        assertNull(restored.savedPage(other.collection.key.encode())?.collection?.artwork)
+        assertEquals(art, chosen.copy(collection = chosen.collection.copy(artwork = null)).withSavedArtwork(chosen).collection.artwork)
+        assertNull(other.withSavedArtwork(chosen).collection.artwork)
+    }
+
     @Test fun sourceRatingsRetainFullMetadataAcrossRestartWithoutAnAccount() = runBlocking<Unit> {
         val file = File(temporary.newFolder(), "library.bin")
         val first = store(file)

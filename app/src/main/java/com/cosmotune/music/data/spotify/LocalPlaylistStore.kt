@@ -51,6 +51,12 @@ object LocalPlaylistStore {
                         thumbnailUrl = sObj.optString("thumbnailUrl", null).takeIf { !it.isNullOrBlank() && it != "null" },
                         durationText = sObj.optString("durationText", null).takeIf { !it.isNullOrBlank() && it != "null" },
                         artistId = sObj.optString("artistId", null).takeIf { !it.isNullOrBlank() && it != "null" },
+                        artists = sObj.optJSONArray("artists")?.let { credits -> (0 until minOf(credits.length(), 100)).mapNotNull { at ->
+                            credits.optJSONObject(at)?.let { credit ->
+                                credit.optString("name").takeIf { it.isNotBlank() }?.let { name -> com.cosmotune.music.data.model.ArtistRef(name,
+                                    credit.optString("browseId").takeIf { it.isNotBlank() && it != "null" }) }
+                            }
+                        } }.orEmpty(),
                         albumId = sObj.optString("albumId", null).takeIf { !it.isNullOrBlank() && it != "null" },
                         albumName = sObj.optString("albumName", null).takeIf { !it.isNullOrBlank() && it != "null" },
                         isVideo = sObj.optBoolean("isVideo", false),
@@ -160,6 +166,9 @@ object LocalPlaylistStore {
                     sObj.put("thumbnailUrl", song.thumbnailUrl)
                     sObj.put("durationText", song.durationText)
                     sObj.put("artistId", song.artistId)
+                    sObj.put("artists", org.json.JSONArray().also { credits -> song.artists.take(100).forEach { credit ->
+                        credits.put(JSONObject().put("name", credit.name).put("browseId", credit.browseId))
+                    } })
                     sObj.put("albumId", song.albumId)
                     sObj.put("albumName", song.albumName)
                     sObj.put("isVideo", song.isVideo)

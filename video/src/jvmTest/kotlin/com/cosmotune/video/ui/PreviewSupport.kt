@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
@@ -34,7 +35,10 @@ import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlinx.coroutines.MainCoroutineDispatcher
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CompletableJob
 
 /**
  * What the screen previews have in common: the theme's colours and type built without the app's host, a thumbnail stand-in that paints
@@ -91,9 +95,15 @@ internal object PreviewKit {
         hover: androidx.compose.ui.geometry.Offset? = null,
         content: @Composable () -> Unit,
     ) {
-        RenderThread.begin()
+        val sceneJob = SupervisorJob()
+        val frameContext = RenderThread.begin(sceneJob)
+        var scene: ImageComposeScene? = null
+        var image: org.jetbrains.skia.Image? = null
+        try {
+        // Headless scenes do not have an application event loop to flush writes left by the preceding scene's disposal.
+        Snapshot.sendApplyNotifications()
         // The scene's effects run on the render thread too, so a page that resumes after a load writes its state between frames.
-        val scene = ImageComposeScene(widthDp, heightDp, Density(1f), coroutineContext = RenderThread) {
+        val activeScene = ImageComposeScene(widthDp, heightDp, Density(1f), coroutineContext = frameContext + sceneJob) {
             val colors = colors(dark)
             MaterialTheme {
                 CompositionLocalProvider(
@@ -106,28 +116,40 @@ internal object PreviewKit {
                 }
             }
         }
-        var image: org.jetbrains.skia.Image? = null
+        scene = activeScene
         // frames over a while: the resources (strings, fonts) load on other threads
         repeat(frames) {
             RenderThread.drain()
+            Snapshot.sendApplyNotifications()
             if (hover != null && it == frames - 30) {
-                scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Enter, hover)
-                scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Move, hover)
+                activeScene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Enter, hover)
+                activeScene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Move, hover)
             }
-            image = scene.render(it * 50_000_000L)
+            image?.close()
+            image = activeScene.render(it * 50_000_000L)
             Thread.sleep(25)
         }
         RenderThread.drain()
-        val bytes = image!!.encodeToData(EncodedImageFormat.PNG)!!.bytes
+        val bytes = image!!.encodeToData(EncodedImageFormat.PNG)!!.use { it.bytes }
         val bitmap = image!!.toComposeImageBitmap()
         val pixels = IntArray(bitmap.width * bitmap.height)
         bitmap.readPixels(pixels)
         val distinct = pixels.asSequence().distinct().take(64).count()
-        scene.close()
-        RenderThread.end()
         File(outDir).mkdirs()
         File("$outDir/$name.png").writeBytes(bytes)
         check(bytes.size > 4_000 && distinct > 8) { "$name is blank (${bytes.size} bytes, $distinct colours)" }
+        } finally {
+            try { scene?.close() } finally {
+                sceneJob.cancel()
+                try {
+                    RenderThread.drain()
+                    Snapshot.sendApplyNotifications()
+                } finally {
+                    image?.close()
+                    RenderThread.end()
+                }
+            }
+        }
     }
 }
 
@@ -135,36 +157,67 @@ internal object PreviewKit {
  * The UI thread of a render: the thread that renders the scene. Work dispatched here from another thread (a page's load coming back
  * from Dispatchers.Default, a resource read) waits in a queue and runs between frames ([drain]); work already on the render thread
  * runs at once, as Dispatchers.Main.immediate does. A test that sets it as the main dispatcher has its pages write their state where
- * the scene lays them out, never on a worker beside a frame (which failed inside Compose's lazy lists). Outside a render, nothing runs
- * and what was queued is dropped at the next one.
+ * the scene lays them out, never on a worker beside a frame (which failed inside Compose's lazy lists). Each scene carries a generation
+ * and a job: disposal drains cancellation/finally work before the owner is released; already-completed old scenes cannot enqueue work
+ * into a new scene.
  */
 object RenderThread : MainCoroutineDispatcher() {
-    private val queue = ConcurrentLinkedQueue<Runnable>()
+    private class Frame(val generation: Long, val lifecycle: CompletableJob) : AbstractCoroutineContextElement(Key) {
+        companion object Key : CoroutineContext.Key<Frame>
+    }
+    private data class Work(val generation: Long, val runnable: Runnable)
+    private val queue = ConcurrentLinkedQueue<Work>()
+    @Volatile private var generation = 0L
+    @Volatile private var frame: Frame? = null
 
     @Volatile private var owner: Thread? = null
 
     override val immediate: MainCoroutineDispatcher get() = this
 
-    override fun isDispatchNeeded(context: CoroutineContext): Boolean = Thread.currentThread() !== owner
+    override fun isDispatchNeeded(context: CoroutineContext): Boolean = Thread.currentThread() !== owner ||
+        context[Frame]?.generation?.let { it != generation } == true
 
     override fun dispatch(context: CoroutineContext, block: Runnable) {
-        queue.add(block)
+        val from = context[Frame] ?: frame ?: return
+        // A scene is retired only after its job and cancellation/finally continuations have completed in end().
+        if (!from.lifecycle.isCompleted && from.generation == generation) queue.add(Work(from.generation, block))
     }
 
-    /** Makes the calling thread the render thread, with nothing left over from an earlier render. */
-    fun begin() {
+    /** Makes the calling thread the render thread after the preceding scene's cleanup has completed. */
+    fun begin(lifecycle: CompletableJob = SupervisorJob()): CoroutineContext {
+        check(owner == null && frame == null) { "The preceding render still has pending cleanup" }
         queue.clear()
+        generation++
         owner = Thread.currentThread()
+        val next = Frame(generation, lifecycle)
+        frame = next
+        return this + next + lifecycle
     }
 
     /** Runs what other threads handed over since the last frame, and what that hands over in turn. */
     fun drain() {
         check(Thread.currentThread() === owner) { "drained off the render thread" }
-        while (true) (queue.poll() ?: return).run()
+        while (true) {
+            val work = queue.poll() ?: return
+            if (work.generation == generation) work.runnable.run()
+        }
     }
 
-    /** Ends the render: later work waits for the next one, which drops it. */
+    /** Completes this scene's cancellation before retiring its dispatcher generation. */
     fun end() {
+        check(Thread.currentThread() === owner) { "ended off the render thread" }
+        val ending = checkNotNull(frame)
+        ending.lifecycle.cancel()
+        // Keep this scene's owner installed while cancellation executes. Dropping these continuations can strand jobs
+        // and allow old snapshot writes into the next scene. A stuck cleanup fails instead of silently leaking a scene.
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (!ending.lifecycle.isCompleted || queue.isNotEmpty()) {
+            drain()
+            check(System.nanoTime() < deadline) { "Preview scene cancellation did not finish" }
+            if (!ending.lifecycle.isCompleted) Thread.sleep(1)
+        }
+        queue.clear()
+        frame = null
         owner = null
     }
 }

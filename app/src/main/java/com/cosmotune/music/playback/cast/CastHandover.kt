@@ -51,12 +51,14 @@ object CastHandover {
         localQueue: List<String>,
         localCurrentIndex: Int,
         listenerChoseThisDevice: Boolean,
+        receiverStopConfirmed: Boolean = true,
+        localPositionMs: Long = 0,
     ): Return {
         val index = nearestIndexOf(end.mediaId, localQueue, localCurrentIndex)
         return Return(
             queueIndex = index,
-            positionMs = end.positionMs.coerceAtLeast(0L),
-            play = listenerChoseThisDevice && end.playing,
+            positionMs = (if (index != null) end.positionMs else localPositionMs).coerceAtLeast(0L),
+            play = index != null && receiverStopConfirmed && listenerChoseThisDevice && end.playing,
         )
     }
 

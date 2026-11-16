@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import com.cosmotune.ui.theme.toColorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -138,11 +141,11 @@ class NowPlayingSheetsVisualReviewTest {
     }
 
     /** Draws [content] over the player's ground at 390 by 844 dp, lets the drawers slide up, and writes the frame as [name]. */
-    private fun shoot(name: String, dark: Boolean, content: @Composable () -> Unit) {
+    private fun shoot(name: String, dark: Boolean, widthDp: Int = 390, heightDp: Int = 844, content: @Composable () -> Unit) {
         val palette = CosmoPaletteState(com.cosmotune.theme.OnePalette.of(dark, false), dark)
         val colors = CosmoColors(palette)
-        val scene = ImageComposeScene(width = 780, height = 1688, density = Density(2f)) {
-            MaterialTheme {
+        val scene = ImageComposeScene(width = widthDp * 2, height = heightDp * 2, density = Density(2f)) {
+            MaterialTheme(colorScheme = palette.target.toColorScheme(if (dark) darkColorScheme() else lightColorScheme())) {
                 CompositionLocalProvider(
                     LocalCosmoColors provides colors, LocalCosmoType provides rememberCosmoType(), LocalReducedMotion provides true, LocalLifecycleOwner provides Still,
                 ) {
@@ -247,4 +250,24 @@ class NowPlayingSheetsVisualReviewTest {
     @Test fun visuals() = hosts {
         for (dark in palettes) shoot("visuals", dark) { PlayerVisualsContent(song, {}) }
     }
+    @Test fun playerOptions() = hosts {
+        val store = object : com.cosmotune.settings.KeyValueStore {
+            private val map=mutableMapOf<String,Any>()
+            override fun getBoolean(key: String,default: Boolean)=map[key] as? Boolean ?: default
+            override fun putBoolean(key: String,value: Boolean) { map[key]=value }
+            override fun getInt(key: String,default: Int)=map[key] as? Int ?: default
+            override fun putInt(key: String,value: Int) { map[key]=value }
+            override fun getString(key: String,default: String)=map[key] as? String ?: default
+            override fun putString(key: String,value: String) { map[key]=value }
+        }
+        val settings=com.cosmotune.settings.ExtrasSettings(store)
+        settings.setSongPlayback(song.videoId,com.cosmotune.settings.SongPlaybackTuning(1.25f,-2))
+        for(dark in palettes) shoot("player-options",dark) {
+            com.cosmotune.ui.nowplaying.PlayerOptions(song.videoId,true,{},settings)
+        }
+        for(dark in palettes) shoot("player-options-short",dark,widthDp=740,heightDp=320) {
+            com.cosmotune.ui.nowplaying.PlayerOptions(song.videoId,true,{},settings)
+        }
+    }
+
 }

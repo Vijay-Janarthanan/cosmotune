@@ -109,4 +109,20 @@ class DesktopManifestTransferTest {
         assertFails { DesktopManifestDownload.assemble(folder, "m4a", init, sequenceOf(byteArrayOf(1, 2, 3)), ByteArrayOutputStream()) }
         assertTrue(folder.listFiles().orEmpty().isEmpty())
     }
+    @Test fun versionOneTimingAndTruncatedRunsMatchTheBoundedParser() {
+        val v1init = box("ftyp", "iso6".toByteArray()) + box("moov",
+            box("trak", box("tkhd", fields(0x01000000,0,123,0,456,1)) +
+                box("mdia",box("mdhd",fields(0x01000000,0,123,0,456,48_000)))) +
+                box("mvex",box("trex",fields(0,1,1,48_000,1024*1024,0))))
+        val parsed = assertNotNull(DesktopManifestDownload.Mp4.track(v1init))
+        assertEquals(48_000L,parsed.timescale); assertEquals(1L,parsed.id)
+        val output = ByteArrayOutputStream()
+        DesktopManifestDownload.assemble(temporary.newFolder(),"m4a",v1init,sequenceOf(segment(0)),output)
+        assertContentEquals(DesktopManifestDownload.Mp4.withSidx(v1init+segment(0)),output.toByteArray())
+        val bad = box("moof",box("traf",box("tfhd",fields(0x020000,1))+
+            box("trun",fields(0x300,2,48_000,1))))+box("mdat",byteArrayOf(0))
+        val moof = DesktopManifestDownload.Mp4.boxes(bad).first()
+        assertFailsWith<IllegalArgumentException> { DesktopManifestDownload.Mp4.samples(bad,moof,parsed) }
+    }
+
 }

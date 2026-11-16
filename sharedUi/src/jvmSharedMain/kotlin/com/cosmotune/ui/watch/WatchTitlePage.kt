@@ -90,8 +90,8 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
     val myList by repository.myList.collectAsState()
     val inList = myList.any { it.key == summary.key }
     val (fill, ink) = coverFill(shown.posterUrl ?: shown.backdropUrl, shown.key.value)
-    val series = summary.type == TitleType.SERIES
-    val nextUp by produceState<NextUp?>(null, summary.key, series) { if (series) value = runCatching { repository.nextUp(summary.key) }.getOrNull() }
+    val series = shown.type == TitleType.SERIES
+    val nextUp by produceState<NextUp?>(null, shown.key, series) { if (series) value = runCatching { repository.nextUp(shown.key) }.getOrNull() }
     val target = remember(shown) { repository.targetOf(shown) }
     val sources by (if (series) remember { kotlinx.coroutines.flow.flowOf<SourcesState?>(null) } else remember(target) { repository.sources(target) })
         .collectAsState(null)
@@ -383,6 +383,7 @@ internal fun PeopleAndMore(page: Title, actions: WatchActions, fonts: OrbitFonts
 /** Seasons as chips, then the season's episodes as rows (board section 3). */
 @Composable
 private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
+    var batchOpen by remember { mutableStateOf(false) }
     val repository = actions.repository
     val seasons = page.seasons
     var season by rememberSaveable(page.key.value) { mutableStateOf<Int?>(null) }
@@ -392,11 +393,13 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
     val progress by produceState<Map<WatchKey, WatchProgress>>(emptyMap(), episodes) {
         value = episodes.orEmpty().mapNotNull { e -> runCatching { repository.progress(e.key) }.getOrNull()?.let { e.key to it } }.toMap()
     }
+    if (batchOpen) WatchBatchSheet(page, chosen, episodes.orEmpty(), actions, fonts, look) { batchOpen = false }
     Column(Modifier.padding(top = 22.dp)) {
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = side), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             seasons.forEach { s -> OrbitSelectChip(if (s.number == 0) "Specials" else s.name, s.number == chosen, fonts, look, onClick = { season = s.number }, haptic = false) }
         }
         Column(Modifier.padding(horizontal = side).padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (actions.downloads != null && !episodes.isNullOrEmpty()) WatchCardChip("Download episodes", look.ink, fonts, onClick = { batchOpen = true }, icon = CosmoIcons.Download)
             val list = episodes
             if (list == null) repeat(4) { WatchSkeleton(look, Modifier.fillMaxWidth().height(88.dp), radius = 22.dp) }
             else if (list.isEmpty()) Text("No episodes listed for this season.", style = fonts.body, color = look.dim, modifier = Modifier.padding(6.dp))

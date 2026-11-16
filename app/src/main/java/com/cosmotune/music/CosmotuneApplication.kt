@@ -55,6 +55,10 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
         // First, before any store is opened: copies what was kept under the names before the rename.
         LegacyDataMigration.run(this)
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { com.cosmotune.music.data.LocalFileRatings(java.io.File(filesDir, "local-file-ratings.json")).read() }
+                .getOrNull()?.forEach { (id, status) -> com.cosmotune.music.data.LikeState.rememberStated(id, status) }
+        }
         // Before any HTTP client exists: the proxy and offline mode from Extras.
         com.cosmotune.music.data.settings.ExtrasStore.install(this)
         // Phone and TV look for a newer release when the app comes back to the front, not only at launch (main process only,

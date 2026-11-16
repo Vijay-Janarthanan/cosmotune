@@ -94,14 +94,14 @@ object AppleArtistArtRepository {
      * name never looked up *and* for one known to have nothing, which is the
      * same thing to a caller that is only deciding what to draw first.
      */
-    fun cached(artistName: String): AppleArtistArt? {
-        val key = artistName.normalized()
+    fun cached(artistName: String, identity: String? = null): AppleArtistArt? {
+        val key = cacheKey(artistName, identity)
         return synchronized(cache) { cache[key] }?.art
     }
 
     /** The header art for [artistName], or null when Apple has none. Never throws. */
-    suspend fun artFor(artistName: String): AppleArtistArt? {
-        val key = artistName.normalized()
+    suspend fun artFor(artistName: String, identity: String? = null): AppleArtistArt? {
+        val key = cacheKey(artistName, identity)
         if (key.isEmpty()) return null
         val memory = synchronized(cache) { cache[key] }
         memory?.takeIf { it.fresh() }?.let { return it.art }
@@ -114,8 +114,13 @@ object AppleArtistArtRepository {
             val fresh = runCatching { lookup(artistName, key) }
                 .onFailure { Log.d(TAG, "lookup failed for $artistName: $it") }
                 .getOrNull()
-            if (fresh == null) return@withContext memory ?: stored?.let { Entry(it.art, it.fetchedAt) }
-            diskCache?.save(key, fresh.art)?.let { Entry(it.art, it.fetchedAt) } ?: fresh
+            if (fresh?.art == null) {
+                val previous = memory?.takeIf { it.art != null } ?: stored?.takeIf { it.art != null }?.let { Entry(it.art, it.fetchedAt) }
+                if (previous != null) return@withContext previous
+                if (fresh == null) return@withContext null
+            }
+            val settled = fresh ?: return@withContext null
+            diskCache?.save(key, settled.art)?.let { Entry(it.art, it.fetchedAt) } ?: settled
         } ?: return null
         synchronized(cache) { cache[key] = entry }
         _updates.value++
@@ -150,15 +155,23 @@ object AppleArtistArtRepository {
         val key = artistName.normalized()
         if (key.isEmpty()) return null
         val results = JSONObject(searchJson).optJSONArray("results") ?: JSONArray()
+        val candidates = LinkedHashMap<String, String>()
         for (i in 0 until results.length()) {
             val r = results.optJSONObject(i) ?: continue
             if (r.optString("artistName").normalized() != key) continue
             // The link carries the artist's slug; the bare id answers with
             // a redirect to it, one more round trip for the same page.
-            return r.optString("artistLinkUrl").substringBefore('?').takeIf { it.startsWith("http") }
-                ?: r.optLong("artistId").takeIf { it > 0 }?.let { "https://music.apple.com/us/artist/$it" }
+            val id = r.optLong("artistId").takeIf { it > 0 }?.toString()
+            val link = r.optString("artistLinkUrl").substringBefore('?').takeIf {
+                runCatching { java.net.URI(it).let { uri ->
+                    val fixture = java.net.URI(searchEndpoint)
+                    uri.userInfo == null && (uri.scheme == "https" && uri.host == "music.apple.com" ||
+                        fixture.host in setOf("127.0.0.1", "localhost") && uri.scheme == fixture.scheme && uri.host == fixture.host && uri.port == fixture.port)
+                } }.getOrDefault(false)
+            } ?: id?.let { "https://music.apple.com/us/artist/$it" } ?: continue
+            candidates[id ?: link] = link
         }
-        return null
+        return candidates.values.singleOrNull()
     }
 
     internal fun parse(html: String): AppleArtistArt? {
@@ -245,4 +258,6 @@ object AppleArtistArtRepository {
     private fun String.normalized(): String =
         java.text.Normalizer.normalize(lowercase(Locale.ROOT), java.text.Normalizer.Form.NFD)
             .filter { it.isLetterOrDigit() }
+
+    private fun cacheKey(name: String, identity: String?) = identity?.takeIf { it.isNotBlank() }?.let { "identity:$it" } ?: name.normalized()
 }

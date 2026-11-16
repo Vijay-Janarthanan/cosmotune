@@ -230,6 +230,20 @@ class WatchVisualReviewTest {
         compose.onNodeWithContentDescription("Full screen").assertIsDisplayed()
     }
 
+    @Test fun adaptivePlayerKeepsFullscreenReachableOnShortLandscapeAndTablet() = hosts {
+        for (dark in listOf(true, false)) for (size in listOf(Size("short-landscape", 740, 320), Size("tablet", 1024, 600))) {
+            val repository = FakeWatchRepository()
+            val episode = runBlocking { repository.episodes(series.key, 2)[3] }
+            WatchNav.go(WatchTab.SERIES)
+            WatchNav.open(WatchRoute.Play(PlayTarget.EpisodeOf(episode.key, series.ids, series.name, 2, 4, episodeName = episode.name), series, episode = episode))
+            page(dark, size, repository, WatchPlayback(StillPlayer(repository)) { _, modifier -> Box(modifier.background(Color.Black)) })
+            compose.onNodeWithContentDescription("Full screen").assertIsDisplayed().performClick()
+            compose.onNodeWithContentDescription("Exit full screen").assertIsDisplayed().performClick()
+            compose.onNodeWithContentDescription("Full screen").assertIsDisplayed()
+            capture("player-${size.name}-${if (dark) "dark" else "light"}")
+        }
+    }
+
     @Test fun fullscreenPictureDismissesControlsAndSkipButtonsClampToTheVideo() = hosts {
         val repository = FakeWatchRepository()
         val player = StillPlayer(repository)

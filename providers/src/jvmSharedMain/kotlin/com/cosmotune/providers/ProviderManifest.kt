@@ -45,6 +45,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
         require(settings.all { it.key.matches(Regex("[A-Za-z_][A-Za-z0-9_.-]{0,99}")) && it.options.size <= 100 })
         require(settings.none { it.grantsNetwork && it.type != "string" }) { "Network grants require a URL text setting" }
         require(qualityOptions.size <= 30 && qualityOptions.map { it.id }.distinct().size == qualityOptions.size)
+        require(qualityOptions.all { it.id.isNotBlank() && it.id.length <= 200 && it.id.none(Char::isISOControl) && it.label.length <= 200 && it.description.length <= 2_000 })
         require(serviceHealth.size <= 8 && serviceHealth.map { it.id }.distinct().size == serviceHealth.size) { "Invalid service health checks" }
         serviceHealth.forEach { check ->
             require(check.id.matches(Regex("[A-Za-z0-9_-]{1,100}")) && check.label.length <= 200 &&

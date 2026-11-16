@@ -16,6 +16,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.cancel
 import kotlinx.serialization.json.*
 
 /** Pinned package lifecycle and provider metadata, independent of platform UI and audio decoders. */
@@ -40,6 +42,50 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
     @Volatile private var closed = false
     private val mutableErrors = MutableStateFlow<Map<String, String>>(emptyMap())
     val errors = mutableErrors.asStateFlow()
+    private val recovery = ProviderRecovery()
+    private val recoveryJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    init {
+        recoveryJob.launch {
+            while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                kotlinx.coroutines.delay(30_000)
+                for (name in recovery.due()) {
+                    try { retryProvider(name, resetBackoff = false) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { /* failure reason remains observable through errors */ }
+                }
+            }
+        }
+    }
+
+    /** Manual recovery and network-return recovery re-initialize only failed enabled packages. */
+    suspend fun retryProvider(name: String, resetBackoff: Boolean = true) {
+        if (resetBackoff) recovery.clear(name)
+        operation(name) { Unit }
+    }
+
+    fun networkRestored() {
+        recoveryJob.launch {
+            for (name in recovery.names()) {
+                try { retryProvider(name) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { }
+            }
+        }
+    }
+
+    private fun recordFailure(name: String, error: Exception, startup: Boolean = false) {
+        if (error is ProviderBackoffException || error is ProviderSearchUnsupportedException) return
+        if (!error.needsProviderAccess() && (startup || error is java.io.IOException || error is ProviderResolutionException &&
+            (error.httpStatus in setOf(408, 429, 500, 502, 503, 504) ||
+                error.errorType in setOf("api_error", "network_error", "timeout", "rate_limited", "service_unavailable")))) recovery.failed(name)
+        val message = when (error) {
+            is ProviderAccessRequiredException -> "Provider sign-in or verification required"
+            is ProviderResolutionException -> "This recording could not be resolved" +
+                (error.httpStatus?.let { " (HTTP $it)" } ?: "") + ". The provider remains enabled."
+            else -> "Provider request failed. Its saved connection has been retained. Try again or wait for reconnect."
+        }
+        mutableErrors.update { if (name in revokedNames) it - name else it + (name to message) }
+    }
     private val mutableProgress = MutableStateFlow<Map<String, ProviderWorkProgress>>(emptyMap())
     val progress = mutableProgress.asStateFlow()
     private data class HomeCache(val sections: List<ProviderHomeSection>, val fetchedAt: Long, val bytes: Int)
@@ -111,6 +157,7 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
             if (!enabled) revokedNames.add(name)
         }
         if (!enabled) {
+            recovery.clear(name)
             browserCallbacks.stop(name)
             retire(name, onlyIf = intent)
             // Revoke first: waiting for a long provider call would leave its sockets and writes live.
@@ -394,8 +441,9 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
      * A recording's audio. When the provider first needs verification and the app is in front, its verification page opens by
      * itself ([ProviderAutoVerification]); after a successful grant the request is made again, exactly once.
      */
-    suspend fun stream(name: String, trackId: String, maxKbps: Int? = null, lossless: Boolean = false, forDownload: Boolean = false): ProviderAudioStream =
-        try { streamUnreported(name, trackId, maxKbps, lossless, forDownload) }
+    suspend fun stream(name: String, trackId: String, maxKbps: Int? = null, lossless: Boolean = false, forDownload: Boolean = false,
+        providerQualityId: String? = null): ProviderAudioStream =
+        try { streamUnreported(name, trackId, maxKbps, lossless, forDownload, providerQualityId) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) {
             if (!failure.needsProviderAccess()) throw failure
@@ -403,13 +451,17 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
             val waiting = verification.foregrounded && verification.accessRequired(name)
             if (!waiting) { if (!verification.foregrounded) verification.accessRequired(name); throw failure }
             if (!verification.awaitVerification(name)) throw failure
-            streamUnreported(name, trackId, maxKbps, lossless, forDownload)
+            streamUnreported(name, trackId, maxKbps, lossless, forDownload, providerQualityId)
         }
 
-    private suspend fun streamUnreported(name: String, trackId: String, maxKbps: Int?, lossless: Boolean, forDownload: Boolean): ProviderAudioStream = operation(name) { runtime ->
+    private suspend fun streamUnreported(name: String, trackId: String, maxKbps: Int?, lossless: Boolean, forDownload: Boolean, providerQualityId: String?): ProviderAudioStream = operation(name) { runtime ->
         require(trackId.isNotBlank() && trackId.length <= 8_192)
         val install = requireNotNull(store.state.value.installed.find { it.manifest.name == name && it.enabled && name !in revokedNames })
-        val quality = ProviderAudioQuality.choose(install.manifest.qualityOptions, maxKbps, lossless)
+        require(providerQualityId == null || forDownload) { "A manifest quality override is only supported for downloads" }
+        val quality = providerQualityId?.let { requested ->
+            require(install.manifest.qualityOptions.any { it.id == requested }) { "The provider no longer offers this download quality" }
+            requested
+        } ?: ProviderAudioQuality.choose(install.manifest.qualityOptions, maxKbps, lossless)
         if ("download_provider" in install.manifest.type && "getDownloadUrl" !in runtime.session.methods &&
             "download" in runtime.session.methods && install.manifest.permissions.file) {
             return@operation preparedStream(name, install, runtime, trackId, quality, maxKbps, lossless, forDownload)
@@ -607,7 +659,11 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
                 started()
                 val installed = requireNotNull(store.state.value.installed.find { it.manifest.name == name && it.enabled && name !in revokedNames }) { "Enable this provider first" }
                 check(!closed) { "Provider manager is closed" }
-                val runtime = acquire(installed, overrides)
+                val remaining = recovery.remainingMs(name)
+                if (remaining > 0) throw ProviderBackoffException(remaining)
+                val runtime = try { acquire(installed, overrides) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) { recordFailure(name, error, startup = true); throw error }
                 kotlinx.coroutines.coroutineScope {
                     var observer: kotlinx.coroutines.Job? = null
                     try {
@@ -617,17 +673,10 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
                                 if (value == null) old - name else old + (name to value)
                             } }
                         }
-                        block(runtime).also { mutableErrors.update { it - name } }
+                        block(runtime).also { recovery.clear(name); mutableErrors.update { it - name } }
                     } catch (cancelled: CancellationException) { retire(name, clearHome = false); throw cancelled }
                     catch (error: Exception) {
-                        val message = when (error) {
-                            is ProviderAccessRequiredException -> "Provider sign-in or verification required"
-                            is ProviderResolutionException -> "This recording could not be resolved" +
-                                (error.httpStatus?.let { " (HTTP $it)" } ?: "") + ". The provider remains enabled."
-                            else -> "Provider request failed. Its saved connection has been retained."
-                        }
-                        // A package without search, asked by the Search tab, is not a failing provider.
-                        mutableErrors.update { if (name in revokedNames || error is ProviderSearchUnsupportedException) it - name else it + (name to message) }
+                        recordFailure(name, error)
                         retire(name, clearHome = false); throw error
                     } finally {
                         kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { observer?.cancel(); observer?.join() }
@@ -733,6 +782,7 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
         old.first?.session?.close()
     }
     override fun close() {
+        recoveryJob.cancel()
         serviceHealth.close()
         val old = synchronized(cacheLock) {
             closed = true

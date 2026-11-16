@@ -135,10 +135,10 @@ fun DetailSwitch(
  */
 @Composable
 private fun rememberAppleHero(page: DetailPage): String? {
-    var appleArt by remember(page.browseId) { mutableStateOf(AppleArtistArtRepository.cached(page.title)) }
+    var appleArt by remember(page.browseId) { mutableStateOf(AppleArtistArtRepository.cached(page.title, page.browseId)) }
     val nameSettled = !ReleaseMeta.looksLikeCredit(page.title) || page.songs !is UiState.Loading
     LaunchedEffect(page.browseId, page.title, nameSettled) {
-        if (nameSettled) appleArt = AppleArtistArtRepository.artFor(page.title) ?: appleArt
+        if (nameSettled) appleArt = AppleArtistArtRepository.artFor(page.title, page.browseId) ?: appleArt
     }
     return appleArt?.heroUrl
 }

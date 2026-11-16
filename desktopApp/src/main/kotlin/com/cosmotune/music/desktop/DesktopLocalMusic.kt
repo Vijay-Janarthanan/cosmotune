@@ -13,14 +13,39 @@ import kotlin.io.path.nameWithoutExtension
 /** Finds ordinary audio files without requiring an Android MediaStore. */
 object DesktopLocalMusic {
     private val supportedExtensions = setOf("aac", "flac", "m4a", "mp3", "ogg", "wav", "webm")
+    private var previousRoots = emptyList<Path>()
+    private var previousFilter: Boolean? = null
+    private var previousSongs = emptyList<Song>()
+    private val changedPaths = LinkedHashSet<Path>()
+    private var fullScanRequired = true
 
-    fun scan(): List<Song> {
+    @Synchronized internal fun fileChanged(path: Path) {
+        val normalized = path.toAbsolutePath().normalize()
+        if (previousSongs.any { it.localPath?.startsWith("$normalized${java.io.File.separator}") == true }) fullScanRequired = true
+        changedPaths.add(normalized)
+    }
+    @Synchronized internal fun invalidateSnapshot() { fullScanRequired = true }
+
+    @Synchronized fun scan(): List<Song> {
         val filterNonMusic = DesktopPersistence().boolean(KEY_FILTER_NON_MUSIC_AUDIO, false)
-        return roots()
+        val currentRoots = roots().map { it.toAbsolutePath().normalize() }
+        val index = DesktopLocalMusicIndex(java.io.File(com.cosmotune.desktop.desktopListeningFile().parentFile, "local-music-index.json"))
+        val incremental = !fullScanRequired && changedPaths.isNotEmpty() && currentRoots == previousRoots && previousFilter == filterNonMusic
+        val songs = (if (incremental) {
+            previousSongs.filterNot { song -> song.localPath?.let { Paths.get(it) in changedPaths } == true } +
+                changedPaths.filter { path ->
+                    currentRoots.any { root -> path.startsWith(root) && root.relativize(path).nameCount in 1..4 } &&
+                        Files.isRegularFile(path) && path.extension.lowercase(Locale.ROOT) in supportedExtensions && (!filterNonMusic || isMusic(path))
+                }.mapNotNull { path -> runCatching { index.song(path) { it.toSong() } }.getOrNull() }
+        } else currentRoots
             .filter(Files::isDirectory)
-            .flatMap { scanDirectory(it, filterNonMusic) }
+            .flatMap { scanDirectory(it, filterNonMusic, index) })
             .distinctBy(Song::localPath)
             .sortedBy { it.title.lowercase() }
+        index.finish(songs.mapNotNullTo(HashSet()) { it.localPath })
+        previousRoots = currentRoots; previousFilter = filterNonMusic; previousSongs = songs
+        changedPaths.clear(); fullScanRequired = false
+        return songs
     }
 
     /**
@@ -66,13 +91,13 @@ object DesktopLocalMusic {
         chooser.selectedFile?.toPath()
     }.getOrNull()
 
-    private fun scanDirectory(root: Path, filterNonMusic: Boolean): List<Song> = buildList {
+    private fun scanDirectory(root: Path, filterNonMusic: Boolean, index: DesktopLocalMusicIndex): List<Song> = buildList {
         runCatching {
             Files.walk(root, 4).use { files ->
                 files.filter(Files::isRegularFile)
                     .filter { it.extension.lowercase() in supportedExtensions }
                     .filter { !filterNonMusic || isMusic(it) }
-                    .forEach { path -> add(path.toSong()) }
+                    .forEach { path -> runCatching { index.song(path) { it.toSong() } }.getOrNull()?.let(::add) }
             }
         }
     }

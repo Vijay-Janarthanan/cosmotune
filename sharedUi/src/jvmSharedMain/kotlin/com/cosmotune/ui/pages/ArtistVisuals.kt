@@ -57,16 +57,16 @@ object ArtistVisualSettings {
 data class ArtistVisuals(val art: AppleArtistArt?, val signature: ArtistSignature?)
 
 @Composable
-fun rememberArtistVisuals(name: String): ArtistVisuals {
+fun rememberArtistVisuals(name: String, identity: String? = null): ArtistVisuals {
     val enabled by ArtistVisualSettings.enabled.collectAsStateWithLifecycle()
     val address by ArtistVisualSettings.baseUrl.collectAsStateWithLifecycle()
     val base = ArtistSignatureRepository.effectiveBaseUrl(enabled, address)
-    var art by remember(name) { mutableStateOf(AppleArtistArtRepository.cached(name)) }
-    var signature by remember(name, base) { mutableStateOf(ArtistSignatureRepository.cached(name, base)) }
-    LaunchedEffect(name, base) {
+    var art by remember(identity ?: name) { mutableStateOf(AppleArtistArtRepository.cached(name, identity)) }
+    var signature by remember(identity ?: name, base) { mutableStateOf(ArtistSignatureRepository.cached(name, base)) }
+    LaunchedEffect(identity, name, base) {
         if (name.isBlank()) return@LaunchedEffect
         coroutineScope {
-            launch { art = AppleArtistArtRepository.artFor(name) ?: art }
+            launch { art = AppleArtistArtRepository.artFor(name, identity) ?: art }
             if (base != null) launch { signature = ArtistSignatureRepository.signatureFor(name, base) ?: signature }
         }
     }
@@ -75,16 +75,16 @@ fun rememberArtistVisuals(name: String): ArtistVisuals {
 
 /** The still remains behind the muted loop until frames arrive or if video fails. */
 @Composable
-fun ArtistMotionArtwork(art: AppleArtistArt?, fallbackUrl: String?, modifier: Modifier = Modifier) {
+fun ArtistMotionArtwork(art: AppleArtistArt?, fallbackUrl: String?, modifier: Modifier = Modifier, identity: String? = fallbackUrl) {
     val allowed = rememberMotionAllowed()
     val clip = remember(art?.videoUrl) { art?.videoUrl?.let { CanvasArtwork(it) } }
     var rendered by remember(clip) { mutableStateOf(false) }
     Box(modifier) {
         // Apple metadata arrives after the original image. Keep that working image mounted:
         // a missing/expired hero or a failed motion loop must never clear the banner.
-        AsyncImage(fallbackUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        RetainedArtistImage(fallbackUrl, identity, Modifier.fillMaxSize())
         art?.heroUrl?.takeIf { it.isNotBlank() && it != fallbackUrl }?.let { hero ->
-            AsyncImage(hero, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            RetainedArtistImage(hero, identity?.plus(":hero"), Modifier.fillMaxSize())
         }
         if (clip != null && allowed) {
             CanvasArtworkPlayer(clip, isPlaying = true, modifier = Modifier.fillMaxSize(), contentMode = CanvasContentMode.CROP,

@@ -1848,4 +1848,22 @@ class SourcesTest {
         assertNull(TrackMatcher.secondsOf("live"))
         assertNull(TrackMatcher.secondsOf("0:00"))
     }
+    @Test fun bestStartDeadlineKeepsCompletedOfferInsteadOfDiscardingIt() = runBlocking {
+        val stalled = FakeSource("Stalled", 10_000, StreamFormat("flac"))
+        val ready = FakeSource("Ready", 5, StreamFormat("aac", kbps = 320))
+        val chosen = SourceResolver.bestAcross(listOf(stalled, ready), raceTarget(), StreamRequest.Lossless,
+            waitForAll = true, timeoutMs = 100)
+        assertEquals("Ready", chosen?.first?.displayName)
+        assertTrue(stalled.cancelled)
+    }
+
+    @Test fun bestStartWaitsForAQualityOfferBeforeCommittingPreloadBytes() = runBlocking {
+        val fast = FakeSource("Fast", 5, StreamFormat("aac", kbps = 320))
+        val better = FakeSource("Better", 40, StreamFormat("flac", bitDepth = 24, sampleRateHz = 96_000))
+        val chosen = SourceResolver.bestAcross(listOf(fast, better), raceTarget(), StreamRequest.Lossless,
+            waitForAll = true, timeoutMs = 1_000)
+        assertEquals("Better", chosen?.first?.displayName)
+        assertEquals("flac", chosen?.second?.format?.codec)
+    }
+
 }

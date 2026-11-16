@@ -327,13 +327,22 @@ object SourceResolver {
      * to YouTube, which is what the caller would have done anyway: nothing has
      * been pinned, so the ordinary resolve at playback time is untouched.
      */
+    /** Patient initial selection and preloads share the same ranking and ceiling. */
+    suspend fun bestForStart(target: TrackMatcher.Target): SourceStream? {
+        if (target.title.isBlank() || target.isVideo) return null
+        val active = SourceRegistry.activeForPlayback()
+        val youtube = active.firstOrNull { it.kind == SourceKind.YOUTUBE } ?: return null
+        return bestAcross(rankedAbove(youtube.configId, active), target, requestForNow(), waitForAll = true, timeoutMs = 20_000)?.second
+    }
+
     suspend fun prefetchSubstitute(target: TrackMatcher.Target): SourceStream? {
         if (target.title.isBlank() || target.isVideo) return null
         val active = SourceRegistry.activeForPlayback()
         val youtube = active.firstOrNull { it.kind == SourceKind.YOUTUBE } ?: return null
-        val quick = rankedAbove(youtube.configId, active).filter { it.kind.worthPrefetching }
+        val policy = AppSettings.playbackStartPolicy.value
+        val quick = rankedAbove(youtube.configId, active).filter { policy == com.cosmotune.audio.PlaybackStartPolicy.BEST_QUALITY_FIRST || it.kind.worthPrefetching }
         if (quick.isEmpty()) return null
-        val (source, stream) = bestAcross(quick, target, requestForNow()) ?: return null
+        val (source, stream) = bestAcross(quick, target, requestForNow(), waitForAll = policy == com.cosmotune.audio.PlaybackStartPolicy.BEST_QUALITY_FIRST, timeoutMs = 20_000) ?: return null
         TrackLog.d(
             TAG,
             "warmed: '${target.title}' from ${source.displayName} at ${stream.format.summary}",
@@ -811,6 +820,7 @@ object SourceResolver {
         waitForAll: Boolean = false,
         strictLength: Boolean = false,
         requireSharedArtist: Boolean = false,
+        timeoutMs: Long = 0,
         accept: (MusicSource, SourceStream) -> Boolean = { _, _ -> true },
     ): Pair<MusicSource, SourceStream>? = coroutineScope {
         val running: MutableList<Deferred<Pair<MusicSource, SourceStream?>>> = sources
@@ -828,7 +838,7 @@ object SourceResolver {
             }
             .toMutableList()
         var best: Pair<MusicSource, SourceStream>? = null
-        try {
+        suspend fun collectOffers() {
             while (running.isNotEmpty()) {
                 val first = select {
                     running.forEach { candidate -> candidate.onAwait { candidate } }
@@ -852,6 +862,9 @@ object SourceResolver {
                 // cannot cancel a later, better rendition.
                 if (best != null && !waitForAll) break
             }
+        }
+        try {
+            if (timeoutMs > 0) kotlinx.coroutines.withTimeoutOrNull(timeoutMs) { collectOffers() } else collectOffers()
         } finally {
             running.forEach { it.cancel() }
         }

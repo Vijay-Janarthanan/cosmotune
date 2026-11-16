@@ -543,8 +543,28 @@ class PlaybackService : MediaLibraryService() {
     private var openTrackFormat: BitPerfectMixerPolicy.TrackFormat? = null
     private var openTrackGeneration = 0L
     private var currentAudioInputFormat: Format? = null
+    private val bluetoothReconnect = com.cosmotune.settings.BluetoothReconnectResume()
+    private val knownBluetoothOutputs = mutableSetOf<Int>()
+    private var lastBluetoothPlayingId: String? = null
+    private var lastBluetoothPlayingAt = 0L
+    private var lastMediaVolume = -1
+    private fun bluetoothOutput(device: AudioDeviceInfo) = device.type in setOf(
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER)
+    private val mediaVolumeObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            val level = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: return
+            if (lastMediaVolume > 0 && level == 0 && com.cosmotune.settings.Extras.settings.pauseOnMute.value &&
+                !speakers.active && com.cosmotune.settings.SongPlaybackMemory.isMusic(player?.currentMediaItem?.mediaId)) player?.pause()
+            lastMediaVolume = level
+        }
+    }
     private val outputDeviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<AudioDeviceInfo>) {
+            val fresh = addedDevices.filter(::bluetoothOutput).filter { knownBluetoothOutputs.add(it.id) }
+            if (fresh.isNotEmpty() && bluetoothReconnect.reconnect(player?.currentMediaItem?.mediaId,
+                com.cosmotune.settings.Extras.settings.bluetoothResume.value, player?.playWhenReady == false,
+                !speakers.active && !ListenTogether.state.value.controlsLocked &&
+                    (!com.cosmotune.settings.Extras.settings.pauseOnMute.value || lastMediaVolume > 0))) player?.play()
             // Plugging something in moves the music to it. Always — a choice
             // made an hour ago about the speaker is not a standing instruction
             // to ignore the headphones now going in, and there is no row in the
@@ -554,6 +574,11 @@ class PlaybackService : MediaLibraryService() {
             requestOutputReconfiguration()
         }
         override fun onAudioDevicesRemoved(removedDevices: Array<AudioDeviceInfo>) {
+            if (removedDevices.filter { knownBluetoothOutputs.remove(it.id) }.isNotEmpty() && knownBluetoothOutputs.isEmpty()) {
+                val id = player?.currentMediaItem?.mediaId
+                bluetoothReconnect.disconnected(id, player?.playWhenReady == true || id == lastBluetoothPlayingId &&
+                    SystemClock.elapsedRealtime() - lastBluetoothPlayingAt <= 5_000)
+            }
             // A chosen output that has been unplugged is no longer a choice.
             // Left set, its id matches nothing — and ids are reused, so it
             // would eventually match whatever device the framework hands that
@@ -716,9 +741,24 @@ class PlaybackService : MediaLibraryService() {
     private data class PodioPosition(val id: String?, val positionMs: Long, val playing: Boolean, val loading: Boolean = false, val durationMs: Long = 0)
     private val podioPositions = kotlinx.coroutines.channels.Channel<PodioPosition>(kotlinx.coroutines.channels.Channel.BUFFERED)
     private val podioProgressScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val podioChapterMedia by lazy { com.cosmotune.podio.PodioChapterMedia(java.io.File(cacheDir, "podio-chapters")) }
+    private var podioChapterImage: com.cosmotune.podio.PodioChapterImage? = null
 
     /** Player properties stay on Main; the IO worker serializes disk updates and final flush. */
     private fun watchPodioProgress() {
+        scope.launch {
+            podioChapterMedia.state.collect { proposed ->
+                val accepted = proposed?.takeIf { image -> withContext(Dispatchers.IO) {
+                    val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeByteArray(image.bytes, 0, image.bytes.size, options)
+                    options.outWidth in 1..8192 && options.outHeight in 1..8192 && options.outWidth.toLong() * options.outHeight <= 16_000_000
+                } }
+                if (accepted == null || player?.currentMediaItem?.mediaId == accepted.episodeId) {
+                    podioChapterImage = accepted
+                    (mediaSession?.player as? SessionPlayer)?.chapterMetadataChanged()
+                }
+            }
+        }
         podioProgressScope.launch {
             var tracker: com.cosmotune.podio.PodioProgressTracker? = null
             try {
@@ -731,7 +771,10 @@ class PlaybackService : MediaLibraryService() {
         }
         scope.launch {
             while (isActive) {
-                player?.let { podioPositions.trySend(PodioPosition(it.currentMediaItem?.mediaId, it.currentPosition, it.isPlaying, it.playbackState == Player.STATE_BUFFERING, it.duration)) }
+                player?.let {
+                    podioChapterMedia.observe(it.currentMediaItem?.toSong(), it.currentPosition)
+                    podioPositions.trySend(PodioPosition(it.currentMediaItem?.mediaId, it.currentPosition, it.isPlaying, it.playbackState == Player.STATE_BUFFERING, it.duration))
+                }
                 delay(1_000)
             }
         }
@@ -884,6 +927,10 @@ class PlaybackService : MediaLibraryService() {
      */
     private val playbackListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
+            if (player.isPlaying && knownBluetoothOutputs.isNotEmpty()) {
+                lastBluetoothPlayingId = player.currentMediaItem?.mediaId
+                lastBluetoothPlayingAt = SystemClock.elapsedRealtime()
+            }
             val activePlayer = this@PlaybackService.player ?: return
             if (player === activePlayer) updateAudioEffectSession(activePlayer)
         }
@@ -974,6 +1021,10 @@ class PlaybackService : MediaLibraryService() {
          * on the audio, which is what the media notification shows too.
          */
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY) {
+                lastBluetoothPlayingAt = SystemClock.elapsedRealtime()
+            }
+            if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) bluetoothReconnect.cancel()
             // Something started the phone's own player while a receiver is the
             // speaker — an internal path, since the session player's door
             // already sends a listener's play to the receiver. The phone goes
@@ -1528,6 +1579,7 @@ class PlaybackService : MediaLibraryService() {
                 val sourceName = upgraded.sourceConfigId?.let { SourceRegistry.config(it)?.displayName }
                     ?: "Upgrade"
                 if (!proving) {
+                    upgradedLoudnessRenditions.add(videoId)
                     NerdStats.onSourceStream(videoId, upgraded.format, sourceName)
                     NerdStats.recordSource(videoId, sourceName)
                 }
@@ -1749,6 +1801,9 @@ class PlaybackService : MediaLibraryService() {
         // to be audible. Without it a crossfade would audibly change EQ halfway
         // through, and again at every handoff.
         sparePlayer.audioSessionId = exoPlayer.audioSessionId
+        knownBluetoothOutputs.addAll(audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS).orEmpty().filter(::bluetoothOutput).map { it.id })
+        lastMediaVolume = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: -1
+        contentResolver.registerContentObserver(android.provider.Settings.System.CONTENT_URI, true, mediaVolumeObserver)
         audioManager?.registerAudioDeviceCallback(outputDeviceCallback, null)
         applyOutputRoute()
 
@@ -1851,6 +1906,7 @@ class PlaybackService : MediaLibraryService() {
         deferPlayToParty = { partySync?.shouldDeferPlay() == true },
         lockedTransport = { playing -> partySync?.onLockedTransport(playing) == true },
         cast = speakers,
+        getChapterImage = { podioChapterImage?.takeIf { it.episodeId == player.currentMediaItem?.mediaId } },
     ) { lastPublishedSubtitle }
 
     /**
@@ -1924,7 +1980,7 @@ class PlaybackService : MediaLibraryService() {
             // the session player at the handoff — so the incoming track is
             // levelled on its own sink before it renders a frame, and the
             // outgoing track keeps its own gain for the rest of the blend.
-            onArmIncoming = { item, nextId -> spareLoudness().track(item.mediaId, nextId) },
+            onArmIncoming = { item, nextId -> spareLoudness().track(item.mediaId, nextId); spare?.let(::applyPitch) },
             // Both sinks, not a role: the trim is about what the pair sums to.
             onBlendHeadroom = { trim ->
                 loudnessA.setBlendTrim(trim)
@@ -1947,7 +2003,7 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun canLike(item: MediaItem?): Boolean =
         item != null && com.cosmotune.music.widget.LikeOffer.offered(
-            ownedBySource = com.cosmotune.providers.SourceLibraryStore.ownsTrack(item.mediaId),
+            ownedBySource = com.cosmotune.providers.SourceLibraryStore.ownsTrack(item.mediaId) || com.cosmotune.music.data.LocalFileRatings.owns(item.mediaId),
             signedIn = SignedIn.state(this).value,
             localFile = item.toSong().localUri != null,
         )
@@ -2186,7 +2242,7 @@ class PlaybackService : MediaLibraryService() {
             // The listener's speed, not the active player's: straight after an
             // Advanced Automix blend the active player is still easing off its
             // beatmatch stretch, and copying that would keep it for good.
-            standbyPlayer.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+            applySongTuning(standbyPlayer)
             applyPitch(standbyPlayer)
             standbyPlayer.volume = 0f
             standbyPlayer.setMediaItems(newItems, swapIndex, alignedStartPos)
@@ -3240,6 +3296,14 @@ class PlaybackService : MediaLibraryService() {
         LikeState.set(videoId, target)
         refreshCustomLayouts()
         favoriteActionJob = scope.launch {
+            if (com.cosmotune.music.data.LocalFileRatings.owns(videoId)) {
+                try { withContext(Dispatchers.IO) {
+                    com.cosmotune.music.data.LocalFileRatings(java.io.File(filesDir, "local-file-ratings.json")).set(videoId, target)
+                } } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { LikeState.set(videoId, previous) }
+                refreshCustomLayouts()
+                return@launch
+            }
             if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(videoId)) {
                 val song = songCache[videoId] ?: player?.currentMediaItem?.takeIf { it.mediaId == videoId }?.toSong()
                 if (song != null) com.cosmotune.providers.ProviderHub.remember(song)
@@ -3452,8 +3516,10 @@ class PlaybackService : MediaLibraryService() {
         alreadyAudible: Boolean = false,
     ) {
         val exoPlayer = player ?: return
+        bluetoothReconnect.cancel()
         com.cosmotune.podio.PodioPlaybackPolicy.speedOnTransition(speedTrackId, mediaItem?.mediaId, AppSettings.playbackSpeed.value)
             ?.let(exoPlayer::setPlaybackSpeed)
+        if (crossfade?.isTransitioning() != true) applySongTuning(exoPlayer)
         mediaItem?.mediaId?.let { speedTrackId = it }
         syncBoundedContextCursor(exoPlayer, mediaItem)
         if (boundedContextWindow != null && !ListenTogether.state.value.inParty) {
@@ -5293,6 +5359,11 @@ class PlaybackService : MediaLibraryService() {
         if (StreamChoice.substitutesRefused(videoId)) {
             return Resolved.YouTube(StreamResolver.resolve(videoId))
         }
+        if (AppSettings.playbackStartPolicy.value == com.cosmotune.audio.PlaybackStartPolicy.BEST_QUALITY_FIRST) {
+            val chosen = SourceResolver.bestForStart(target.copy(videoId = videoId))
+            if (chosen != null) return Resolved.Module(chosen)
+            return Resolved.YouTube(StreamResolver.resolve(videoId))
+        }
         NerdStats.onLosslessRaceStart(videoId)
         // Both legs are parented to the service's scope rather than to the
         // caller, so neither inherits whose track this is — see
@@ -6434,16 +6505,25 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /** The listener's pitch from Extras, on top of whatever speed [player] runs at. */
+    private fun musicTuning(id: String?) = com.cosmotune.settings.SongPlaybackMemory.resolve(id,
+        com.cosmotune.settings.Extras.settings.songPlayback.value, AppSettings.playbackSpeed.value,
+        com.cosmotune.settings.Extras.settings.pitchSemitones.value)
+
     private fun applyPitch(player: ExoPlayer) {
-        val pitch = com.cosmotune.settings.Extras.settings.pitchFactor
+        val pitch = musicTuning(player.currentMediaItem?.mediaId).pitchFactor
         val current = player.playbackParameters
         if (current.pitch != pitch) player.playbackParameters = androidx.media3.common.PlaybackParameters(current.speed, pitch)
     }
 
+    private fun applySongTuning(player: ExoPlayer) {
+        val id = player.currentMediaItem?.mediaId
+        if (!com.cosmotune.podio.PodioPlaybackPolicy.isPodio(id)) player.setPlaybackSpeed(musicTuning(id).speed)
+        applyPitch(player)
+    }
+
     private fun applySettings(player: ExoPlayer) {
         player.skipSilenceEnabled = player.currentMediaItem?.podcastSkipSilenceOverride ?: AppSettings.skipSilence.value
-        player.setPlaybackSpeed(AppSettings.playbackSpeed.value)
-        applyPitch(player)
+        applySongTuning(player)
         // Restore persisted shuffle and repeat states on startup. Assign both
         // values: Android can destroy and recreate the service while retaining
         // this process, so QueueShuffle's process-wide object may still hold
@@ -6815,7 +6895,7 @@ class PlaybackService : MediaLibraryService() {
             // when it restores the rate, so the change still lands.
             AppSettings.playbackSpeed.collect { speed ->
                 if (crossfade?.isTransitioning() == true) return@collect
-                crossfade?.applyPlaybackSpeed(speed) ?: eachPlayer { it.setPlaybackSpeed(speed) }
+                eachPlayer(::applySongTuning)
             }
         }
         // DLNA casting (Extras): the renderer taking the song pauses this player, and a song ending there moves the queue
@@ -6834,6 +6914,12 @@ class PlaybackService : MediaLibraryService() {
             // Pitch apart from speed: setPlaybackSpeed keeps whatever pitch a player has, so it is set here and when a player
             // is built, and every speed change after that (the listener's, Automix's stretch) leaves it alone.
             com.cosmotune.settings.Extras.settings.pitchSemitones.collect { eachPlayer(::applyPitch) }
+        }
+        scope.launch {
+            com.cosmotune.settings.Extras.settings.songPlayback.collect {
+                while (crossfade?.isTransitioning() == true) delay(100)
+                eachPlayer(::applySongTuning)
+            }
         }
         scope.launch {
             combine(
@@ -6954,6 +7040,14 @@ class PlaybackService : MediaLibraryService() {
         ?.let { 10.0.pow(it / 2000.0).toFloat() }
         ?: 1f
 
+    private val upgradedLoudnessRenditions = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    private fun renditionLoudnessDb(id: String): Double? {
+        // Audio-thread callback: read immutable snapshots/maps only, never query the Media3 player.
+        return if (StreamChoice.isSubstitute(id) || id in upgradedLoudnessRenditions) null
+            else com.cosmotune.audio.LibraryLoudness.loudnessDbFor(id) ?: StreamResolver.loudnessDbFor(id)
+    }
+
     private fun loudnessGainMb(mediaId: String?): Int? {
         if (!AppSettings.loudnessNormalization.value) return null
         if (AppSettings.loudnessOffOnSpeaker.value &&
@@ -6961,7 +7055,7 @@ class PlaybackService : MediaLibraryService() {
         ) return null
         val id = mediaId?.takeIf { it.isNotBlank() } ?: return null
         // Streams keep the provider's figure; local files use a library scan's measurement.
-        val loudnessDb = StreamResolver.loudnessDbFor(id) ?: com.cosmotune.audio.LibraryLoudness.loudnessDbFor(id) ?: return null
+        val loudnessDb = renditionLoudnessDb(id) ?: return null
         return (-loudnessDb * 100.0).roundToInt().coerceIn(MIN_LOUDNESS_GAIN_MB, MAX_LOUDNESS_GAIN_MB)
     }
 
@@ -6975,6 +7069,11 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun setupLoudness(mediaId: String?) {
         val exoPlayer = player ?: return
+        if (mediaId != null) {
+            val uri = exoPlayer.currentMediaItem?.takeIf { it.mediaId == mediaId }?.localConfiguration?.uri
+            if (uri != null && QualityUpgrade.forcedStream(uri) != null) upgradedLoudnessRenditions.add(mediaId)
+            else upgradedLoudnessRenditions.remove(mediaId)
+        }
         activeLoudness().track(mediaId, nextMediaIdOf(exoPlayer))
         publishLoudnessFor(mediaId)
     }
@@ -6988,7 +7087,7 @@ class PlaybackService : MediaLibraryService() {
 
     private fun publishLoudnessFor(mediaId: String?) {
         val gainMb = loudnessGainMb(mediaId)
-        val lufs = mediaId?.takeIf { it.isNotBlank() }?.let { StreamResolver.loudnessDbFor(it) ?: com.cosmotune.audio.LibraryLoudness.loudnessDbFor(it) }
+        val lufs = mediaId?.takeIf { it.isNotBlank() }?.let { renditionLoudnessDb(it) }
         if (gainMb == null || lufs == null) {
             AudioOutputStatus.publishLoudness(gainDb = null, lufs = null)
         } else {
@@ -7371,6 +7470,7 @@ class PlaybackService : MediaLibraryService() {
 
 
     override fun onDestroy() {
+        podioChapterMedia.close()
         player?.let { podioPositions.trySend(PodioPosition(it.currentMediaItem?.mediaId, it.currentPosition, false, durationMs = it.duration)) }
         podioPositions.close()
         WearBridge.attachStreams(null)
@@ -7385,6 +7485,7 @@ class PlaybackService : MediaLibraryService() {
         platformSpatial.close()
         audioManager?.let(bitPerfectMixer::release)
         audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)
+        contentResolver.unregisterContentObserver(mediaVolumeObserver)
         partySync?.stop()
         partySync = null
         player?.let {
@@ -7621,6 +7722,7 @@ class PlaybackService : MediaLibraryService() {
         private val lockedTransport: (Boolean) -> Boolean,
         /** Cast or the watch, whichever is the speaker — its clock is what this reports. */
         private val cast: RemoteSpeaker,
+        private val getChapterImage: () -> com.cosmotune.podio.PodioChapterImage?,
         private val getSubtitle: () -> String?,
     ) : ForwardingPlayer(player), CastSink {
 
@@ -7996,13 +8098,23 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun getMediaMetadata(): MediaMetadata {
-            val base = wrappedPlayer.mediaMetadata
+            val chapter = getChapterImage()
+            val base = chapter?.let { wrappedPlayer.mediaMetadata.buildUpon().setArtworkUri(null)
+                .setArtworkData(it.bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER).setSubtitle(it.chapter.title).build() }
+                ?: wrappedPlayer.mediaMetadata
+            if (chapter != null) return base
             val subtitle = getSubtitle()
             return if (!subtitle.isNullOrBlank()) {
                 base.buildUpon().setSubtitle(subtitle).build()
             } else {
                 base
             }
+        }
+
+        fun chapterMetadataChanged() {
+            val metadata = mediaMetadata
+            val events = Player.Events(FlagSet.Builder().add(Player.EVENT_MEDIA_METADATA_CHANGED).build())
+            listeners.forEach { it.onMediaMetadataChanged(metadata); it.onEvents(this, events) }
         }
 
         override fun seekTo(mediaItemIndex: Int, positionMs: Long) {

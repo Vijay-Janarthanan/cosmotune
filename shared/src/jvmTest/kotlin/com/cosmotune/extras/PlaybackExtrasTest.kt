@@ -164,4 +164,53 @@ class PlaybackExtrasTest {
         val town = WikipediaAbout.Summary("Bombay", "City in India", "Mumbai, formerly Bombay, is a city.", "u", null)
         assertFalse(WikipediaAbout.accept(town, precise = false, artist = "A. R. Rahman"))
     }
+    @Test fun songOverridesSurviveRestartWithoutChangingGlobalDefaultsOrPodcasts() {
+        val store=MapStore()
+        val settings=ExtrasSettings(store)
+        settings.setPitchSemitones(7)
+        val own=com.cosmotune.settings.SongPlaybackTuning(1.25f,-2)
+        settings.setSongPlayback("src:one::recording",own)
+        val again=ExtrasSettings(store)
+        val map=again.songPlayback.value
+        assertEquals(own,com.cosmotune.settings.SongPlaybackMemory.resolve("src:one::recording",map,1.5f,7))
+        assertEquals(com.cosmotune.settings.SongPlaybackTuning(1.5f,7),com.cosmotune.settings.SongPlaybackMemory.resolve("src:two::recording",map,1.5f,7))
+        assertEquals(com.cosmotune.settings.SongPlaybackTuning(1.75f,0),com.cosmotune.settings.SongPlaybackMemory.resolve("podio:episode:one",map,1.75f,7))
+        assertEquals(7,again.pitchSemitones.value)
+        again.setSongPlayback("src:one::recording",null)
+        assertTrue(again.songPlayback.value.isEmpty())
+        assertEquals(7,again.pitchSemitones.value)
+        again.setSongPlayback("podio:episode:one",own)
+        again.setSongPlayback("broken\nid",own)
+        assertTrue(again.songPlayback.value.isEmpty())
+    }
+
+    @Test fun playerBehaviorDefaultsAreOptInAndOnlyOriginalReconnectCanResume() {
+        val settings=ExtrasSettings(MapStore())
+        assertFalse(settings.bluetoothResume.value); assertFalse(settings.pauseOnMute.value)
+        assertFalse(settings.inlineLyrics.value)
+        var now=100L
+        val resume=com.cosmotune.settings.BluetoothReconnectResume { now }
+        resume.disconnected("song",true)
+        assertFalse(resume.reconnect("song",false,true,true))
+        resume.disconnected("song",true)
+        assertFalse(resume.reconnect("other-song",true,true,true))
+        resume.disconnected("song",true); resume.cancel()
+        assertFalse(resume.reconnect("song",true,true,true))
+        resume.disconnected("podio:episode:one",true)
+        assertFalse(resume.reconnect("podio:episode:one",true,true,true))
+        resume.disconnected("song",true)
+        assertFalse(resume.reconnect("song",true,true,false))
+        resume.disconnected("song",true); now+=600_001
+        assertFalse(resume.reconnect("song",true,true,true))
+        resume.disconnected("song",true)
+        assertTrue(resume.reconnect("song",true,true,true))
+        assertFalse(resume.reconnect("song",true,true,true))
+    }
+
+    @Test fun centeredLyricsKeepDuetVoicesInTheirOriginalLanes() {
+        assertFalse(com.cosmotune.settings.LyricTextAlignment.AUTO.center(false))
+        assertTrue(com.cosmotune.settings.LyricTextAlignment.CENTER.center(false))
+        assertFalse(com.cosmotune.settings.LyricTextAlignment.CENTER.center(true))
+    }
+
 }

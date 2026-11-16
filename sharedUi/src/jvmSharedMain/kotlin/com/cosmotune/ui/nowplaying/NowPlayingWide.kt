@@ -109,8 +109,8 @@ internal fun NowPlayingPanelSwitch(
 @Composable
 internal fun RecordBox(modifier: Modifier, maxDisc: Dp = 440.dp, record: @Composable (disc: Dp) -> Unit) {
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        val disc = (minOf(maxWidth, maxHeight) - RECORD_RING_GAP * 2 - 8.dp).coerceIn(120.dp, maxDisc)
-        record(disc)
+        val disc = (minOf(maxWidth, maxHeight) - RECORD_RING_GAP * 2 - 8.dp).coerceIn(0.dp, maxDisc)
+        if (disc > 0.dp) record(disc)
     }
 }
 

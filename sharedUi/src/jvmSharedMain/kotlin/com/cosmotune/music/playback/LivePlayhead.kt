@@ -92,7 +92,7 @@ object PlayheadMath {
  * (no frames are delivered) it costs nothing.
  */
 @Composable
-fun rememberLivePlayhead(position: PlaybackPosition, playing: Boolean, rate: Float = 1f): LivePlayhead {
+fun rememberLivePlayhead(position: PlaybackPosition, playing: Boolean, rate: Float = position.rate): LivePlayhead {
     val live = remember(position) { LivePlayhead(position) }
     val reduced = LocalReducedMotion.current
     val run = playing && position.advancing

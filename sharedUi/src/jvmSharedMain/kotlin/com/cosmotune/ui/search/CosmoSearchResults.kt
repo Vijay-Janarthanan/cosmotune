@@ -429,7 +429,7 @@ private fun TopResultCard(top: SearchResult, actions: SearchRowActions, page: Se
             val beside = maxWidth >= 380.dp && maxHeight < 240.dp
             val discSize = if (beside) 110.dp else 104.dp
             val disc: @Composable (Modifier) -> Unit = { m ->
-                if (item?.type == BrowseType.ARTIST) OrbitArtistDisc(item.title, cover, discSize, m) else Disc(cover, discSize, m)
+                if (item?.type == BrowseType.ARTIST) OrbitArtistDisc(item.title, cover, discSize, m, artistIdentity = item.browseId) else Disc(cover, discSize, m)
             }
             val words: @Composable (Modifier) -> Unit = { m ->
                 Column(m) {

@@ -35,7 +35,9 @@ object JioSaavnMatcher {
         ranked(listOf(candidate), target).isNotEmpty()
 
     fun ranked(candidates: List<Song>, target: TrackMatcher.Target): List<Song> {
-        val wanted = TrackMatcher.parseTitle(target.title, target.artist)
+        val wanted = TrackMatcher.parseTitle(target.title, target.artist).let { parts ->
+            parts.copy(versions = parts.versions + TrackMatcher.albumVersionMarkers(target.album).filter { it.startsWith("language:") })
+        }
         if (wanted.core.isBlank()) return emptyList()
         val scored = candidates.mapNotNull { candidate ->
             val got = TrackMatcher.parseTitle(candidate.title, candidate.artist)
@@ -43,7 +45,7 @@ object JioSaavnMatcher {
             val gotKey = key(got.core)
             val exactTitle = wantedKey == gotKey || TrackMatcher.isTranslationMatch(wanted, got)
             val albumMarks = TrackMatcher.albumVersionMarkers(candidate.albumName)
-            val versions = got.versions + (albumMarks intersect NO_VOCAL_TAKES) + (albumMarks intersect wanted.versions)
+            val versions = got.versions + (albumMarks intersect NO_VOCAL_TAKES) + (albumMarks intersect wanted.versions) + albumMarks.filter { it.startsWith("language:") }
             if (wanted.versions != versions) return@mapNotNull null
             if (target.isExplicit != null && candidate.isExplicit != null && target.isExplicit != candidate.isExplicit)
                 return@mapNotNull null

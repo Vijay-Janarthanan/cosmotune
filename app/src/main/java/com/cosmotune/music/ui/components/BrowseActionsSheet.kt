@@ -240,7 +240,7 @@ fun BrowseActionsSheet(
                 // waiting on a download some other one started. Failed entries stay
                 // in [Downloads.active] until dismissed, and a failure is not a wait.
                 val waiting = target.browseId?.let { requested[it] }.orEmpty().any { id ->
-                    when (active[id]) {
+                    when (Downloads.stateForTrack(id, active)) {
                         is DownloadState.Queued, is DownloadState.Running -> true
                         else -> false
                     }

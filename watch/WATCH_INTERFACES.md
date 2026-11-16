@@ -138,3 +138,18 @@ know a kind sees "Update Cosmotune to play this" instead of it being played as a
 `WatchLinks.handled()`. To offer one's add-ons to a room, post `WatchRoom.packOffer(exportPluginPack(), name)` as a chat
 message; `WatchRoom.packIn(message.text)` finds the link in a received message for an "Import" button. The hosts expose the real repository as `DesktopWatch.repository` / `AndroidWatch.repository(context)`
 and the player as `DesktopWatch.player` / `AndroidWatch.player(context)`.
+
+## Device downloads and persistent episode batches
+
+Hosts create one `WatchDownloads` per process and call `bindRepository(repository)` once. Its `batches` queue runs in the
+download repository's scope, surviving Watch navigation. `batches.enqueue(title, selection, season, custom, maxHeight)`
+snapshots exact episode targets from a season, all regular seasons, unwatched regular episodes or a custom set from the
+current season. It skips completed files and already queued episodes; the folder and quality limit belong to the job.
+`batches.items` drives progress; `pause`, `resume` (also retries failed episodes) and `remove` operate on persisted job IDs.
+Removing a batch keeps its files. Only the unlocked active profile's batches run.
+
+The queue persists stable targets and release hints, resolves addresses afresh when the app reopens, and keeps paused jobs
+paused. It uses the same MP4/MKV/WebM direct-file downloader and free-space/folder checks as individual Watch downloads.
+HLS, DASH, live channels and torrent offers remain outside this API. `WatchDownloads.pause(id)` cancels and joins the writer;
+partial bytes resume with HTTP ranges for an unchanged address/header fingerprint, and restart safely when those change.
+The process must be running; this API does not install an OS background transfer service.

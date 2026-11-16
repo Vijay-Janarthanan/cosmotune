@@ -62,6 +62,22 @@ class CastAwaitResultTest {
         assertTrue(waiting.isCancelled)
     }
 
+    @Test fun `late and repeated receiver callbacks cannot resume a completed or cancelled handover`() = runBlocking {
+        val first = FakeRequest<Answer>()
+        val waiting = async(start = CoroutineStart.UNDISPATCHED) { first.awaitResult() }
+        val answer = Answer()
+        first.answer(answer)
+        first.answer(Answer())
+        assertSame(answer, waiting.await())
+        val stale = FakeRequest<Answer>()
+        val cancelled = async(start = CoroutineStart.UNDISPATCHED) { stale.awaitResult() }
+        cancelled.cancel()
+        yield()
+        stale.answer(Answer())
+        stale.answer(Answer())
+        assertTrue(cancelled.isCancelled)
+    }
+
     @Test
     fun `no Cast request in the cast package is waited on with the blocking member`() {
         val dir = File("src/main/java/com/cosmotune/music/playback/cast")

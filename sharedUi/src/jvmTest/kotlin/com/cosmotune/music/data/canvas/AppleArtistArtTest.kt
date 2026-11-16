@@ -77,6 +77,34 @@ class AppleArtistArtTest {
         assertNull(AppleArtistArtRepository.artistPageFor("""{"results":[]}""", " "))
     }
 
+    @Test fun multipleSameNamedArtistsAreUnresolvedInsteadOfTakingTheFirstPortrait() {
+        val namesakes = """{"results":[{"artistName":"Same Name","artistId":1},{"artistName":"Same Name","artistId":2}]}"""
+        assertNull(AppleArtistArtRepository.artistPageFor(namesakes, "Same Name"))
+        val repeated = """{"results":[{"artistName":"Same Name","artistId":1},{"artistName":"Same Name","artistId":1}]}"""
+        assertEquals("https://music.apple.com/us/artist/1", AppleArtistArtRepository.artistPageFor(repeated, "Same Name"))
+    }
+
+    @Test fun savedPortraitsAreScopedToCatalogueIdentityAndSurviveAnUnsuccessfulRefresh() = runBlocking {
+        val directory = java.nio.file.Files.createTempDirectory("artist-identity-").toFile()
+        try {
+            val old = assertNotNull(AppleArtistArtRepository.parse(withMotion))
+            ArtistArtDiskCache(directory, now = { System.currentTimeMillis() - 7 * 60 * 60_000L }).save("identity:provider:one:artist:A", old)
+            AppleArtistArtRepository.configureCache(directory)
+            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+            server.createContext("/search") { exchange ->
+                val bytes = """{"results":[]}""".toByteArray()
+                exchange.sendResponseHeaders(200, bytes.size.toLong()); exchange.responseBody.use { it.write(bytes) }
+            }
+            server.start()
+            try {
+                AppleArtistArtRepository.searchEndpoint = "http://127.0.0.1:${server.address.port}/search"
+                assertEquals(old.copy(videoUrl = null), AppleArtistArtRepository.artFor("Same Name", "provider:one:artist:A"))
+                assertNull(AppleArtistArtRepository.artFor("Same Name", "provider:one:artist:B"))
+                assertEquals(old.copy(videoUrl = null), AppleArtistArtRepository.cached("Translated title", "provider:one:artist:A"))
+            } finally { server.stop(0) }
+        } finally { AppleArtistArtRepository.configureCache(null); directory.deleteRecursively() }
+    }
+
     @Test fun realHttpLookupSettlesOnceAndKeepsAMissButNotAFailure() = runBlocking {
         val searches = AtomicInteger()
         val pages = AtomicInteger()

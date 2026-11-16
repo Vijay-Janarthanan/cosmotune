@@ -239,6 +239,7 @@ fun SettingsScreen(
     val cellularQuality by AppSettings.audioQualityCellular.collectAsStateWithLifecycle()
     val metered by AppSettings.meteredConnection.collectAsStateWithLifecycle()
     val crossfade by AppSettings.crossfadeSeconds.collectAsStateWithLifecycle()
+    val playbackStartPolicy by AppSettings.playbackStartPolicy.collectAsStateWithLifecycle()
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
@@ -868,6 +869,9 @@ fun SettingsScreen(
             }
         }
         SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = SettingsText.GROUP_TRANSITIONS.text()) {
+            row(com.cosmotune.ui.settings.SoundExtrasText.PLAYBACK_START, "quality", "startup", "upgrade", summary = com.cosmotune.ui.settings.SoundExtrasText.PLAYBACK_START_LINE) {
+                com.cosmotune.ui.settings.PlaybackStartPolicyRows(playbackStartPolicy, AppSettings::setPlaybackStartPolicy)
+            }
             // Automix decides its own length from each pair of tracks —
             // tempo, key, structure — so it replaces the manual slider rather
             // than needing it set to anything first.

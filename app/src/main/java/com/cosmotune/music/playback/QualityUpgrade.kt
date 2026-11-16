@@ -206,7 +206,8 @@ object QualityUpgrade {
         // lookup that was still running got cancelled outright the moment
         // YouTube won the race, so a 320kbps source never finished and never
         // played. [SourceResolver.upgradeFor] applies the real quality bar.
-        if (target.title.isBlank() || target.isVideo ||
+        if (mediaId !in handAsked && !com.cosmotune.music.data.settings.AppSettings.playbackStartPolicy.value.allowsAutomaticUpgrade ||
+            target.title.isBlank() || target.isVideo ||
             mediaId in refused ||
             !SourceResolver.canSubstituteForYouTube()
         ) {
@@ -277,6 +278,7 @@ object QualityUpgrade {
      * entry and the settings; nothing here touches the network.
      */
     fun couldStillUpgrade(mediaId: String, uri: Uri?): Boolean {
+        if (mediaId !in handAsked && !com.cosmotune.music.data.settings.AppSettings.playbackStartPolicy.value.allowsAutomaticUpgrade) return false
         if (uri == null || uri.getQueryParameter("v") == null ||
             uri.getQueryParameter("m") == "1"
         ) return false
@@ -426,6 +428,12 @@ object QualityUpgrade {
 
     suspend fun lookAgain(mediaId: String, playingDurationSec: Int?): SourceStream? {
         val waiting = pending[mediaId] ?: return null
+        if (mediaId !in handAsked && !com.cosmotune.music.data.settings.AppSettings.playbackStartPolicy.value.allowsAutomaticUpgrade) {
+            waiting.inFlight?.cancel()
+            pending.remove(mediaId)
+            NerdStats.onLosslessRaceEnd(mediaId)
+            return null
+        }
         var found: SourceStream? = null
         /**
          * Whether the search got as far as an answer, as opposed to being

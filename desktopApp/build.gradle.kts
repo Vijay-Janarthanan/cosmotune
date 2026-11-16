@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val appVersion: String = providers.gradleProperty("cosmotune.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.0.23"
+    ?: "1.0.24"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -495,8 +495,26 @@ val buildWindowNative by tasks.registering {
     }
 }
 
+val macMediaNativeDir = layout.buildDirectory.dir("native/mac-media")
+val buildMacMediaNative by tasks.registering {
+    val source = project.file("native/macos/media.m")
+    val binary = macMediaNativeDir.map { it.file("libcosmotune-media.dylib") }
+    inputs.file(source)
+    outputs.file(binary)
+    onlyIf { targetOs == "macos" && System.getProperty("os.name").contains("Mac", true) }
+    doLast {
+        binary.get().asFile.parentFile.mkdirs()
+        providers.exec {
+            commandLine("xcrun", "clang", "-dynamiclib", "-fobjc-arc", "-fblocks", "-mmacosx-version-min=11.0",
+                "-framework", "Foundation", "-framework", "AppKit", "-framework", "MediaPlayer",
+                source.absolutePath, "-o", binary.get().asFile.absolutePath)
+        }.result.get().assertNormalExitValue()
+    }
+}
+
 tasks.named<ProcessResources>("processResources") {
-    dependsOn(buildAnalysisNative, buildWindowNative)
+    dependsOn(buildAnalysisNative, buildWindowNative, buildMacMediaNative)
+    from(macMediaNativeDir) { include("*.dylib"); into("native") }
     from(analysisNativeDir) {
         include("*.so", "*.dll", "*.dylib")
         into("native")

@@ -362,9 +362,9 @@ internal fun OrbitMoodTile(
  * artwork switch, reduced motion, mobile data: [artistMotionPlays], the artist page's own rule); otherwise the photo. Silent.
  */
 @Composable
-internal fun OrbitArtistDisc(name: String, url: String?, size: Dp, modifier: Modifier = Modifier) {
-    var art by remember(name) { mutableStateOf(AppleArtistArtRepository.cached(name)) }
-    LaunchedEffect(name) { if (name.isNotBlank()) art = AppleArtistArtRepository.artFor(name) ?: art }
+internal fun OrbitArtistDisc(name: String, url: String?, size: Dp, modifier: Modifier = Modifier, artistIdentity: String? = null) {
+    var art by remember(artistIdentity ?: name) { mutableStateOf(AppleArtistArtRepository.cached(name, artistIdentity)) }
+    LaunchedEffect(artistIdentity, name) { if (name.isNotBlank()) art = AppleArtistArtRepository.artFor(name, artistIdentity) ?: art }
     val settings = PlayerPlatform.host.settings
     val animated by settings.animatedCanvas.collectAsStateWithLifecycle()
     val metered by settings.meteredConnection.collectAsStateWithLifecycle()
@@ -374,7 +374,7 @@ internal fun OrbitArtistDisc(name: String, url: String?, size: Dp, modifier: Mod
         Disc(url, size, modifier)
     } else {
         // The YouTube photo stays under the loop (Apple's hero is a wide banner, not a portrait) until its frames arrive.
-        ArtistMotionArtwork(motion.copy(heroUrl = ""), url, modifier.size(size).clip(CircleShape))
+        ArtistMotionArtwork(motion.copy(heroUrl = ""), url, modifier.size(size).clip(CircleShape), identity = artistIdentity ?: name)
     }
 }
 

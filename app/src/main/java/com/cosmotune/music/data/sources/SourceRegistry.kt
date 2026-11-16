@@ -56,7 +56,7 @@ data class SourceConfig(
 ) {
     /** Whether this source is shut out right now because it needs an output that isn't connected. */
     val awaitsLosslessOutput: Boolean
-        get() = checkValidLossless && !LosslessOutput.capable
+        get() = checkValidLossless && !LosslessOutput.addonEligible
 
     /** The two manifest switches, without the parts of the config the user set. */
     internal fun withPolicyOf(other: SourceConfig) =

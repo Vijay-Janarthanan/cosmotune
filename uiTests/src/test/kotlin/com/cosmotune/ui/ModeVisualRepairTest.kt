@@ -71,15 +71,20 @@ class ModeVisualRepairTest {
         val fallback = picture("original.png", blue); val hero = picture("apple.png", red)
         val broken = File(temporary.root, "missing.png").toURI().toString()
         val art = mutableStateOf<AppleArtistArt?>(null)
+        val artistIdentity = mutableStateOf("provider:fixture:artist:one")
         fun pixel(): Int = compose.onNodeWithTag("artist:repair").captureToImage().toPixelMap()[60, 60].toArgb()
         try {
-            compose.setContent { Theme { ArtistMotionArtwork(art.value, fallback, Modifier.size(160.dp).testTag("artist:repair")) } }
+            compose.setContent { Theme { ArtistMotionArtwork(art.value, fallback, Modifier.size(160.dp).testTag("artist:repair"), identity = artistIdentity.value) } }
             try { compose.waitUntil(10_000) { pixel() == blue } }
             catch (error: Throwable) { snapshot("artist-first-frame.png", "artist:repair"); println("Artist pixel: ${pixel().toUInt().toString(16)}"); throw error }
             compose.runOnIdle { art.value = AppleArtistArt(hero, null, 1f, null, 0, 0, null) }
             compose.waitUntil(10_000) { pixel() == red }
             compose.runOnIdle { art.value = AppleArtistArt(broken, null, 1f, null, 0, 0, null) }
             Thread.sleep(500)
+            // A failed refresh keeps the last successfully decoded portrait of this exact artist.
+            compose.waitUntil(10_000) { pixel() == red }
+            // A namesake with a different provider ID cannot inherit that retained portrait.
+            compose.runOnIdle { artistIdentity.value = "provider:fixture:artist:two" }
             compose.waitUntil(10_000) { pixel() == blue }
             snapshot("artist-fallback.png", "artist:repair")
         } finally { installed.set(null, previous) }

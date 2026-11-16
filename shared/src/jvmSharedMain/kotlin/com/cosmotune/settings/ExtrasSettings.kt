@@ -16,6 +16,25 @@ import kotlin.math.pow
  */
 class ExtrasSettings(private val store: KeyValueStore) {
 
+    private val songPlaybackFlow = MutableStateFlow(SongPlaybackMemory.decode(store.getString(KEY_SONG_PLAYBACK,"")))
+    private val inlineLyricsFlow = MutableStateFlow(store.getBoolean(KEY_INLINE_LYRICS,false))
+    private val lyricAlignmentFlow = MutableStateFlow(runCatching { LyricTextAlignment.valueOf(store.getString(KEY_LYRIC_ALIGNMENT,"AUTO")) }.getOrDefault(LyricTextAlignment.AUTO))
+    private val bluetoothResumeFlow = MutableStateFlow(store.getBoolean(KEY_BLUETOOTH_RESUME,false))
+    private val pauseOnMuteFlow = MutableStateFlow(store.getBoolean(KEY_PAUSE_ON_MUTE,false))
+    val songPlayback: StateFlow<Map<String,SongPlaybackTuning>> = songPlaybackFlow.asStateFlow()
+    val inlineLyrics: StateFlow<Boolean> = inlineLyricsFlow.asStateFlow()
+    val lyricAlignment: StateFlow<LyricTextAlignment> = lyricAlignmentFlow.asStateFlow()
+    val bluetoothResume: StateFlow<Boolean> = bluetoothResumeFlow.asStateFlow()
+    val pauseOnMute: StateFlow<Boolean> = pauseOnMuteFlow.asStateFlow()
+    fun setSongPlayback(id: String,tuning: SongPlaybackTuning?) {
+        val next=SongPlaybackMemory.with(songPlaybackFlow.value,id,tuning)
+        songPlaybackFlow.value=next; store.putString(KEY_SONG_PLAYBACK,SongPlaybackMemory.encode(next))
+    }
+    fun setInlineLyrics(value: Boolean) { inlineLyricsFlow.value=value; store.putBoolean(KEY_INLINE_LYRICS,value) }
+    fun setLyricAlignment(value: LyricTextAlignment) { lyricAlignmentFlow.value=value; store.putString(KEY_LYRIC_ALIGNMENT,value.name) }
+    fun setBluetoothResume(value: Boolean) { bluetoothResumeFlow.value=value; store.putBoolean(KEY_BLUETOOTH_RESUME,value) }
+    fun setPauseOnMute(value: Boolean) { pauseOnMuteFlow.value=value; store.putBoolean(KEY_PAUSE_ON_MUTE,value) }
+
     private val maxVolumeFlow = MutableStateFlow(clampVolume(store.getInt(KEY_MAX_VOLUME, 100)))
     private val pitchFlow = MutableStateFlow(clampPitch(store.getInt(KEY_PITCH, 0)))
     private val offlineFlow = MutableStateFlow(store.getBoolean(KEY_OFFLINE, false))
@@ -152,6 +171,11 @@ class ExtrasSettings(private val store: KeyValueStore) {
     }
 
     companion object {
+        const val KEY_SONG_PLAYBACK="extras_song_playback"
+        const val KEY_INLINE_LYRICS="extras_inline_lyrics"
+        const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
+        const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"
+        const val KEY_PAUSE_ON_MUTE="extras_pause_on_mute"
         const val KEY_MAX_VOLUME = "extras_max_volume_percent"
         const val KEY_PITCH = "extras_pitch_semitones"
         const val KEY_OFFLINE = "extras_offline_mode"

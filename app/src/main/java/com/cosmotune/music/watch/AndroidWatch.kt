@@ -53,7 +53,7 @@ object AndroidWatch {
         com.cosmotune.watch.WatchDownloads(dir, Http.client, destinationOptions =
             listOf(File(File(app.filesDir, "watch"), "downloads")) +
                 app.getExternalFilesDirs(android.os.Environment.DIRECTORY_MOVIES).filterNotNull().map { File(it, "Watch") })
-    }.also { downloadsRef = it }
+    }.also { it.bindRepository(repository(context)); downloadsRef = it }
 
     /** Whether [player] has been built in this process. */
     val playerBuilt: Boolean get() = playerRef != null

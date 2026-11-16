@@ -128,7 +128,13 @@ object Downloads {
     val collections: StateFlow<Map<String, SavedCollection>> = _collections.asStateFlow()
 
     /** Waiting, in the order asked for. Guarded by [lock]. */
-    internal data class Work(val song: Song, val sequence: Long, val quality: DownloadQuality)
+    internal data class Work(val song: Song, val sequence: Long, val quality: DownloadQuality, val providerQualityId: String? = null) {
+        val qualityToken: String get() = providerQualityId?.let { selected ->
+            val owner = requireNotNull(SourceTrackKeys.parse(song.videoId)).first.removePrefix("sflx-")
+            com.cosmotune.music.data.downloads.ProviderDownloadChoice(owner, selected).encode()
+        } ?: quality.name
+        val jobId: String get() = com.cosmotune.music.data.downloads.ProviderDownloadChoice.jobId(song.videoId, qualityToken)
+    }
     private val pending = LinkedHashMap<String, Work>()
     private val sequences = HashMap<String, Long>()
     private val runningProviders = HashMap<String, String>()
@@ -159,10 +165,11 @@ object Downloads {
             journal = recovered
             recovered.entries.value.forEach { entry ->
                 sequence.updateAndGet { maxOf(it, entry.sequence) }
-                DownloadSession.queued(entry.track.song(), entry.from)
+                DownloadSession.queued(entry.track.song(), entry.from, entry.jobId,
+                    com.cosmotune.music.data.downloads.ProviderDownloadChoice.parse(entry.quality)?.qualityId)
                 val reason = entry.error ?: "Interrupted download. Retry to resume."
-                DownloadSession.failed(entry.track.id, reason)
-                _active.update { it + (entry.track.id to DownloadState.Failed(reason)) }
+                DownloadSession.failed(entry.jobId, reason)
+                _active.update { it + (entry.jobId to DownloadState.Failed(reason)) }
             }
         }
         prefs = context.getSharedPreferences("cosmotune_settings", Context.MODE_PRIVATE)
@@ -236,8 +243,11 @@ object Downloads {
      *   one of many. Carried no further than [DownloadSession], which is the
      *   only thing that has to say *why* forty tracks are in the queue.
      */
-    fun enqueue(context: Context, song: Song, from: String? = null, quality: DownloadQuality? = null, startService: Boolean = true) {
-        val id = song.videoId
+    fun enqueue(context: Context, song: Song, from: String? = null, quality: DownloadQuality? = null, startService: Boolean = true, providerQualityId: String? = null) {
+        val owner = SourceTrackKeys.parse(song.videoId)?.first?.takeIf { it.startsWith("sflx-") }?.removePrefix("sflx-")
+        require(providerQualityId == null || owner != null) { "A manifest quality requires its exact provider recording" }
+        val token = providerQualityId?.let { com.cosmotune.music.data.downloads.ProviderDownloadChoice(requireNotNull(owner), it).encode() }
+        val id = com.cosmotune.music.data.downloads.ProviderDownloadChoice.jobId(song.videoId, token.orEmpty())
         if (id.isBlank()) return
         if (!AppSettings.downloadsAllowedNow) {
             // Distinct from the duplicate-tap no-op below: nothing is in flight
@@ -246,7 +256,7 @@ object Downloads {
             // connection that allowed it and is none of this check's business.
             val inFlight = _active.value[id]
             if (inFlight !is DownloadState.Queued && inFlight !is DownloadState.Running) {
-                DownloadSession.queued(song, from)
+                DownloadSession.queued(song, from, id, providerQualityId)
                 fail(id, WIFI_ONLY_REFUSAL)
             }
             return
@@ -255,15 +265,15 @@ object Downloads {
             if (id in pending || id in running) return
             val savedQuality = journal?.entries?.value?.find { it.track.id == id }?.quality
                 ?.let { runCatching { DownloadQuality.valueOf(it) }.getOrNull() }
-            Work(song, sequence.incrementAndGet(), quality ?: savedQuality ?: AppSettings.downloadQuality.value).also {
+            Work(song, sequence.incrementAndGet(), quality ?: savedQuality ?: AppSettings.downloadQuality.value, providerQualityId).also {
                 pending[id] = it; sequences[id] = it.sequence
             }
         }
         synchronized(lock) {
             if (sequences[id] != work.sequence) return
             _active.update { it + (id to DownloadState.Queued) }
-            DownloadSession.queued(song, from)
-            try { journal?.enqueue(song, work.sequence, work.quality.name, from) }
+            DownloadSession.queued(song, from, id, providerQualityId)
+            try { journal?.enqueue(song, work.sequence, work.qualityToken, from) }
             catch (_: Exception) {
                 pending.remove(id)
                 fail(id, "The saved download queue is full."); return
@@ -282,6 +292,20 @@ object Downloads {
             synchronized(lock) { pending.remove(id) }
             fail(id, "Downloads can't start right now")
         }
+    }
+
+    fun retry(context: Context, jobId: String) {
+        val record = journal?.entries?.value?.find { it.jobId == jobId }
+        val song = record?.track?.song() ?: DownloadSession.state.value.items.find { it.videoId == jobId }?.song ?: return
+        val selected = com.cosmotune.music.data.downloads.ProviderDownloadChoice.parse(record?.quality)
+        enqueue(context, song, record?.from, record?.quality?.let { runCatching { DownloadQuality.valueOf(it) }.getOrNull() }, providerQualityId = selected?.qualityId)
+    }
+
+    fun cancelTrack(trackId: String) = DownloadSession.state.value.items.filter { it.song.videoId == trackId }.forEach { cancel(it.videoId) }
+    fun stateForTrack(trackId: String, snapshot: Map<String, DownloadState> = active.value): DownloadState? {
+        val states = DownloadSession.state.value.items.filter { it.song.videoId == trackId }.mapNotNull { snapshot[it.videoId] }
+        return states.filterIsInstance<DownloadState.Running>().firstOrNull()
+            ?: states.firstOrNull { it is DownloadState.Queued } ?: snapshot[trackId] ?: states.firstOrNull()
     }
 
     /**
@@ -652,6 +676,8 @@ object Downloads {
             uri = uri.toString(),
             downloadFormat = downloadFormat,
             dateAddedSeconds = dateAddedSeconds,
+            artistId = asked.artistId, albumId = asked.albumId, artists = asked.artists,
+            podcastChaptersUrl = asked.podcastChaptersUrl,
         )
         val metaFetched = SavedSongMetadata(
             videoId = fetched.videoId,
@@ -663,6 +689,8 @@ object Downloads {
             uri = uri.toString(),
             downloadFormat = downloadFormat,
             dateAddedSeconds = dateAddedSeconds,
+            artistId = fetched.artistId, albumId = fetched.albumId, artists = fetched.artists,
+            podcastChaptersUrl = fetched.podcastChaptersUrl,
         )
         record(
             saved = { it + ids.associateWith { id -> uri.toString() } },
@@ -738,6 +766,8 @@ object Downloads {
                         thumbnailUrl = meta.thumbnailUrl,
                         durationText = meta.durationText,
                         albumName = meta.albumName,
+                        artistId = meta.artistId, albumId = meta.albumId, artists = meta.artists,
+                        podcastChaptersUrl = meta.podcastChaptersUrl,
                         localUri = meta.uri,
                         downloadFormat = downloadFormat,
                         localDateAddedSeconds = dateAddedSeconds,
@@ -817,6 +847,8 @@ object Downloads {
                     thumbnailUrl = meta.thumbnailUrl,
                     durationText = meta.durationText,
                     albumName = meta.albumName,
+                    artistId = meta.artistId, albumId = meta.albumId, artists = meta.artists,
+                    podcastChaptersUrl = meta.podcastChaptersUrl,
                     localUri = uriString,
                     downloadFormat = meta.downloadFormat ?: legacyYoutubeDownloadBadge(context, uri),
                     localDateAddedSeconds = dateAddedSeconds,
@@ -838,18 +870,18 @@ object Downloads {
      */
     internal fun takeNext(): Work? = synchronized(lock) {
         val entry = pending.entries.firstOrNull { candidate ->
-            val provider = SourceTrackKeys.parse(candidate.key)?.first ?: "catalogue"
+            val provider = SourceTrackKeys.parse(candidate.value.song.videoId)?.first ?: "catalogue"
             runningProviders.values.count { it == provider } < 2
         } ?: return null
         pending.remove(entry.key)
         running[entry.key] = null
-        runningProviders[entry.key] = SourceTrackKeys.parse(entry.key)?.first ?: "catalogue"
+        runningProviders[entry.key] = SourceTrackKeys.parse(entry.value.song.videoId)?.first ?: "catalogue"
         entry.value
     }
 
     /** Attach the job fetching [videoId], unless it has been cancelled meanwhile. */
     internal fun onRunning(work: Work, job: Job) {
-        val videoId = work.song.videoId
+        val videoId = work.jobId
         val cancelled = synchronized(lock) {
             if (videoId !in running || sequences[videoId] != work.sequence) return@synchronized true
             running[videoId] = job
@@ -860,8 +892,8 @@ object Downloads {
 
     /** [videoId] is finished, one way or another, and no longer holds a worker. */
     internal fun onIdle(work: Work) {
-        synchronized(lock) { if (sequences[work.song.videoId] == work.sequence || sequences[work.song.videoId] == null) {
-            running.remove(work.song.videoId); runningProviders.remove(work.song.videoId)
+        synchronized(lock) { if (sequences[work.jobId] == work.sequence || sequences[work.jobId] == null) {
+            running.remove(work.jobId); runningProviders.remove(work.jobId)
         } }
     }
 
@@ -909,7 +941,7 @@ object Downloads {
      */
     internal suspend fun run(context: Context, work: Work) = withContext(Dispatchers.IO) {
         val song = work.song
-        val id = song.videoId
+        val id = work.jobId
         if (synchronized(lock) { sequences[id] != work.sequence }) return@withContext
         // Set before the lookup, not after it. Resolving where a lossless track
         // comes from is the long part of a download, and leaving the row on
@@ -919,7 +951,7 @@ object Downloads {
         journal?.phase(id, work.sequence, MusicDownloadPhase.RUNNING)
 
         try {
-            val plan = prepare(context, song, work.quality)
+            val plan = prepare(context, song, work.quality, work.providerQualityId)
             // The manager is showing the row that was tapped, which for a music
             // video is the wrong title and the wrong cover for the file actually
             // being written. Corrected here rather than left to disagree with
@@ -958,7 +990,7 @@ object Downloads {
      * running for a track that is still queued — or for one that gets cancelled
      * before its turn — and a preparation is not a download.
      */
-    internal suspend fun prepare(context: Context, song: Song, requestedQuality: DownloadQuality? = null): Prepared = withContext(Dispatchers.IO) {
+    internal suspend fun prepare(context: Context, song: Song, requestedQuality: DownloadQuality? = null, providerQualityId: String? = null): Prepared = withContext(Dispatchers.IO) {
         // Downloads preserve the exact item the listener picked. Catalogue
         // matching is a manual playback action and must not silently change a
         // download or its filename.
@@ -979,7 +1011,7 @@ object Downloads {
         // be lossless are worth guessing at: an `.m4a` may be this app's ALAC
         // or its AAC, and adopting the wrong one would quietly answer a request
         // for lossless with a transcode.
-        if (quality.keepsLossless) {
+        if (quality.keepsLossless && providerQualityId == null) {
             LOSSLESS_EXTENSIONS.firstNotNullOfOrNull { extension ->
                 DownloadStore.existing(context, DownloadStore.fileNameFor(track, extension), podcast = com.cosmotune.podio.PodioDownloads.isEpisode(track.videoId))
             }?.let { uri ->
@@ -987,9 +1019,12 @@ object Downloads {
             }
         }
 
-        val route = routeFor(context, track, quality)
+        val route = routeFor(context, track, quality, providerQualityId)
         Log.d(TAG, "downloading ${song.videoId} as .${route.extension} (${route.describe}, ${quality.label})")
-        Prepared(song.videoId, track, route = route, alreadyAt = null)
+        val choice = providerQualityId?.let { com.cosmotune.music.data.downloads.ProviderDownloadChoice(
+            requireNotNull(SourceTrackKeys.parse(song.videoId)).first.removePrefix("sflx-"), it).encode() }
+        Prepared(choice?.let { com.cosmotune.music.data.downloads.ProviderDownloadChoice.jobId(song.videoId, it) } ?: song.videoId,
+            track, route = route, alreadyAt = null, rendition = choice?.let { com.cosmotune.music.data.downloads.ProviderDownloadChoice.digest(it) })
     }
 
     /**
@@ -1008,6 +1043,7 @@ object Downloads {
         val route: Route?,
         /** A file already in Music that is this download, if there is one. */
         val alreadyAt: Uri?,
+        val rendition: String? = null,
     )
 
     /**
@@ -1018,7 +1054,7 @@ object Downloads {
      * freshly resolved plan without the first attempt leaving anything behind.
      */
     private suspend fun transfer(context: Context, song: Song, plan: Prepared, expectedSequence: Long) {
-        val id = song.videoId
+        val id = plan.videoId
         val track = plan.track
 
         // Already there from a previous run the record lost track of — adopt it
@@ -1055,7 +1091,8 @@ object Downloads {
                     artwork = async { MediaTagger.artworkFor(context, track) }
                 }
 
-                val name = DownloadStore.fileNameFor(track, route.extension)
+                val ordinaryName = DownloadStore.fileNameFor(track, route.extension)
+                val name = plan.rendition?.let { "${ordinaryName.substringBeforeLast('.')} [$it].${route.extension}" } ?: ordinaryName
                 val alreadyThere = DownloadStore.existing(context, name, podcast = com.cosmotune.podio.PodioDownloads.isEpisode(track.videoId))
                 if (alreadyThere != null) {
                     Log.d(TAG, "$name is already in Music; adopting it")
@@ -1180,7 +1217,7 @@ object Downloads {
      *   than to the middle of this one. [Downloader.fetch] resolves again after
      *   a mid-download refusal and has to ask for the same rung it started on.
      */
-    private suspend fun routeFor(context: Context, track: Song, quality: DownloadQuality): Route {
+    private suspend fun routeFor(context: Context, track: Song, quality: DownloadQuality, providerQualityId: String? = null): Route {
         if (track.videoId.startsWith("podio:")) {
             require(com.cosmotune.podio.PodioDownloads.isEpisode(track.videoId)) { "Live radio cannot be downloaded as an episode." }
             com.cosmotune.podio.YouTubePodcasts.videoId(track.videoId)?.let { rawVideoId ->
@@ -1195,7 +1232,7 @@ object Downloads {
             return Route(format.extension, format.mimeType, "Podcast publisher", taggable = false, providerKey = "podio:publisher",
                 write = { sink, progress -> Downloader.fetchDirect(url, emptyMap(), sink, progress) })
         }
-        fromSources(track, quality)?.let { (stream, storable) ->
+        fromSources(track, quality, providerQualityId)?.let { (stream, storable) ->
             // A manifest is an index, not audio. Whichever kind it is, fetching
             // it as a file writes the index into something named `.flac` —
             // which is exactly what a `.mpd` did until [OfflineDash] existed:
@@ -1248,6 +1285,7 @@ object Downloads {
             )
         }
         // MediaStore.Audio refuses audio/webm on affected Android versions.
+        check(providerQualityId == null) { "The selected provider quality cannot be saved in this download destination" }
         // Keep Opus for app-private downloads, but pin exported downloads to
         // AAC-in-MP4 for both the initial resolve and any mid-transfer retry.
         val requireM4a = AppSettings.exportDownloads.value
@@ -1292,14 +1330,16 @@ object Downloads {
     private suspend fun fromSources(
         track: Song,
         quality: DownloadQuality,
+        providerQualityId: String? = null,
     ): Pair<SourceStream, DownloadStore.Storable>? {
         SourceTrackKeys.parse(track.videoId)?.takeIf { it.first.startsWith("sflx-") }?.let { owned ->
             val manager = requireNotNull(com.cosmotune.providers.ProviderHub.state.value.manager) { "Provider storage is unavailable" }
             val request = SourceResolver.requestForDownload(quality)
             val audio = withTimeoutOrNull(SOURCE_LOOKUP_MS) {
                 manager.stream(owned.first.removePrefix("sflx-"), owned.second,
-                    maxKbps = (request as? com.cosmotune.music.data.sources.StreamRequest.Capped)?.maxKbps,
-                    lossless = request is com.cosmotune.music.data.sources.StreamRequest.Lossless, forDownload = true)
+                    maxKbps = if (providerQualityId == null) (request as? com.cosmotune.music.data.sources.StreamRequest.Capped)?.maxKbps else null,
+                    lossless = providerQualityId == null && request is com.cosmotune.music.data.sources.StreamRequest.Lossless,
+                    forDownload = true, providerQualityId = providerQualityId)
             } ?: error("The selected provider did not resolve this recording in time")
             val codec = if (audio.codec == "aac" && audio.container in setOf("m4a", "mp4")) "m4a" else audio.codec
             val storable = requireNotNull(DownloadStore.storable(codec)) { "This provider's audio container cannot be saved" }
@@ -1461,6 +1501,9 @@ object Downloads {
     }
 
     private const val KEY_SAVED = "downloaded_tracks"
+
+    /** Scanner rows inherit only IDs actually retained for this exact downloaded file. */
+    internal fun metadataForUri(uri: String): SavedSongMetadata? = _savedMetadata.value.values.find { it.uri == uri }
 }
 
 @kotlinx.serialization.Serializable
@@ -1482,6 +1525,10 @@ internal data class SavedSongMetadata(
     val downloadFormat: String? = null,
     /** Stable creation time for downloads that MediaStore does not index. */
     val dateAddedSeconds: Long? = null,
+    val artistId: String? = null,
+    val albumId: String? = null,
+    val artists: List<com.cosmotune.music.data.model.ArtistRef> = emptyList(),
+    val podcastChaptersUrl: String? = null,
 )
 
 /**

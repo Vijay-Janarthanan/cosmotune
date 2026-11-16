@@ -29,6 +29,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include "local_artwork.h"
 
 using namespace winrt;
 using namespace winrt::Windows::Media;
@@ -130,9 +131,15 @@ void apply(const Update& update) {
     music.Artist(update.artist);
     music.AlbumTitle(update.album);
     if (!update.art.empty()) {
-        // A remote URL is fine: the shell fetches it itself.
         try {
-            updater.Thumbnail(RandomAccessStreamReference::CreateFromUri(Uri(update.art)));
+            if (cosmotune_smtc::file_artwork(update.art)) {
+                IRandomAccessStream stream{nullptr};
+                check_hresult(cosmotune_smtc::local_artwork_stream(update.art, guid_of<IRandomAccessStream>(), put_abi(stream)));
+                updater.Thumbnail(RandomAccessStreamReference::CreateFromStream(stream));
+            } else {
+                // HTTP/HTTPS retain the shell's existing URI loading path.
+                updater.Thumbnail(RandomAccessStreamReference::CreateFromUri(Uri(update.art)));
+            }
         } catch (...) {
             updater.Thumbnail(nullptr);
         }

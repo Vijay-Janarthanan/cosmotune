@@ -594,8 +594,8 @@ object YtMusicRepository {
      * So a hit is accepted only when its own title is the name asked for. That
      * one rule is the whole of the safety here: `Monday Waxie` finds its page,
      * and `2115` finds nothing and opens nothing rather than somebody else.
-     * Asking for `Mate` can land on either of two artists of that name, which
-     * is the honest answer to an ambiguous question rather than a wrong one.
+     * Multiple distinct pages with the same name remain unresolved: a name alone
+     * is not evidence that one of two namesakes is the credited performer.
      */
     suspend fun findArtistPageId(name: String): Result<String?> = call("artistByName:$name") {
         if (normalizedArtistName(name).isEmpty()) return@call null
@@ -603,7 +603,9 @@ object YtMusicRepository {
         InnertubeParser.parseSearchPage(Innertube.search(name, filter.params)).rows
             .filterIsInstance<SearchResult.Browse>()
             .map { it.item }
-            .firstOrNull { it.type == BrowseType.ARTIST && isExactArtistMatch(it.title, name) }
+            .filter { it.type == BrowseType.ARTIST && isExactArtistMatch(it.title, name) }
+            .distinctBy { it.browseId }
+            .singleOrNull()
             ?.browseId
     }
 
@@ -929,7 +931,7 @@ object YtMusicRepository {
     }
 
     suspend fun rate(videoId: String, status: LikeStatus): Result<Unit> {
-        if (com.cosmotune.music.data.sources.SourceTrackKeys.parse(videoId) != null) {
+        if (LocalFileRatings.owns(videoId) || com.cosmotune.music.data.sources.SourceTrackKeys.parse(videoId) != null) {
             return Result.failure(IllegalArgumentException("Source recordings use the local source library"))
         }
         return call("rate:$videoId") { Innertube.rate(videoId, status) }

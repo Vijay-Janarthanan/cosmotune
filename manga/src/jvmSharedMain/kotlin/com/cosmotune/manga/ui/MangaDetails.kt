@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 package com.cosmotune.manga.ui
 
 import androidx.compose.foundation.clickable
@@ -64,7 +65,7 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
     val (fill, _) = coverFill(book.colourUrl(), book.id)
     Box(Modifier.fillMaxSize()) {
         OrbitPageWash(fill)
-        LazyColumn(Modifier.fillMaxSize().testTag("manga:chapters"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
+        LazyColumn(Modifier.fillMaxSize().readScrollbar(list.scrollIndicatorState, bottomInset = scope.bottom).testTag("manga:chapters"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
             item(key = "series:head") {
                 ReadBackHead("Series", onBack = { scope.navigation.book = null }, actions = {
                     ReadIconButton(CosmoIcons.Replay, "Refresh chapters", onRefresh)

@@ -26,6 +26,21 @@ import org.junit.Test
  * looking.
  */
 class DownloadSessionTest {
+    @Test fun `different exact provider qualities keep independent manager rows and recording IDs`() {
+        val recording = song("src:sflx-fixture::recording")
+        val first = Downloads.Work(recording, 1, com.cosmotune.music.data.settings.DownloadQuality.LOSSLESS, "FLAC_24")
+        val second = Downloads.Work(recording, 2, com.cosmotune.music.data.settings.DownloadQuality.LOSSLESS, "AAC_320")
+        assertFalse(first.jobId == second.jobId)
+        DownloadSession.queued(recording, jobId = first.jobId)
+        DownloadSession.queued(recording, jobId = second.jobId)
+        DownloadSession.failed(first.jobId, "Retry")
+        assertEquals(2, DownloadSession.state.value.items.size)
+        assertEquals(listOf(recording.videoId, recording.videoId), DownloadSession.state.value.items.map { it.song.videoId })
+        assertTrue(DownloadSession.state.value.items.first().progress is DownloadProgress.Failed)
+        assertTrue(DownloadSession.state.value.items.last().progress is DownloadProgress.Queued)
+        DownloadSession.done(second.jobId)
+        assertEquals(1, DownloadSession.state.value.failed)
+    }
 
     private fun song(id: String, title: String = id, artist: String = "Artist") =
         Song(videoId = id, title = title, artist = artist, thumbnailUrl = null)

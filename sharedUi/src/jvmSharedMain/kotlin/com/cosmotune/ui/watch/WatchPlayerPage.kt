@@ -334,6 +334,27 @@ private fun WatchPlayerLayout(
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         WatchWash(fill, look)
+        val compactLandscape = maxWidth >= 600.dp && maxHeight < 540.dp && maxWidth > maxHeight * 1.2f
+        val twoPane = maxWidth >= 1100.dp && maxHeight >= 600.dp && details != null
+        if (compactLandscape) {
+            Row(Modifier.fillMaxSize().padding(padding).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Box(Modifier.weight(1f).fillMaxSize()) {
+                    picture(Modifier.fillMaxSize(), 22.dp)
+                    WatchLoading(state, fonts)
+                    WatchRoundButton(CosmoIcons.Expand, "Full screen", look, onClick = onCinema, ink = Color.White,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
+                }
+                Column(Modifier.weight(0.85f).fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PlayerTopRow(state, controls, watchTogether, false, fonts, look, LocalWatchDownloads.current)
+                    if (state.status == WatchPlayerStatus.ERROR || state.status == WatchPlayerStatus.NOT_FOUND) WatchPlaybackFailure(state, controls, fonts, look)
+                    else FilmCard(state, playing, position, durationMs, controls, view, setView, fonts, look, fill, ink,
+                        slim = true, wide = false, programme = programme, channels = channels, onChannel = onChannel)
+                    NextEpisodeRow(state, controls, false, fonts, look)
+                    details?.invoke()
+                }
+            }
+            return@BoxWithConstraints
+        }
         val playerHeight = (maxHeight - padding.calculateTopPadding() - padding.calculateBottomPadding() - 265.dp)
             .coerceIn(180.dp, 560.dp)
         val playerContent: @Composable ColumnScope.() -> Unit = {
@@ -373,7 +394,12 @@ private fun WatchPlayerLayout(
             } else if (details == null && !wide) Spacer(Modifier.weight(1f))
         }
         val content = Modifier.fillMaxSize().padding(padding)
-        if (details == null) {
+        if (twoPane) {
+            Row(content.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Column(Modifier.weight(1.6f).verticalScroll(rememberScrollState()), content = playerContent)
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { details?.invoke() }
+            }
+        } else if (details == null) {
             Column(content.padding(horizontal = 16.dp, vertical = 14.dp), content = playerContent)
         } else {
             Column(content.verticalScroll(rememberScrollState()).padding(top = 14.dp)) {
@@ -453,10 +479,12 @@ private fun WatchVideo(view: VideoView, aspect: Float, radius: Dp, surface: @Com
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls, watchTogether: Boolean, wide: Boolean, fonts: OrbitFonts, look: OrbitLook,
     downloads: com.cosmotune.watch.WatchDownloads? = null) {
     var download by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         WatchRoundButton(CosmoIcons.ChevronDown, "Close the player", look, onClick = controls.close)
         val from = state.stream?.source?.pluginName?.let { if (wide) "From · $it" else it } ?: when (state.status) {
             WatchPlayerStatus.RESOLVING -> "Finding a copy"
@@ -464,6 +492,8 @@ private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls,
             else -> "Watch"
         }
         OrbitLabel(from, fonts, look.dim, Modifier.weight(1f))
+      }
+      FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!controls.remote) PlayerSourcesButton(state, controls, fonts, look)
         controls.cast?.let { cast -> WatchRoundButton(CosmoIcons.Devices, if (controls.remote) "Casting · receiver controls" else "Cast video", look, onClick = cast, on = controls.remote) }
         if (downloads != null && !state.isLive && state.target != null) Box {
@@ -487,11 +517,13 @@ private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls,
         }
         if (wide) WatchCardChip("Watch together", look.ink, fonts, onClick = controls.watchTogether, icon = CosmoIcons.Together, enabled = watchTogether && state.target != null)
         else WatchRoundButton(CosmoIcons.Together, "Watch together", look, onClick = controls.watchTogether, enabled = watchTogether && state.target != null)
+      }
     }
 }
 
 /** Near the end of an episode: "Next episode in 8 s", what it is, Play now and Cancel. */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun NextEpisodeRow(state: WatchPlayerState, controls: WatchPlayerControls, wide: Boolean, fonts: OrbitFonts, look: OrbitLook) {
     val next = state.nextEpisode ?: return
     val inMs = state.nextEpisodeInMs ?: return
@@ -513,7 +545,7 @@ private fun NextEpisodeRow(state: WatchPlayerState, controls: WatchPlayerControl
         WatchPicture(next.stillUrl, next.key.value, Modifier.padding(start = 4.dp).size(84.dp, 48.dp), radius = 12.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             words(Modifier)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { buttons() }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { buttons() }
         }
     }
 }

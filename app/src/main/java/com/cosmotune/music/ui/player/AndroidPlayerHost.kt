@@ -45,6 +45,7 @@ import kotlin.math.roundToInt
  * moved into the shared module.
  */
 class AndroidPlayerHost(context: Context) : PlayerHost {
+    override val bluetoothReconnectSupported = true
     private val app = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val main = Handler(Looper.getMainLooper())
@@ -144,8 +145,9 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     override fun selectWatchOutput() {
         // One speaker at a time: a receiver lets go first, quietly, and the
         // watch picks the queue up from where the phone's player is.
-        if (CastController.state.value.casting) CastController.disconnect(resumeHere = false)
-        WearBridge.selectWatchOutput()
+        if (CastController.state.value.casting) {
+            CastController.disconnect(resumeHere = false) { stopped -> if (stopped) WearBridge.selectWatchOutput() }
+        } else WearBridge.selectWatchOutput()
     }
 
     override val outputFormat: StateFlow<OutputFormatUi> by lazy {

@@ -138,10 +138,11 @@ fun OrbitArtistPage(
     error: String? = null,
     onRetry: (() -> Unit)? = null,
     margin: Dp? = null,
+    artistIdentity: String? = null,
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    val visuals = rememberArtistVisuals(name)
+    val visuals = rememberArtistVisuals(name, artistIdentity)
     val art = visuals.art
     // The artist's own colours: Apple's for the picture when it has them, else the photo's.
     val photoFill = coverFill(photo, name)
@@ -164,6 +165,7 @@ fun OrbitArtistPage(
                     onRadio = onRadio.takeIf { songs.isNotEmpty() }, onShuffle = onShuffle.takeIf { songs.isNotEmpty() }, menu = menu,
                     playing = playing, onPlay = onPlay.takeIf { songs.isNotEmpty() }, fonts = fonts, look = look,
                     modifier = Modifier.padding(horizontal = side).fillMaxWidth().testTag("music:artist:card"),
+                    identity = artistIdentity ?: name,
                 )
             }
             if (loading) pageSkeleton("skeleton:artist", rowDp = 66f)
@@ -283,6 +285,7 @@ private fun ArtistCard(
     name: String, photo: String?, clip: CanvasArtwork?, hero: String?, listeners: String?, blurb: String?, colors: OrbitCardColors,
     following: Boolean?, onToggleFollow: (() -> Unit)?, onRadio: (() -> Unit)?, onShuffle: (() -> Unit)?, menu: List<OrbitMenuAction>,
     playing: Boolean, onPlay: (() -> Unit)?, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier,
+    identity: String,
 ) {
     val allowed = clip != null && rememberMotionAllowed()
     var moving by remember(clip) { mutableStateOf(false) }
@@ -304,7 +307,7 @@ private fun ArtistCard(
             }
             val portrait: @Composable (Dp, Modifier) -> Unit = { size, m ->
                 Box(m.size(size + 40.dp), contentAlignment = Alignment.Center) {
-                    OrbitMotionDisc(photo, size, clip, allowed, overStill = hero, onMoving = { moving = it })
+                    OrbitMotionDisc(photo, size, clip, allowed, overStill = hero, onMoving = { moving = it }, identity = identity)
                     Canvas(Modifier.fillMaxSize()) {
                         val r = this.size.minDimension / 2 - 2.dp.toPx()
                         drawCircle(ink.copy(alpha = 0.22f), r, style = Stroke(1.5.dp.toPx()))

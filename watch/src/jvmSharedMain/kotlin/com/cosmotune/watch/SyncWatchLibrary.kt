@@ -32,6 +32,8 @@ object SyncWatchLibrary {
         if (!id.startsWith("progress:")) data else JsonObject(data + mapOf(
             "updatedAtMs" to JsonPrimitive(0),
             "positionMs" to JsonPrimitive(((data["positionMs"] as? JsonPrimitive)?.longOrNull ?: 0) / 300_000),
+            // A credits/completion transition must sync immediately even inside the same five-minute bucket.
+            "completed" to JsonPrimitive(runCatching { json.decodeFromJsonElement<WatchProgress>(data).completed }.getOrDefault(false)),
         ))
     }
 

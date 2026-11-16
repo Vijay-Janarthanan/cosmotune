@@ -93,10 +93,10 @@ class LyricsParityContractTest {
     @Test fun aDuetIsLaidOutOnTwoSidesAgainstTheEdgeEachVoiceIsWrittenFrom() {
         assertTrue(view.contains("val duet = remember(lines) { LyricDuet.isDuet(lines) }"), "only a song that names a second voice")
         assertTrue(view.contains("val onEnd = LyricDuet.onEnd(env.duet, line)"))
-        assertTrue(view.contains("val fromRight = LyricTextDirection.fromRight(textRtl, onEnd)") && view.contains("val align = if (fromRight) TextAlign.Right else TextAlign.Left"), "the words are aligned with the side, which is the line's own (BC-33)")
+        assertTrue(view.contains("val fromRight = LyricTextDirection.fromRight(textRtl, onEnd)") && view.contains("val align = if (centered) TextAlign.Center else if (fromRight) TextAlign.Right else TextAlign.Left"), "the words are aligned with the side, which is the line's own (BC-33)")
         assertTrue(view.contains("LyricsMetrics.layoutWidthPx(constraints.maxWidth, lanePx, env.style.currentScale)"), "the lane is kept clear")
-        assertTrue(view.contains("placeable.place(LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, fromRight), (reservedHeight - placeable.height) / 2)"), "keeps each voice's physical edge while reserving room for the largest lyric scale")
-        assertTrue(view.contains("TransformOrigin(LyricsMetrics.originFraction(onEnd, textRtl), 0.5f)"), "scaled from the edge it is written from")
+        assertTrue(view.contains("placeable.place(if (centered) (constraints.maxWidth-placeable.width)/2 else LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, fromRight), (reservedHeight - placeable.height) / 2)"), "keeps each voice's physical edge while reserving room for the largest lyric scale")
+        assertTrue(view.contains("TransformOrigin(if (centered) 0.5f else LyricsMetrics.originFraction(onEnd, textRtl), 0.5f)"), "scaled from the edge it is written from")
         assertTrue(view.contains("val laneDp = LyricDuet.laneDp(env.duet)"))
     }
 

@@ -6,6 +6,15 @@ import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class SyncWatchLibraryTest {
+    @Test fun completionTriggersSyncInsideTheSameFiveMinuteBucket() {
+        val p = WatchProgress(title.key, 800_000, 1_000_000, 1, title)
+        val state = WatchState(progress = mapOf(title.key.value to p))
+        val completed = state.copy(progress = mapOf(title.key.value to p.copy(positionMs = 821_000, updatedAtMs = 2)))
+        assertFalse(p.completed)
+        assertTrue(completed.progress.getValue(title.key.value).completed)
+        assertNotEquals(SyncWatchLibrary.changeSignal(state), SyncWatchLibrary.changeSignal(completed))
+        assertFalse(SyncWatchLibrary.snapshot(completed).values.any { "completed" in it }, "trigger-only flags never change the cloud schema")
+    }
     @Test fun progressSignalsAreCoalescedButTheSnapshotKeepsTheExactResumePoint() {
         val first = WatchState(progress = mapOf(title.key.value to WatchProgress(title.key, 80_000, 9_000_000, 1, title)))
         val next = first.copy(progress = mapOf(title.key.value to WatchProgress(title.key, 90_000, 9_000_000, 2, title)))

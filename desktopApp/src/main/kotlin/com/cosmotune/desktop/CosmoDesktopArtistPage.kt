@@ -85,6 +85,7 @@ internal fun CosmoDesktopArtistPage(
         val subscription = artist?.subscription?.takeIf { onToggleSubscription != null }
         val clipboard = LocalClipboardManager.current
         OrbitArtistPage(
+            artistIdentity = artistId,
             name = name,
             photo = artist?.thumbnailUrl,
             listeners = artist?.monthlyListenerCount ?: artist?.subscriberCountText,

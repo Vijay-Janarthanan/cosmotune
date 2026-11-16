@@ -33,6 +33,7 @@ data class ListeningTrack(
     val sourceTitle: String? = null, val sourceType: String? = null, val sourceId: String? = null,
     val radio: String? = null, val setVideoId: String? = null,
     val hiRes: Boolean = false,
+    val podcastChaptersUrl: String? = null,
 ) {
     fun song(): Song = Song(
         videoId = id, title = title, artist = artist, thumbnailUrl = artwork, durationText = duration,
@@ -44,6 +45,7 @@ data class ListeningTrack(
         artists = artists.map { ArtistRef(it.name, it.id) }, queueEntryId = entryId,
         playbackSource = sourceTitle, playbackSourceType = PlaybackSourceType.entries.firstOrNull { it.name == sourceType },
         playbackSourceId = sourceId, radioName = radio, setVideoId = setVideoId,
+        podcastChaptersUrl = podcastChaptersUrl,
     )
 
     companion object {
@@ -53,7 +55,7 @@ data class ListeningTrack(
             song.isVideo, song.isVideoOrigin, song.queueTier.name, song.localDateAddedSeconds, song.sourceQuality,
             song.isExplicit, song.downloadFormat, song.localDateModifiedSeconds,
             song.artists.map { ListeningArtist(it.name, it.browseId) }, song.queueEntryId,
-            song.playbackSource, song.playbackSourceType?.name, song.playbackSourceId, song.radioName, song.setVideoId, song.sourceHiRes,
+            song.playbackSource, song.playbackSourceType?.name, song.playbackSourceId, song.radioName, song.setVideoId, song.sourceHiRes, song.podcastChaptersUrl,
         )
     }
 }
@@ -198,6 +200,7 @@ data class ListeningState(
     val pinnedPlaylistIds: Set<String> = emptySet(),
     val diagnostics: ListeningDiagnostics? = null,
     val linkedPlaylists: List<LinkedPlaylist> = emptyList(),
+    val pendingPlaylistImports: List<PendingMusicPlaylist> = emptyList(),
 )
 
 /** Identical file format on Android, Windows, Linux and macOS. Never stores account secrets. */
@@ -259,6 +262,12 @@ class ListeningStore(private val file: File) {
         s.copy(linkedPlaylists = if (s.linkedPlaylists.any { it.id == playlist.id }) s.linkedPlaylists.map { if (it.id == playlist.id) named else it } else s.linkedPlaylists + named)
     }
     fun unlink(id: String) = update { it.copy(linkedPlaylists = it.linkedPlaylists.filterNot { p -> p.id == id }) }
+    fun savePlaylistImport(record: PendingMusicPlaylist) = update { current ->
+        current.copy(pendingPlaylistImports = listOf(record) + current.pendingPlaylistImports.filterNot { it.id == record.id })
+    }
+    fun deletePlaylistImport(id: String) = update { current ->
+        current.copy(pendingPlaylistImports = current.pendingPlaylistImports.filterNot { it.id == id })
+    }
 
     fun watchArtist(id: String, name: String) = update {
         require(id.isNotBlank()) { "Choose an artist from search." }
@@ -296,10 +305,22 @@ class ListeningStore(private val file: File) {
                 .distinctBy { it.lowercase(java.util.Locale.ROOT) }.take(200)),
             linkedPlaylists = (current.linkedPlaylists + incoming.linkedPlaylists).distinctBy { it.id }
                 .distinctBy { it.source to it.remoteId }.take(50),
+            pendingPlaylistImports = (current.pendingPlaylistImports + incoming.pendingPlaylistImports).distinctBy { it.id }.take(30),
         ) }
     }
 
     private fun validate(s: ListeningState): ListeningState {
+        require(s.pendingPlaylistImports.size <= 30) { "Remove an older saved playlist import first." }
+        require(s.pendingPlaylistImports.map { it.id }.distinct().size == s.pendingPlaylistImports.size)
+        s.pendingPlaylistImports.forEach { record ->
+            require(record.id.isNotBlank() && record.id.length <= 100 && record.name.length in 1..80 && record.rows.size in 1..10_000)
+            require(record.rows.map { it.number }.distinct().size == record.rows.size)
+            record.rows.forEach { row ->
+                require(row.number in 1..10_000 && row.location.length <= 16_384 && row.title.length <= 1_000 && row.artist.length <= 1_000)
+                require(row.location.none { it == '\n' || it == '\r' })
+                require(row.album == null || row.album.length <= 1_000)
+            }
+        }
         require(s.version == 1) { "This backup needs a newer version of Cosmotune." }
         require(s.sessions.size <= 100 && s.smartPlaylists.size <= 100 && s.artists.size <= 50) { "Listening backup has too many entries." }
         s.sessions.forEach { q ->

@@ -18,7 +18,9 @@ import kotlinx.serialization.json.Json
 @Serializable enum class MusicDownloadPhase { QUEUED, RUNNING, FAILED }
 @Serializable data class MusicDownloadIntent(val track: ListeningTrack, val sequence: Long,
     val quality: String = "LOSSLESS", val from: String? = null, val phase: MusicDownloadPhase = MusicDownloadPhase.QUEUED,
-    val error: String? = null)
+    val error: String? = null) {
+    val jobId: String get() = ProviderDownloadChoice.jobId(track.id, quality)
+}
 @Serializable private data class MusicDownloadJournalState(val version: Int = 1, val entries: List<MusicDownloadIntent> = emptyList())
 
 /** Durable intent metadata; expiring stream URLs and transfer credentials are resolved again after restart. */
@@ -44,7 +46,7 @@ class MusicDownloadJournal(private val file: File) : AutoCloseable {
             val state = json.decodeFromString<MusicDownloadJournalState>(file.readText(Charsets.UTF_8))
             require(state.version == 1 && state.entries.size <= MAX_ENTRIES)
             require(state.entries.all { it.track.id.isNotBlank() && it.sequence > 0 })
-            require(state.entries.map { it.track.id }.distinct().size == state.entries.size)
+            require(state.entries.map { it.jobId }.distinct().size == state.entries.size)
             state.entries.sortedBy { it.sequence }
         } catch (_: Exception) {
             blocked = true; mutableError.value = "Saved download queue could not be opened. Its file was left untouched."
@@ -54,14 +56,15 @@ class MusicDownloadJournal(private val file: File) : AutoCloseable {
 
     fun enqueue(song: Song, sequence: Long, quality: String, from: String? = null) = change { old ->
         require(song.videoId.isNotBlank() && sequence > 0)
-        old.filterNot { it.track.id == song.videoId } + MusicDownloadIntent(ListeningTrack.of(song), sequence, quality, from)
+        val id = ProviderDownloadChoice.jobId(song.videoId, quality)
+        old.filterNot { it.jobId == id } + MusicDownloadIntent(ListeningTrack.of(song), sequence, quality, from)
     }
 
     fun phase(id: String, sequence: Long, phase: MusicDownloadPhase, reason: String? = null) = change { old ->
-        old.map { if (it.track.id == id && it.sequence == sequence) it.copy(phase = phase, error = reason?.take(300)) else it }
+        old.map { if (it.jobId == id && it.sequence == sequence) it.copy(phase = phase, error = reason?.take(300)) else it }
     }
 
-    fun remove(id: String, sequence: Long? = null) = change { old -> old.filterNot { it.track.id == id && (sequence == null || it.sequence == sequence) } }
+    fun remove(id: String, sequence: Long? = null) = change { old -> old.filterNot { it.jobId == id && (sequence == null || it.sequence == sequence) } }
 
     private fun change(transform: (List<MusicDownloadIntent>) -> List<MusicDownloadIntent>) {
         synchronized(lock) {

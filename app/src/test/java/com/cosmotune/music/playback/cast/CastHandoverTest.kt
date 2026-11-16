@@ -7,6 +7,14 @@ import org.junit.Test
 
 /** The Cast hand-overs (phone to receiver, and back to the device) and the receiver format gate. */
 class CastHandoverTest {
+    @Test fun aSenderDetachWithoutStopProofNeverAutoplaysAndUnknownMediaKeepsLocalPosition() {
+        val end = CastHandover.ReceiverEnd("a", 9500, true)
+        assertEquals(false, CastHandover.onEnd(end, listOf("a"), 0, true, receiverStopConfirmed = false).play)
+        val unknown = CastHandover.onEnd(end.copy(mediaId = "another-sender"), listOf("a"), 0, true,
+            receiverStopConfirmed = true, localPositionMs = 31000)
+        assertEquals(31000L, unknown.positionMs)
+        assertEquals(false, unknown.play)
+    }
 
     @Test
     fun aNewSessionLoadsThePhonesTrackAtItsPositionAndPlaysOnlyIfThePhoneWas() {

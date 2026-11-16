@@ -1,5 +1,9 @@
 # Remaining work
 
+## 1.0.24 integration checkpoint — 16 November 2026
+
+The [current upstream review](UPSTREAM_REVIEW_2026-11-16.md) supersedes older upstream-gap snapshots below. The scoped implementation is recorded in [1.0.24 notes](releases/1.0.24.md) and the per-area evidence documents; validation and publication are in progress. Historical release checkpoints below are retained as history, not the current release number. Physical hardware/account checks remain distinct from automated coverage.
+
 Reviewed 2 November 2026 against the 1.0.13 baseline, updated for published 1.0.14 and the [new upstream comparison](UPSTREAM_REVIEW_2026-11-02.md). A source implementation, passing checks, device/account validation and publication are separate evidence.
 
 ## Current release: 1.0.14

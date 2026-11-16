@@ -68,6 +68,7 @@ object DownloadSession {
         val from: String? = null,
         /** Ask order, so the list reads the way the queue drains. */
         val sequence: Long,
+        val quality: String? = null,
     )
 
     data class State(
@@ -141,15 +142,16 @@ object DownloadSession {
      * and two rows for one song would leave the failure on screen next to its
      * own retry.
      */
-    fun queued(song: Song, from: String? = null) {
+    fun queued(song: Song, from: String? = null, jobId: String = song.videoId, quality: String? = null) {
         update { state ->
-            val existing = state.items.indexOfFirst { it.videoId == song.videoId }
+            val existing = state.items.indexOfFirst { it.videoId == jobId }
             val item = Item(
-                videoId = song.videoId,
+                videoId = jobId,
                 song = song,
                 progress = DownloadProgress.Queued,
                 from = from ?: state.items.getOrNull(existing)?.from,
                 sequence = if (existing >= 0) state.items[existing].sequence else tick(),
+                quality = quality,
             )
             val items = if (existing >= 0) {
                 state.items.toMutableList().also { it[existing] = item }

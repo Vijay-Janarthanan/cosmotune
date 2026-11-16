@@ -98,6 +98,8 @@ object ProviderCatalogue {
 
     fun collection(provider: String, kind: String, raw: JsonObject, fallbackId: String? = null, namespace: String = "provider"): ProviderCollection? {
         val id = raw.text("id", "album_id", "artist_id", "playlist_id") ?: fallbackId ?: return null
+        // A request for an exact page cannot accept a namesake or a provider's default page.
+        if (fallbackId != null && id != fallbackId) return null
         val title = raw.text("name", "title") ?: return null
         val songs = tracks(provider, raw, namespace).ifEmpty { (raw["top_tracks"] as? JsonArray)?.let { tracks(provider, it, namespace) }.orEmpty() }
             .map { track -> if (kind == "album") track.copy(album = track.album ?: title, albumId = track.albumId ?: id) else track }

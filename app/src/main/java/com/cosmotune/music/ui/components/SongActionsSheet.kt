@@ -224,7 +224,7 @@ fun SongActionsSheet(
     val isOffline = song.localUri != null
     // Orbit: the sheet leads with its main actions as chips (Play next, Queue, the heart), and the rows below leave them out.
     val orbitChips = !menu
-    val likeable = signedIn && !isOffline || com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)
+    val likeable = signedIn && !isOffline || com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId) || com.cosmotune.music.data.LocalFileRatings.owns(song.videoId)
 
     val rows: @Composable ColumnScope.() -> Unit = {
         // Leads the list whenever it's available: which recording is playing
@@ -539,13 +539,13 @@ private fun DownloadRow(song: Song, palette: ArtworkPalette, isOffline: Boolean,
         onDispose { Downloads.dismissFailure(song.videoId) }
     }
 
-    when (val state = active[song.videoId]) {
+    when (val state = Downloads.stateForTrack(song.videoId, active)) {
         is DownloadState.Queued -> ActionRow(
             icon = Icons.Rounded.Downloading,
             label = stringResource(R.string.queued),
             value = stringResource(R.string.cancel),
             accent = palette.accent,
-        ) { Downloads.cancel(song.videoId) }
+        ) { Downloads.cancelTrack(song.videoId) }
 
         is DownloadState.Running -> ActionRow(
             icon = Icons.Rounded.Downloading,
@@ -555,7 +555,7 @@ private fun DownloadRow(song: Song, palette: ArtworkPalette, isOffline: Boolean,
             value = if (state.fraction > 0f) "${(state.fraction * 100).toInt()}%" else null,
             tint = palette.accent,
             accent = palette.accent,
-        ) { Downloads.cancel(song.videoId) }
+        ) { Downloads.cancelTrack(song.videoId) }
 
         is DownloadState.Failed -> ActionRow(
             icon = Icons.Rounded.ErrorOutline,
@@ -584,6 +584,10 @@ private fun DownloadRow(song: Song, palette: ArtworkPalette, isOffline: Boolean,
                 onClick = onDownload,
             )
         }
+    }
+    if ((file != null || Downloads.stateForTrack(song.videoId, active) != null) &&
+        com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.first?.startsWith("sflx-") == true) {
+        ActionRow(icon = Icons.Rounded.Download, label = "Choose download quality", accent = palette.accent, onClick = onDownload)
     }
 }
 

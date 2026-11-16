@@ -312,7 +312,7 @@ fun DetailScreen(
     // numbers are the sleeve's own and must not relabel themselves to match
     // wherever a sort put the row.
     val isArtist = page.type == BrowseType.ARTIST
-    val visuals = if (isArtist) com.cosmotune.ui.pages.rememberArtistVisuals(page.title) else null
+    val visuals = if (isArtist) com.cosmotune.ui.pages.rememberArtistVisuals(page.title, page.browseId) else null
     // Whether the top release card's album is already saved isn't on the shelf
     // item; it is read off the album once, as soon as the card is known.
     val topReleaseId = if (isArtist) page.sections.topRelease()?.browseId else null
@@ -320,7 +320,7 @@ fun DetailScreen(
     // Apple Music's hero photo and title logo for this artist, found by name.
     // Null until (and unless) it arrives; the YouTube header stands in meanwhile.
     var appleArt by remember(page.browseId) {
-        mutableStateOf(if (isArtist) AppleArtistArtRepository.cached(page.title) else null)
+        mutableStateOf(if (isArtist) AppleArtistArtRepository.cached(page.title, page.browseId) else null)
     }
     // Opened from a track, the title is the whole credit ("A, B & C") until the
     // page loads and swaps in the one artist's name. Searching a credit finds
@@ -328,7 +328,7 @@ fun DetailScreen(
     // other name starts the moment the page opens.
     val nameSettled = !page.title.looksLikeCredit() || page.songs !is UiState.Loading
     LaunchedEffect(page.browseId, page.title, nameSettled) {
-        if (isArtist && nameSettled) appleArt = AppleArtistArtRepository.artFor(page.title) ?: appleArt
+        if (isArtist && nameSettled) appleArt = AppleArtistArtRepository.artFor(page.title, page.browseId) ?: appleArt
     }
     val palette = rememberArtworkPalette(
         imageUrl = appleArt?.heroUrl ?: page.thumbnailUrl,

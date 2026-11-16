@@ -9,7 +9,7 @@ import org.koitharu.kotatsu.parsers.exception.AuthRequiredException
 import org.koitharu.kotatsu.parsers.exception.ContentUnavailableException
 import org.koitharu.kotatsu.parsers.exception.NotFoundException
 import org.koitharu.kotatsu.parsers.exception.TooManyRequestExceptions
-import org.koitharu.kotatsu.parsers.model.MangaParserSource
+import org.koitharu.kotatsu.parsers.ParsersBundle
 import org.koitharu.kotatsu.parsers.model.MangaListFilter
 import org.koitharu.kotatsu.parsers.model.ContentRating
 import org.koitharu.kotatsu.parsers.model.MangaState
@@ -24,9 +24,11 @@ class MangaSourceFailure(message: String, cause: Throwable? = null) : IllegalSta
  * One pinned Kotatsu parser behind the shared [MangaSource] contract, on Android and the desktop JVM alike.
  * [parserOverride] exists for offline tests; the app always builds the parser from the pinned catalogue.
  */
-class KotatsuSource(override val config: MangaSourceConfig, context: ParserContext, parserOverride: MangaParser? = null) : MangaSource {
-    private val source = MangaParserSource.valueOf(config.id.removePrefix("kotatsu:"))
-    val parser = parserOverride ?: context.newParserInstance(source)
+class KotatsuSource(override val config: MangaSourceConfig, private val context: ParserContext, parserOverride: MangaParser? = null) : MangaSource {
+    internal val bundle = context.parsers
+    private val source = requireNotNull(bundle.findSource(config.id.removePrefix("kotatsu:"))) { "This source was removed from the active parser catalogue. Choose another source." }
+        .also { require(allowed(it)) { "This manga source is excluded by the source filter." } }
+    val parser = parserOverride ?: context.parserUpdates.newParser(bundle, source, context)
     override val verificationWebsite: String get() = parser.domain.let { if ("://" in it) it else "https://$it" }
 
     /** The language chosen for a multi-language source, as a BCP 47 tag in the source settings; blank for the source's default. */
@@ -64,7 +66,7 @@ class KotatsuSource(override val config: MangaSourceConfig, context: ParserConte
     }
 
     private suspend fun <T> guarded(block: suspend () -> T): T = withContext(Dispatchers.IO) {
-        try { block() }
+        try { context.parserUpdates.using(bundle, block) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: AuthRequiredException) {
             throw MangaSourceFailure("${config.name} requires signing in on its website. You can try Website verification in Manga sources; browser sessions and account-specific source APIs are not supported by every website.", failure)
@@ -91,8 +93,12 @@ class KotatsuSource(override val config: MangaSourceConfig, context: ParserConte
     }
     companion object {
         const val LOCALE = MANGA_LANGUAGE_SETTING
-        fun catalogue(): List<MangaSourceDescriptor> = MangaParserSource.entries.filterNot { it.isBroken }.map {
+        fun catalogue(bundle: ParsersBundle = bundledParsers()): List<MangaSourceDescriptor> = bundle.sources.filter { !it.isBroken && allowed(it) }.map {
             MangaSourceDescriptor("kotatsu:${it.name}", it.title, it.locale)
         }.filterNot { MangaSourcePolicy.blocked(it.id, it.title) }.sortedWith(compareBy({ it.language }, { it.title }))
+        internal fun allowed(source: org.koitharu.kotatsu.parsers.model.ParserMangaSource): Boolean =
+            source.contentType !in setOf(org.koitharu.kotatsu.parsers.model.ContentType.HENTAI,
+                org.koitharu.kotatsu.parsers.model.ContentType.IMAGE_SET, org.koitharu.kotatsu.parsers.model.ContentType.ARTIST_CG,
+                org.koitharu.kotatsu.parsers.model.ContentType.GAME_CG) && !MangaSourcePolicy.blocked(source.name, source.title)
     }
 }

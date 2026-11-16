@@ -11,14 +11,18 @@ class Mp4SidxTest {
 
     private fun u32(v: Long) = ByteArray(4) { (v shr (8 * (3 - it))).toByte() }
 
+    private fun u64(v: Long) = ByteArray(8) { (v shr (8 * (7 - it))).toByte() }
+
     private fun box(type: String, vararg parts: ByteArray): ByteArray {
         val body = ByteArrayOutputStream().also { o -> parts.forEach(o::write) }.toByteArray()
         return u32(8L + body.size) + type.toByteArray(Charsets.ISO_8859_1) + body
     }
 
-    private fun fragmentedFile(fragments: Int, samplesEach: Int, sampleTicks: Long): ByteArray {
-        val mdhd = box("mdhd", u32(0), u32(0), u32(0), u32(48_000), u32(0), u32(0))
-        val tkhd = box("tkhd", u32(0), u32(0), u32(0), u32(1), u32(0), u32(0))
+    private fun fragmentedFile(fragments: Int, samplesEach: Int, sampleTicks: Long, version: Int = 0): ByteArray {
+        val mdhd = if (version == 1) box("mdhd", u32(0x01000000), u64(123), u64(456), u32(48_000), u64(0))
+            else box("mdhd", u32(0), u32(0), u32(0), u32(48_000), u32(0), u32(0))
+        val tkhd = if (version == 1) box("tkhd", u32(0x01000000), u64(123), u64(456), u32(1), u32(0), u64(0))
+            else box("tkhd", u32(0), u32(0), u32(0), u32(1), u32(0), u32(0))
         val trak = box("trak", tkhd, box("mdia", mdhd))
         val trex = box("trex", u32(0), u32(1), u32(1), u32(0), u32(0), u32(0))
         val moov = box("moov", trak, box("mvex", trex))
@@ -83,4 +87,19 @@ class Mp4SidxTest {
         for (i in 0..b.size - 4) if (t.indices.all { b[i + it] == t[it] }) return i
         error("no $type")
     }
+    @Test fun versionOneHeadersReadTimescaleAfter64BitDates() {
+        val output = Mp4Sidx.ensure(fragmentedFile(1, 2, 1536, version = 1))
+        val sidx = indexOf(output, "sidx") - 4
+        assertEquals(48_000L, u32At(output, sidx + 16))
+        assertEquals(1L, u32At(output, sidx + 12))
+        assertEquals(3072L, u32At(output, sidx + 44))
+    }
+
+    @Test fun truncatedSampleFieldsCannotConsumeTheFollowingMdatHeader() {
+        val input = fragmentedFile(1, 1, 1536)
+        val count = indexOf(input, "trun") + 8
+        Mp4Boxes.writeU32(input, count, 2)
+        assertSame(input, Mp4Sidx.ensure(input))
+    }
+
 }

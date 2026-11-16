@@ -122,6 +122,7 @@ internal class PodioModel(
     var inboxLoading by mutableStateOf(false)
     var inboxError by mutableStateOf<String?>(null)
     private var inboxFor: List<String>? = null
+    private var inboxGeneration = 0L
 
     val loading: Boolean get() = feedLoading || requestedFeed == null && directoryLoading
 
@@ -135,9 +136,18 @@ internal class PodioModel(
         old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station)
     }
 
-    fun toggleFollow(show: PodcastShow) = save { old ->
-        old.copy(shows = if (old.shows.any { it.id == show.id }) old.shows.filterNot { it.id == show.id } else old.shows + show)
-    }
+    fun toggleFollow(show: PodcastShow) { scope.launch {
+        try {
+            var added = false
+            withContext(Dispatchers.IO) { library.update { old ->
+                added = old.shows.none { it.id == show.id }
+                old.copy(shows = if (added) old.shows + show else old.shows.filterNot { it.id == show.id })
+            } }
+            // Following is an explicit freshness request, even when an older inbox cache is still fresh.
+            if (added) loadInbox(library.state.value.shows, force = true, episodeLimit = library.state.value.inboxEpisodesPerShow)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { error = "Couldn't save or refresh your followed show. Retry from Following." }
+    } }
 
     fun setInboxEpisodeLimit(limit: Int) = save { it.copy(inboxEpisodesPerShow = limit.coerceIn(1, 24)) }
 
@@ -147,6 +157,12 @@ internal class PodioModel(
     }
 
     fun playEpisode(entry: InboxEpisode) = play(entry.item().copy(skipSilence = library.state.value.skipSilenceByShow[entry.show.id]))
+
+    fun playEpisodeAt(entry: InboxEpisode, positionMs: Long) {
+        val item = entry.item().copy(skipSilence = library.state.value.skipSilenceByShow[entry.show.id])
+        lastPlayed = item
+        host.onPlay(item, positionMs.coerceAtLeast(0))
+    }
 
     fun play(item: PodioItem) {
         val resume = if (item.live) 0 else library.resumePosition(item.id, item.durationSeconds * 1000)
@@ -262,21 +278,24 @@ internal class PodioModel(
         val limit = episodeLimit.coerceIn(1, 24)
         val key = listOf(limit.toString()) + follows.map { it.id }
         if (!force && key == inboxFor && inboxError == null) return
+        val generation = ++inboxGeneration
         if (follows.isEmpty()) { inbox = emptyList(); inboxFor = key; inboxError = null; return }
         // The episodes these follows showed last time come back at once (from memory, or the disk after a restart); they are
         // fetched again only when older than the freshness window, or on Refresh.
         val cacheKey = "podio:inbox:" + follows.joinToString(",") { it.id }.hashCode() + if (limit == 12) "" else ":$limit"
         val entry = pages.entry(cacheKey, FEED_FRESH_MS, INBOX_CODEC) { fetchInbox(follows, limit) }
         entry.restore()
+        if (generation != inboxGeneration) return
         entry.state.value.data?.let { inbox = it }
         if (!force && entry.isFresh) { inboxFor = key; inboxError = null; return }
         inboxLoading = true; inboxError = null
         try {
             entry.fetchNow()
+            if (generation != inboxGeneration) return
             val state = entry.state.value
             if (state.error != null) inboxError = "Couldn't refresh your shows. Check your connection and try again."
             else { inbox = state.data.orEmpty(); inboxFor = key }
-        } finally { inboxLoading = false }
+        } finally { if (generation == inboxGeneration) inboxLoading = false }
     }
 
     private suspend fun fetchInbox(follows: List<PodcastShow>, episodeLimit: Int): List<InboxEpisode> {

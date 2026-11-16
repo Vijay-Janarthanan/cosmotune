@@ -15,6 +15,7 @@ import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -50,8 +52,10 @@ data class WatchDownload(
     val addedAtMs: Long = 0,
     /** Approved device-local destination. Null keeps downloads made before folder selection. */
     val directoryPath: String? = null,
+    /** One-way digest only: a different freshly resolved address must never append another file's bytes. */
+    val sourceFingerprint: String? = null,
 ) {
-    enum class Status { DOWNLOADING, DONE, FAILED }
+    enum class Status { DOWNLOADING, DONE, FAILED, PAUSED }
 
     val fraction: Float? get() = totalBytes?.takeIf { it > 0 }?.let { (bytes.toFloat() / it).coerceIn(0f, 1f) }
     val target: PlayTarget? get() = film ?: episode ?: item
@@ -61,8 +65,9 @@ data class WatchDownload(
  * Watch's downloads: a direct file (MP4, MKV or WebM from a user's server, an add-on or a free library such as the Internet
  * Archive) fetched in ranges with Video mode's [RangeDownloader] into [directory], and played from there. Live channels, HLS and
  * DASH are not files and are never offered. The list is kept in `downloads.json` beside the files; a download that was still
- * running when the app closed is marked stopped (its address, which may hold a server's key, is never written down), and is
- * started again from the title's page.
+ * running when the app closed is marked stopped (its address, which may hold a server's key, is never written down).
+ * [batches] re-resolves queued episode targets after the host calls [bindRepository]; individual downloads can be restarted
+ * from their title/player. Partial bytes resume only for the same one-way address/header fingerprint.
  */
 class WatchDownloads(
     val directory: File,
@@ -93,6 +98,10 @@ class WatchDownloads(
 
     /** Newest first. */
     val items: StateFlow<List<WatchDownload>> = state.asStateFlow()
+
+    /** Owned by this application-scoped download repository, never by a page's composition. */
+    val batches: WatchBatchDownloads by lazy { WatchBatchDownloads(this, scope) }
+    fun bindRepository(repository: WatchRepository) { batches.bind(repository) }
 
     fun fileOf(d: WatchDownload): File {
         require(safeFileName(d.fileName)) { "Invalid download filename." }
@@ -150,14 +159,22 @@ class WatchDownloads(
      * had stopped). Null when the copy is not a direct file.
      */
     @Synchronized
-    fun start(target: PlayTarget, summary: TitleSummary?, stream: Stream, line: String? = null): WatchDownload? {
+    fun start(target: PlayTarget, summary: TitleSummary?, stream: Stream, line: String? = null, destinationPath: String? = null): WatchDownload? {
         val container = containerOf(stream) ?: return null
         if (!canDownload(stream) || target is PlayTarget.Live) return null
         val id = idOf(target.key, stream)
         streams[id] = stream
         val existing = state.value.firstOrNull { it.id == id }
         if (existing != null) {
-            if (existing.status == WatchDownload.Status.FAILED) run(existing.copy(status = WatchDownload.Status.DOWNLOADING, error = null), stream)
+            if (existing.status == WatchDownload.Status.FAILED || existing.status == WatchDownload.Status.PAUSED ||
+                (existing.status == WatchDownload.Status.DONE && !fileOf(existing).isFile)) {
+                val changed = existing.sourceFingerprint != fingerprint(stream)
+                if (changed) partOf(existing).delete()
+                run(existing.copy(status = WatchDownload.Status.DOWNLOADING, error = null,
+                    bytes = if (changed) 0 else existing.bytes,
+                    totalBytes = if (changed) stream.sizeBytes?.takeIf { it > 0 } else existing.totalBytes,
+                    sourceFingerprint = fingerprint(stream)), stream)
+            }
             return existing
         }
         val title = when (target) {
@@ -171,11 +188,12 @@ class WatchDownloads(
             film = target as? PlayTarget.Film, episode = target as? PlayTarget.EpisodeOf, item = target as? PlayTarget.Item,
             fileName = fileNameOf(title, target, id, container), container = container, totalBytes = stream.sizeBytes?.takeIf { it > 0 },
             durationMs = stream.durationMs, addedAtMs = now(),
-            directoryPath = destinationState.value.canonicalPath,
+            directoryPath = destinationPath?.also { require(it in approved) { "Download folder is not approved on this device." } } ?: destinationState.value.canonicalPath,
+            sourceFingerprint = fingerprint(stream),
         )
         state.update { listOf(d) + it }
         save()
-        run(d, stream)
+        run(d, stream, fresh = true)
         return d
     }
 
@@ -188,16 +206,33 @@ class WatchDownloads(
         return true
     }
 
+    /** Cancellation joins the writer before publishing Paused, so Resume can never race an old socket. */
+    suspend fun pause(id: String) {
+        val job = synchronized(jobs) { jobs[id] }
+        job?.cancelAndJoin()
+        synchronized(this) {
+            current(id)?.takeIf { it.status == WatchDownload.Status.DOWNLOADING }?.let {
+                put(it.copy(status = WatchDownload.Status.PAUSED, bytes = partOf(it).length(), error = null))
+            }
+        }
+    }
+
     /** Stops a download and forgets it, or deletes a finished one and its file. */
     @Synchronized
     fun remove(id: String) {
-        synchronized(jobs) { jobs.remove(id) }?.cancel()
+        val job = synchronized(jobs) { jobs[id] }
+        job?.cancel()
         val d = state.value.firstOrNull { it.id == id } ?: return
         runCatching { fileOf(d).delete() }
         runCatching { partOf(d).delete() }
         streams.remove(id)
         state.update { list -> list.filter { it.id != id } }
         save()
+        if (job != null) scope.launch {
+            job.join()
+            // The network writer is now closed; no deleted partial can be recreated by that old request.
+            synchronized(this@WatchDownloads) { if (current(id) == null) runCatching { partOf(d).delete() } }
+        }
     }
 
     /** A finished download as a copy the Watch player plays (a file on this device). */
@@ -206,15 +241,18 @@ class WatchDownloads(
         d.container, filename = d.fileName, sizeBytes = d.totalBytes ?: fileOf(d).length(), durationMs = d.durationMs,
     )
 
-    private fun run(start: WatchDownload, stream: Stream) {
+    private fun run(start: WatchDownload, stream: Stream, fresh: Boolean = false) {
         val id = start.id
         synchronized(jobs) {
             if (jobs[id]?.isActive == true) return
+            val previous = jobs[id]
             put(start)
-            jobs[id] = scope.launch {
-                val part = partOf(start)
-                var last = 0L
+            val job = scope.launch(start = CoroutineStart.LAZY) {
                 try {
+                    previous?.join()
+                    val part = partOf(start)
+                    if (fresh) part.delete()
+                    var last = 0L
                     val folder = part.parentFile
                     check(folder.isDirectory || folder.mkdirs()) { "The download folder is unavailable. Choose a writable folder and retry." }
                     ensureSpace(folder, start.totalBytes, part.length())
@@ -235,6 +273,8 @@ class WatchDownloads(
                     synchronized(jobs) { if (jobs[id] === coroutineContext[Job]) jobs.remove(id) }
                 }
             }
+            jobs[id] = job
+            job.start()
         }
     }
 
@@ -320,12 +360,17 @@ class WatchDownloads(
             return "${key.value}#$digest"
         }
 
+        private fun fingerprint(stream: Stream): String = MessageDigest.getInstance("SHA-256")
+            .digest((stream.url + "\n" + stream.headers.toSortedMap().entries.joinToString("\n")).toByteArray())
+            .joinToString("") { "%02x".format(it) }
+
         private fun fileNameOf(title: String, target: PlayTarget, id: String, container: Container): String {
             val base = title.replace(Regex("[^\\p{L}\\p{N} ._()-]"), " ").replace(Regex("\\s+"), " ").trim().take(80).ifBlank { "Watch" }
             val episode = (target as? PlayTarget.EpisodeOf)?.let { " S%02dE%02d".format(it.season, it.episode) }.orEmpty()
             val year = (target as? PlayTarget.Film)?.year?.let { " ($it)" }.orEmpty()
             val ext = when (container) { Container.MKV -> "mkv"; Container.WEBM -> "webm"; else -> "mp4" }
-            return "$base$year$episode ${id.substringAfter('#').take(6)}.$ext"
+            val identity = MessageDigest.getInstance("SHA-256").digest(id.toByteArray()).take(6).joinToString("") { "%02x".format(it) }
+            return "$base$year$episode $identity.$ext"
         }
     }
 }

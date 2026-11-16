@@ -75,7 +75,7 @@ object DesktopWatch {
                     }
                 }
             }
-        })
+        }).also { it.bindRepository(repository) }
     }
 
     /** Whether [player] has been built in this process. */

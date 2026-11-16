@@ -196,6 +196,8 @@ internal fun WatchDownloadsPage(actions: WatchActions, fonts: OrbitFonts, look: 
     val side = frame.side
     val downloads = actions.downloads
     val list = downloads?.items?.collectAsState()?.value.orEmpty()
+    val profile by actions.repository.activeProfile.collectAsState()
+    val batches = downloads?.batches?.items?.collectAsState()?.value.orEmpty().filter { it.profileId == profile }
     val destination = downloads?.destination?.collectAsState()?.value
     val folderScope = androidx.compose.runtime.rememberCoroutineScope()
     var folderMenu by remember { mutableStateOf(false) }
@@ -227,7 +229,10 @@ internal fun WatchDownloadsPage(actions: WatchActions, fonts: OrbitFonts, look: 
                         style = fonts.body.copy(fontSize = 12.sp), color = look.dim)
                 }
             }
-            if (downloads == null || list.isEmpty()) item(key = "dl:empty") {
+            if (downloads != null) itemsIndexed(batches, key = { _, batch -> "batch:" + batch.id }) { _, batch ->
+                Column(Modifier.padding(horizontal = side + 6.dp)) { WatchBatchRow(batch, downloads, fonts, look) }
+            }
+            if (downloads == null || (list.isEmpty() && batches.isEmpty())) item(key = "dl:empty") {
                 WatchMessage("Downloads", "Nothing downloaded",
                     if (downloads == null) "Downloading is not available on this device." else "Use Download on a film's player or its page to keep it here and watch it offline. $WATCH_DOWNLOAD_RULE",
                     fonts, look, Modifier.padding(horizontal = side).padding(top = 22.dp))
@@ -257,6 +262,7 @@ private fun DownloadRow(d: com.cosmotune.watch.WatchDownload, downloads: com.cos
                 com.cosmotune.watch.WatchDownload.Status.DONE -> listOfNotNull(d.line, sizeText(d.totalBytes ?: d.bytes)).joinToString(" · ")
                 com.cosmotune.watch.WatchDownload.Status.DOWNLOADING -> "Downloading · " + (d.fraction?.let { "${(it * 100).toInt()}%" } ?: sizeText(d.bytes))
                 com.cosmotune.watch.WatchDownload.Status.FAILED -> d.error ?: "Stopped"
+                com.cosmotune.watch.WatchDownload.Status.PAUSED -> "Paused · " + (sizeText(d.bytes) ?: "Ready to resume")
             }
             androidx.compose.material3.Text(status, style = fonts.body, color = look.dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             if (d.status == com.cosmotune.watch.WatchDownload.Status.DOWNLOADING) {
@@ -265,10 +271,10 @@ private fun DownloadRow(d: com.cosmotune.watch.WatchDownload, downloads: com.cos
         }
         when (d.status) {
             com.cosmotune.watch.WatchDownload.Status.DONE -> com.cosmotune.ui.orbit.WatchCardChip("Play", look.ink, fonts, onClick = play, icon = com.cosmotune.ui.components.CosmoIcons.Play)
-            com.cosmotune.watch.WatchDownload.Status.FAILED -> com.cosmotune.ui.orbit.WatchCardChip("Try again", look.ink, fonts, onClick = {
+            com.cosmotune.watch.WatchDownload.Status.FAILED, com.cosmotune.watch.WatchDownload.Status.PAUSED -> com.cosmotune.ui.orbit.WatchCardChip("Resume", look.ink, fonts, onClick = {
                 if (!downloads.retry(d.id)) d.summary?.let { actions.open(it) }
             })
-            else -> Unit
+            com.cosmotune.watch.WatchDownload.Status.DOWNLOADING -> com.cosmotune.ui.orbit.WatchCardChip("Pause", look.ink, fonts, onClick = { actions.launch { downloads.pause(d.id) } })
         }
         com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.Close, if (done) "Remove ${d.title}" else "Stop ${d.title}", look, onClick = { downloads.remove(d.id) }, size = 36.dp)
     }

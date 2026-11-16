@@ -14,6 +14,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Which receivers are out there, and which one the music is on.
@@ -42,6 +46,7 @@ object CastController {
         val devices: List<Device> = emptyList(),
         val connectedName: String? = null,
         val connecting: Boolean = false,
+        val error: String? = null,
     ) {
         val casting: Boolean get() = connectedName != null
     }
@@ -58,9 +63,13 @@ object CastController {
     private var selector: MediaRouteSelector? = null
     private var started = false
     private var playback: CastPlayback? = null
+    private var appContext: Context? = null
 
     /** The session whose volume is being followed, so it can be let go of. */
     private var watched: CastSession? = null
+    private var pending: CastSession? = null
+    private var disconnectEpoch = 0L
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val volumeListener = object : Cast.Listener() {
         override fun onVolumeChanged() {
@@ -69,36 +78,46 @@ object CastController {
     }
 
     private val sessionListener = object : SessionManagerListener<CastSession> {
-        override fun onSessionStarting(session: CastSession) = update { it.copy(connecting = true) }
+        override fun onSessionStarting(session: CastSession) { disconnectEpoch++; pending = session; update { it.copy(connecting = true, error = null) } }
 
         override fun onSessionStarted(session: CastSession, sessionId: String) =
             began(session, resumed = false)
 
         override fun onSessionStartFailed(session: CastSession, error: Int) {
+            if (pending !== session) return
+            pending = null
             Log.w(TAG, "session start failed: $error")
             update { it.copy(connecting = false) }
             playback?.onConnectFailed()
         }
 
         override fun onSessionEnding(session: CastSession) {
+            if (watched !== session) return
             playback?.onSessionEnding(session)
         }
 
         override fun onSessionEnded(session: CastSession, error: Int) {
+            if (watched !== session) return
             stopWatching()
             update { it.copy(connecting = false, connectedName = null) }
             playback?.onSessionEnded(error)
             publishDevices()
         }
 
-        override fun onSessionResuming(session: CastSession, sessionId: String) =
+        override fun onSessionResuming(session: CastSession, sessionId: String) {
+            if (watched != null && watched !== session) return
+            pending = session
             update { it.copy(connecting = true) }
+        }
 
         override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) =
             began(session, resumed = true)
 
-        override fun onSessionResumeFailed(session: CastSession, error: Int) =
+        override fun onSessionResumeFailed(session: CastSession, error: Int) {
+            if (pending !== session) return
+            pending = null
             update { it.copy(connecting = false) }
+        }
 
         // A dropped connection the framework is still trying to win back.
         // Nothing to do: the receiver keeps playing its queue meanwhile.
@@ -114,6 +133,7 @@ object CastController {
         if (started) return
         started = true
         val app = context.applicationContext
+        appContext = app
         if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(app) != ConnectionResult.SUCCESS) {
             Log.i(TAG, "Play Services unavailable; casting disabled")
             return
@@ -145,6 +165,7 @@ object CastController {
 
     /** Binds the service's playback half; it is handed any session already live. */
     fun attach(target: CastPlayback) {
+        if (playback !== target) disconnectEpoch++
         playback = target
         castContext?.sessionManager?.currentCastSession
             ?.takeIf { it.isConnected }
@@ -152,7 +173,7 @@ object CastController {
     }
 
     fun detach(target: CastPlayback) {
-        if (playback === target) playback = null
+        if (playback === target) { disconnectEpoch++; playback = null }
     }
 
     /**
@@ -190,6 +211,7 @@ object CastController {
     fun connect(deviceId: String) {
         val router = router ?: return
         val route = router.routes.firstOrNull { it.id == deviceId } ?: return
+        disconnectEpoch++
         update { it.copy(connecting = true) }
         router.selectRoute(route)
     }
@@ -199,9 +221,19 @@ object CastController {
      * back to this phone, rather than the receiver having gone away — see
      * [CastPlayback.onSessionEnded].
      */
-    fun disconnect(resumeHere: Boolean) {
-        playback?.resumeHereOnEnd = resumeHere
-        castContext?.sessionManager?.endCurrentSession(true)
+    fun disconnect(resumeHere: Boolean, afterStop: ((Boolean) -> Unit)? = null) {
+        val ending = watched ?: return
+        val owner = playback ?: return
+        val token = ++disconnectEpoch
+        scope.launch {
+            val confirmed = owner.prepareDisconnect(ending)
+            if (disconnectEpoch != token || watched !== ending || playback !== owner ||
+                castContext?.sessionManager?.currentCastSession !== ending) return@launch
+            owner.resumeHereOnEnd = resumeHere && confirmed
+            update { it.copy(error = if (!confirmed) "The receiver did not confirm Stop. Playback returns here paused; the receiver may still be playing." else null) }
+            castContext?.sessionManager?.endCurrentSession(confirmed)
+            afterStop?.invoke(confirmed)
+        }
     }
 
     fun setVolume(level: Float) {
@@ -215,10 +247,15 @@ object CastController {
     }
 
     private fun began(session: CastSession, resumed: Boolean) {
+        if (pending != null && pending !== session) return
+        if (castContext?.sessionManager?.currentCastSession !== session) return
+        pending = null
+        disconnectEpoch++
         watch(session)
         update {
             it.copy(
                 connecting = false,
+                error = null,
                 connectedName = session.castDevice?.friendlyName ?: it.connectedName ?: "Cast",
             )
         }
@@ -260,6 +297,11 @@ object CastController {
     }
 
     private inline fun update(change: (State) -> State) {
-        _state.value = change(_state.value)
+        val previous = _state.value
+        val next = change(previous)
+        _state.value = next
+        if (next.error != null && next.error != previous.error) appContext?.let {
+            android.widget.Toast.makeText(it, next.error, android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 }

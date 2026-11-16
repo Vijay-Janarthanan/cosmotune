@@ -35,19 +35,18 @@ class NuvioScriptPlugin(override val id: String, override val displayName: Strin
             val data = element as? JsonObject ?: return@mapNotNull null
             fun text(key: String) = (data[key] as? JsonPrimitive)?.contentOrNull
             val url = text("url") ?: return@mapNotNull null
-            val uri = runCatching { URI(url) }.getOrNull() ?: return@mapNotNull null
-            if (uri.scheme !in setOf("https", "http") || uri.host == null || uri.userInfo != null) return@mapNotNull null
             val headers = (data["headers"] as? JsonObject).orEmpty().mapNotNull { (key, value) ->
                 val text = (value as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
                 if (key.length <= 100 && text.length <= 8192 && '\n' !in text && '\r' !in text) key to text else null
             }.take(50).toMap()
-            val path = uri.path.orEmpty().lowercase()
+            val normalized = com.cosmotune.watch.plugins.SourceAddress.parse(url, headers) ?: return@mapNotNull null
+            val path = URI(normalized.url).path.orEmpty().lowercase()
             Stream(StreamSource(id, displayName, badge), (text("quality") ?: text("name") ?: "Play").take(120),
-                description = text("title")?.take(500), url = url, protocol = when {
+                description = text("title")?.take(500), url = normalized.url, protocol = when {
                     path.endsWith(".m3u8") -> StreamProtocol.HLS
                     path.endsWith(".mpd") -> StreamProtocol.DASH
                     else -> StreamProtocol.PROGRESSIVE
-                }, headers = headers, sizeBytes = (data["size"] as? JsonPrimitive)?.longOrNull,
+                }, headers = normalized.headers, sizeBytes = (data["size"] as? JsonPrimitive)?.longOrNull,
                 container = when { path.endsWith(".mkv") -> Container.MKV; path.endsWith(".mp4") -> Container.MP4; else -> Container.UNKNOWN })
         }.distinctBy { it.url }
     }

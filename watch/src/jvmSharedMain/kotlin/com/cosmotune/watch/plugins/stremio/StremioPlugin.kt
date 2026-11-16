@@ -28,6 +28,7 @@ import com.cosmotune.watch.plugin.Capability
 import com.cosmotune.watch.plugin.PluginKind
 import com.cosmotune.watch.plugin.WatchPlugin
 import com.cosmotune.watch.plugins.StreamGuess
+import com.cosmotune.watch.plugins.SourceAddress
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
@@ -64,7 +65,7 @@ class StremioPlugin(
 
     override suspend fun catalogPage(catalog: CatalogDef, skip: Int): List<TitleSummary> {
         val (type, cid) = catalog.id.split('/', limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] } ?: return emptyList()
-        return client.catalog(type, cid, if (skip > 0) mapOf("skip" to skip.toString()) else emptyMap()).mapNotNull(::summaryOf)
+        return client.catalog(type, cid, if (skip > 0) mapOf("skip" to skip.toString()) else emptyMap()).mapNotNull { summaryOf(it, type) }
     }
 
     override suspend fun search(query: String, type: TitleType?): List<TitleSummary> {
@@ -72,17 +73,17 @@ class StremioPlugin(
         val searchable = manifest().catalogs.filter { "search" in it.extras && it.type in setOf("movie", "series") &&
             (type == null || (it.type == "movie") == (type == TitleType.FILM)) }
         return searchable.flatMap { runCatching { client.catalog(it.type, it.id, mapOf("search" to query)) }.getOrDefault(emptyList()) }
-            .mapNotNull(::summaryOf).distinctBy { it.key }
+            .mapNotNull { summaryOf(it) }.distinctBy { it.key }
     }
 
     override suspend fun title(key: WatchKey): Title? {
         val (type, metaId) = metaRef(key) ?: return null
         if (!manifest().supports("meta", type, metaId)) return null
         val meta = client.meta(type, metaId) ?: return null
-        val summary = summaryOf(meta) ?: return null
+        val summary = summaryOf(meta, type) ?: return null
         val videos = meta.list("videos")
-        val seasons = videos.mapNotNull { it.int("season") }.distinct().sortedWith(compareBy({ it == 0 }, { it }))
-            .map { n -> Season(summary.key, n, if (n == 0) "Specials" else "Season $n", videos.count { it.int("season") == n }) }
+        val seasons = videos.mapNotNull { coordinates(it)?.first }.distinct().sortedWith(compareBy({ it == 0 }, { it }))
+            .map { n -> Season(summary.key, n, if (n == 0) "Specials" else "Season $n", videos.count { coordinates(it)?.first == n }) }
         val links = meta.list("links")
         return Title(summary, seasons = seasons,
             cast = (meta.strings("cast").ifEmpty { links.filter { it.str("category") == "Cast" }.mapNotNull { it.str("name") } })
@@ -96,11 +97,11 @@ class StremioPlugin(
         val (type, metaId) = metaRef(series) ?: return emptyList()
         if (!manifest().supports("meta", type, metaId)) return emptyList()
         val meta = client.meta(type, metaId) ?: return emptyList()
-        return meta.list("videos").filter { it.int("season") == season }.mapNotNull { v ->
-            val n = v.int("episode") ?: v.int("number") ?: return@mapNotNull null
+        return meta.list("videos").filter { coordinates(it)?.first == season }.mapNotNull { v ->
+            val n = coordinates(v)?.second ?: return@mapNotNull null
             Episode(WatchKey.episode(series.namespace, series.id, season, n), series, season, n, v.str("title") ?: v.str("name") ?: "Episode $n",
                 v.str("overview") ?: v.str("description"), v.str("thumbnail"), v.str("released")?.take(10))
-        }.sortedBy { it.number }
+        }.distinctBy { it.key }.sortedBy { it.number }
     }
 
     override suspend fun streams(target: PlayTarget): List<Stream> {
@@ -155,9 +156,10 @@ class StremioPlugin(
 
     // ── Mapping ──────────────────────────────────────────────────────────
 
-    fun summaryOf(meta: JsonElement): TitleSummary? {
+    fun summaryOf(meta: JsonElement, expectedType: String? = null): TitleSummary? {
         val metaId = meta.str("id") ?: meta.str("imdb_id") ?: return null
-        val type = when (meta.str("type")) { "movie" -> TitleType.FILM; "series" -> TitleType.SERIES; else -> return null }
+        val type = if (meta.list("videos").any { coordinates(it) != null }) TitleType.SERIES
+            else when (meta.str("type") ?: expectedType) { "movie" -> TitleType.FILM; "series" -> TitleType.SERIES; else -> return null }
         val imdb = metaId.takeIf { it.startsWith("tt") } ?: meta.str("imdb_id")
         val namespace = if (metaId.startsWith("tt")) "imdb" else id
         val key = if (type == TitleType.FILM) WatchKey.film(namespace, metaId) else WatchKey.series(namespace, metaId)
@@ -176,13 +178,14 @@ class StremioPlugin(
         val headers = hints.child("proxyHeaders").child("request")?.let { h -> (h as? kotlinx.serialization.json.JsonObject)?.mapNotNull { (k, v) -> v.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }?.let { k to it } }?.toMap() }.orEmpty()
         val label = name?.lineSequence()?.joinToString(" ")?.trim()?.ifBlank { null } ?: displayName
         val url = s.str("url")
+        val normalized = url?.let { SourceAddress.parse(it, headers) }
         val ytId = s.str("ytId")
         val external = s.str("externalUrl")
         val magnet = if (!live && torrentsEnabled()) BundledTorrentPlayback.magnet(s.str("infoHash")) else null
         val index = s.int("fileIdx")?.takeIf { it in 0 until Int.MAX_VALUE }
         val (address, protocol) = when {
-            url != null && StreamGuess.playableScheme(url) -> url to StreamGuess.protocol(url)
-            ytId != null -> "https://www.youtube.com/watch?v=$ytId" to StreamProtocol.YOUTUBE
+            normalized != null -> normalized.url to StreamGuess.protocol(normalized.url)
+            ytId != null && ytId.matches(Regex("[A-Za-z0-9_-]{11}")) -> "https://www.youtube.com/watch?v=$ytId" to StreamProtocol.YOUTUBE
             magnet != null -> magnet to StreamProtocol.PROGRESSIVE
             external != null && StreamGuess.playableScheme(external) -> external to StreamProtocol.EXTERNAL
             else -> return null
@@ -191,7 +194,7 @@ class StremioPlugin(
         val torrent = address == magnet
         return Stream(source, if (torrent) "$label · P2P" else label, description, address, protocol,
             StreamGuess.container(if (torrent) hints.str("filename").orEmpty() else address),
-            if (torrent) emptyMap() else headers,
+            if (torrent) emptyMap() else normalized?.headers.orEmpty(),
             height = StreamGuess.height(*text.toTypedArray()), hdr = StreamGuess.hdr(*text.toTypedArray()),
             videoCodec = StreamGuess.codec(*text.toTypedArray()),
             sizeBytes = hints.long("videoSize")?.takeIf { it > 0 } ?: StreamGuess.size(description) ?: StreamGuess.size(name),
@@ -221,7 +224,7 @@ class StremioPlugin(
             else {
                 // An add-on's own series: its videos carry their own ids.
                 val meta = runCatching { client.meta("series", series) }.getOrNull()
-                meta.list("videos").firstOrNull { it.int("season") == target.season && (it.int("episode") ?: it.int("number")) == target.episode }
+                meta.list("videos").firstOrNull { coordinates(it) == (target.season to target.episode) }
                     ?.str("id")?.let { "series" to it }
             }
         }
@@ -230,6 +233,12 @@ class StremioPlugin(
     }
 
     companion object {
+        internal fun coordinates(video: JsonElement): Pair<Int, Int>? {
+            val parts = video.str("id")?.split(':').orEmpty()
+            val season = video.int("season") ?: parts.getOrNull(parts.size - 2)?.toIntOrNull() ?: return null
+            val episode = video.int("episode") ?: video.int("number") ?: parts.lastOrNull()?.toIntOrNull() ?: return null
+            return (season to episode).takeIf { season in 0..10_000 && episode in 1..100_000 }
+        }
         private val names = mapOf("eng" to "English", "en" to "English", "hin" to "Hindi", "tam" to "Tamil", "tel" to "Telugu", "mal" to "Malayalam",
             "spa" to "Spanish", "fre" to "French", "fra" to "French", "ger" to "German", "deu" to "German", "ita" to "Italian", "por" to "Portuguese",
             "pob" to "Portuguese (Brazil)", "ara" to "Arabic", "jpn" to "Japanese", "kor" to "Korean", "chi" to "Chinese", "zho" to "Chinese",

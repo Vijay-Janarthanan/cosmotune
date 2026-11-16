@@ -279,6 +279,12 @@ weights to the native installers. See `web/docs/automix.md` for storage and vali
 - Stations: Radio Browser (community directory). A few stations that publish their own stream address are bundled in `shared/src/jvmSharedMain/resources/podio/extra-stations.json`, each taken from the station's own website.
 
 
+## November 2026 upstream integration
+
+Reviewed revisions and attribution are recorded in `docs/UPSTREAM_SNAPSHOT_2026-11-16.json` and the associated implementation records. LastWave Native, AETHER, Lokal, Kotatsu-Redo and the podcast reference projects supplied reviewed behavior and compatible integration work under their recorded licenses. The Manga runtime dependency is Kotatsu-Redo `a90648aebdf61c47b9eed4bec351332306aeff6a`; signed parser publications include its source revision and license. Existing notices and dependency licenses remain applicable.
+
+Euthopiar has no repository license at the reviewed revision: Cosmotune's Watch batch, layout and add-on behavior is independently implemented, without importing its source. The macOS MediaPlayer bridge is also original; unlicensed LastWave Desktop bridge source was not copied. AETHER Constellations and ContinuousLine modes are excluded by product choice.
+
 ## Read document engines and catalogues
 
 Desktop PDF pages use Apache PDFBox 3.0.7 (including FontBox and pdfbox-io), licensed under Apache-2.0: https://pdfbox.apache.org/ . Its unmodified dependency jars retain upstream META-INF licence/notices. Android PDF rendering uses the operating system PdfRenderer API. Desktop EPUB rendering uses the existing OpenJFX 21.0.10 WebKit runtime with javafx-swing; Android uses the system WebView. OpenJFX is distributed under GPLv2 with the Classpath Exception: https://openjfx.io/ . EPUB markup is parsed with the existing Jsoup dependency (MIT).

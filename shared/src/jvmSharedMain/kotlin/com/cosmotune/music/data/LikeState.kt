@@ -4,6 +4,7 @@ import com.cosmotune.music.data.model.LikeStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * Ratings changed during this app session, shared by the UI and playback service.
@@ -17,7 +18,7 @@ object LikeState {
     val overrides: StateFlow<Map<String, LikeStatus>> = _overrides.asStateFlow()
 
     fun set(videoId: String, status: LikeStatus) {
-        _overrides.value += (videoId to status)
+        _overrides.update { it + (videoId to status) }
     }
 
     /**
@@ -43,7 +44,7 @@ object LikeState {
 
     fun clear() {
         // Account switches clear account ratings; device-local source ratings belong to the device.
-        _overrides.value = _overrides.value.filterKeys { com.cosmotune.music.data.sources.SourceTrackKeys.parse(it) != null }
+        _overrides.value = _overrides.value.filterKeys { LocalFileRatings.owns(it) || com.cosmotune.music.data.sources.SourceTrackKeys.parse(it) != null }
     }
 
     fun replaceSourceRatings(ratings: Map<String, LikeStatus>) {

@@ -1907,6 +1907,7 @@ private fun CosmotuneApp(
      * permission arrives as forty loose tracks.
      */
     var downloadPendingFrom by remember { mutableStateOf<DownloadTarget?>(null) }
+    var downloadPendingQuality by remember { mutableStateOf<com.cosmotune.music.data.downloads.ProviderDownloadChoice?>(null) }
     val notifyPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { /* Refusing costs the progress notification, not the download. */ }
@@ -1915,12 +1916,14 @@ private fun CosmotuneApp(
     ) { granted ->
         val songs = downloadPending
         val from = downloadPendingFrom
+        val selectedQuality = downloadPendingQuality
         downloadPending = emptyList()
         downloadPendingFrom = null
+        downloadPendingQuality = null
         when {
             songs.isEmpty() -> Unit
             granted -> {
-                songs.forEach { Downloads.enqueue(context, it, from?.title) }
+                songs.forEach { Downloads.enqueue(context, it, from?.title, providerQualityId = selectedQuality?.qualityId) }
                 if (from != null) Downloads.markRequested(from.id, songs.map { it.videoId })
             }
             // The one case where refusing is fatal: below API 29 there is no
@@ -1989,7 +1992,7 @@ private fun CosmotuneApp(
     // it decomposed into â€” see [Downloads.rememberCollection]. Null for a single
     // track, which is not a release however many of them are asked for one at a
     // time.
-    val startDownload: (List<Song>, DownloadTarget?) -> Unit = { requested, from ->
+    val startDownloadRequest: (List<Song>, DownloadTarget?, com.cosmotune.music.data.downloads.ProviderDownloadChoice?) -> Unit = { requested, from, selectedQuality ->
         val saved = Downloads.saved.value
         // Already on disk, and already queued or running: neither needs asking
         // again. What's left is what a tap on "Download" actually means.
@@ -2009,7 +2012,7 @@ private fun CosmotuneApp(
         // without a cover, and re-downloading adopts the untagged copy rather
         // than replacing it.
         val songs = requested
-            .filter { it.videoId !in saved }
+            .filter { selectedQuality != null || it.videoId !in saved }
             .map { song ->
                 val cover = from?.thumbnailUrl
                 if (song.thumbnailUrl.isNullOrBlank() && !cover.isNullOrBlank()) {
@@ -2047,9 +2050,10 @@ private fun CosmotuneApp(
             if (needsStorage) {
                 downloadPending = songs
                 downloadPendingFrom = from
+                downloadPendingQuality = selectedQuality
                 storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             } else {
-                songs.forEach { Downloads.enqueue(context, it, from?.title) }
+                songs.forEach { Downloads.enqueue(context, it, from?.title, providerQualityId = selectedQuality?.qualityId) }
                 if (from != null) Downloads.markRequested(from.id, songs.map { it.videoId })
             }
         }
@@ -2105,6 +2109,10 @@ private fun CosmotuneApp(
      * on screen, so downloading it isn't handed a duration of zero and
      * silently skipped for lyrics â€” see [LyricsTag.forTrack].
      */
+    val startDownload: (List<Song>, DownloadTarget?) -> Unit = { songs, from -> startDownloadRequest(songs, from, null) }
+    val pickDownloadQuality = com.cosmotune.ui.providers.rememberProviderDownloadQualityPicker { song, choice ->
+        startDownloadRequest(listOf(song), null, choice)
+    }
     val downloadSong: (Song) -> Unit = { song ->
         val withDuration = if (song.durationMillis() <= 0L &&
             player.song?.videoId == song.videoId && player.durationMs > 0L
@@ -2113,7 +2121,7 @@ private fun CosmotuneApp(
         } else {
             song
         }
-        startDownload(listOf(withDuration), null)
+        if (!pickDownloadQuality(withDuration)) startDownload(listOf(withDuration), null)
     }
 
     // Content padding leaves room for the frosted bar above and the tab bar
@@ -2138,9 +2146,9 @@ private fun CosmotuneApp(
     // to read the same source the page does or the bars stay the YouTube photo's
     // colour while the page beneath them has moved on.
     val appleArtVersion by AppleArtistArtRepository.updates.collectAsStateWithLifecycle()
-    val detailApple = remember(detail?.title, detail?.type, appleArtVersion) {
+    val detailApple = remember(detail?.browseId, detail?.title, detail?.type, appleArtVersion) {
         detail?.takeIf { it.type == BrowseType.ARTIST }
-            ?.let { AppleArtistArtRepository.cached(it.title) }
+            ?.let { AppleArtistArtRepository.cached(it.title, it.browseId) }
     }
     val detailPalette = rememberArtworkPalette(
         imageUrl = detailApple?.heroUrl ?: detail?.thumbnailUrl,

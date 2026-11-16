@@ -255,6 +255,7 @@ fun Song.toSongBundle(): Bundle = bundleOf(
     putStringArrayList(ARTISTS_NAMES, ArrayList(artists.map { it.name }))
     putStringArrayList(ARTISTS_IDS, ArrayList(artists.map { it.browseId.orEmpty() }))
     podcastSkipSilence?.let { putBoolean(EXTRA_PODCAST_SKIP_SILENCE, it) }
+    putString("podcastChaptersUrl", podcastChaptersUrl)
 }
 
 fun songFromBundle(b: Bundle): Song {
@@ -286,6 +287,7 @@ fun songFromBundle(b: Bundle): Song {
         queueTier = queueTier,
         queueEntryId = b.getString("queueEntryId"),
         podcastSkipSilence = b.takeIf { it.containsKey(EXTRA_PODCAST_SKIP_SILENCE) }?.getBoolean(EXTRA_PODCAST_SKIP_SILENCE),
+        podcastChaptersUrl = b.getString("podcastChaptersUrl"),
     )
 }
 
@@ -356,6 +358,7 @@ fun rememberPlayerState(controller: MediaController?): PlayerState {
             }
             // Synced here too, so seeking while paused or buffering still moves
             // the scrubber (the poll loop only runs on play).
+            position.rate = player.playbackParameters.speed
             position.report(player.currentPosition.coerceAtLeast(0L))
             state = state.copy(
                 song = item?.toSong(),
@@ -432,6 +435,7 @@ fun rememberPlayerState(controller: MediaController?): PlayerState {
     val foreground = rememberIsForeground()
     LaunchedEffect(controller, state.isPlaying, foreground) {
         while (controller != null && state.isPlaying && foreground) {
+            position.rate = controller.playbackParameters.speed
             position.report(controller.currentPosition.coerceAtLeast(0L))
             val duration = controller.duration.coerceAtLeast(0L)
             if (duration != state.durationMs) state = state.copy(durationMs = duration)
@@ -476,6 +480,7 @@ fun MediaItem.toSong() = Song(
     localUri = mediaMetadata.extras?.getString(EXTRA_LOCAL_URI),
     localPath = mediaMetadata.extras?.getString(EXTRA_LOCAL_PATH),
     podcastSkipSilence = podcastSkipSilenceOverride,
+    podcastChaptersUrl = mediaMetadata.extras?.getString("podcastChaptersUrl"),
 )
 
 internal val MediaItem.podcastSkipSilenceOverride: Boolean?
@@ -770,7 +775,7 @@ fun Song.toMediaItem(): MediaItem {
                     artistId != null || albumId != null || setVideoId != null ||
                     isExplicit != null || isVideo || isVideoOrigin || radioName != null ||
                     sourceQuality != null ||
-                    playbackSource != null || playbackSourceType != null || playbackSourceId != null || podcastSkipSilence != null
+                    playbackSource != null || playbackSourceType != null || playbackSourceId != null || podcastSkipSilence != null || podcastChaptersUrl != null
                 ) {
                     setExtras(
                         bundleOf(
@@ -792,7 +797,7 @@ fun Song.toMediaItem(): MediaItem {
                             EXTRA_VIDEO_ORIGIN to isVideoOrigin,
                             EXTRA_SOURCE_QUALITY to sourceQuality,
                             EXTRA_SOURCE_HI_RES to sourceHiRes,
-                        ).apply { podcastSkipSilence?.let { putBoolean(EXTRA_PODCAST_SKIP_SILENCE, it) } },
+                        ).apply { podcastSkipSilence?.let { putBoolean(EXTRA_PODCAST_SKIP_SILENCE, it) }; putString("podcastChaptersUrl", podcastChaptersUrl) },
                     )
                 }
             }

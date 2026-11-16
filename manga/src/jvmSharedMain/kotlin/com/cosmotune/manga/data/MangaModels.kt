@@ -111,6 +111,8 @@ data class MangaLibraryState(
     val collections: List<MangaCollection> = emptyList(),
     /** Zero disables automatic updates; supported choices are daily or weekly. */
     val updateIntervalHours: Int = 0,
+    /** Signed built-in parser fixes, independent of scheduled chapter/library checks. */
+    val parserAutoUpdates: Boolean = true,
     val lastUpdateAttemptMs: Long = 0,
     val lastUpdateCompletedMs: Long = 0,
     val lastUpdateNewChapters: Int = 0,

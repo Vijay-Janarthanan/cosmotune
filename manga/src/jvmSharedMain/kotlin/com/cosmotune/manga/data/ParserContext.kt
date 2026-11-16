@@ -26,6 +26,8 @@ class ParserContext(root: File, protection: MangaFileProtection = UnsealedMangaF
         .addNetworkInterceptor(verification.userAgentInterceptor())
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(45, TimeUnit.SECONDS).build()
+    val parserUpdates = ParserBundleUpdates(File(root, "parsers"))
+    override val parsers: org.koitharu.kotatsu.parsers.ParsersBundle get() = parserUpdates.bundle.value
     override fun getDefaultUserAgent(): String = USER_AGENT
     override fun getConfig(source: MangaSource): ParserConfig = object : ParserConfig {
         @Suppress("UNCHECKED_CAST")

@@ -1,0 +1,118 @@
+name: Signed Manga parser bundles
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Reviewed Kotatsu parser commit (full SHA)
+        required: true
+        default: a90648aebdf61c47b9eed4bec351332306aeff6a
+permissions:
+  contents: write
+concurrency:
+  group: parser-bundles
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+      revision: ${{ steps.build.outputs.revision }}
+      sha: ${{ steps.revision.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate reviewed revision
+        id: revision
+        env:
+          INPUT_REVISION: ${{ inputs.revision }}
+        shell: bash
+        run: |
+          revision="${INPUT_REVISION:-a90648aebdf61c47b9eed4bec351332306aeff6a}"
+          [[ "$revision" =~ ^[a-f0-9]{40}$ ]] || { echo 'A full reviewed commit SHA is required'; exit 1; }
+          echo "sha=$revision" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: Kotatsu-Redo/kotatsu-parsers-redo
+          ref: ${{ steps.revision.outputs.sha }}
+          path: parser-source
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify publication fixtures without production secrets
+        run: python3 tools/test_parser_bundle_signer.py
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build JVM and Android implementations
+        id: build
+        working-directory: parser-source
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew parsersBundleJar parsersBundleZip --no-daemon --max-workers=2
+          echo "version=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse --short=10 HEAD)" >> "$GITHUB_OUTPUT"
+          mkdir -p ../unsigned-parser-bundles
+          cp "$(find build -name '*bundle-classes.jar' -type f | head -1)" ../unsigned-parser-bundles/implementation.jar
+          cp "$(find build/parsersBundle/out -name '*.zip' -type f | head -1)" ../unsigned-parser-bundles/implementation.zip
+          cp LICENSE ../unsigned-parser-bundles/Parser-LICENSE.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-parser-bundles
+          path: unsigned-parser-bundles/*
+
+  publish:
+    needs: build
+    if: github.repository == 'Vijay-Janarthanan/cosmotune' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      # Fresh runner: upstream build scripts never share a process, filesystem or secret with signing.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v4
+        with:
+          name: unsigned-parser-bundles
+          path: unsigned-parser-bundles
+      - name: Sign and verify app-owned artifacts
+        env:
+          PARSER_SIGNING_PRIVATE_KEY: ${{ secrets.PARSER_SIGNING_PRIVATE_KEY }}
+          PARSER_VERSION: ${{ needs.build.outputs.version }}
+          PARSER_REVISION: ${{ needs.build.outputs.revision }}
+          PARSER_SHA: ${{ needs.build.outputs.sha }}
+        shell: bash
+        run: |
+          java tools/ParserBundleSigner.java jvm "$PARSER_VERSION" "$PARSER_REVISION" unsigned-parser-bundles/implementation.jar parser-dist manga/parser-channel.properties
+          java tools/ParserBundleSigner.java android "$PARSER_VERSION" "$PARSER_REVISION" unsigned-parser-bundles/implementation.zip parser-dist manga/parser-channel.properties
+          cp unsigned-parser-bundles/Parser-LICENSE.txt parser-dist/Parser-LICENSE.txt
+          printf 'Parser source: https://github.com/Kotatsu-Redo/kotatsu-parsers-redo/tree/%s\n' "$PARSER_SHA" > parser-dist/SOURCE.txt
+      - name: Publish only complete, verified bundles
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          gh release view parser-bundles --repo "$REPO" >/dev/null 2>&1 || gh release create parser-bundles --repo "$REPO" --title 'Signed Manga parser updates' --notes 'Signed Android and desktop parser implementations. The app verifies its pinned public key and contract before using an update.' --latest=false
+          # Never overwrite an advertised version. A rerun may only reuse byte-identical bundles.
+          mkdir -p previous-parser-bundles
+          assets="$(gh release view parser-bundles --repo "$REPO" --json assets --jq '.assets[].name')"
+          for bundle in parser-dist/*.jar parser-dist/*.zip; do
+            name="$(basename "$bundle")"
+            if printf '%s\n' "$assets" | grep -Fxq "$name"; then
+              gh release download parser-bundles --repo "$REPO" --pattern "$name" --dir previous-parser-bundles
+              cmp "$bundle" "previous-parser-bundles/$name" || { echo 'Published parser versions are immutable'; exit 1; }
+            else
+              gh release upload parser-bundles "$bundle" --repo "$REPO"
+            fi
+          done
+          gh release upload parser-bundles parser-dist/*.txt --repo "$REPO" --clobber
+          # Only complete artifacts are advertised by the replaceable channel manifests.
+          gh release upload parser-bundles parser-dist/*.json --repo "$REPO" --clobber

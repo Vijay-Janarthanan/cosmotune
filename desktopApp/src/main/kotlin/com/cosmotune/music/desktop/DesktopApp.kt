@@ -557,7 +557,7 @@ fun CosmotuneDesktopApp() {
     var downloads by remember { mutableStateOf(persistence.downloads()) }
     var localSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val downloadQueue by DesktopDownloadQueue.active.collectAsState()
-    val downloadInProgress = downloadQueue.keys
+    val downloadInProgress = downloadQueue.values.mapTo(HashSet()) { it.song.videoId }
     var playlists by remember { mutableStateOf(persistence.playlists()) }
     // Cloud sync runs on its own scope: started once here, nudged when the playlists change, and the list read again
     // whenever the sync wrote into the store (a playlist edited on another device).
@@ -636,6 +636,7 @@ fun CosmotuneDesktopApp() {
                 .getOrDefault(DesktopRepeatMode.OFF),
         )
     }
+    val songPlaybackOverrides by com.cosmotune.settings.Extras.settings.songPlayback.collectAsState()
     var playbackSpeed by remember { mutableStateOf(persistence.string("playback_speed", "1.0").toFloatOrNull() ?: 1.0f) }
     var volume by remember { mutableStateOf(persistence.string("volume", "1.0").toFloatOrNull()?.coerceIn(0.0f, 1.0f) ?: 1.0f) }
     var crossfadeSeconds by remember { mutableStateOf(persistence.string("crossfade_seconds", "0").toIntOrNull()?.coerceIn(0, 12) ?: 0) }
@@ -1010,6 +1011,7 @@ fun CosmotuneDesktopApp() {
         DesktopCloud.rated(song, status)
         // This local rating is durable even when the optional account request fails.
         learnConfirmed()
+        if (com.cosmotune.music.data.LocalFileRatings.owns(song.videoId)) return
         scope.launch {
             DesktopSearchClient.rate(song.videoId, status)
                 .onFailure { DesktopTrackLog.log("youtube: rating ${song.videoId} failed: ${it.message}") }
@@ -1214,10 +1216,14 @@ fun CosmotuneDesktopApp() {
         DesktopTrackLog.log("copied a link to '${collection.title}'")
     }
 
+    val pickDownloadQuality = com.cosmotune.ui.providers.rememberProviderDownloadQualityPicker { song, choice ->
+        DesktopDownloadQueue.enqueue(song, choice?.encode())
+    }
     fun downloadSong(song: Song) {
+        if (song.localPath == null && pickDownloadQuality(song)) return
         // A second tap on something already queued or running calls it off.
         if (song.videoId in downloadInProgress) {
-            DesktopDownloadQueue.cancel(song.videoId)
+            DesktopDownloadQueue.cancelTrack(song.videoId)
             return
         }
         if (song.videoId in downloads.map(Song::videoId) || song.localPath != null) return
@@ -1762,6 +1768,13 @@ fun CosmotuneDesktopApp() {
     // The Windows half of the same idea. Linux has MPRIS above; on Windows this
     // is what the media keys and the volume flyout's card talk to.
     DisposableEffect(playbackEngine) {
+        DesktopMacMedia.start(DesktopMacMedia.Actions(::playFromUser, ::pauseFromUser, ::togglePlayPauseFromUser,
+            ::playNext, ::playPrevious, { positionMs ->
+                if (!DesktopListenTogether.state.value.controlsLocked) {
+                    playbackEngine.seekTo(DesktopWindowsMedia.seekTarget(positionMs, playbackEngine.state.value.durationMs))
+                    partySync.onLocalIntent()
+                }
+            }))
         DesktopWindowsMedia.start(
             DesktopWindowsMedia.Controller(
                 onPlay = ::playFromUser,
@@ -1778,7 +1791,7 @@ fun CosmotuneDesktopApp() {
                 },
             ),
         )
-        onDispose { DesktopWindowsMedia.stop() }
+        onDispose { DesktopWindowsMedia.stop(); DesktopMacMedia.stop() }
     }
 
     LaunchedEffect(playbackSpeed, selectedSong?.videoId) {
@@ -1890,17 +1903,26 @@ fun CosmotuneDesktopApp() {
         }
     }
     val playback by playbackEngine.state.collectAsState()
+    val chapterMedia = remember { com.cosmotune.podio.PodioChapterMedia(DesktopMediaCache.directory.resolveSibling("podio-chapters").toFile()) }
+    val chapterImage by chapterMedia.state.collectAsState()
+    DisposableEffect(chapterMedia) { onDispose { chapterMedia.close() } }
+    // Chapter art belongs to system metadata; never replace the queued recording or its history.
+    val systemPlayback = chapterImage?.takeIf { it.episodeId == playback.song?.videoId }?.let { chapter ->
+        playback.copy(song = playback.song?.copy(thumbnailUrl = chapter.artworkUri))
+    } ?: playback
 
     // The shared player reads the playhead off this one object, and only where it
     // draws it — see PlaybackPosition — so a tick never recomposes the player.
     val playerPosition = remember { PlaybackPosition() }
     SideEffect { DesktopMiniPlayer.position = playerPosition }
     // The playhead run on between engine reports, for the rings drawn from it: the playing row in the queue panel.
-    val livePlayhead = com.cosmotune.music.playback.rememberLivePlayhead(playerPosition, playback.isPlaying)
+    val livePlayhead = com.cosmotune.music.playback.rememberLivePlayhead(playerPosition, playback.isPlaying, playbackEngine.playbackRate)
     LaunchedEffect(playbackEngine) {
         playbackEngine.state.collect {
+            chapterMedia.observe(it.song, it.positionMs)
             // The audio thread's own timestamp, not this collector's: it runs on the UI thread and
             // gets to a reading as late as the UI is busy.
+            playerPosition.rate = playbackEngine.playbackRate
             playerPosition.report(it.positionMs, it.positionSampledAtNanos)
             playerPosition.seeks = it.seeks
             playerPosition.advancing = !it.awaitingAudio
@@ -2012,21 +2034,24 @@ fun CosmotuneDesktopApp() {
         shuffle,
         repeatMode,
         playbackSpeed,
+        songPlaybackOverrides,
+        chapterImage,
     ) {
         mprisController.update(
-            playback = playback,
+            playback = systemPlayback,
             shuffle = shuffle,
             loopStatus = when (repeatMode) {
                 DesktopRepeatMode.OFF -> "None"
                 DesktopRepeatMode.ALL -> "Playlist"
                 DesktopRepeatMode.ONE -> "Track"
             },
-            rate = playbackSpeed.toDouble(),
+            rate = playbackEngine.playbackRate.toDouble(),
         )
+        DesktopMacMedia.publish(systemPlayback, playbackEngine.playbackRate.toDouble())
     }
-    LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs) {
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, chapterImage) {
         DesktopScrobbling.onPlaybackStateChanged(playback)
-        DesktopWindowsMedia.publish(playback)
+        DesktopWindowsMedia.publish(systemPlayback)
     }
     // Refetched on opening the page rather than cached for the session: the
     // point of it is that something played elsewhere shows up here.
@@ -2047,7 +2072,7 @@ fun CosmotuneDesktopApp() {
     // Keyed on the same things, plus the rate: Discord counts the bar down on
     // its own clock, so only a change to what it was told is worth another push.
     LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed) {
-        DesktopDiscordRpc.onPlaybackStateChanged(playback, playbackSpeed)
+        DesktopDiscordRpc.onPlaybackStateChanged(playback, playbackEngine.playbackRate)
     }
     // The account's own history on YouTube Music, which is what the home feed is built out of.
     DisposableEffect(playback.song?.videoId) {
@@ -2121,6 +2146,7 @@ fun CosmotuneDesktopApp() {
         openedArtist = target
         // An artist opened lately shows as it was while the page is fetched again.
         val remembered = recentArtists[browseId]
+            ?: com.cosmotune.providers.ProviderHub.state.value.library?.savedPage(browseId)?.artistPage()
         artistState = remembered?.let { UiState.Success(it) } ?: UiState.Loading
         artistReloads++
         if (remembered != null) scope.launch {
@@ -2174,13 +2200,8 @@ fun CosmotuneDesktopApp() {
     /** Replay counts artists by name, so the page has to be found from the name alone. */
     fun openArtistByName(name: String) {
         scope.launch {
-            val match = DesktopSearchClient.search(name, SearchFilter.ARTISTS)
-                .getOrDefault(emptyList())
-                .filterIsInstance<SearchResult.Browse>()
-                .map { it.item }
-                .firstOrNull { it.browseId.isNotBlank() }
-                ?: return@launch
-            openArtist(match.browseId, match.title)
+            val id = YtMusicRepository.findArtistPageId(name).getOrNull() ?: return@launch
+            openArtist(id, name)
         }
     }
 
@@ -2188,8 +2209,11 @@ fun CosmotuneDesktopApp() {
         val target = openedArtist ?: return@LaunchedEffect
         if (artistState !is UiState.Loading) return@LaunchedEffect
         DesktopSearchClient.artistPage(target.browseId).fold(
-            onSuccess = { artistState = UiState.Success(it); recentArtists[target.browseId] = it },
-            onFailure = { artistState = UiState.Error(it.message ?: "Could not open ${target.name}") },
+            onSuccess = { page ->
+                recentArtists[target.browseId] = page
+                if (openedArtist == target) artistState = UiState.Success(page)
+            },
+            onFailure = { if (openedArtist == target) artistState = UiState.Error(it.message ?: "Could not open ${target.name}") },
         )
     }
 
@@ -5621,7 +5645,7 @@ private fun DesktopSettingsScreen(
     }
     val settingsQuery = query
     val searching = settingsQuery.isNotBlank()
-    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.23" }
+    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.24" }
     val highlight = remember { com.cosmotune.ui.settings.SettingsHighlight() }
     // The pages the desktop has: a category with none of its settings here (backup is the phone's) is left out of the list.
     val pages = remember {
@@ -5661,6 +5685,14 @@ private fun DesktopSettingsScreen(
                 // pitch) leave theirs off too, so every row on the page is the same.
                 androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.settings.LocalSettingsRowIcons provides false) {
                     SettingsGroup(DesktopStrings["playback", "Playback"]) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.PLAYBACK_START,
+                            com.cosmotune.ui.settings.SoundExtrasText.PLAYBACK_START_LINE)) {
+                        val policyStore = remember { DesktopPersistence() }
+                        var startPolicy by remember { mutableStateOf(policyStore.playbackStartPolicy()) }
+                        com.cosmotune.ui.settings.PlaybackStartPolicyRows(startPolicy) { policy ->
+                            policyStore.savePlaybackStartPolicy(policy); startPolicy = policy
+                        }
+                    }
                     if (!automix) {
                         if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
                         Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 10.dp)) {
@@ -6750,7 +6782,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.23" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.24" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )

@@ -35,6 +35,7 @@ internal fun OrbitMotionDisc(
     modifier: Modifier = Modifier,
     overStill: String? = null,
     onMoving: (Boolean) -> Unit = {},
+    identity: String? = still,
 ) {
     val moving by rememberUpdatedState(onMoving)
     var rendered by remember(clip) { mutableStateOf(false) }
@@ -42,8 +43,9 @@ internal fun OrbitMotionDisc(
     LaunchedEffect(showing, rendered) { moving(showing && rendered) }
     Box(modifier.size(size).clip(CircleShape)) {
         Disc(still, size)
+        com.cosmotune.ui.pages.RetainedArtistImage(still, identity, Modifier.fillMaxSize())
         overStill?.takeIf { it.isNotBlank() && it != still }?.let { hero ->
-            AsyncImage(hero, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            com.cosmotune.ui.pages.RetainedArtistImage(hero, identity?.plus(":hero"), Modifier.fillMaxSize())
         }
         if (showing && clip != null) {
             CanvasArtworkPlayer(

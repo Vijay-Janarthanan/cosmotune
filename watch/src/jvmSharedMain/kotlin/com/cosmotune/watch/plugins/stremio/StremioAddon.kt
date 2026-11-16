@@ -12,6 +12,7 @@ import com.cosmotune.watch.http.strings
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /** One resource of a manifest (`stream`, `meta`, `catalog`, `subtitles`), optionally narrowed to types and id prefixes. */
 data class StremioResource(val name: String, val types: List<String>?, val idPrefixes: List<String>?)
@@ -33,11 +34,11 @@ data class StremioManifest(
     val adult: Boolean,
 ) {
     fun supports(resource: String, type: String, id: String? = null): Boolean {
-        val r = resources.firstOrNull { it.name == resource } ?: return false
-        val types = r.types ?: this.types
-        if (type !in types) return false
-        val prefixes = r.idPrefixes ?: idPrefixes
-        return id == null || prefixes.isNullOrEmpty() || prefixes.any { id.startsWith(it) }
+        return resources.filter { it.name == resource }.any { r ->
+            val types = r.types ?: this.types
+            val prefixes = r.idPrefixes ?: idPrefixes
+            type in types && (id == null || prefixes.isNullOrEmpty() || prefixes.any { id.startsWith(it) })
+        }
     }
 
     /** "Films", "Series", "Live TV", "Subtitles", "Catalogues", for the Install sheet. */
@@ -81,20 +82,22 @@ data class StremioManifest(
  */
 class StremioClient(private val http: WatchHttp, manifestUrl: String) {
     val manifestUrl: String = normalise(manifestUrl)
-    val base: String = this.manifestUrl.removeSuffix("/manifest.json")
+    private val manifestAddress = this.manifestUrl.toHttpUrl()
+    val base: String = manifestAddress.newBuilder().query(null).fragment(null).build().toString().removeSuffix("/manifest.json")
+    private fun resource(path: String): String = (base + path).toHttpUrl().newBuilder().encodedQuery(manifestAddress.encodedQuery).build().toString()
 
     suspend fun manifest(ttlMs: Long = 6 * WatchHttp.HOUR): StremioManifest = StremioManifest.parse(http.getJson(manifestUrl, ttlMs = ttlMs))
 
     suspend fun catalog(type: String, id: String, extra: Map<String, String> = emptyMap()): List<JsonElement> =
-        http.getJson("$base/catalog/$type/${seg(id)}${extraPath(extra)}.json", ttlMs = WatchHttp.HOUR).list("metas")
+        http.getJson(resource("/catalog/${seg(type)}/${seg(id)}${extraPath(extra)}.json"), ttlMs = WatchHttp.HOUR).list("metas")
 
-    suspend fun meta(type: String, id: String): JsonElement? = http.getJson("$base/meta/$type/${seg(id)}.json", ttlMs = 6 * WatchHttp.HOUR).child("meta")
+    suspend fun meta(type: String, id: String): JsonElement? = http.getJson(resource("/meta/${seg(type)}/${seg(id)}.json"), ttlMs = 6 * WatchHttp.HOUR).child("meta")
 
     suspend fun streams(type: String, id: String): List<JsonElement> =
-        http.getJson("$base/stream/$type/${seg(id)}.json", ttlMs = 10 * 60_000L).list("streams")
+        http.getJson(resource("/stream/${seg(type)}/${seg(id)}.json"), ttlMs = 10 * 60_000L).list("streams")
 
     suspend fun subtitles(type: String, id: String, extra: Map<String, String> = emptyMap()): List<JsonElement> =
-        http.getJson("$base/subtitles/$type/${seg(id)}${extraPath(extra)}.json", ttlMs = WatchHttp.HOUR).list("subtitles")
+        http.getJson(resource("/subtitles/${seg(type)}/${seg(id)}${extraPath(extra)}.json"), ttlMs = WatchHttp.HOUR).list("subtitles")
 
     private fun seg(id: String) = id.urlSegment()
     private fun extraPath(extra: Map<String, String>) =
@@ -104,10 +107,13 @@ class StremioClient(private val http: WatchHttp, manifestUrl: String) {
         /** `stremio://host/x/manifest.json` and plain https links, with or without `/manifest.json`, to one https form. */
         fun normalise(link: String): String {
             var url = link.trim()
-            if (url.startsWith("stremio://")) url = "https://" + url.removePrefix("stremio://")
-            if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://$url"
-            url = url.substringBefore('#').trimEnd('/')
-            return if (url.endsWith("/manifest.json")) url else "$url/manifest.json"
+            if (url.startsWith("stremio://", true)) url = "https://" + url.substringAfter("://")
+            if (!Regex("^[A-Za-z][A-Za-z0-9+.-]*:/").containsMatchIn(url) && !url.startsWith("//")) url = "https://$url"
+            val normalized = requireNotNull(com.cosmotune.watch.plugins.SourceAddress.parse(url)) { "Use a valid HTTP or HTTPS add-on address." }
+            require(normalized.headers.isEmpty() && '|' !in url) { "Add-on installation links cannot contain inline request headers." }
+            val parsed = normalized.url.toHttpUrl()
+            val path = parsed.encodedPath.trimEnd('/')
+            return parsed.newBuilder().encodedPath(if (path.endsWith("/manifest.json")) path else "$path/manifest.json").fragment(null).build().toString()
         }
 
         private fun String.urlSegment(): String = java.net.URLEncoder.encode(this, "UTF-8").replace("+", "%20").replace("%3A", ":")

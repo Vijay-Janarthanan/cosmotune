@@ -40,7 +40,9 @@ data class DesktopDownloadItem(
     /** The order it was asked for in, which is the order the queue reaches it in. */
     val sequence: Long,
     val quality: String = "LOSSLESS",
-)
+) {
+    val jobId: String get() = com.cosmotune.music.data.downloads.ProviderDownloadChoice.jobId(song.videoId, quality)
+}
 
 /**
  * The download queue, and what came out of it.
@@ -89,7 +91,7 @@ object DesktopDownloadQueue {
                 sequence.updateAndGet { maxOf(it, entry.sequence) }
                 DesktopDownloadItem(entry.track.song(), DesktopDownloadState.Failed(entry.error ?: "Interrupted download. Retry to resume."), entry.sequence, entry.quality)
             }
-            _active.update { old -> recovered.associateBy { it.song.videoId } + old }
+            _active.update { old -> recovered.associateBy { it.jobId } + old }
         }
     }
 
@@ -116,13 +118,12 @@ object DesktopDownloadQueue {
     /** [quality] overrides the saved/default rung (the library's "Get lossless copies"); true when queued. */
     fun enqueue(song: Song, quality: String?): Boolean {
         synchronized(lock) {
-        val id = song.videoId
+        val requested = quality ?: journal?.entries?.value?.find { it.track.id == song.videoId && com.cosmotune.music.data.downloads.ProviderDownloadChoice.parse(it.quality) == null }?.quality ?: defaultQuality()
+        val id = com.cosmotune.music.data.downloads.ProviderDownloadChoice.jobId(song.videoId, requested)
         if (id.isBlank()) return false
         val item = synchronized(lock) {
             if (id in pending || id in running) return false
-            val quality = quality ?: journal?.entries?.value?.find { it.track.id == id }?.quality
-                ?: defaultQuality()
-            DesktopDownloadItem(song, DesktopDownloadState.Queued, sequence.incrementAndGet(), quality)
+            DesktopDownloadItem(song, DesktopDownloadState.Queued, sequence.incrementAndGet(), requested)
                 .also { pending[id] = it }
         }
         _active.update { it + (id to item) }
@@ -161,10 +162,11 @@ object DesktopDownloadQueue {
     }
 
     fun cancelAll() = _active.value.keys.toList().forEach(::cancel)
+    fun cancelTrack(trackId: String) = _active.value.filterValues { it.song.videoId == trackId }.keys.toList().forEach(::cancel)
 
     /** Drops the finished and failed rows, leaving whatever is still going. */
     fun clearFinished() {
-        _active.value.values.filter { it.state is DesktopDownloadState.Failed }.forEach { journal?.remove(it.song.videoId, it.sequence) }
+        _active.value.values.filter { it.state is DesktopDownloadState.Failed }.forEach { journal?.remove(it.jobId, it.sequence) }
         _active.update { current ->
             current.filterValues { it.state !is DesktopDownloadState.Failed }
         }
@@ -191,9 +193,9 @@ object DesktopDownloadQueue {
 
     /** Puts a failed track back at the end of the queue. */
     fun retry(videoId: String) {
-        val song = _active.value[videoId]?.song ?: return
+        val item = _active.value[videoId] ?: return
         _active.update { it - videoId }
-        enqueue(song)
+        enqueue(item.song, item.quality)
     }
 
     private fun ensureWorkers() {
@@ -212,7 +214,7 @@ object DesktopDownloadQueue {
         try {
             while (true) {
                 val item = takeNext() ?: return
-                val id = item.song.videoId
+                val id = item.jobId
                 _active.update { if (it[id]?.sequence == item.sequence) it + (id to item.copy(state = DesktopDownloadState.Running(0f))) else it }
                 journal?.phase(id, item.sequence, MusicDownloadPhase.RUNNING)
                 val result = supervisorScope { runCatching {

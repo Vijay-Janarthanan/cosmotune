@@ -6,6 +6,31 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class MusicDownloadJournalTest {
+    @Test fun exactProviderQualitiesHaveIndependentDurableJobsAndLateCompletionCannotRemoveAnotherRendition() = runBlocking {
+        val directory = kotlin.io.path.createTempDirectory("music-quality-queue-").toFile()
+        try {
+            val file = File(directory, "queue.json")
+            val song = Song("src:sflx-fixture::same-track", "Song", "Artist", null)
+            val a = ProviderDownloadChoice("fixture", "FLAC_24").encode()
+            val b = ProviderDownloadChoice("fixture", "AAC_320").encode()
+            MusicDownloadJournal(file).use { journal ->
+                journal.enqueue(song, 1, a); journal.enqueue(song, 2, b)
+                journal.enqueue(song, 3, a)
+                assertEquals(2, journal.entries.value.size)
+                journal.remove(ProviderDownloadChoice.jobId(song.videoId, a), 1)
+                journal.phase(ProviderDownloadChoice.jobId(song.videoId, b), 2, MusicDownloadPhase.FAILED, "Retry")
+            }
+            MusicDownloadJournal(file).use { restored ->
+                assertEquals(setOf(a, b), restored.entries.value.map { it.quality }.toSet())
+                assertEquals(2, restored.entries.value.map { it.jobId }.distinct().size)
+                assertEquals(listOf(song.videoId, song.videoId), restored.entries.value.map { it.track.id })
+                assertEquals("Retry", restored.entries.value.find { it.quality == b }?.error)
+            }
+            assertEquals(ProviderDownloadChoice("fixture", "FLAC_24"), ProviderDownloadChoice.parse(a))
+            assertNull(ProviderDownloadChoice.parse("PROVIDER:fixture:!malformed"))
+            assertEquals(song.videoId, ProviderDownloadChoice.jobId(song.videoId, "LOSSLESS"))
+        } finally { directory.listFiles().orEmpty().forEach(File::delete); directory.delete() }
+    }
     @Test fun restartRetainsOrderQualityAndFailuresAndOldCompletionCannotRemoveARetry() = runBlocking {
         val folder = java.nio.file.Files.createTempDirectory("music-queue-").toFile()
         val file = File(folder, "queue.json")

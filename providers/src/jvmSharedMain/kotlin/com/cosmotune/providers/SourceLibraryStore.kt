@@ -81,12 +81,14 @@ class SourceLibraryStore(private val file: File, private val protection: Provide
     suspend fun save(page: SourceCataloguePage, saved: Boolean) {
         require(page.collection.key.kind != "artist") { "Follow this artist instead" }
         val record = snapshot(page)
-        update { old -> old.copy(collections = old.collections.filterNot { it.id == record.id } + if (saved) listOf(record) else emptyList()) }
+        update { old -> old.copy(collections = old.collections.filterNot { it.id == record.id } + if (saved)
+            listOf(record.copy(artwork = record.artwork ?: old.collections.find { it.id == record.id }?.artwork)) else emptyList()) }
     }
     suspend fun follow(page: SourceCataloguePage, followed: Boolean) {
         require(page.collection.key.kind == "artist")
         val record = snapshot(page)
-        update { old -> old.copy(followed = old.followed.filterNot { it.id == record.id } + if (followed) listOf(record) else emptyList()) }
+        update { old -> old.copy(followed = old.followed.filterNot { it.id == record.id } + if (followed)
+            listOf(record.copy(artwork = record.artwork ?: old.followed.find { it.id == record.id }?.artwork)) else emptyList()) }
     }
     fun savedPage(id: String): SourceCataloguePage? = (state.value.collections + state.value.followed).find { it.id == id }?.page()?.copy(fromCache = true)
 

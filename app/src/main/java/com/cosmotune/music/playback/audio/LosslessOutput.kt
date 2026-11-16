@@ -18,13 +18,12 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
- * Whether the phone has an output connected right now that can carry lossless
- * audio — the test behind an addon's `checkValidLossless`.
+ * Whether the phone has an output connected right now accepted by an addon
+ * output requirement — the test behind an addon's `checkValidLossless`.
  *
- * Lossless here means the file's samples reach the listener's converter
- * without being re-encoded into a lossy format first. A cable does that by
- * construction; Bluetooth only does it — or comes close enough that addons
- * asking for this accept it — on a handful of high-bitrate codecs:
+ * This is a source eligibility rule, separate from measured codec/output telemetry.
+ * Cabled routes qualify; some addons also accept high-bitrate Bluetooth codecs.
+ * Their eligibility does not establish lossless transmission or a bit-perfect path:
  *
  *  - **Wired:** 3.5mm headphones or headset, analog/digital line out, aux.
  *  - **USB:** USB-C headphones, USB DACs and USB audio accessories.
@@ -60,7 +59,9 @@ object LosslessOutput {
     val state: StateFlow<State> = _state.asStateFlow()
 
     /** The answer every gate reads. False until [init] has looked. */
-    val capable: Boolean get() = _state.value.capable
+    /** Add-on route eligibility only; accepted Bluetooth codecs do not prove lossless transmission. */
+    val addonEligible: Boolean get() = _state.value.capable
+    val capable: Boolean get() = addonEligible
 
     private var audioManager: AudioManager? = null
     private var tracker: BluetoothAudioTracker? = null
@@ -126,7 +127,7 @@ object LosslessOutput {
         if (cabled != null) return State(capable = true, via = cabled, bluetoothCodec = bluetoothCodec)
         if (AudioDeviceInfo.TYPE_BLUETOOTH_A2DP !in outputTypes) return State()
         if (bluetoothCodec == null) return State(bluetoothCodecUnknown = true)
-        val lossless = isLosslessBluetoothCodec(bluetoothCodec, bluetoothSampleRateHz)
+        val lossless = isEligibleBluetoothCodec(bluetoothCodec, bluetoothSampleRateHz)
         return State(
             capable = lossless,
             via = Kind.BLUETOOTH.takeIf { lossless },
@@ -141,7 +142,7 @@ object LosslessOutput {
      * "UHQ" still counts when it runs at 88.2 kHz or above: UHQ is the only
      * Samsung mode that does.
      */
-    internal fun isLosslessBluetoothCodec(name: String, sampleRateHz: Int? = null): Boolean {
+    internal fun isEligibleBluetoothCodec(name: String, sampleRateHz: Int? = null): Boolean {
         val codec = name.uppercase(Locale.ROOT)
         if ("LDAC" in codec || "LHDC" in codec || ("APTX" in codec && "LOSSLESS" in codec)) return true
         if ("UHQ" in codec) return true

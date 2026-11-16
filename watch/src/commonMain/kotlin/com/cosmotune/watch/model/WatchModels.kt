@@ -21,10 +21,10 @@ value class WatchKey(val value: String) {
     /** The namespace after the kind: `tmdb`, `imdb`, a plugin id. */
     val namespace: String get() = value.split(':').getOrNull(1).orEmpty()
     /** The id inside the namespace (for an episode, the series id). Ids of other kinds may themselves hold colons. */
-    val id: String get() = if (kind == Kind.EPISODE) value.split(':').getOrNull(2).orEmpty()
+    val id: String get() = if (kind == Kind.EPISODE) value.substringAfter(':', "").substringAfter(':', "").substringBeforeLast(':').substringBeforeLast(':')
         else value.substringAfter(':', "").substringAfter(':', "")
-    val season: Int? get() = if (kind == Kind.EPISODE) value.split(':').getOrNull(3)?.toIntOrNull() else null
-    val episode: Int? get() = if (kind == Kind.EPISODE) value.split(':').getOrNull(4)?.toIntOrNull() else null
+    val season: Int? get() = if (kind == Kind.EPISODE) value.substringBeforeLast(':').substringAfterLast(':').toIntOrNull() else null
+    val episode: Int? get() = if (kind == Kind.EPISODE) value.substringAfterLast(':').toIntOrNull() else null
     /** The series of an episode key (`e:tmdb:1399:1:1` gives `s:tmdb:1399`). */
     val seriesKey: WatchKey? get() = if (kind == Kind.EPISODE) series(namespace, id) else null
     override fun toString() = value

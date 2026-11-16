@@ -3,6 +3,8 @@ package com.cosmotune.ui.nowplaying
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -193,7 +195,7 @@ fun CosmoNowPlaying(
     val prefetchCanvasEnabled by PlayerSettings.animatedCanvas.collectAsStateWithLifecycle()
     val prefetchOverCellular by PlayerSettings.canvasOverCellular.collectAsStateWithLifecycle()
     val prefetchMetered by PlayerSettings.meteredConnection.collectAsStateWithLifecycle()
-    LaunchedEffect(song.videoId, queueIndex, queue.size, prefetchCanvasEnabled) {
+    LaunchedEffect(song.videoId, queue.getOrNull(queueIndex + 1)?.videoId, prefetchCanvasEnabled, prefetchOverCellular, prefetchMetered) {
         if (!prefetchCanvasEnabled || (prefetchMetered == true && !prefetchOverCellular)) return@LaunchedEffect
         val upNext = queue.getOrNull(queueIndex + 1)?.takeIf { it.videoId != song.videoId } ?: return@LaunchedEffect
         // Behind the current song's own lookup, which the hosts serialise anyway.
@@ -299,6 +301,9 @@ fun CosmoNowPlaying(
     val screenButton: CardButton? = if (!musicVideo) null else CardButton(
         VIDEO_VIEW_ICON, "How the video is shown", { videoMenuOpen = true }, on = videoMenuOpen, menu = videoMenu, movable = true,
     )
+    val inlineLyrics by com.cosmotune.settings.Extras.settings.inlineLyrics.collectAsStateWithLifecycle()
+    var playerOptionsOpen by remember { mutableStateOf(false) }
+    if (playerOptionsOpen) PlayerOptions(song.videoId, PlayerPlatform.host.bluetoothReconnectSupported, { playerOptionsOpen = false })
     var visualsOpen by rememberSaveable { mutableStateOf(false) }
     if (visualsOpen) LocalVisualsPresentation.current({ visualsOpen = false }) { PlayerVisualsContent(song, { visualsOpen = false }) }
     val together: () -> Unit = { if (inParty) sheets.members = true else onListenTogether() }
@@ -322,6 +327,7 @@ fun CosmoNowPlaying(
     // The rarer actions, in the top row's "more" (the phone adds shuffle and repeat, which its card has no room for).
     val moreItems: (Boolean) -> List<OrbitMenuItem> = { phone ->
         buildList {
+            add(OrbitMenuItem("Player options", "Lyrics, song speed and playback behavior", CosmoIcons.Equaliser) { playerOptionsOpen = true })
             add(OrbitMenuItem("Song options", "Playlists, sharing, quality and the rest", CosmoIcons.MoreVertical, onClick = onOpenMenu))
             // Says what is left while one runs ("23:41 left"), rather than going quiet once it is set.
             if (SleepTimerUi.control != null) {
@@ -416,6 +422,10 @@ fun CosmoNowPlaying(
 
     // The wide page (board sections 1 and 3): the top row with the chips, the video or the record over the song card on the
     // left, the chosen panel on the right. The chips are the panel; one always shows.
+    val inlinePreview: @Composable (Modifier) -> Unit = { m ->
+        CosmoLyricsView(lyrics.orEmpty(), lyricsTranslation.subLines, song.videoId, lyricsPlayhead, isPlaying && position.advancing,
+            seekToLyric, LyricsStyle(TypeScale.BODY, 1f, 0.9f), modifier = m, topPadding = 8.dp)
+    }
     val widePage: @Composable BoxScope.() -> Unit = {
         NowPlayingWide(
             hazeState = playerHaze, video = musicVideo && !videoHidden,
@@ -428,14 +438,17 @@ fun CosmoNowPlaying(
             },
             media = { m -> pageMedia(m, 34.dp, 440.dp, false) },
             card = { m, wideCard ->
+                Column(m) {
                 NowPlayingSongCard(
-                    transport, orbitType, orbitInk, modifier = m, wide = wideCard, showLine = wideCard, format = true, volume = true,
+                    transport, orbitType, orbitInk, modifier = Modifier.fillMaxWidth(), wide = wideCard, showLine = wideCard, format = true, volume = true,
                     buttons = listOfNotNull(
                         CardButton(CosmoIcons.Shuffle, if (shuffleEnabled) "Shuffle on" else "Shuffle off", onToggleShuffle, on = shuffleEnabled, movable = true),
                         CardButton(if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, repeatLabel(repeatMode), onCycleRepeat, on = repeatMode != RepeatModes.OFF, movable = true),
                         previousButton, nextButton, likeButton, screenButton,
                     ),
                 )
+                if (inlineLyrics && panels.widePanel != NowPlayingPanel.LYRICS && windowHeight >= 620.dp && !lyrics.isNullOrEmpty()) inlinePreview(Modifier.fillMaxWidth().height(128.dp))
+                }
             },
             panel = { m ->
                 NowPlayingPanelSwitch(
@@ -468,10 +481,13 @@ fun CosmoNowPlaying(
         )
     }
     val phoneCard: @Composable (Modifier) -> Unit = { m ->
+        Column(m) {
         NowPlayingSongCard(
-            transport, orbitType, orbitInk, modifier = m, showLine = wantVideo || panelOpen, buttonSize = 44.dp,
+            transport, orbitType, orbitInk, modifier = Modifier.fillMaxWidth(), showLine = wantVideo || panelOpen, buttonSize = 44.dp,
             buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton),
         )
+        if (inlineLyrics && !panelOpen && !landscape && windowHeight >= 620.dp && !lyrics.isNullOrEmpty()) inlinePreview(Modifier.fillMaxWidth().height(128.dp))
+        }
     }
     val phoneChips: @Composable (Modifier) -> Unit = { m -> PhoneChips(panels.panel, { panels.panel = it }, orbitType, orbitInk, m, status = { statusChips(false) }) }
     val phonePage: @Composable BoxScope.() -> Unit = {

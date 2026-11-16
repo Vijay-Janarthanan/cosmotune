@@ -123,3 +123,12 @@ elseif(MSVC)
     # The WinRT umbrella import library.
     target_link_libraries(cosmotune_smtc PRIVATE windowsapp gdi32)
 endif()
+
+option(COSMOTUNE_SMTC_ARTWORK_TEST "Build the Windows local-artwork stream smoke test" OFF)
+if(WIN32 AND COSMOTUNE_SMTC_ARTWORK_TEST)
+    add_executable(cosmotune_smtc_artwork_test ${CMAKE_CURRENT_SOURCE_DIR}/smtc/local_artwork_test.cpp)
+    target_link_libraries(cosmotune_smtc_artwork_test PRIVATE runtimeobject ole32)
+    if(MINGW)
+        target_link_options(cosmotune_smtc_artwork_test PRIVATE -static -static-libgcc -static-libstdc++)
+    endif()
+endif()

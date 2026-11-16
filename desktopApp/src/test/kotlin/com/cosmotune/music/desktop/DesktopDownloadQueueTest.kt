@@ -43,6 +43,26 @@ class DesktopDownloadQueueTest {
     private fun journalFile(): java.io.File =
         kotlin.io.path.createTempDirectory("cosmotune-queue-").toFile().also { it.deleteOnExit() }.resolve("queue.json")
 
+    @Test fun `manifest choices create independent jobs while a repeated tap stays duplicate safe`() = runBlocking {
+        val release = CompletableDeferred<Unit>()
+        val started = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        DesktopDownloadQueue.transfer = { song, quality, _ -> started += quality; release.await(); Result.success(song) }
+        val track = song("src:sflx-fixture::same")
+        val first = com.cosmotune.music.data.downloads.ProviderDownloadChoice("fixture", "FLAC_24").encode()
+        val second = com.cosmotune.music.data.downloads.ProviderDownloadChoice("fixture", "AAC_320").encode()
+        assertTrue(DesktopDownloadQueue.enqueue(track, first))
+        assertFalse(DesktopDownloadQueue.enqueue(track, first))
+        assertTrue(DesktopDownloadQueue.enqueue(track, second))
+        withTimeout(5_000) { while (started.size < 2) delay(10) }
+        assertEquals(2, DesktopDownloadQueue.active.value.size)
+        val firstId = com.cosmotune.music.data.downloads.ProviderDownloadChoice.jobId(track.videoId, first)
+        DesktopDownloadQueue.cancel(firstId)
+        assertEquals(listOf(second), DesktopDownloadQueue.active.value.values.map { it.quality })
+        release.complete(Unit)
+        withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
+        assertTrue(DesktopDownloadQueue.active.value.isEmpty())
+    }
+
     @Test fun `a failed transfer stays visible with its reason, is saved, and Retry keeps its quality`() = runBlocking {
         val file = journalFile()
         DesktopDownloadQueue.restore(file)

@@ -117,4 +117,11 @@ class DeliveredAudioTest {
         assertEquals("AAC · 256 kbps", verifiedDownloadLabel("AAC · 256 kbps", DeliveredAudio.inspect(mp4("mp4a"))))
         assertFailsWith<IllegalStateException> { verifiedDownloadLabel("FLAC", DeliveredAudio.inspect("<html>".toByteArray())) }
     }
+    @Test fun spatialDownloadClaimsAreRejectedWhenBytesAreAacOrUnverified() {
+        assertEquals("AAC", verifiedDownloadLabel("DOLBY", DeliveredAudio.inspect(mp4("mp4a"))))
+        assertNull(verifiedDownloadLabel("ATMOS", DeliveredAudio("mp4", null, null)))
+        assertNull(verifiedDownloadLabel("DOLBY", null))
+        assertEquals("DOLBY", verifiedDownloadLabel("ATMOS", DeliveredAudio.inspect(mp4("ec-3", 48_000))))
+    }
+
 }

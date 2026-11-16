@@ -192,7 +192,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         val env = PodioEnv(saved, playback, downloadedEpisodes, episodeDownloadStatus, episodeDownloadsRunning, bottom,
             // The rail carries the account (or the way back to Music) on a tablet; the page's head does elsewhere.
             onMusic.takeIf { compact || !showNavigation },
-            ::chooseSection, wide = !compact, onToggle = onToggle, head = head)
+            ::chooseSection, wide = !compact, onToggle = onToggle, head = head, onSeek = onSeek)
         // The player bar along the foot of the wide layouts: an episode anywhere; a station where no page shows its card.
         val stationCardShown = live && (detailOpen && playingStation != null ||
             (section == PodioSection.RADIO || section == PodioSection.GLOBE) && !m.searching && m.requestedFeed == null)

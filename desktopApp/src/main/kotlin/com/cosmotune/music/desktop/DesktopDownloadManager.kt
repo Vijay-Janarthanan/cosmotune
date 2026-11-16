@@ -24,7 +24,8 @@ object DesktopDownloadManager {
         directoryOverride: Path? = null,
     ): Result<Song> {
         val job = currentCoroutineContext()[Job]
-        if (job != null) activeJobs[song.videoId] = job
+        val jobId = com.cosmotune.music.data.downloads.ProviderDownloadChoice.jobId(song.videoId, quality)
+        if (job != null) activeJobs[jobId] = job
         return try {
             require(song.localPath == null) { "This track is already local" }
             val stream = DesktopMusicSources.resolve(song, quality, forDownload = true).getOrThrow()
@@ -77,7 +78,7 @@ object DesktopDownloadManager {
         } catch (failure: Throwable) {
             Result.failure(failure)
         } finally {
-            if (job != null) activeJobs.remove(song.videoId, job)
+            if (job != null) activeJobs.remove(jobId, job)
         }
     }
 

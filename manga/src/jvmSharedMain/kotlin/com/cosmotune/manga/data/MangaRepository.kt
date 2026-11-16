@@ -14,11 +14,13 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -36,6 +38,32 @@ class MangaRepository(val store: MangaStore,
     private val pageCache = File(store.root, "cache/network").apply { mkdirs() }
     private val changes = MutableStateFlow(0L)
     val sourceChanges = changes.asStateFlow()
+    private val parserScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    init {
+        parserScope.launch {
+            context.parserUpdates.bundle.collect { synchronized(this@MangaRepository) {
+                sources.entries.removeAll { it.value.first.kind == "kotatsu" }
+                changes.value++
+            } }
+        }
+    }
+    fun refreshParsers() {
+        if (store.state.value.parserAutoUpdates && kotatsuParser == null) parserScope.launch { context.parserUpdates.check() }
+    }
+
+    private suspend fun <T> parserRequest(id: String, block: suspend () -> T): T {
+        context.parserUpdates.awaitReady()
+        try { return block() }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            if (!id.startsWith("kotatsu:") || !store.state.value.parserAutoUpdates || kotatsuParser != null) throw failure
+            val previous = context.parsers
+            val updated = context.parserUpdates.check(afterFailure = true)
+            if (!updated && context.parsers === previous) throw failure
+            invalidateSource(id)
+            return block()
+        }
+    }
     internal var cacheClock: () -> Long = System::currentTimeMillis
     private data class BrowseKey(val source: MangaSourceConfig, val query: String, val offset: Int, val revision: Long)
     private data class PagesKey(val source: MangaSourceConfig, val chapter: MangaChapter, val revision: Long)
@@ -69,7 +97,7 @@ class MangaRepository(val store: MangaStore,
 
     @Synchronized fun source(id: String): MangaSource {
         val config = enabledConfig(id)
-        sources[id]?.takeIf { it.first == config }?.let { return it.second }
+        sources[id]?.takeIf { it.first == config && ((it.second as? KotatsuSource)?.bundle?.let { bundle -> bundle === context.parsers } != false) }?.let { return it.second }
         if (sources[id] != null) { context.verification.reset(id); verificationConfigs.remove(id) }
         val source = sourceApi { when (config.kind) {
             "kotatsu" -> KotatsuSource(config, context, kotatsuParser?.invoke(config, context))
@@ -84,7 +112,8 @@ class MangaRepository(val store: MangaStore,
     }
 
     suspend fun chapters(book: MangaBook): MangaBook = withContext(Dispatchers.IO) {
-        val detail = sourceApi { if (book.sourceId == "local") book else source(book.sourceId).details(book) }
+        if (book.sourceId.startsWith("kotatsu:")) refreshParsers()
+        val detail = parserRequest(book.sourceId) { sourceApi { if (book.sourceId == "local") book else source(book.sourceId).details(book) } }
         if (store.state.value.books.any { it.id == book.id }) store.save(detail)
         detail
     }
@@ -95,7 +124,7 @@ class MangaRepository(val store: MangaStore,
         if (chapter.sourceId == "local") return@withContext store.archives.chapterPages(chapter)
         val config = enabledConfig(chapter.sourceId)
         pageLists.get(PagesKey(config, chapter, sourceChanges.value), refresh) {
-            val result = sourceApi { source(chapter.sourceId).pages(chapter) }
+            val result = parserRequest(chapter.sourceId) { sourceApi { source(chapter.sourceId).pages(chapter) } }
             check(enabledConfig(chapter.sourceId) == config) { "The source settings changed. Reload the chapter." }
             result
         }
@@ -104,14 +133,14 @@ class MangaRepository(val store: MangaStore,
     suspend fun browse(sourceId: String, query: String, offset: Int): MangaBrowsePage = withContext(Dispatchers.IO) {
         val config = enabledConfig(sourceId)
         catalogues.get(BrowseKey(config, query, offset, sourceChanges.value)) {
-            val result = sourceApi { source(sourceId).browse(query, offset) }
+            val result = parserRequest(sourceId) { sourceApi { source(sourceId).browse(query, offset) } }
             check(enabledConfig(sourceId) == config) { "The source settings changed. Reload the catalogue." }
             result
         }
     }
 
     /** The catalogue languages of a multi-language source; empty when the source has one language. */
-    suspend fun languages(sourceId: String): List<String> = withContext(Dispatchers.IO) { sourceApi { source(sourceId).languages() } }
+    suspend fun languages(sourceId: String): List<String> = withContext(Dispatchers.IO) { parserRequest(sourceId) { sourceApi { source(sourceId).languages() } } }
 
     /** Chooses a multi-language source's catalogue language ("" for its default); the catalogue reloads with the new configuration. */
     suspend fun chooseLanguage(sourceId: String, language: String) {
@@ -204,7 +233,7 @@ class MangaRepository(val store: MangaStore,
             gate.withPermit {
                 val outcome: Result<Int> = try {
                     Result.success(withTimeout(UPDATE_TIMEOUT_MS) {
-                        val detail = withContext(Dispatchers.IO) { sourceApi { source(book.sourceId).details(book) } }
+                        val detail = withContext(Dispatchers.IO) { parserRequest(book.sourceId) { sourceApi { source(book.sourceId).details(book) } } }
                         store.refreshed(detail)
                     })
                 } catch (timeout: TimeoutCancellationException) { Result.failure(IllegalStateException("The source did not answer in time", timeout)) }

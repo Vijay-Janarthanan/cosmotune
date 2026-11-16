@@ -2,6 +2,7 @@ package com.cosmotune.music.playback
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +60,9 @@ class PlaybackPosition {
      * playing — the desktop engine does, because its "playing" also drives Listen Together.
      */
     var advancing by mutableStateOf(true)
+
+    /** The decoder rate; unrelated to pitch and retained for rings between dated reports. */
+    var rate by mutableFloatStateOf(1f)
 
     /**
      * Records a reading of the playhead and when it was taken. Pass

@@ -223,6 +223,15 @@ val LOSSLESS_LABELS = setOf("LOSSLESS", "HI-RES", "HIRES", "FLAC", "ALAC", "WAV"
 fun verifiedDownloadLabel(claimed: String?, delivered: DeliveredAudio?,
                           claimedLossless: Boolean = claimed?.uppercase() in LOSSLESS_LABELS): String? {
     val honest = honestQuality(claimedLossless, delivered)
+    // A spatial tier cannot survive AAC/unknown bytes. E-AC-3 proves Dolby encoding,
+    // while the generic DOLBY badge deliberately makes no JOC/object-rendering claim.
+    if (claimed?.uppercase() in setOf("DOLBY", "ATMOS", "DOLBY ATMOS")) {
+        return when (delivered?.codec) {
+            "eac3", "eac3-joc", "ac3", "ac4" -> "DOLBY"
+            else -> if (delivered?.audio == false) throw IllegalStateException("The source sent a web page instead of audio")
+                else delivered?.codec?.uppercase()
+        }
+    }
     return when (honest.evidence) {
         QualityEvidence.NOT_AUDIO -> throw IllegalStateException("The source sent a web page instead of audio")
         QualityEvidence.VERIFIED_LOSSLESS -> honest.sourceQuality

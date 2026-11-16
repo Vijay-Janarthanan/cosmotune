@@ -60,6 +60,7 @@ import com.cosmotune.music.data.settings.SearchHistory
 import com.cosmotune.music.download.Downloads
 import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -731,6 +732,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * registered, and people tap again.
      */
     fun setLike(videoId: String, status: LikeStatus, song: Song? = null) {
+        if (com.cosmotune.music.data.LocalFileRatings.owns(videoId)) {
+            val previous = likeStatusOf(videoId)
+            LikeState.set(videoId, status)
+            viewModelScope.launch {
+                try { withContext(Dispatchers.IO) {
+                    com.cosmotune.music.data.LocalFileRatings(java.io.File(getApplication<Application>().filesDir, "local-file-ratings.json")).set(videoId, status)
+                } } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) {
+                    LikeState.set(videoId, previous)
+                    com.cosmotune.music.ui.player.PlayerPlatform.host.showMessage("The local rating could not be saved. Check storage.")
+                }
+            }
+            return
+        }
         fun learnConfirmed() {
             if (likeStatusOf(videoId) != status) return
             song?.takeIf { it.videoId == videoId }?.let {
@@ -2769,7 +2784,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val resolved = browseTypeOf(browseId, type)
         // A page opened lately comes back as it was, at once; its listing is fetched again behind it and swapped in.
+        val savedSource = com.cosmotune.providers.ProviderHub.state.value.library?.savedPage(browseId)
+        savedSource?.let { sourcePages.put(browseId, it) }
         val remembered = recentDetail.get(browseId)?.takeIf { it.songs is UiState.Success }
+            ?: savedSource?.let { saved -> DetailPage(browseId = browseId, title = saved.collection.title,
+                subtitle = saved.collection.subtitle, thumbnailUrl = saved.collection.artwork,
+                songs = UiState.Success(saved.songs), sections = saved.shelves, type = resolved) }
         _detailStack.value += remembered ?: DetailPage(
             browseId = browseId,
             title = title,

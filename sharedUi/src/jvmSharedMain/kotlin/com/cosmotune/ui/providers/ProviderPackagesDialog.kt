@@ -248,6 +248,9 @@ private fun ColumnScope.ProviderPackageContent(manager: ProviderManager,
                         }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
                             ProviderButton("Details", { details = installed }, enabled = !busy)
+                            if (installed.enabled && failures[installed.manifest.name] != null) ProviderButton("Try again",
+                                { run { manager.retryProvider(installed.manifest.name) } }, enabled = !busy,
+                                modifier = Modifier.testTag("provider:${installed.manifest.name}:retry"))
                             if (installed.manifest.serviceHealth.isNotEmpty()) ProviderButton("Check services", { run {
                                 manager.serviceHealth.check(installed, force = true)
                             } }, enabled = !busy && installed.enabled, modifier = Modifier.testTag("provider:${installed.manifest.name}:health"))

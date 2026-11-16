@@ -19,6 +19,8 @@ The [current 20-repository review](docs/UPSTREAM_REVIEW_2026-11-02.md) compares 
 
 ## Current integration audit
 
+The [16 November review](docs/UPSTREAM_REVIEW_2026-11-16.md) compares 24 tracked/reference repositories against their last reviewed pins, with [full commit heads](docs/UPSTREAM_SNAPSHOT_2026-11-16.json). Thirteen advanced. Selected compatible behaviors are implemented for [1.0.24](docs/releases/1.0.24.md), with per-area evidence linked from the review. This does not change the complete-merge baseline or claim every upstream commit was imported.
+
 The [9 November review](docs/UPSTREAM_REVIEW_2026-11-09.md) checks the same 20 branches against the 2 November snapshot, plus OpenCanvas separately.
 
 The [28 October delta review](docs/UPSTREAM_REVIEW_2026-10-28.md) inspected current upstream main `04a4a83889bb8fa5bd6ee6f6097f0c6608671d68`, 104 commits beyond the prior review pin. This is a review, not a merge. Upstream has removed its desktop app in favor of the web player; Cosmotune retains its native desktop implementation. New native correctness fixes and browser Automix/menu/lyrics changes are recorded separately from the historical selected integration below.

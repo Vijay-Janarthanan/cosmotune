@@ -23,9 +23,10 @@ class ProviderPreparedStreamTest {
     /** A small FLAC-signature payload: the container is read from the bytes, not the suffix. */
     private val audio = ByteArray(60_000) { (it % 251).toByte() }.also { "fLaC".toByteArray().copyInto(it) }
 
-    private fun packageBytes(suffix: String, filePermission: Boolean = true, directStub: Boolean = false, requiresProcessing: Boolean = false): ByteArray = ByteArrayOutputStream().use { output ->
+    private fun packageBytes(suffix: String, filePermission: Boolean = true, directStub: Boolean = false, requiresProcessing: Boolean = false,
+        manifestQuality: String = "LOSSLESS"): ByteArray = ByteArrayOutputStream().use { output ->
         val manifest = """{"name":"fileonly","version":"1.0.0","type":["download_provider"],"permissions":{"network":[],"file":$filePermission},
-            "qualityOptions":[{"id":"LOSSLESS","label":"FLAC","kind":"lossless"}]}"""
+            "qualityOptions":[{"id":"$manifestQuality","label":"FLAC","kind":"lossless"}]}"""
         val encoded = Base64.getEncoder().encodeToString(audio)
         val script = """
             registerExtension({
@@ -33,6 +34,7 @@ class ProviderPreparedStreamTest {
               download:function(trackId,quality,outputPath,onProgress,options){
                 ${if (directStub) "if(typeof onProgress!=='function' || !options || !options.purpose)return {success:false};" else ""}
                 if(trackId!=='track')return {success:false};
+                if(quality!=='$manifestQuality')return {success:false};
                 var path=outputPath.replace(/\.[^.]+$/,'.$suffix');
                 file.writeBytes(path,'$encoded');
                 return {success:true,file_path:path,quality:'FLAC'${if (requiresProcessing) ",decryption:{strategy:'ffmpeg.mov_key',key:'fixture-key'}" else ""}};
@@ -46,6 +48,16 @@ class ProviderPreparedStreamTest {
     }
 
     private val http = OkHttpClient.Builder().callTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
+
+    @Test fun exactManifestQualityReachesTheProviderAndCannotBeUsedAsAPlaybackOverrideOrAfterRemoval() = runBlocking<Unit> {
+        ProviderManager(ProviderStore(temporary.newFolder(), UnsealedProviderFiles)).use { manager ->
+            manager.trust(manager.inspect { packageBytes("flac", manifestQuality = "STUDIO_24").inputStream() })
+            val stream = manager.stream("fileonly", "track", forDownload = true, providerQualityId = "STUDIO_24")
+            http.newCall(Request.Builder().url(stream.url).build()).execute().use { response -> assertContentEquals(audio, response.body.bytes()) }
+            assertFailsWith<IllegalArgumentException> { manager.stream("fileonly", "track", providerQualityId = "STUDIO_24") }
+            assertFailsWith<IllegalArgumentException> { manager.stream("fileonly", "track", forDownload = true, providerQualityId = "REMOVED") }
+        }
+    }
 
     @Test fun aNullDirectUrlFallsBackToThePreparedFileWithCorrectSdkArguments() = runBlocking<Unit> {
         ProviderManager(ProviderStore(temporary.newFolder(), UnsealedProviderFiles)).use { manager ->

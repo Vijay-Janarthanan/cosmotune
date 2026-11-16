@@ -159,6 +159,8 @@ object AppSettings {
      * default to Lossless; the mobile plan is the user's to budget, not ours
      * to assume.
      */
+    val playbackStartPolicy = MutableStateFlow(com.cosmotune.audio.PlaybackStartPolicy.FAST_START)
+
     val audioQualityWifi = MutableStateFlow(AudioQuality.LOSSLESS)
     val audioQualityCellular = MutableStateFlow(AudioQuality.LOSSLESS)
 
@@ -820,6 +822,7 @@ object AppSettings {
 
     private fun readAll() {
         migrateSingleQuality()
+        playbackStartPolicy.value = com.cosmotune.audio.PlaybackStartPolicy.fromStored(prefs.getString(com.cosmotune.audio.PlaybackStartPolicy.PREFERENCE_KEY, null))
         audioQualityWifi.value = readQuality(KEY_QUALITY_WIFI)
         audioQualityCellular.value = readQuality(KEY_QUALITY_CELLULAR)
         upgradeLengthSlackSeconds.value = prefs.getInt(
@@ -1075,7 +1078,10 @@ object AppSettings {
         runCatching {
             manager.registerDefaultNetworkCallback(
                 object : ConnectivityManager.NetworkCallback() {
-                    override fun onAvailable(network: Network) = refresh()
+                    override fun onAvailable(network: Network) {
+                        refresh()
+                        com.cosmotune.providers.ProviderHub.state.value.manager?.networkRestored()
+                    }
                     override fun onLost(network: Network) = refresh()
                     override fun onCapabilitiesChanged(
                         network: Network,
@@ -1099,6 +1105,11 @@ object AppSettings {
     fun setRepeatMode(value: Int) {
         repeatMode.value = value
         prefs.edit().putInt(KEY_REPEAT_MODE, value).apply()
+    }
+
+    fun setPlaybackStartPolicy(value: com.cosmotune.audio.PlaybackStartPolicy) {
+        playbackStartPolicy.value = value
+        prefs.edit().putString(com.cosmotune.audio.PlaybackStartPolicy.PREFERENCE_KEY, value.name).apply()
     }
 
     fun setAudioQualityWifi(value: AudioQuality) {

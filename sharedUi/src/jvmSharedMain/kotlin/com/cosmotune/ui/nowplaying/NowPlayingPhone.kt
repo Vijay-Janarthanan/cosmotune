@@ -1,5 +1,7 @@
 package com.cosmotune.ui.nowplaying
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -148,7 +150,7 @@ internal fun NowPlayingPhoneLandscape(
         ) {
             media(Modifier.weight(1f).fillMaxHeight())
             Spacer(Modifier.width(20.dp))
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 topRow(Modifier.fillMaxWidth())
                 card(Modifier.fillMaxWidth())
                 chips(Modifier.fillMaxWidth())

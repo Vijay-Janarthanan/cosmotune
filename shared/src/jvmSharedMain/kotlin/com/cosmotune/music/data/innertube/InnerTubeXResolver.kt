@@ -152,7 +152,7 @@ object InnerTubeXResolver {
     }
 
     private val http = HttpClient(OkHttp) {
-        engine { preconfigured = Http.client }
+        engine { preconfigured = Http.client.newBuilder().addInterceptor(YouTubeRequestPolicy).build() }
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefaults = true })
         }
@@ -248,7 +248,7 @@ object InnerTubeXResolver {
             url = stream.audioUrl,
             kbps = (stream.bitrate ?: 0) / 1000,
             mimeType = if (stream.codecs.isNullOrBlank()) mime else "$mime; codecs=\"${stream.codecs}\"",
-            loudnessDb = stream.loudnessDb,
+            loudnessDb = stream.loudnessDb.takeUnless { YouTubeRequestPolicy.isDrcUrl(stream.audioUrl) },
             clientName = stream.clientName,
             profileId = stream.profileId,
             headers = stream.headers,

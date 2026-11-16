@@ -138,7 +138,7 @@ internal object ManifestFile {
                             ?: error("Unreadable FLAC fragment")
                         samples.forEach {
                             out.write(segment, it.offset, it.size)
-                            ticks += it.duration
+                            ticks = Math.addExact(ticks, it.duration)
                         }
                     }
                 }
@@ -148,7 +148,7 @@ internal object ManifestFile {
             val info = blocks.first().second
             val rate = ((info[10].toLong() and 0xFF) shl 12) or ((info[11].toLong() and 0xFF) shl 4) or
                 ((info[12].toLong() and 0xFF) shr 4)
-            val totalSamples = if (timescale > 0 && rate > 0) ticks * rate / timescale else ticks
+            val totalSamples = com.cosmotune.audio.FlacTiming.totalSamples(ticks, rate, timescale)
             info[13] = ((info[13].toInt() and 0xF0) or ((totalSamples shr 32).toInt() and 0x0F)).toByte()
             for (i in 0 until 4) info[14 + i] = (totalSamples shr (8 * (3 - i))).toByte()
 

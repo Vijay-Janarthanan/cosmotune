@@ -57,6 +57,8 @@ class DlnaRenderer(val device: DlnaDevice, private val pollMs: Long = 1_000) {
     @Volatile private var polledAt = now()
     @Volatile private var sawPlaying = false
     @Volatile private var stopping = false
+    @Volatile private var transportEpoch = 0L
+    @Synchronized private fun changeTransport() { transportEpoch++ }
     private var failedPolls = 0
 
     /** Fails when the renderer does not answer, so a dead entry fails here rather than on the first song. */
@@ -78,6 +80,7 @@ class DlnaRenderer(val device: DlnaDevice, private val pollMs: Long = 1_000) {
     }
 
     suspend fun load(media: DlnaMedia, startMs: Long = 0) = withContext(Dispatchers.IO) {
+        changeTransport()
         stopping = true
         runCatching { soap(device.avTransportUrl, AV_TRANSPORT, "Stop", listOf("InstanceID" to "0")) }
         sawPlaying = false
@@ -143,6 +146,7 @@ class DlnaRenderer(val device: DlnaDevice, private val pollMs: Long = 1_000) {
     }
 
     suspend fun close(stopPlayback: Boolean) {
+        changeTransport()
         io.cancel()
         if (!stopPlayback) return
         withContext(Dispatchers.IO) {
@@ -151,10 +155,26 @@ class DlnaRenderer(val device: DlnaDevice, private val pollMs: Long = 1_000) {
         }
     }
 
+    /** Explicit Stop acknowledgement, distinct from cancelling this sender's polling. */
+    suspend fun stopConfirmed(): Boolean = withContext(Dispatchers.IO) {
+        changeTransport()
+        stopping = true
+        try {
+            soap(device.avTransportUrl, AV_TRANSPORT, "Stop", listOf("InstanceID" to "0"))
+            sawPlaying = false
+            stateFlow.update { it.copy(playing = false, buffering = false, finished = false) }
+            true
+        } catch (_: IOException) { false }
+        finally { stopping = false }
+    }
+
     private fun poll() {
+        val epoch = transportEpoch
+        if (stopping) return
         try {
             val transport = transportState()
             val position = soap(device.avTransportUrl, AV_TRANSPORT, "GetPositionInfo", listOf("InstanceID" to "0"))
+            if (epoch != transportEpoch || stopping) return
             failedPolls = 0
             val at = tag(position, "RelTime")?.let(::parseClock)
             val length = tag(position, "TrackDuration")?.let(::parseClock)?.takeIf { it > 0 }
@@ -172,6 +192,7 @@ class DlnaRenderer(val device: DlnaDevice, private val pollMs: Long = 1_000) {
                 )
             }
         } catch (_: IOException) {
+            if (epoch != transportEpoch || stopping) return
             if (++failedPolls >= LOST_AFTER_POLLS) stateFlow.update { it.copy(lost = true, playing = false, buffering = false) }
         }
     }

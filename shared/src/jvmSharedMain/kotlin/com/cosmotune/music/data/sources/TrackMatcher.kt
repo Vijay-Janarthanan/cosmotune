@@ -106,7 +106,7 @@ object TrackMatcher {
 
     /** The title with the packaging taken off, version markers kept. */
     internal fun searchableTitle(title: String, artist: String = ""): String =
-        parseTitle(title, artist).let { (it.words + it.versions).joinToString(" ") }
+        parseTitle(title, artist).let { (it.words + it.versions.map { mark -> mark.removePrefix("language:") }).joinToString(" ") }
 
     /** The first credited artist — who a catalogue is most likely to file the track under. */
     internal fun primaryArtist(artist: String): String =
@@ -155,7 +155,9 @@ object TrackMatcher {
      * because it happens to share a title.
      */
     fun bestOfficialAudioForVideo(candidates: List<Song>, target: Target): Song? {
-        val wanted = parseTitle(target.title, target.artist)
+        val wanted = parseTitle(target.title, target.artist).let { parts ->
+            parts.copy(versions = parts.versions + albumVersionMarkers(target.album).filter { it.startsWith("language:") })
+        }
         if (wanted.core.isEmpty()) return null
         return candidates
             .mapNotNull { candidate ->
@@ -208,7 +210,9 @@ object TrackMatcher {
      * track — still plays what the user asked for.
      */
     fun score(candidate: Song, target: Target): Int? {
-        val wanted = parseTitle(target.title, target.artist)
+        val wanted = parseTitle(target.title, target.artist).let { parts ->
+            parts.copy(versions = parts.versions + albumVersionMarkers(target.album).filter { it.startsWith("language:") })
+        }
         val got = parseTitle(candidate.title, candidate.artist)
         if (wanted.core.isBlank() || got.core.isBlank()) return null
         // Same word, different script: katakana コイコガレ vs romaji
@@ -241,7 +245,7 @@ object TrackMatcher {
         // the release, and adding it would refuse the right row.
         val albumMarks = albumVersionMarkers(candidate.albumName)
         val effectiveVersions = got.versions + (albumMarks intersect NOVOCAL_TAKES) +
-            (albumMarks intersect wanted.versions)
+            (albumMarks intersect wanted.versions) + albumMarks.filter { it.startsWith("language:") }
         if (wanted.versions != effectiveVersions) return null
 
         val creditedArtist = artistScore(target.artist, candidate.artist)
@@ -527,6 +531,11 @@ object TrackMatcher {
             .filter { it.isNotEmpty() }
         if (words.isEmpty()) return
         if (words.joinToString("") in NEUTRAL_SEGMENTS) return
+        val language = words.firstOrNull { it in RECORDING_LANGUAGES }
+        if (language != null && words.all { it in RECORDING_LANGUAGES || it in LANGUAGE_LABEL_WORDS }) {
+            versions += "language:" + language
+            return
+        }
         val marks = words.filter { it in VERSION_WORDS }
         if (marks.isNotEmpty()) {
             versions += marks
@@ -931,6 +940,14 @@ object TrackMatcher {
      * listing of the same one. A title carrying one of these on one side only
      * is refused outright.
      */
+    private val RECORDING_LANGUAGES = setOf(
+        "hindi", "tamil", "telugu", "kannada", "malayalam", "bengali", "marathi", "punjabi", "gujarati",
+        "english", "spanish", "french", "german", "italian", "portuguese", "japanese", "korean", "mandarin",
+        "arabic", "russian", "turkish", "indonesian", "thai", "vietnamese", "sanskrit", "urdu", "nepali",
+        "sindhi", "kashmiri", "konkani", "assamese", "odia", "oriya", "bhojpuri", "maithili", "dogri", "santali", "bodo", "manipuri"
+    )
+    private val LANGUAGE_LABEL_WORDS = setOf("version", "versions", "audio", "dub", "dubbed", "original", "song", "lyrics", "lyric")
+
     private val VERSION_WORDS = setOf(
         "remix", "remixes", "rmx", "refix", "flip", "bootleg", "mashup", "medley",
         "live", "concert", "unplugged", "acoustic", "instrumental", "karaoke",
@@ -939,7 +956,7 @@ object TrackMatcher {
         // remotely the recording anybody asked for.
         "vocals", "vocal", "acapella", "acappella", "backing", "stems", "stem",
         "cover", "demo", "reprise", "remake", "rework", "extended", "edit",
-        "version", "mix", "dub", "vip", "session", "sessions",
+        "version", "mix", "dub", "dubbed", "rerecorded", "rerecording", "vip", "session", "sessions",
         "sped", "slowed", "reverb", "nightcore", "lofi", "orchestral", "symphonic",
         "part", "pt", "chapter",
         // Non-Latin spellings of the same takes. Without these a `カバー` or

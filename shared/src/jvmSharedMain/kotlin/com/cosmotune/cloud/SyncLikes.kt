@@ -26,7 +26,7 @@ object SyncLikes {
      * enough to be a key in a cloud document.
      */
     fun travels(videoId: String): Boolean =
-        videoId.isNotBlank() && videoId.length <= 200 && !videoId.startsWith("local:") && !sourceTrack(videoId)
+        videoId.isNotBlank() && videoId.length <= 200 && !com.cosmotune.music.data.LocalFileRatings.owns(videoId) && !sourceTrack(videoId)
 
     /**
      * Whether an id is a source provider's track. The providers are outside this module, so each app sets this at start (to

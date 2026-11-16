@@ -31,7 +31,7 @@ import kotlin.test.*
  * MG-03: the shared Kotatsu adapter, offline. A fixture parser stands in for a website so the mapping, the source-qualified identities,
  * the language filter, the page request headers and the actionable failures are checked without any third-party network.
  */
-@OptIn(InternalParsersApi::class)
+@OptIn(InternalParsersApi::class, org.koitharu.kotatsu.parsers.DirectParsersAccess::class)
 class KotatsuAdapterTest {
     @get:Rule val temporary = TemporaryFolder()
     private val identity = MangaParserSource.MANGAPLUSPARSER_EN

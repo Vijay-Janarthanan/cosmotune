@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 package com.cosmotune.manga.ui
 
 import com.cosmotune.cache.PageCache
@@ -138,6 +139,7 @@ internal class MangaScope(
 private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, repository: MangaRepository, showAccount: Boolean,
     onReaderVisibility: (Boolean) -> Unit, showNavigation: Boolean) {
     MangaBackgroundUpdates(repository)
+    LaunchedEffect(repository) { repository.refreshParsers() }
     val state by repository.store.state.collectAsState()
     val scope = rememberCoroutineScope()
     var savedTab by rememberSaveable { mutableStateOf(MangaTabs.LIBRARY) }
@@ -169,8 +171,9 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
     // First discovery opens the official publisher catalogue, without a provider setup step.
     LaunchedEffect(navigation.tab == MangaTabs.BROWSE, state.sourceSetupConsidered) {
         if (navigation.tab == MangaTabs.BROWSE && !state.sourceSetupConsidered) {
+            repository.context.parserUpdates.awaitReady()
             try { repository.store.initializeDiscoverySource {
-                KotatsuSource.catalogue().find { it.id == "kotatsu:MANGAPLUSPARSER_EN" }?.let { source -> MangaSourceConfig(source.id, name = source.title, language = source.language) }
+                KotatsuSource.catalogue(repository.context.parsers).find { it.id == "kotatsu:MANGAPLUSPARSER_EN" }?.let { source -> MangaSourceConfig(source.id, name = source.title, language = source.language) }
             } }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { error = failure.message ?: "The catalogue could not be opened" }
@@ -367,7 +370,7 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
     val fresh = mangaUpdates(state).take(3)
     val discovery = state.sources.firstOrNull { it.enabled && MangaSourcePolicy.allowed(it) }
     val unread = state.books.sumOf { book -> book.chapters.count { it.id !in state.readChapters } }
-    LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().testTag("manga:library"), state = grid,
+    LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().readScrollbar(grid.scrollIndicatorState, bottomInset = scope.bottom).testTag("manga:library"), state = grid,
         contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
         horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {

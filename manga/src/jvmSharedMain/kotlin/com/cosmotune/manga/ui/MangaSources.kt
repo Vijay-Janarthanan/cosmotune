@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.cosmotune.manga.ui
 
 import com.cosmotune.ui.orbit.OrbitInputField
@@ -45,7 +46,9 @@ internal fun MangaSources(repository: MangaRepository, bottom: androidx.compose.
     val state by repository.store.state.collectAsState()
     val palette = LocalCosmoColors.current.palette
     val scope = rememberCoroutineScope()
-    val catalogue = remember { KotatsuSource.catalogue() }
+    val activeParsers by repository.context.parserUpdates.bundle.collectAsState()
+    val parserUpdate by repository.context.parserUpdates.status.collectAsState()
+    val catalogue = remember(activeParsers) { KotatsuSource.catalogue(activeParsers) }
     val list = rememberLazyListState()
     val look = orbitLook()
     var query by remember { mutableStateOf("") }
@@ -67,7 +70,7 @@ internal fun MangaSources(repository: MangaRepository, bottom: androidx.compose.
     val shown = catalogue.filter { it.title.contains(query, true) && it.language.contains(language, true) }
     val on = state.sources.count { it.enabled }
     Column(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("manga:sources:list"), state = list, contentPadding = PaddingValues(bottom = bottom)) {
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().readScrollbar(list.scrollIndicatorState, bottomInset = bottom).testTag("manga:sources:list"), state = list, contentPadding = PaddingValues(bottom = bottom)) {
             item(key = "heading") { ReadPageHead(mangaText("Sources"), if (on == 1) mangaText("1 source on") else "$on " + mangaText("sources on")) }
             item(key = "management") {
                 Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -123,6 +126,20 @@ internal fun MangaSources(repository: MangaRepository, bottom: androidx.compose.
                     MangaTemplateControls(repository)
                     MangaVerificationSourcePicker(repository)
                     ReadOverline(mangaText("Backup and updates"), inset = 0.dp)
+                    Text("Built-in parsers · ${parserUpdate.revision}", style = ReadType.rowTitle(), color = Color(palette.textPrimary))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Update sources automatically", style = ReadType.body(), color = Color(palette.textPrimary), modifier = Modifier.weight(1f))
+                        OrbitSwitch(state.parserAutoUpdates, onChange = { enabled -> action {
+                            repository.store.update { it.copy(parserAutoUpdates = enabled) }
+                            if (enabled) repository.refreshParsers()
+                        } }, look = look, label = "Update sources automatically")
+                    }
+                    Text(parserUpdate.message ?: "Parser fixes are verified with Cosmotune's signing key before loading.", style = ReadType.meta(), color = Color(palette.textSecondary))
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ReadButton(if (parserUpdate.busy) "Checking…" else "Check parser updates", enabled = !parserUpdate.busy,
+                            onClick = { action { repository.context.parserUpdates.check(force = true) } }, kind = ReadKind.TONAL)
+                        if (parserUpdate.downloaded) ReadTextButton("Roll back", { action { repository.context.parserUpdates.rollback() } })
+                    }
                     MangaLibraryTools(repository)
                 }
             }

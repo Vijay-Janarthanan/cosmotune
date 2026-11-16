@@ -36,4 +36,13 @@ class DesktopSourceOfferRaceTest {
     @Test fun anEmptyLookupHasNoOffer() = runBlocking {
         assertNull(awaitSourceOffer(emptyList(), 100, ::better) { true })
     }
+    @Test fun bestFirstKeepsCollectingAfterAUsableCopy() = runBlocking {
+        val first = CompletableDeferred<Unit>()
+        val result = awaitSourceOffer(listOf(
+            { first.complete(Unit); aac },
+            { first.await(); flac },
+        ), 2_000, ::better) { false }
+        assertEquals(flac, result)
+    }
+
 }

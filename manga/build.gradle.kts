@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
@@ -9,12 +10,40 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Public verification material only. The private signing key belongs exclusively to the release workflow.
+val parserChannel = Properties().apply {
+    val config = layout.projectDirectory.file("parser-channel.properties").asFile
+    if (config.isFile) config.inputStream().use(::load)
+}
+val generateParserChannel by tasks.registering {
+    val output = layout.buildDirectory.dir("generated/parserChannel/kotlin")
+    val channelUrl = parserChannel.getProperty("url", "")
+    val publicKey = parserChannel.getProperty("publicKey", "")
+    inputs.property("url", channelUrl)
+    inputs.property("publicKey", publicKey)
+    outputs.dir(output)
+    doLast {
+        require(channelUrl.isEmpty() || channelUrl.startsWith("https://")) { "Parser updates require HTTPS." }
+        require(publicKey.isEmpty() || publicKey.matches(Regex("[A-Za-z0-9+/=]+")))
+        val file = output.get().file("com/cosmotune/manga/data/BundledParserChannel.kt").asFile
+        file.parentFile.mkdirs()
+        file.writeText("""
+            package com.cosmotune.manga.data
+            internal object BundledParserChannel {
+                const val URL = "${channelUrl.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$")}"
+                const val PUBLIC_KEY = "$publicKey"
+            }
+        """.trimIndent())
+    }
+}
+
 kotlin {
     androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
     jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
     applyDefaultHierarchyTemplate()
     compilerOptions { freeCompilerArgs.add("-Xexpect-actual-classes") }
     val jvmSharedMain by sourceSets.creating { dependsOn(sourceSets.commonMain.get()) }
+    jvmSharedMain.kotlin.srcDir(generateParserChannel)
     sourceSets.androidMain.get().dependsOn(jvmSharedMain)
     sourceSets.jvmMain.get().dependsOn(jvmSharedMain)
     sourceSets.commonMain.dependencies {
@@ -25,7 +54,7 @@ kotlin {
         implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
     }
     jvmSharedMain.dependencies {
-        api("com.github.clquwu:kotatsu-parsers-redo:68f3fed395")
+        api("com.github.Kotatsu-Redo:kotatsu-parsers-redo:a90648aebd")
     }
     sourceSets.androidMain.dependencies {
         implementation("androidx.work:work-runtime-ktx:2.11.2")

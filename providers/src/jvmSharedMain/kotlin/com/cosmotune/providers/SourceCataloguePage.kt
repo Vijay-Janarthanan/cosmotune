@@ -5,6 +5,12 @@ import com.cosmotune.music.data.model.HomeShelf
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.Song
 
+/** Only the same source-qualified page may supply artwork during a sparse refresh. */
+fun SourceCataloguePage.withSavedArtwork(saved: SourceCataloguePage?): SourceCataloguePage {
+    if (saved == null || saved.collection.key != collection.key || collection.artwork != null) return this
+    return copy(collection = collection.copy(artwork = saved.collection.artwork))
+}
+
 data class SourceCataloguePage(val collection: ProviderCollection, val songs: List<Song>, val fromCache: Boolean = false) {
     val shelves: List<HomeShelf> get() = collection.collections.takeIf { it.isNotEmpty() }?.let { pages ->
         listOf(HomeShelf("Albums", pages.map { page ->

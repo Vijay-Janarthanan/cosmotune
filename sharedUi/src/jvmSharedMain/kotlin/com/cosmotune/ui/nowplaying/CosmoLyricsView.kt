@@ -253,6 +253,7 @@ internal class LyricEnv(
     val style: LyricsStyle,
     val reduced: Boolean,
     val rtl: Boolean,
+    val alignment: com.cosmotune.settings.LyricTextAlignment,
     val selection: LyricSelection,
     val particles: State<Float>?,
     val subReveal: SubRevealState,
@@ -280,6 +281,7 @@ private fun LyricsList(
     val palette = LocalCosmoColors.current.palette      // the palette being shown: changes once per cover
     val ink = remember(palette) { inkOf(palette) }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val alignment by com.cosmotune.settings.Extras.settings.lyricAlignment.collectAsStateWithLifecycle()
 
     // Hoisted from the brief's derived state: whether the song has timings is a fact about the lines, not about the clock.
     val synced = remember(lines) { SungFraction.isSynced(lines) }
@@ -355,11 +357,11 @@ private fun LyricsList(
     val seek by rememberUpdatedState(onSeekToLine)
     val onSeek = remember { { timeMs: Long -> seek(timeMs) } }
     val env = remember(
-        lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, readStyle, subStyle, style, reduced, rtl, selection,
+        lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, readStyle, subStyle, style, reduced, rtl, alignment, selection,
         particles, subReveal, bloom,
     ) {
         LyricEnv(
-            lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, readStyle, subStyle, style, reduced, rtl,
+            lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, readStyle, subStyle, style, reduced, rtl, alignment,
             selection, particles, subReveal, bloom, onSeek,
         )
     }
@@ -466,7 +468,8 @@ private fun LyricItem(index: Int, env: LyricEnv) {
     // alignment and an explicit direction, as the classic view's `voiceStyle`, so placement, wrapping and the sweep agree.
     val textRtl = remember(line.text) { LyricTextDirection.isRtl(line.text) }
     val fromRight = LyricTextDirection.fromRight(textRtl, onEnd)
-    val align = if (fromRight) TextAlign.Right else TextAlign.Left
+    val centered = env.alignment.center(env.duet)
+    val align = if (centered) TextAlign.Center else if (fromRight) TextAlign.Right else TextAlign.Left
     val direction = if (textRtl) TextDirection.Rtl else TextDirection.Ltr
     val restStyle = remember(env.baseStyle, line.text, align, direction) {
         env.type.forText(env.baseStyle.copy(textAlign = align, textDirection = direction), line.text)
@@ -557,7 +560,7 @@ private fun LyricItem(index: Int, env: LyricEnv) {
                 val k = scale.value * dip.value
                 scaleX = k
                 scaleY = k
-                transformOrigin = TransformOrigin(LyricsMetrics.originFraction(onEnd, textRtl), 0.5f)
+                transformOrigin = TransformOrigin(if (centered) 0.5f else LyricsMetrics.originFraction(onEnd, textRtl), 0.5f)
             }
             // Laid out narrow enough that the line still fits the list when it is drawn at its largest scale, and, in a duet,
             // in what is left after the lane kept clear for the other voice; placed against the edge it is written from.
@@ -569,7 +572,7 @@ private fun LyricItem(index: Int, env: LyricEnv) {
                 val reservedHeight = LyricsMetrics.layoutHeightPx(placeable.height, env.style.currentScale)
                 layout(constraints.maxWidth, reservedHeight) {
                     // Absolute, not relative to the app's layout direction: the side is the line's own.
-                    placeable.place(LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, fromRight), (reservedHeight - placeable.height) / 2)
+                    placeable.place(if (centered) (constraints.maxWidth-placeable.width)/2 else LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, fromRight), (reservedHeight - placeable.height) / 2)
                 }
             }
             // The wash is drawn a little outside the line, so that its words are not pressed against its edge.

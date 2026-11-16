@@ -92,6 +92,7 @@ fun CosmoArtistPage(
             val clipboard = LocalClipboardManager.current
             val channel = page.browseId.takeIf { it.startsWith("UC") }
             OrbitArtistPage(
+                artistIdentity = page.browseId,
                 name = page.title,
                 photo = heroUrl ?: page.thumbnailUrl.artworkAt(HEADER_ART_PX),
                 listeners = page.monthlyListenerCount ?: page.subscriberCountText,

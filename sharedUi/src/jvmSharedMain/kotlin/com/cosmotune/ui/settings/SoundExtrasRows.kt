@@ -56,6 +56,8 @@ import kotlinx.coroutines.launch
 
 /** The titles and lines of the rows below, for the hosts' search to register them under. */
 object SoundExtrasText {
+    const val PLAYBACK_START = "Playback start"
+    const val PLAYBACK_START_LINE = "Choose when playback starts and whether a better recording can replace it."
     const val MAX_VOLUME = "Maximum volume"
     const val MAX_VOLUME_LINE = "The loudest Cosmotune plays, whatever the volume is set to. For hearing safety."
     const val PITCH = "Pitch"

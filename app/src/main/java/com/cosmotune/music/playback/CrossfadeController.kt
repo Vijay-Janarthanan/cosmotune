@@ -576,13 +576,17 @@ class CrossfadeController(
     fun isTransitioning(): Boolean = phase != Phase.IDLE
 
     /** Applies the listener's speed without exposing AudioTrack's parameter-change click. */
+    private fun songRate(id: String?): Float = com.cosmotune.settings.SongPlaybackMemory.resolve(id,
+        com.cosmotune.settings.Extras.settings.songPlayback.value, AppSettings.playbackSpeed.value,
+        com.cosmotune.settings.Extras.settings.pitchSemitones.value).speed
+
     fun applyPlaybackSpeed(speed: Float) {
         if (isTransitioning()) return
         // User-controlled speed must track the slider immediately. A previous
         // gain-notch wrapper restarted for every slider emission and sounded
         // like repeated stalls while dragging.
         for (player in listOf(active(), standby()).distinct()) {
-            player.setPlaybackSpeed(speed)
+            player.setPlaybackSpeed(songRate(player.currentMediaItem?.mediaId))
         }
     }
 
@@ -1279,7 +1283,7 @@ class CrossfadeController(
         // Stacks on top of the listener's speed control rather than replacing
         // it, so a beatmatched transition and "play everything at 1.25x" don't
         // fight each other. Undone in [finish].
-        into.setPlaybackSpeed((AppSettings.playbackSpeed.value * incomingPlaybackRate).toFloat())
+        into.setPlaybackSpeed((songRate(items.getOrNull(nextIndex)?.mediaId) * incomingPlaybackRate).toFloat())
         into.volume = 0f
         val setNanos0 = SystemClock.elapsedRealtimeNanos()
         into.setMediaItems(items, nextIndex, incomingCueTimeMs)
@@ -1470,7 +1474,7 @@ class CrossfadeController(
         // on the incoming tempo.
         if (rampSteps > 0 && rampStep < rampSteps) {
             rampStep = rampSteps
-            out.setPlaybackSpeed((AppSettings.playbackSpeed.value * outgoingPlaybackRate).toFloat())
+            out.setPlaybackSpeed((songRate(out.currentMediaItem?.mediaId) * outgoingPlaybackRate).toFloat())
         }
         outgoingAnalysis = out.currentMediaItem?.let(analysisFor) ?: TrackAnalysis()
         incomingAnalysis = into.currentMediaItem?.let(analysisFor) ?: TrackAnalysis()
@@ -1886,7 +1890,7 @@ class CrossfadeController(
                 // is the tempo lurch a DJ never lets anyone hear.
                 // Repeated beat-by-beat ease steps caused a notch on every beat.
                 // One short protected reset is less audible and cannot pump.
-                setPlaybackSpeedClickless(it, AppSettings.playbackSpeed.value)
+                setPlaybackSpeedClickless(it, songRate(it.currentMediaItem?.mediaId))
             }
             outgoing?.let(::retire)
         } else {
@@ -1938,7 +1942,7 @@ class CrossfadeController(
         // the session: a hold left on it would pause every track at its end.
         player.pauseAtEndOfMediaItems = false
         player.volume = 1f
-        player.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+        player.setPlaybackSpeed(songRate(player.currentMediaItem?.mediaId))
     }
 
     // ---- Numbers ------------------------------------------------------------
@@ -2507,7 +2511,7 @@ class CrossfadeController(
         nudgeUntil = now + (abs(median) / (base * abs(factor - 1f)) * 1000).roundToLong().coerceIn(1L, MAX_NUDGE_MS)
     }
 
-    private fun incomingBaseSpeed(): Float = (AppSettings.playbackSpeed.value * incomingPlaybackRate).toFloat()
+    private fun incomingBaseSpeed(): Float = (songRate(standby().currentMediaItem?.mediaId) * incomingPlaybackRate).toFloat()
 
     /**
      * How far the incoming beat sits ahead (positive) or behind the outgoing
@@ -2590,7 +2594,7 @@ class CrossfadeController(
     private fun beginEase(player: ExoPlayer, rate: Double, analysis: TrackAnalysis) {
         val stretch = rate - 1.0
         if (abs(stretch) < EASE_DONE) {
-            player.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+            player.setPlaybackSpeed(songRate(player.currentMediaItem?.mediaId))
             return
         }
         val beat = when {
@@ -2606,7 +2610,7 @@ class CrossfadeController(
         easeNextAtMs = player.currentPosition + easeStepMs
         easing = player
         // Drops any phase-lock nudge still in flight back onto the plain stretch.
-        setPlaybackSpeedClickless(player, (AppSettings.playbackSpeed.value * rate).toFloat())
+        setPlaybackSpeedClickless(player, (songRate(player.currentMediaItem?.mediaId) * rate).toFloat())
     }
 
     /**
@@ -2633,7 +2637,7 @@ class CrossfadeController(
             endEase()
             return
         }
-        setPlaybackSpeedClickless(player, (AppSettings.playbackSpeed.value * easeRate).toFloat())
+        setPlaybackSpeedClickless(player, (songRate(player.currentMediaItem?.mediaId) * easeRate).toFloat())
         easeNextAtMs += easeStepMs
     }
 
@@ -2649,7 +2653,7 @@ class CrossfadeController(
         if (due <= rampStep) return
         rampStep = due
         val rate = 1.0 + (outgoingPlaybackRate - 1.0) * due / rampSteps
-        out.setPlaybackSpeed((AppSettings.playbackSpeed.value * rate).toFloat())
+        out.setPlaybackSpeed((songRate(out.currentMediaItem?.mediaId) * rate).toFloat())
     }
 
     /** Beats a tempo change of [rate] takes at [TEMPO_STEP_PER_BEAT]; 0 for none. */
@@ -2663,12 +2667,12 @@ class CrossfadeController(
         val player = easing ?: return
         easing = null
         if (clickless) {
-            setPlaybackSpeedClickless(player, AppSettings.playbackSpeed.value)
+            setPlaybackSpeedClickless(player, songRate(player.currentMediaItem?.mediaId))
         } else {
             softSpeedJob?.cancel()
             softSpeedJob = null
             player.volume = 1f
-            player.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+            player.setPlaybackSpeed(songRate(player.currentMediaItem?.mediaId))
         }
     }
 

@@ -216,6 +216,7 @@ object StreamResolver {
      */
     private val extractorClient by lazy {
         Http.client.newBuilder()
+            .addInterceptor(YouTubeRequestPolicy)
             // Short, because a connection this app is *not* using is a
             // connection going stale. The observed failure is a request that
             // gets no response at all and dies on the ceiling exactly — twelve
@@ -277,7 +278,7 @@ object StreamResolver {
         return synchronized(sessionLock) {
             checkSession(epoch)
             NerdStats.onStreamPicked(videoId, stream.kbps)
-            stream.loudnessDb?.let { loudness[videoId] = it }
+            if (stream.loudnessDb != null) loudness[videoId] = stream.loudnessDb else loudness.remove(videoId)
             remember(videoId, stream.url)
             stream.url
         }
@@ -1030,7 +1031,10 @@ object StreamResolver {
                     !it.content.isNullOrBlank() &&
                         it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP
                 }
-            val stream = select(candidates.map { it.averageBitrate to it })
+            val recording = candidates.filter { it.audioTrackType == null ||
+                it.audioTrackType == org.schabi.newpipe.extractor.stream.AudioTrackType.ORIGINAL }
+            val originals = recording.filterNot { YouTubeRequestPolicy.isDrcUrl(it.content) }
+            val stream = select(originals.ifEmpty { recording }.map { it.averageBitrate to it })
                 ?: error("Track unavailable: no audio streams")
             TrackLog.d(
                 TAG,

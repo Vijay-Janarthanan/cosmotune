@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 package com.cosmotune.manga.ui
 
 import com.cosmotune.cache.CacheCodec
@@ -78,14 +79,15 @@ internal fun rememberSourceCatalogue(repository: MangaRepository, sourceId: Stri
     val library by repository.store.state.collectAsState()
     val configuration = library.sources.find { it.id == sourceId }
     val revision by repository.sourceChanges.collectAsState()
+    val parsers by repository.context.parserUpdates.bundle.collectAsState()
     // The first page of this catalogue as it was last loaded comes back at once (from memory, or the disk after a restart) and
     // stays while the source is asked again; inside the freshness window it is not asked again.
     val pages = LocalMangaPages.current ?: remember(repository) { PageCache.of(repository, persistent = false) }
-    val first = remember(pages, sourceId, query, configuration, revision) {
-        pages.entry<MangaBrowsePage>("manga:browse:$sourceId:${configuration.hashCode()}:$revision:$query", SLOW_FRESH_MS,
+    val first = remember(pages, sourceId, query, configuration, revision, parsers) {
+        pages.entry<MangaBrowsePage>("manga:browse:$sourceId:${configuration.hashCode()}:$revision:${parsers.version}:${parsers.revision}:$query", SLOW_FRESH_MS,
             CacheCodec.json(MangaBrowsePage.serializer())) { repository.browse(sourceId, query, 0) }
     }
-    val catalogue = remember(sourceId, query, configuration) {
+    val catalogue = remember(sourceId, query, configuration, revision, parsers) {
         SourceCatalogue().also { fresh -> first.state.value.data?.let { fresh.results = it.books.distinctBy { b -> b.id }; fresh.next = it.nextOffset } }
     }
     LaunchedEffect(catalogue, catalogue.requested, revision, catalogue.retry) {
@@ -189,7 +191,7 @@ internal fun MangaBrowse(scope: MangaScope) {
     var language by rememberSaveable { mutableStateOf("") }
     val languages = enabled.map { languageName(it.language) }.distinct().sorted()
     if (language.isNotBlank() && language !in languages) language = ""
-    LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().testTag("manga:browse"), state = grid,
+    LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().readScrollbar(grid.scrollIndicatorState, bottomInset = scope.bottom).testTag("manga:browse"), state = grid,
         contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
         horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {
@@ -270,7 +272,7 @@ internal fun MangaSourcePage(scope: MangaScope, sourceId: String) {
     }
     Column(Modifier.fillMaxSize()) {
         ReadBackHead("Source", onBack = { scope.navigation.source = null })
-        LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.weight(1f).fillMaxWidth().testTag("manga:catalogue"), state = grid,
+        LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.weight(1f).fillMaxWidth().readScrollbar(grid.scrollIndicatorState, bottomInset = scope.bottom).testTag("manga:catalogue"), state = grid,
             contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
             horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {

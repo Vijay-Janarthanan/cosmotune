@@ -61,6 +61,7 @@ fun CastDialog(
         onDismiss = onDismiss,
         modifier = modifier,
     ) {
+        cast.error?.let { androidx.compose.material3.Text(it, color = ink) }
         CastReceiverList(
             receivers = cast.devices.map { CastReceiverUi(it.id, it.name, it.connecting, it.connected) },
             casting = cast.casting,

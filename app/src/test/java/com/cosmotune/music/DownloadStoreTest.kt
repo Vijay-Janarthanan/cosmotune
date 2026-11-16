@@ -11,6 +11,7 @@ import com.cosmotune.music.download.SavedSongMetadata
 import com.cosmotune.music.download.resolvedDownloadDates
 import com.cosmotune.music.download.youtubeDownloadBadge
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -34,6 +35,16 @@ import org.junit.Test
  * asked for, and nothing about it looks wrong from outside.
  */
 class DownloadStoreTest {
+    @Test fun `saved downloads retain exact album and all artist IDs across restart`() {
+        val artist = "provider:fixture:artist:ZXhhY3Q"
+        val album = "provider:fixture:album:YWxidW0"
+        val metadata = SavedSongMetadata("src:sflx-fixture::recording", "Translated title", "Same name", uri = "content://media/7",
+            artistId = artist, albumId = album, artists = listOf(com.cosmotune.music.data.model.ArtistRef("Same name", artist),
+                com.cosmotune.music.data.model.ArtistRef("Other credit", "provider:fixture:artist:b3RoZXI")))
+        val restored = Json.decodeFromString<SavedSongMetadata>(Json.encodeToString(metadata))
+        assertEquals(artist, restored.artistId); assertEquals(album, restored.albumId)
+        assertEquals(metadata.artists, restored.artists)
+    }
     @Test fun `different podcast episodes with the same title have different offline filenames`() {
         val first = song("Trailer", "Show", "podio:episode:first")
         val second = first.copy(videoId = "podio:episode:second")

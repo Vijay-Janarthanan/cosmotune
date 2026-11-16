@@ -123,6 +123,8 @@ class CastPlayback(
     private var endPositionMs = 0L
     private var endMediaId: String? = null
     private var endWasPlaying = false
+    private var preparedEnd = false
+    private var receiverStopConfirmed = false
 
     override val isPlaying: Boolean
         get() = active && !loading && client?.mediaStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
@@ -163,7 +165,7 @@ class CastPlayback(
     override fun setVolume(fraction: Float) = CastController.setVolume(fraction)
 
     override fun play() {
-        if (!active) return
+        if (!active || preparedEnd) return
         wantsPlay = true
         finished = false
         client?.play()
@@ -179,7 +181,7 @@ class CastPlayback(
 
     override fun seekTo(positionMs: Long) {
         val client = client ?: return
-        if (!active) return
+        if (!active || preparedEnd) return
         requestedPositionMs = positionMs.coerceAtLeast(0L)
         requestedAt = SystemClock.elapsedRealtime()
         client.seek(MediaSeekOptions.Builder().setPosition(requestedPositionMs).build())
@@ -206,9 +208,15 @@ class CastPlayback(
 
     private fun beginSession(newSession: CastSession, resumed: Boolean) {
         val remote = newSession.remoteMediaClient ?: return
-        if (active && remote === client) return
+        if (active && remote === client && !preparedEnd) return
         release()
         session = newSession
+        preparedEnd = false
+        receiverStopConfirmed = false
+        resumeHereOnEnd = false
+        endMediaId = null
+        endPositionMs = 0
+        endWasPlaying = false
         client = remote
         remote.registerCallback(callback)
         active = true
@@ -243,12 +251,31 @@ class CastPlayback(
     }
 
     fun onSessionEnding(ending: CastSession) {
+        if (ending !== session || preparedEnd) return
         val remote = ending.remoteMediaClient ?: client ?: return
         endPositionMs = remote.approximateStreamPosition.coerceAtLeast(0L)
         endMediaId = remote.mediaStatus?.let { status ->
             status.queueItems.firstOrNull { it.itemId == status.currentItemId }?.mediaId()
         }
         endWasPlaying = wantsPlay && remote.mediaStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
+        // An outstanding resolver/load/reconcile must not restart the receiver after its Stop acknowledgement.
+        preparedEnd = true
+        loadGeneration++
+        loadJob?.cancel()
+        reconcileJob?.cancel()
+    }
+
+    /** A successful sender detach is not proof that the receiver stopped. */
+    suspend fun prepareDisconnect(ending: CastSession): Boolean {
+        if (session !== ending || !active) return false
+        onSessionEnding(ending)
+        preparedEnd = true
+        val remote = client ?: return false
+        return try {
+            val result = kotlinx.coroutines.withTimeoutOrNull(5000) { remote.stop().awaitResult() }
+            (session === ending && client === remote && result?.status?.isSuccess == true).also { receiverStopConfirmed = it }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { false }
     }
 
     /**
@@ -260,6 +287,7 @@ class CastPlayback(
      */
     fun onSessionEnded(error: Int) {
         if (!active) return
+        if (!preparedEnd) session?.let(::onSessionEnding)
         val choseThisDevice = resumeHereOnEnd
         resumeHereOnEnd = false
         release()
@@ -271,6 +299,8 @@ class CastPlayback(
                 localQueue = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId },
                 localCurrentIndex = player.currentMediaItemIndex,
                 listenerChoseThisDevice = choseThisDevice,
+                receiverStopConfirmed = receiverStopConfirmed,
+                localPositionMs = player.currentPosition,
             )
             resume = plan.play
             if (plan.queueIndex != null) player.seekTo(plan.queueIndex, plan.positionMs) else player.seekTo(plan.positionMs)
@@ -286,6 +316,7 @@ class CastPlayback(
 
     /** Lets go of the receiver without touching the phone's player. */
     fun release() {
+        loadGeneration++
         loadJob?.cancel()
         reconcileJob?.cancel()
         client?.unregisterCallback(callback)
@@ -302,7 +333,7 @@ class CastPlayback(
 
     /** A new track became the phone's current one. */
     override fun onLocalTransition(item: MediaItem?, reason: Int) {
-        if (!active || item == null) return
+        if (!active || preparedEnd || item == null) return
         val remote = client ?: return
         if (item.mediaId == remoteMediaId()) {
             // Already there: the receiver moved first and this is the phone
@@ -329,7 +360,7 @@ class CastPlayback(
     override fun onLocalQueueChanged() = scheduleReconcile()
 
     override fun onLocalRepeatChanged(repeatMode: Int) {
-        if (!active) return
+        if (!active || preparedEnd) return
         client?.queueSetRepeatMode(receiverRepeat(repeatMode), null)
     }
 
@@ -348,6 +379,7 @@ class CastPlayback(
 
     private fun onStatus() {
         val remote = client ?: return
+        if (preparedEnd) { sink?.onRemotePlaybackChanged(); return }
         val status = remote.mediaStatus ?: return
         val state = status.playerState
         // Whatever the phone last asked for has been answered by now.
@@ -410,6 +442,7 @@ class CastPlayback(
      */
     private fun load(item: MediaItem?, positionMs: Long, play: Boolean) {
         val remote = client ?: return
+        if (!active || preparedEnd) return
         loadJob?.cancel()
         val generation = ++loadGeneration
         wantsPlay = play
@@ -425,6 +458,7 @@ class CastPlayback(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (t: Throwable) {
+                if (generation != loadGeneration || client !== remote || !active || preparedEnd) return@launch
                 Log.e(TAG, "load threw", t)
                 loading = false
                 wantsPlay = false
@@ -437,7 +471,7 @@ class CastPlayback(
     private suspend fun loadNow(item: MediaItem?, positionMs: Long, play: Boolean, generation: Int, remote: RemoteMediaClient) {
         run {
             val queueItem = item?.let { buildQueueItem(it, play) }
-            if (generation != loadGeneration || !active) return@run
+            if (generation != loadGeneration || client !== remote || !active || preparedEnd) return@run
             if (queueItem == null) {
                 // Nothing to play, so nothing to wait for. The receiver is left
                 // as it was; only the phone's idea of it is corrected.
@@ -461,7 +495,7 @@ class CastPlayback(
                 .setCurrentTime(positionMs)
                 .build()
             val result = remote.load(request).awaitResult()
-            if (generation != loadGeneration || !active) return@run
+            if (generation != loadGeneration || client !== remote || !active || preparedEnd) return@run
             if (!result.status.isSuccess) {
                 Log.w(TAG, "load failed: ${result.status.statusCode}")
                 loading = false
@@ -478,7 +512,7 @@ class CastPlayback(
     }
 
     private fun scheduleReconcile() {
-        if (!active) return
+        if (!active || preparedEnd) return
         if (reconcileJob?.isActive == true) {
             reconcileAgain = true
             return
@@ -510,6 +544,7 @@ class CastPlayback(
      */
     private suspend fun reconcileOnce() {
         val remote = client ?: return
+        val generation = loadGeneration
         val player = localPlayer() ?: return
         val status = remote.mediaStatus ?: return
         val queue = status.queueItems
@@ -521,6 +556,10 @@ class CastPlayback(
         if (current == C.INDEX_UNSET) return
         val wanted = ((current + 1)..minOf(current + AHEAD, player.mediaItemCount - 1))
             .map { player.getMediaItemAt(it) }
+        val wantedIds = wanted.map { it.mediaId }
+        fun stillOwned(): Boolean = active && !preparedEnd && client === remote && generation == loadGeneration &&
+            localPlayer() === player && player.currentMediaItemIndex == current &&
+            ((current + 1)..minOf(current + AHEAD, player.mediaItemCount - 1)).map { player.getMediaItemAt(it).mediaId } == wantedIds
 
         var kept = 0
         while (kept < remoteAhead.size && kept < wanted.size && remoteAhead[kept].mediaId() == wanted[kept].mediaId) {
@@ -530,17 +569,21 @@ class CastPlayback(
 
         if (kept < remoteAhead.size) {
             remote.queueRemoveItems(remoteAhead.drop(kept).map { it.itemId }.toIntArray(), null).awaitResult()
+            if (!stillOwned()) return
         }
         for (next in wanted.drop(kept)) {
             val queueItem = buildQueueItem(next, autoplay = true) ?: break
-            if (!active) return
+            if (!stillOwned()) return
             remote.queueInsertItems(arrayOf(queueItem), MediaQueueItem.INVALID_ITEM_ID, null).awaitResult()
+            if (!stillOwned()) return
         }
     }
 
     private suspend fun buildQueueItem(item: MediaItem, autoplay: Boolean): MediaQueueItem? {
         val stream = try {
             resolve(item)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             Log.w(TAG, "could not resolve ${item.mediaId} for casting", e)
             null
@@ -633,6 +676,7 @@ class CastPlayback(
  */
 internal suspend fun <R : Result> PendingResult<R>.awaitResult(): R =
     suspendCancellableCoroutine { continuation ->
-        setResultCallback { continuation.resume(it) }
-        continuation.invokeOnCancellation { cancel() }
+        val answered = java.util.concurrent.atomic.AtomicBoolean()
+        setResultCallback { if (answered.compareAndSet(false, true)) continuation.resume(it) }
+        continuation.invokeOnCancellation { answered.set(true); cancel() }
     }

@@ -27,13 +27,40 @@ internal fun MusicPlaylistImportPanel(host: ListeningToolsHost, busy: Boolean, r
     var title by remember { mutableStateOf("") }
     var excluded by remember { mutableStateOf(emptySet<Int>()) }
     var saved by remember { mutableStateOf(false) }
+    var importId by remember { mutableStateOf<String?>(null) }
+    var retained by remember { mutableStateOf(emptyList<PendingMusicPlaylist>()) }
+    LaunchedEffect(host.file) {
+        retained = withContext(Dispatchers.IO) { ListeningStore(host.file).state.value.pendingPlaylistImports }
+    }
+    suspend fun retain(current: MusicPlaylistPreview): String {
+        val record = PendingMusicPlaylist.of(current, importId ?: java.util.UUID.randomUUID().toString())
+        retained = withContext(Dispatchers.IO) { ListeningStore(host.file).also { it.savePlaylistImport(record) }.state.value.pendingPlaylistImports }
+        importId = record.id
+        return record.id
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Heading("Import a music playlist", "Choose a UTF-8 M3U/M3U8, CSV or text file. Existing library files and YouTube music links can be imported directly. CSV titles with an artist can be matched when you choose. Review the results before saving; track order and repeats are kept.")
+        retained.forEach { record ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                ToolButton("Resume ${record.name}", enabled = !busy, kind = ToolKind.QUIET, onClick = { run {
+                    val loaded = withContext(Dispatchers.IO) { MusicPlaylistImport.retry(record.preview(), host.library.songs) { host.available(ListeningTrack.of(it)) } }
+                    importId = record.id; preview = loaded; title = loaded.name; excluded = emptySet(); saved = false
+                    retain(loaded)
+                    "Saved import reopened. Unresolved rows remain pending."
+                } })
+                ToolButton("Discard", enabled = !busy, kind = ToolKind.QUIET, onClick = { run {
+                    retained = withContext(Dispatchers.IO) { ListeningStore(host.file).also { it.deletePlaylistImport(record.id) }.state.value.pendingPlaylistImports }
+                    if (importId == record.id) { importId = null; preview = null }
+                    "Saved import removed."
+                } })
+            }
+        }
         ToolButton("Choose playlist file", enabled = !busy, kind = ToolKind.QUIET, tag = "listening:playlist:import", onClick = { run {
             val file = host.importPlaylistFile() ?: return@run null
             val loaded = withContext(Dispatchers.IO) {
                 MusicPlaylistImport.preview(file, host.library.songs) { host.available(ListeningTrack.of(it)) }
             }
+            importId = null; retain(loaded)
             preview = loaded; title = loaded.name; excluded = emptySet(); saved = false
             "Review ${loaded.rows.size} playlist entries before saving."
         } })
@@ -53,7 +80,7 @@ internal fun MusicPlaylistImportPanel(host: ListeningToolsHost, busy: Boolean, r
                             label = "Include track ${row.number}", enabled = row.song != null && !busy && !saved,
                             modifier = Modifier.testTag("listening:playlist:include:${row.number}"))
                         Column(Modifier.weight(1f)) {
-                            Text("${row.number}. ${row.song?.title ?: row.title}", style = orbitFonts().title.copy(fontSize = 14.sp))
+                            Text("${row.number}. ${row.song?.title ?: row.title.ifBlank { "Pending entry" }}", style = orbitFonts().title.copy(fontSize = 14.sp))
                             val credit = row.song?.artist ?: row.artist
                             if (credit.isNotBlank()) ToolNote(credit)
                             (row.song?.albumName ?: row.album)?.takeIf { it.isNotBlank() }?.let { ToolNote(it) }
@@ -65,6 +92,7 @@ internal fun MusicPlaylistImportPanel(host: ListeningToolsHost, busy: Boolean, r
             if (current.pending > 0) ToolButton("Match next ${minOf(current.pending, 30)} titles", kind = ToolKind.QUIET, enabled = !busy && !saved,
                 tag = "listening:playlist:match", onClick = { run {
                     val matched = withContext(Dispatchers.IO) { MusicPlaylistImport.match(current, host.matchPlaylistTrack, limit = 30) }
+                    retain(matched.copy(name = title.trim().ifBlank { current.name }))
                     preview = matched
                     "${matched.songs.size} tracks ready. ${matched.pending} still need matching."
                 } })
@@ -74,10 +102,15 @@ internal fun MusicPlaylistImportPanel(host: ListeningToolsHost, busy: Boolean, r
                         "A library file became unavailable. Reload the playlist preview before saving."
                     }
                     host.createPlaylist(title.trim(), chosen)
+                    val remaining = current.rows.filter { it.number !in excluded }
+                    if (remaining.any { it.song == null }) retain(current.copy(name = title.trim(), rows = remaining))
+                    else importId?.let { id ->
+                        retained = withContext(Dispatchers.IO) { ListeningStore(host.file).also { it.deletePlaylistImport(id) }.state.value.pendingPlaylistImports }
+                    }
                     saved = true
-                    "Playlist saved with ${chosen.size} tracks. Order and repeats were preserved."
+                    "Playlist saved with ${chosen.size} tracks. Unresolved entries remain in the saved import for review."
                 } })
-            ToolNote("Unknown file locations, unsupported links and unverified rows are skipped. Playlist URLs are never fetched as documents; local paths must already belong to your music library.")
+            ToolNote("Unresolved entries are retained in the saved import, including their original order. Resume it after adding files to your library. Saving again creates a new playlist from the reviewed entries. Imported paths and playlist URLs are never opened.")
         }
     }
 }

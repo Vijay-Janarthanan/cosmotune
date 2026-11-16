@@ -138,6 +138,7 @@ data class Song(
     /** Browse id for an album, playlist, or other source page. */
     val playbackSourceId: String? = null,
     val podcastSkipSilence: Boolean? = null,
+    val podcastChaptersUrl: String? = null,
 ) {
     /** Legacy derived property: true if and only if [queueTier] is [QueueTier.AUTOPLAY]. */
     val fromAutoplay: Boolean get() = queueTier == QueueTier.AUTOPLAY

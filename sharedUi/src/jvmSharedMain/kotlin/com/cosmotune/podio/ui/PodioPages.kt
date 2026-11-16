@@ -513,6 +513,9 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                 // The episode for everyone in the room, each device fetching it itself; hidden where rooms are not offered.
                 RoomPlayButton(remember(item.id) { item.roomItem() })
             }
+            PodcastExtrasControls(episode, m.catalogue) { position ->
+                if (now) env.onSeek(position) else m.playEpisodeAt(entry, position)
+            }
             if (notes.isNotBlank()) {
                 OrbitLabel("Show notes", fonts, look.dim, Modifier.padding(top = 6.dp))
                 Text(notes, style = fonts.body.copy(fontSize = 14.sp, lineHeight = 21.sp), color = look.ink)

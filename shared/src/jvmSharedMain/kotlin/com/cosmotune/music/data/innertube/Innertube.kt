@@ -567,7 +567,7 @@ object Innertube {
 
     private val client = HttpClient(OkHttp) {
         // Same OkHttp instance ExoPlayer streams through — see Http.
-        engine { preconfigured = com.cosmotune.music.data.Http.client }
+        engine { preconfigured = com.cosmotune.music.data.Http.client.newBuilder().addInterceptor(YouTubeRequestPolicy).build() }
         install(ContentNegotiation) { json(json) }
         // Without this the only bound is OkHttp's own read timeout, and the
         // failure it raises reads as "Socket timeout has expired […]

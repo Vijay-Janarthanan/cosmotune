@@ -6,7 +6,7 @@ import kotlinx.serialization.json.JsonObject
 /** Player links and library cards use the same source-owned pages as the Sources browser. */
 object SourceCatalogue {
     suspend fun load(key: ProviderBrowseKey, manager: ProviderManager? = ProviderHub.state.value.manager): SourceCataloguePage {
-        try { return fetch(key, manager) }
+        try { return fetch(key, manager).withSavedArtwork(ProviderHub.state.value.library?.savedPage(key.encode())) }
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (error: Exception) { return ProviderHub.state.value.library?.savedPage(key.encode()) ?: throw error }
     }

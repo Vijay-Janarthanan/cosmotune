@@ -4,6 +4,10 @@ import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import java.io.File
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -34,6 +38,7 @@ class DlnaTest {
         val bodies: MutableList<String> = Collections.synchronizedList(ArrayList())
         @Volatile var transport = "STOPPED"
         @Volatile var volume = 30
+        @Volatile var refuseStop = false
         val server: HttpServer = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val base get() = "http://127.0.0.1:${server.address.port}"
 
@@ -58,6 +63,9 @@ class DlnaTest {
                     val action = exchange.requestHeaders.getFirst("SOAPACTION").orEmpty().substringAfter('#').trim('"')
                     actions += action
                     bodies += exchange.requestBody.readBytes().toString(Charsets.UTF_8)
+                    if (action == "Stop" && refuseStop) {
+                        exchange.sendResponseHeaders(503, -1); exchange.close(); return@createContext
+                    }
                     when (action) {
                         "Play" -> transport = "PLAYING"
                         "Pause" -> transport = "PAUSED_PLAYBACK"
@@ -139,6 +147,60 @@ class DlnaTest {
         fake.transport = "STOPPED"
         withTimeout(5_000) { renderer.state.first { it.finished } }
         Unit
+    }
+
+    @Test fun `sender shutdown is not a receiver stop acknowledgement`() = runBlocking {
+        val fake = FakeRenderer()
+        val renderer = DlnaRenderer(DlnaDevice("proof", "TV", "", "${fake.base}/av", null), pollMs = 100)
+        closers += { runBlocking { renderer.close(false) } }
+        renderer.connect()
+        renderer.load(DlnaMedia("https://example.com/audio.mp3", "audio/mpeg", "A song", "An artist"))
+        withTimeout(5000) { renderer.state.first { it.playing } }
+        fake.refuseStop = true
+        assertFalse(renderer.stopConfirmed())
+        assertEquals("PLAYING", fake.transport)
+        fake.refuseStop = false
+        assertTrue(renderer.stopConfirmed())
+        assertEquals("STOPPED", fake.transport)
+    }
+
+    @Test fun `an old receivers slow next callback cannot load the replacement receiver`() = runBlocking {
+        val first = FakeRenderer()
+        val replacement = FakeRenderer()
+        val media = File.createTempFile("dlna-owner", ".mp3").apply { writeBytes(byteArrayOf(1, 2, 3)); deleteOnExit() }
+        val song = com.cosmotune.music.data.model.Song(videoId = "local:ownership", title = "Fixture", artist = "Fixture", thumbnailUrl = null, localUri = media.toURI().toString())
+        val entered = CompletableDeferred<Unit>()
+        val returned = CompletableDeferred<Unit>()
+        var releaseNext: kotlin.coroutines.Continuation<Unit>? = null
+        val originalNext = DlnaCast.nextSong
+        val originalPause = DlnaCast.pauseLocal
+        try {
+            DlnaCast.disconnect(stopPlayback = false)
+            DlnaCast.pauseLocal = {}
+            DlnaCast.nextSong = {
+                // Deliberately ignores cancellation, as a platform queue callback can while completing its own work.
+                suspendCoroutine { releaseNext = it; entered.complete(Unit) }
+                returned.complete(Unit)
+                song.copy(videoId = "local:stale-next")
+            }
+            assertTrue(DlnaCast.connect(DlnaDevice("first", "First", "", "${first.base}/av", null)))
+            assertTrue(DlnaCast.cast(song))
+            withTimeout(5_000) { DlnaCast.renderer.value!!.state.first { it.playing } }
+            first.transport = "STOPPED"
+            withTimeout(5_000) { entered.await() }
+            assertTrue(DlnaCast.connect(DlnaDevice("replacement", "Replacement", "", "${replacement.base}/av", null)))
+            val callback = releaseNext; releaseNext = null; callback!!.resume(Unit)
+            withTimeout(5_000) { returned.await() }
+            delay(300)
+            assertFalse("SetAVTransportURI" in replacement.actions, "the old queue may not target the replacement renderer")
+            assertNull(DlnaCast.song.value)
+        } finally {
+            releaseNext?.resume(Unit)
+            DlnaCast.disconnect(stopPlayback = false)
+            DlnaCast.nextSong = originalNext
+            DlnaCast.pauseLocal = originalPause
+            media.delete()
+        }
     }
 
     @Test

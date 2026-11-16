@@ -14,6 +14,50 @@ class MusicPlaylistImportTest {
     private fun fixture(name: String) = requireNotNull(javaClass.getResource("/playlists/$name")).readText(Charsets.UTF_8)
     private fun song(id: String, title: String = "Evening light", artist: String = "The Coast") = Song(id, title, artist, null)
 
+    @Test fun relocatedWindowsAndPosixDocumentsUseTheLongestUniqueGrantedPathTail() {
+        val studio = song("studio").copy(localPath = "/granted/Coast/Night/song.flac")
+        val live = song("live").copy(localPath = "/granted/Coast/Live/song.flac", title = "Evening light (Live)")
+        val text = "C:\\Old Music\\Coast\\Night\\song.flac\n/old/library/Coast/Live/song.flac\nmissing.flac"
+        val inspected = mutableListOf<String>()
+        val result = MusicPlaylistImport.preview(MusicPlaylistFile("moved.m3u", text), listOf(studio, live)) { inspected += it.videoId; true }
+        assertEquals(listOf("studio", "live"), result.songs.map { it.videoId })
+        assertEquals(listOf("studio", "live"), inspected)
+        assertEquals("missing.flac", result.rows.last().location)
+    }
+
+    @Test fun filenameOnlyNeedsMetadataAndAmbiguousOrWrongEditionsRemainUnresolved() {
+        val original = song("original").copy(localPath = "/granted/Night/song.flac")
+        val duplicate = original.copy(videoId = "another", localPath = "/granted/Copy/song.flac")
+        val labelled = "#EXTINF:-1,The Coast - Evening light\nsong.flac"
+        assertTrue(MusicPlaylistImport.preview(MusicPlaylistFile("a.m3u", "song.flac"), listOf(original)).songs.isEmpty())
+        assertEquals(listOf(original), MusicPlaylistImport.preview(MusicPlaylistFile("a.m3u", labelled), listOf(original)).songs)
+        assertTrue(MusicPlaylistImport.preview(MusicPlaylistFile("a.m3u", labelled), listOf(original, duplicate)).songs.isEmpty())
+        val live = original.copy(title = "Evening light (Live)")
+        assertTrue(MusicPlaylistImport.preview(MusicPlaylistFile("a.m3u", labelled), listOf(live)).songs.isEmpty())
+        val network = "https://untrusted.invalid/Night/song.flac\ncontent://ungranted/Night/song.flac"
+        var probes = 0
+        assertTrue(MusicPlaylistImport.preview(MusicPlaylistFile("a.m3u", network), listOf(original)) { probes++; true }.songs.isEmpty())
+        assertEquals(0, probes)
+    }
+
+    @Test fun pendingRowsSurviveRestartAndReopenOnlyInsideTheGrantedLibrary() {
+        val file = File(temporary.newFolder(), "listening.json")
+        val initial = MusicPlaylistImport.preview(MusicPlaylistFile("moved.m3u", "/old/Night/song.flac\n/old/Night/song.flac"), emptyList())
+        val record = PendingMusicPlaylist.of(initial)
+        ListeningStore(file).savePlaylistImport(record)
+        val reopened = ListeningStore(file).state.value.pendingPlaylistImports.single()
+        assertEquals(listOf(1, 2), reopened.rows.map { it.number })
+        assertEquals(initial, reopened.preview())
+        val granted = song("known").copy(localPath = "/granted/Night/song.flac")
+        val retried = MusicPlaylistImport.retry(reopened.preview(), listOf(granted))
+        assertEquals(listOf(granted, granted), retried.songs)
+        // A backup may contain inert saved metadata, but it cannot turn its path into a new grant.
+        val hostile = MusicPlaylistPreview("untrusted", listOf(MusicPlaylistImportRow(1, "Song", song = song("unknown").copy(localPath = "\\\\untrusted\\share\\audio.flac"))))
+        var probes = 0
+        assertTrue(MusicPlaylistImport.retry(hostile, emptyList()) { probes++; true }.songs.isEmpty())
+        assertEquals(0, probes)
+    }
+
     @Test fun m3uResolvesOnlyKnownLibraryLocationsAndPreservesOrderAndRepeatedTracks() {
         val folder = temporary.newFolder()
         val local = File(folder, "music/song.flac").apply { parentFile.mkdirs(); writeText("audio") }

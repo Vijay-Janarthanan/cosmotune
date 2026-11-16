@@ -236,6 +236,8 @@ internal object DesktopSourceRegistry {
     /** The stored stream ceiling; replaced by tests for the same reason as [configSource]. */
     internal var qualitySource: () -> DesktopAudioQuality = { DesktopPersistence().audioQuality() }
 
+    internal var startPolicySource: () -> com.cosmotune.audio.PlaybackStartPolicy = { DesktopPersistence().playbackStartPolicy() }
+
     private fun configs(): List<DesktopSourceConfig> = configSource()
 
     /**
@@ -351,9 +353,11 @@ internal object DesktopSourceRegistry {
         if (providerTrack != null) {
             check(excludedSourceId != providerTrack.first) { "The selected provider already failed for this recording" }
             val manager = requireNotNull(com.cosmotune.providers.ProviderHub.state.value.manager) { "Provider storage is unavailable" }
-            val policy = providerRequest(quality, forDownload)
+            val chosen = com.cosmotune.music.data.downloads.ProviderDownloadChoice.parse(quality)
+            require(chosen == null || forDownload && chosen.provider == providerTrack.first.removePrefix("sflx-")) { "Download quality belongs to another provider" }
+            val policy = if (chosen != null) null to false else providerRequest(quality, forDownload)
             val stream = manager.stream(providerTrack.first.removePrefix("sflx-"), providerTrack.second,
-                maxKbps = policy.first, lossless = policy.second, forDownload = forDownload)
+                maxKbps = policy.first, lossless = policy.second, forDownload = forDownload, providerQualityId = chosen?.qualityId)
             return@runCatching DesktopStream(stream.url, DesktopStreamFormat(stream.codec, stream.kbps, stream.sampleRateHz, stream.bitDepth),
                 sourceId = providerTrack.first, durationSec = stream.durationMs?.div(1000)?.toInt())
         }
@@ -502,6 +506,13 @@ internal object DesktopSourceRegistry {
             return@runCatching DesktopLiveResolution(resolve(song, quality, excludedSourceId).getOrThrow())
         }
 
+        val startPolicy = startPolicySource()
+        if (startPolicy == com.cosmotune.audio.PlaybackStartPolicy.BEST_QUALITY_FIRST) {
+            val chosen = firstSubstitute(higher, song, quality, waitForBest = true)
+                ?: youtube.resolve(song, quality).getOrNull()
+                ?: error("No enabled music source could play this track")
+            return@runCatching DesktopLiveResolution(chosen)
+        }
         // Both legs are parented to the registry's own scope rather than the caller's.
         DesktopTrackLog.log(
             "resolving '${song.title}' by '${song.artist}' — racing " +
@@ -534,14 +545,15 @@ internal object DesktopSourceRegistry {
                     " at ${quick.format.summary.ifBlank { "an unstated format" }}",
             )
             // Winning the race is not the same as being the best copy.
-            return@runCatching DesktopLiveResolution(quick, betterThan(quick, higher, song, quality))
+            return@runCatching DesktopLiveResolution(quick, if (startPolicy.allowsAutomaticUpgrade) betterThan(quick, higher, song, quality) else null)
         }
 
         val youtubeStream = fallback.await()
             ?: lookup.await()
             ?: error("No enabled music source could play this track")
         // Still running means it lost the race rather than ran out of answers.
-        val pending = lookup.takeIf { it.isActive }
+        val pending = lookup.takeIf { it.isActive && startPolicy.allowsAutomaticUpgrade }
+        if (!startPolicy.allowsAutomaticUpgrade) lookup.cancel()
         if (pending != null) {
             DesktopTrackLog.log("'${song.title}' started on YouTube while the other sources keep looking")
         }
@@ -577,12 +589,14 @@ internal object DesktopSourceRegistry {
         quality: String?,
         playing: DesktopStreamFormat? = null,
         timeoutMs: Long = SUBSTITUTE_TIMEOUT_MS,
+        waitForBest: Boolean = false,
     ): DesktopStream? = awaitSourceOffer(
         requests = sources.map { source -> suspend { openBest(source, song, quality) } },
         timeoutMs = timeoutMs,
         better = { previous, next -> betterOf(previous, next) },
         ready = { offer ->
-            if (playing != null) worthSwapping(offer.format, playing)
+            if (waitForBest) false
+            else if (playing != null) worthSwapping(offer.format, playing)
             else true // The initial race starts playback; the patient retry requires an actual upgrade.
         },
     )

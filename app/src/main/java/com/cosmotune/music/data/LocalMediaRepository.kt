@@ -200,6 +200,8 @@ object LocalMediaRepository {
      * Queries MediaStore for all audio files available on the device.
      */
     suspend fun getLocalMusic(context: Context): List<Song> = withContext(Dispatchers.IO) {
+        runCatching { LocalFileRatings(File(context.filesDir, "local-file-ratings.json")).read() }
+            .getOrNull()?.forEach { (id, status) -> LikeState.rememberStated(id, status) }
         if (!hasStoragePermission(context)) {
             return@withContext extraLocalMusic?.invoke(context, emptyList()) ?: emptyList()
         }
@@ -312,15 +314,19 @@ object LocalMediaRepository {
                     } else {
                         null
                     }
+                    val catalogue = Downloads.metadataForUri(contentUri)
 
                     songs.add(
                         Song(
-                            videoId = videoIdByUri[contentUri] ?: contentUri,
+                            videoId = videoIdByUri[contentUri] ?: LocalFileRatings.identity(path, contentUri),
                             title = title,
                             artist = artist,
                             thumbnailUrl = artworkUrl,
                             durationText = durationText,
                             albumName = albumName,
+                            artistId = catalogue?.artistId,
+                            albumId = catalogue?.albumId,
+                            artists = catalogue?.artists.orEmpty(),
                             localUri = contentUri,
                             localPath = path,
                             localDateAddedSeconds = cursor.getLong(dateAddedCol),

@@ -29,6 +29,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include "local_artwork.h"
 
 using namespace ABI::Windows::Foundation;
 using namespace ABI::Windows::Media;
@@ -231,24 +232,31 @@ void apply_thumbnail(ISystemMediaTransportControlsDisplayUpdater* updater, const
         updater->put_Thumbnail(nullptr);
         return;
     }
-    // A remote URL is fine: the shell fetches it itself.
+    // CreateFromUri cannot open file: artwork. Local chapter images need a read-only stream reference.
     IUriRuntimeClassFactory* uris = nullptr;
     IUriRuntimeClass* uri = nullptr;
     IRandomAccessStreamReferenceStatics* references = nullptr;
     IRandomAccessStreamReference* reference = nullptr;
+    IRandomAccessStream* stream = nullptr;
     const Hstring uri_class(RuntimeClass_Windows_Foundation_Uri);
     const Hstring reference_class(RuntimeClass_Windows_Storage_Streams_RandomAccessStreamReference);
     const Hstring value(art);
-    if (SUCCEEDED(RoGetActivationFactory(uri_class.get(), __uuidof(IUriRuntimeClassFactory), reinterpret_cast<void**>(&uris))) &&
-        SUCCEEDED(uris->CreateUri(value.get(), &uri)) &&
-        SUCCEEDED(RoGetActivationFactory(
-            reference_class.get(), __uuidof(IRandomAccessStreamReferenceStatics), reinterpret_cast<void**>(&references))) &&
-        SUCCEEDED(references->CreateFromUri(uri, &reference))) {
+    HRESULT result = RoGetActivationFactory(reference_class.get(), __uuidof(IRandomAccessStreamReferenceStatics), reinterpret_cast<void**>(&references));
+    if (SUCCEEDED(result) && cosmotune_smtc::file_artwork(art)) {
+        result = cosmotune_smtc::local_artwork_stream(art, __uuidof(IRandomAccessStream), reinterpret_cast<void**>(&stream));
+        if (SUCCEEDED(result)) result = references->CreateFromStream(stream, &reference);
+    } else if (SUCCEEDED(result)) {
+        result = RoGetActivationFactory(uri_class.get(), __uuidof(IUriRuntimeClassFactory), reinterpret_cast<void**>(&uris));
+        if (SUCCEEDED(result)) result = uris->CreateUri(value.get(), &uri);
+        if (SUCCEEDED(result)) result = references->CreateFromUri(uri, &reference);
+    }
+    if (SUCCEEDED(result)) {
         updater->put_Thumbnail(reference);
     } else {
         updater->put_Thumbnail(nullptr);
     }
     release(reference);
+    release(stream);
     release(references);
     release(uri);
     release(uris);

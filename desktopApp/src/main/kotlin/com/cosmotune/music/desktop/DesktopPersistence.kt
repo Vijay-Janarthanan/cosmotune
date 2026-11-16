@@ -18,6 +18,10 @@ class DesktopPersistence {
         encodeDefaults = true
     }
 
+    fun playbackStartPolicy() = com.cosmotune.audio.PlaybackStartPolicy.fromStored(string(com.cosmotune.audio.PlaybackStartPolicy.PREFERENCE_KEY, ""))
+
+    fun savePlaybackStartPolicy(value: com.cosmotune.audio.PlaybackStartPolicy) = saveString(com.cosmotune.audio.PlaybackStartPolicy.PREFERENCE_KEY, value.name)
+
     fun likedIds(): Set<String> = readLines(KEY_LIKED_IDS).toSet()
 
     fun saveLikedIds(ids: Set<String>) = writeLines(KEY_LIKED_IDS, ids.toList())
@@ -277,6 +281,8 @@ class DesktopPersistence {
         song.localDateModifiedSeconds?.toString().orEmpty(),
         song.sourceQuality.orEmpty(),
         song.isExplicit?.toString().orEmpty(),
+        sourceJson.encodeToString(song.artists),
+        song.podcastChaptersUrl.orEmpty(),
     ).joinToString(DELIMITER, transform = ::encode)
 
     private fun decodeSong(value: String): Song? {
@@ -297,11 +303,13 @@ class DesktopPersistence {
             isVideo = isVideo,
             isVideoOrigin = fields.getOrNull(11)?.toBooleanStrictOrNull() ?: isVideo,
             setVideoId = fields.getOrNull(12)?.ifBlank { null },
-            fromAutoplay = fields.getOrNull(13)?.toBooleanStrictOrNull() ?: false,
+            queueTier = if (fields.getOrNull(13)?.toBooleanStrictOrNull() == true) com.cosmotune.music.data.model.QueueTier.AUTOPLAY else com.cosmotune.music.data.model.QueueTier.CONTEXT,
             localDateAddedSeconds = fields.getOrNull(14)?.toLongOrNull(),
             localDateModifiedSeconds = fields.getOrNull(15)?.toLongOrNull(),
             sourceQuality = fields.getOrNull(16)?.ifBlank { null },
             isExplicit = fields.getOrNull(17)?.toBooleanStrictOrNull(),
+            artists = fields.getOrNull(18)?.let { runCatching { sourceJson.decodeFromString<List<com.cosmotune.music.data.model.ArtistRef>>(it) }.getOrNull() }.orEmpty(),
+            podcastChaptersUrl = fields.getOrNull(19)?.ifBlank { null },
         )
     }
 
@@ -371,6 +379,8 @@ private fun DesktopPlaylist.toPreferenceLine(): String = listOf(
             song.localDateModifiedSeconds?.toString().orEmpty(),
             song.sourceQuality.orEmpty(),
             song.isExplicit?.toString().orEmpty(),
+            Json.encodeToString(song.artists),
+            song.podcastChaptersUrl.orEmpty(),
         ).joinToString("|", transform = { field ->
             Base64.getUrlEncoder().withoutPadding().encodeToString(field.toByteArray(StandardCharsets.UTF_8))
         })

@@ -144,7 +144,7 @@ internal object DesktopManifestDownload {
                         val samples = Mp4.samples(segment, moof, track) ?: error("Unreadable FLAC fragment")
                         samples.forEach {
                             out.write(segment, it.offset, it.size)
-                            ticks += it.duration
+                            ticks = Math.addExact(ticks, it.duration)
                         }
                     }
                 }
@@ -154,7 +154,7 @@ internal object DesktopManifestDownload {
             val info = blocks.first().second
             val rate = ((info[10].toLong() and 0xFF) shl 12) or ((info[11].toLong() and 0xFF) shl 4) or
                 ((info[12].toLong() and 0xFF) shr 4)
-            val totalSamples = if (track.timescale > 0 && rate > 0) ticks * rate / track.timescale else ticks
+            val totalSamples = com.cosmotune.audio.FlacTiming.totalSamples(ticks, rate, track.timescale)
             info[13] = ((info[13].toInt() and 0xF0) or ((totalSamples shr 32).toInt() and 0x0F)).toByte()
             for (i in 0 until 4) info[14 + i] = (totalSamples shr (8 * (3 - i))).toByte()
 
@@ -254,33 +254,42 @@ internal object DesktopManifestDownload {
         /** [track]'s samples within one `moof`, or null for a layout this can't place. */
         fun samples(bytes: ByteArray, moof: Box, track: Track): List<Sample>? {
             val out = mutableListOf<Sample>()
+            val mediaRanges = boxes(bytes).filter { it.type == "mdat" }
             for (traf in boxes(bytes, moof.content, moof.end).filter { it.type == "traf" }) {
                 val parts = boxes(bytes, traf.content, traf.end)
                 val tfhd = parts.firstOrNull { it.type == "tfhd" } ?: continue
+                require(tfhd.end - tfhd.content >= 8) { "Incomplete MP4 track header" }
                 if (u32(bytes, tfhd.content + 4) != track.id) continue
                 val tf = flags(bytes, tfhd)
-                if (tf and 0x1 != 0) return null // base_data_offset: an absolute position
+                if (tf and 0x1 != 0) return null // Absolute offsets cannot survive remuxing.
+                val requiredFields = 8 + listOf(0x2, 0x8, 0x10, 0x20).count { tf and it != 0 } * 4
+                require(tfhd.end - tfhd.content >= requiredFields) { "Incomplete MP4 defaults" }
                 var p = tfhd.content + 8
                 if (tf and 0x2 != 0) p += 4
                 val defaultDuration = if (tf and 0x8 != 0) u32(bytes, p).also { p += 4 } else track.defaultDuration
                 val defaultSize = if (tf and 0x10 != 0) u32(bytes, p) else track.defaultSize
-                var cursor = boxes(bytes, moof.end, bytes.size).firstOrNull { it.type == "mdat" }?.content ?: return null
+                var cursor = mediaRanges.firstOrNull { it.offset >= moof.end }?.content ?: return null
                 for (trun in parts.filter { it.type == "trun" }) {
+                    require(trun.end - trun.content >= 8) { "Incomplete MP4 sample table" }
                     val f = flags(bytes, trun)
-                    val count = u32(bytes, trun.content + 4).toInt()
-                    require(count in 0..2_000_000) { "Too many MP4 samples" }
+                    val count = u32(bytes, trun.content + 4)
+                    require(count <= 2_000_000) { "Too many MP4 samples" }
                     var q = trun.content + 8
                     if (f and 0x1 != 0) {
-                        cursor = moof.offset + u32(bytes, q).toInt()
-                        q += 4
+                        require(q <= trun.end - 4) { "Incomplete MP4 data offset" }
+                        val offset = moof.offset.toLong() + u32(bytes, q).toInt()
+                        if (offset !in 0..bytes.size.toLong()) return null
+                        cursor = offset.toInt(); q += 4
                     }
                     if (f and 0x4 != 0) q += 4
-                    repeat(count) {
+                    val stride = listOf(0x100, 0x200, 0x400, 0x800).count { f and it != 0 } * 4
+                    require(q <= trun.end && count * stride <= trun.end - q) { "Incomplete MP4 sample fields" }
+                    repeat(count.toInt()) {
                         val duration = if (f and 0x100 != 0) u32(bytes, q).also { q += 4 } else defaultDuration
                         val size = if (f and 0x200 != 0) u32(bytes, q).also { q += 4 } else defaultSize
                         if (f and 0x400 != 0) q += 4
                         if (f and 0x800 != 0) q += 4
-                        if (size <= 0 || cursor + size > bytes.size) return null
+                        if (size <= 0 || mediaRanges.none { cursor >= it.content && size <= it.end.toLong() - cursor }) return null
                         out += Sample(cursor, size.toInt(), duration)
                         cursor += size.toInt()
                     }

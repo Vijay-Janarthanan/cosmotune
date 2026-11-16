@@ -228,7 +228,7 @@ fun DownloadManagerSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
                     fonts = fonts,
                     look = look,
                     onCancel = { Downloads.cancel(item.videoId) },
-                    onRetry = { Downloads.enqueue(context, item.song, item.from) },
+                    onRetry = { Downloads.retry(context, item.videoId) },
                 )
             }
         }
@@ -258,11 +258,11 @@ private fun DownloadManagerRow(
 
     OrbitSongRow(
         title = item.song.title,
-        subtitle = when (progress) {
+        subtitle = (when (progress) {
             is DownloadProgress.Done -> stringResource(R.string.saved_to_cosmotune_folder)
             is DownloadProgress.Failed -> progress.reason
             else -> credit
-        },
+        }).let { line -> item.quality?.let { "$it · $line" } ?: line },
         cover = item.song.artworkAt(ROW_ART_PX),
         fonts = fonts,
         look = look,

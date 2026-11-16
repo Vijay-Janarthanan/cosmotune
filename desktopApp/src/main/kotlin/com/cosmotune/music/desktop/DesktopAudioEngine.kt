@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -140,7 +141,12 @@ class DesktopPlaybackEngine(
     private var nextResolveJob: Job? = null
 
     @Volatile private var playbackSpeed = 1f
-    val playbackRate: Float get() = playbackSpeed
+    private fun tuningFor(id: String?) = com.cosmotune.settings.SongPlaybackMemory.resolve(id,
+        com.cosmotune.settings.Extras.settings.songPlayback.value, playbackSpeed,
+        com.cosmotune.settings.Extras.settings.pitchSemitones.value)
+    private var blendTuning = com.cosmotune.settings.SongPlaybackTuning()
+    private fun audibleTuning() = if (fadeRemaining > 0) blendTuning else tuningFor(current?.song?.videoId)
+    val playbackRate: Float get() = audibleTuning().speed
     @Volatile private var volume = 1f
     @Volatile private var loudnessNormalization = true
 
@@ -232,7 +238,7 @@ class DesktopPlaybackEngine(
     private sealed interface Command {
         class Start(val track: Track, val playWhenReady: Boolean) : Command
         /** Replaces only the playing deck; a quality upgrade must not discard the prepared next deck. */
-        class ReplaceCurrent(val track: Track, val playWhenReady: Boolean) : Command
+        class ReplaceCurrent(val track: Track, val playWhenReady: Boolean, val expected: Track? = null, val expectedSeeks: Int? = null) : Command
         class Upcoming(val track: Track) : Command
         /** A better copy of the incoming track, found after it was opened; see [upgradeIncoming]. */
         class ReplaceUpcoming(val track: Track) : Command
@@ -394,6 +400,12 @@ class DesktopPlaybackEngine(
      * searching gets swapped once one of them answers.
      */
     private fun watchForUpgrade(song: Song, pending: Deferred<DesktopStream?>) {
+        if (!DesktopSourceRegistry.startPolicySource().allowsAutomaticUpgrade) {
+            pending.cancel()
+            searchingBetterFor = null
+            _state.update { it.copy(searchingBetter = false) }
+            return
+        }
         upgradeJob = scope.launch {
             try {
                 if (take(song, runCatching { pending.await() }.getOrNull())) return@launch
@@ -437,12 +449,14 @@ class DesktopPlaybackEngine(
             "upgrading '${song.title}' to ${better.format.summary.ifBlank { "another rendition" }}" +
                 " from ${DesktopMusicSources.sourceNameFor(better)}",
         )
-        swapStream(song, better, current.positionMs)
+        swapStream(song, better, current.positionMs, automatic = true)
         return true
     }
 
     /** Re-opens the current track on a different stream, carrying the playhead over. */
-    private fun swapStream(song: Song, stream: DesktopStream, positionMs: Long) {
+    private fun swapStream(song: Song, stream: DesktopStream, positionMs: Long, automatic: Boolean = false) {
+        val expected = current
+        val duration = expected?.decoder?.durationUs?.div(1_000)
         scope.launch {
             // Both envelopes exist only while [AcousticAlignment.applyToUpgrades] is on, so with it
             // off there is no pre-roll, no wait and no offset: the handover is the plain one.
@@ -459,8 +473,17 @@ class DesktopPlaybackEngine(
                     try {
                         val copy = track.alignment
                         val offset = if (reference != null && copy != null) awaitUpgradeOffset(reference, copy, positionMs) else null
+                        if (automatic) {
+                            if (!DesktopSourceRegistry.startPolicySource().allowsAutomaticUpgrade ||
+                                !com.cosmotune.audio.RecordingUpgradePolicy.compatibleDuration(duration, track.decoder.durationUs?.div(1_000))) return@fold
+                            val ready = withTimeoutOrNull(5_000) {
+                                while (!track.decoder.hasBufferedAudio && !track.decoder.readFailed) delay(20)
+                                !track.decoder.readFailed && track.decoder.hasBufferedAudio
+                            } == true
+                            if (!ready) return@fold
+                        }
                         val latest = _state.value
-                        if (latest.song?.videoId != song.videoId) return@fold
+                        if (latest.song?.videoId != song.videoId || automatic && current !== expected) return@fold
                         // Resolving and opening the better rendition can take a few seconds. Hand it
                         // over at the live playhead rather than jumping back to the position at which
                         // the upgrade was first offered.
@@ -469,7 +492,17 @@ class DesktopPlaybackEngine(
                             track.decoder.seek(aligned)
                             track.startUs = aligned
                         }
-                        commands += Command.ReplaceCurrent(track, playWhenReady = latest.isPlaying)
+                        if (automatic && !track.decoder.hasBufferedAudio) {
+                            val ready = withTimeoutOrNull(5_000) {
+                                while (!track.decoder.hasBufferedAudio && !track.decoder.readFailed) delay(20)
+                                !track.decoder.readFailed && track.decoder.hasBufferedAudio
+                            } == true
+                            val now = _state.value
+                            if (!ready || current !== expected || now.seeks != latest.seeks ||
+                                kotlin.math.abs(now.positionMs - track.startUs / 1000) > 1_500) return@fold
+                        }
+                        commands += Command.ReplaceCurrent(track, playWhenReady = latest.isPlaying,
+                            expected = expected.takeIf { automatic }, expectedSeeks = latest.seeks.takeIf { automatic })
                         handedOver = true
                     } finally {
                         if (!handedOver) track.decoder.close()
@@ -537,7 +570,7 @@ class DesktopPlaybackEngine(
     }
 
     fun play() {
-        if (current?.directDsd == true && (volume != 1f || playbackSpeed != 1f)) {
+        if (current?.directDsd == true && (volume != 1f || playbackRate != 1f || audibleTuning().pitchSemitones != 0)) {
             stopDirectDsd("Direct DSD requires player volume 100% and speed 1×. Use the DAC volume control, or disable direct DSD and replay.")
             return
         }
@@ -564,7 +597,10 @@ class DesktopPlaybackEngine(
     }
 
     fun setVolume(value: Float) {
+        val previousVolume = volume
         volume = value.coerceIn(0f, 1f)
+        if (previousVolume > 0f && volume == 0f && com.cosmotune.settings.Extras.settings.pauseOnMute.value &&
+            com.cosmotune.settings.SongPlaybackMemory.isMusic(current?.song?.videoId)) pause()
         sink.gain = outputGain()
         _state.update { it.copy(volume = volume) }
         if (current?.directDsd == true && volume != 1f) stopDirectDsd("Direct DSD paused: software volume cannot alter DSD. Use the DAC volume control, or disable direct DSD and replay.")
@@ -674,13 +710,12 @@ class DesktopPlaybackEngine(
      * the marker on the scrubber with no transition behind it. Whatever the race was still waiting
      * on is swapped in when it answers; see [upgradeIncoming].
      */
-    private fun resolveUpcoming(song: Song, local: DesktopStream? = null, race: Boolean = false) {
+    private fun resolveUpcoming(song: Song, local: DesktopStream? = null) {
         nextResolveJob = scope.launch {
             val askedAt = System.nanoTime()
             val resolved: Result<DesktopLiveResolution> = when {
                 local != null -> Result.success(DesktopLiveResolution(local))
-                race -> DesktopMusicSources.resolveLive(song, audioQuality)
-                else -> DesktopMusicSources.resolve(song, audioQuality).map { DesktopLiveResolution(it) }
+                else -> DesktopMusicSources.resolveLive(song, audioQuality)
             }
             resolved.fold(
                 onSuccess = { live ->
@@ -722,6 +757,7 @@ class DesktopPlaybackEngine(
      * moves the queue on, and by then this answer belongs to the track now playing.
      */
     private fun upgradeIncoming(song: Song, opened: DesktopStream, pending: Deferred<DesktopStream?>) {
+        if (!DesktopSourceRegistry.startPolicySource().allowsAutomaticUpgrade) { pending.cancel(); return }
         // The player says "upgrading" for this track from the moment it is shown, mid-blend.
         incomingSearchingFor = song.videoId
         scope.launch {
@@ -1032,7 +1068,7 @@ class DesktopPlaybackEngine(
 
     /** Source time each output frame of [track] covers: the listener's speed times the deck's. */
     private fun usPerFrame(track: Track): Double =
-        1_000_000.0 / sink.format.sampleRate.coerceAtLeast(1) * (if (track.directDsd) 1f else playbackSpeed) * deckRate(track)
+        1_000_000.0 / sink.format.sampleRate.coerceAtLeast(1) * (if (track.directDsd) 1f else playbackRate) * deckRate(track)
 
     /** Starts [playhead] over: what the speakers are playing right now is [positionUs] of [track]. */
     private fun resetPlayhead(track: Track, positionUs: Long) {
@@ -1299,8 +1335,9 @@ class DesktopPlaybackEngine(
         val processor = speedProcessor ?: return samples to count
         // Pitch apart from speed (Extras): stretch by speed / pitch, then resample by pitch, which brings the length back
         // to the listener's speed and moves every frequency by the pitch factor.
-        val pitch = if (current?.directDsd == true) 1f else com.cosmotune.settings.Extras.settings.pitchFactor
-        processor.speed = playbackSpeed / pitch
+        val tuning = audibleTuning()
+        val pitch = if (current?.directDsd == true) 1f else tuning.pitchFactor
+        processor.speed = tuning.speed / pitch
         val out = processor.process(samples, count)
         val resampler = pitchResampler ?: return out to processor.outputCount
         if (pitch == 1f && resampler.ratio != 1.0) resampler.reset()
@@ -1428,7 +1465,7 @@ class DesktopPlaybackEngine(
         val rate = sink.format.sampleRate
         if (rate <= 0) return 0L
         val queued = (framesWritten - sink.framesPlayed()).coerceAtLeast(0L)
-        return (queued * 1_000_000L / rate * playbackSpeed * deckRate).toLong()
+        return (queued * 1_000_000L / rate * playbackRate * deckRate).toLong()
     }
 
     /** Where in the incoming track the listener is right now, mid-blend. */
@@ -1447,7 +1484,7 @@ class DesktopPlaybackEngine(
         val incoming = upcoming ?: return
         val last = DesktopPlayerSettings.smartMixBlend.value
         if (last != null && !playing && !last.playing) return
-        val listenerSpeed = playbackSpeed.toDouble().takeIf { it > 0.0 } ?: 1.0
+        val listenerSpeed = playbackRate.toDouble().takeIf { it > 0.0 } ?: 1.0
         val outgoingHeardUs = _state.value.let { state ->
             if (state.song?.videoId == track.song.videoId) state.positionMs * 1_000 else null
         } ?: outgoingHeardUs()
@@ -1484,7 +1521,11 @@ class DesktopPlaybackEngine(
         while (true) {
             when (val command = commands.poll() ?: return) {
                 is Command.Start -> startTrack(command.track, command.playWhenReady)
-                is Command.ReplaceCurrent -> replaceCurrent(command.track, command.playWhenReady)
+                is Command.ReplaceCurrent -> {
+                    if (command.expected != null && (current !== command.expected || _state.value.seeks != command.expectedSeeks ||
+                        !DesktopSourceRegistry.startPolicySource().allowsAutomaticUpgrade)) command.track.decoder.close()
+                    else replaceCurrent(command.track, if (command.expected != null) !paused else command.playWhenReady)
+                }
                 is Command.Upcoming -> {
                     upcoming?.decoder?.close()
                     upcoming = command.track
@@ -1930,6 +1971,11 @@ class DesktopPlaybackEngine(
      */
     private fun armIncomingBlend(incoming: Track, plan: TransitionPlan) {
         if (!mixWatchdog.overlapAllowed) return
+        // The final stretch is shared after mixing; unequal song tunings must hand over
+        // without overlapping so one song's pitch/rate cannot process the other recording.
+        val outgoingTuning = tuningFor(current?.song?.videoId)
+        if (outgoingTuning != tuningFor(incoming.song.videoId)) return
+        blendTuning = outgoingTuning
         if (current?.directDsd == true || incoming.directDsd) return
         val seconds = plan.fadeSeconds.takeIf { it > 0 } ?: return
         // A planned transition says where the incoming track should be entered, which is the whole
@@ -2071,7 +2117,7 @@ class DesktopPlaybackEngine(
             "arming '${song.title}' ${"%.1f".format((startMs - positionMs).coerceAtLeast(0) / 1_000.0)}s " +
                 "before its transition",
         )
-        resolveUpcoming(song, race = true)
+        resolveUpcoming(song)
     }
 
     /** What the shared planner makes of this pair. */

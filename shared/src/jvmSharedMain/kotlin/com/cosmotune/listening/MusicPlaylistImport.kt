@@ -30,7 +30,7 @@ data class MusicPlaylistFile(val name: String, val text: String, val baseDirecto
 }
 
 data class MusicPlaylistImportRow(val number: Int, val title: String, val artist: String = "", val album: String? = null,
-    val song: Song? = null, val canSearch: Boolean = false, val detail: String = "")
+    val song: Song? = null, val canSearch: Boolean = false, val detail: String = "", val location: String = "")
 
 data class MusicPlaylistPreview(val name: String, val rows: List<MusicPlaylistImportRow>) {
     val songs: List<Song> get() = rows.mapNotNull { it.song }
@@ -73,11 +73,13 @@ object MusicPlaylistImport {
             }
         }
         val byId = music.associateBy { it.videoId }
+        val portable = music.filter { !it.localPath.isNullOrBlank() || filePath(it.localUri.orEmpty()) != null }
+            .map { it to pathParts(it.localPath ?: filePath(it.localUri.orEmpty()).orEmpty()) }
         val rows = entries.mapIndexed { index, entry ->
             fun matched(song: Song, reason: String): MusicPlaylistImportRow {
                 val readable = available(song)
                 return MusicPlaylistImportRow(index + 1, song.title, song.artist, song.albumName,
-                    song.takeIf { readable }, detail = if (readable) reason else "The library file is unavailable")
+                    song.takeIf { readable }, detail = if (readable) reason else "The library file is unavailable", location = entry.location)
             }
             val location = entry.location.trim()
             val known = byUri[location] ?: byId[location] ?: (filePath(location) ?: location).let { raw ->
@@ -85,8 +87,10 @@ object MusicPlaylistImport {
             }
             if (known != null) matched(known, "Matched existing library")
             else {
+                val relocated = relocated(entry, portable)
                 val id = youtubeId(location)
-                if (id != null) {
+                if (relocated != null) matched(relocated, "Matched unique granted library path")
+                else if (id != null) {
                     val existing = byId[id]
                     matched(existing ?: Song(id, entry.title.ifBlank { "YouTube track $id" }, entry.artist.ifBlank { "Unknown Artist" }, null,
                         albumName = entry.album), "YouTube music link")
@@ -96,13 +100,59 @@ object MusicPlaylistImport {
                         .filter(available)
                     if (local.size == 1) matched(local.single(), "Matched library title and artist")
                     else MusicPlaylistImportRow(index + 1, entry.title, entry.artist, entry.album, canSearch = true,
-                        detail = if (local.size > 1) "Multiple library matches; review a catalogue match" else "Needs catalogue matching")
-                } else MusicPlaylistImportRow(index + 1, entry.title.ifBlank { "Entry ${index + 1}" }, entry.artist, entry.album,
-                    detail = if (location.isBlank()) "Missing track title and artist" else "No granted library file or supported music link")
+                        detail = if (local.size > 1) "Multiple library matches; review a catalogue match" else "Needs catalogue matching", location = location)
+                } else MusicPlaylistImportRow(index + 1, entry.title, entry.artist, entry.album,
+                    detail = if (location.isBlank()) "Missing track title and artist" else "No unique granted library file or supported music link", location = location)
             }
         }
         val named = text.lineSequence().firstOrNull { it.startsWith("#PLAYLIST:", true) }?.substringAfter(':')?.trim()
         return MusicPlaylistPreview(clean(named ?: file.name.substringBeforeLast('.').ifBlank { "Imported playlist" }, 80), rows)
+    }
+
+    /** Retries only against the granted snapshot. A retained imported location is never opened. */
+    fun retry(preview: MusicPlaylistPreview, library: List<Song>, available: (Song) -> Boolean = { true }): MusicPlaylistPreview =
+        preview.copy(rows = preview.rows.map { row ->
+            val granted = row.song?.let { saved -> library.find { it.videoId == saved.videoId } }?.takeIf(available)
+            val online = row.song?.takeIf { youtubeId(it.videoId) == it.videoId && it.localPath == null && it.localUri == null }
+            if (granted != null || online != null) row.copy(song = granted ?: online)
+            else if (row.location.isBlank()) row.copy(song = null)
+            else {
+                val label = listOf(row.artist, row.title).filter(String::isNotBlank).joinToString(" - ")
+                val found = MusicPlaylistImport.preview(MusicPlaylistFile("retry.m3u", "#EXTINF:-1,$label\n${row.location}"), library, available).rows.single()
+                row.copy(song = found.song, detail = found.detail)
+            }
+        })
+
+    private fun pathParts(raw: String): List<String> {
+        val path = filePath(raw) ?: raw
+        // URI references remain exact-only, apart from authority-free file URIs.
+        if (!windowsDrive.matches(path) && Regex("^[A-Za-z][A-Za-z0-9+.-]*:").containsMatchIn(path)) return emptyList()
+        val parts = ArrayList<String>()
+        path.replace('\\', '/').split('/').forEach { part -> when (part) {
+            "", "." -> Unit
+            ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.lastIndex)
+            else -> parts += Normalizer.normalize(part, Normalizer.Form.NFKC)
+        } }
+        return parts
+    }
+
+    private fun relocated(entry: Entry, library: List<Pair<Song, List<String>>>): Song? {
+        val wanted = pathParts(entry.location)
+        if (wanted.isEmpty()) return null
+        val candidates = library.mapNotNull { (song, path) ->
+            val length = wanted.asReversed().zip(path.asReversed()).takeWhile { (a, b) -> a == b }.size
+            if (length == 0) null else Triple(song, length, path)
+        }
+        val longest = candidates.maxOfOrNull { it.second } ?: return null
+        val best = candidates.filter { it.second == longest }.distinctBy { it.first.videoId }
+        // Do not use metadata to pick between duplicate editions at the same path tail.
+        val song = best.singleOrNull()?.first ?: return null
+        val labelled = entry.title.isNotBlank() && entry.artist.isNotBlank()
+        if (longest < 2 && !labelled) return null
+        if (entry.title.isNotBlank() && key(entry.title) != key(song.title)) return null
+        if (entry.artist.isNotBlank() && !TrackMatcher.sharesArtist(entry.artist, song.artist)) return null
+        if (!entry.album.isNullOrBlank() && key(entry.album) != key(song.albumName.orEmpty())) return null
+        return song
     }
 
     /** Explicitly invoked from the preview. Duplicate rows reuse a lookup while retaining order. */

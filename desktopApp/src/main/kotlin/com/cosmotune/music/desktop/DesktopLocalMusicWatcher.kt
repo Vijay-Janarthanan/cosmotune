@@ -54,6 +54,7 @@ internal object DesktopLocalMusicWatcher {
     @Synchronized
     fun restart() {
         job?.cancel()
+        DesktopLocalMusic.invalidateSnapshot()
         job = scope.launch { watch() }
     }
 
@@ -65,7 +66,8 @@ internal object DesktopLocalMusicWatcher {
     private suspend fun watch() {
         val service = runCatching { FileSystems.getDefault().newWatchService() }.getOrNull() ?: return
         try {
-            val registered = DesktopLocalMusic.roots()
+            val roots = DesktopLocalMusic.roots().map { it.toAbsolutePath().normalize() }
+            val registered = roots
                 .filter(Files::isDirectory)
                 .sumOf { register(it, service) }
             if (registered == 0) return
@@ -76,9 +78,25 @@ internal object DesktopLocalMusicWatcher {
                 // be reported without waiting for the next edit to arrive.
                 val key = service.poll(250, TimeUnit.MILLISECONDS)
                 if (key != null) {
-                    val interesting = key.pollEvents().any { event ->
-                        val changed = event.context() as? Path ?: return@any false
-                        changed.toString().substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS
+                    var interesting = false
+                    key.pollEvents().forEach { event ->
+                        if (event.kind() == StandardWatchEventKinds.OVERFLOW) { DesktopLocalMusic.invalidateSnapshot(); interesting = true; return@forEach }
+                        val changed = event.context() as? Path ?: return@forEach
+                        val absolute = (key.watchable() as? Path)?.resolve(changed)
+                        if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE && absolute != null && Files.isDirectory(absolute)) {
+                            val remaining = roots.filter { absolute.startsWith(it) }.maxOfOrNull { WATCH_DEPTH - it.relativize(absolute).nameCount } ?: 0
+                            if (remaining > 0) register(absolute, service, remaining)
+                            DesktopLocalMusic.invalidateSnapshot()
+                            interesting = true
+                        }
+                        // Directory removals have no extension; a snapshot rescan removes their tracks.
+                        if (changed.toString().substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS) {
+                            absolute?.let(DesktopLocalMusic::fileChanged)
+                            interesting = true
+                        } else if (event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
+                            DesktopLocalMusic.invalidateSnapshot()
+                            interesting = true
+                        }
                     }
                     key.reset()
                     if (interesting) pendingSince = System.currentTimeMillis()
@@ -100,13 +118,13 @@ internal object DesktopLocalMusicWatcher {
     }
 
     /** Registers [root] and everything under it, returning how many directories were taken. */
-    private fun register(root: Path, service: WatchService): Int {
+    private fun register(root: Path, service: WatchService, depth: Int = WATCH_DEPTH): Int {
         var count = 0
         runCatching {
             Files.walkFileTree(
                 root,
                 emptySet(),
-                WATCH_DEPTH,
+                depth,
                 object : SimpleFileVisitor<Path>() {
                     override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
                         runCatching {
