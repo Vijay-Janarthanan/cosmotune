@@ -54,8 +54,8 @@ object AccountBannerTags {
 
 /**
  * The sign-in expired and could not be renewed silently, in Orbit: a quiet card at the top of a page, the user glyph on a disc of
- * the danger colour, one line, "Sign in again", and an optional dismiss. Never blocks the page under it: what is on the device
- * still shows. [message] and [actionLabel] replace the defaults (Video says it without the site's name).
+ * the danger colour, one line, "Sign in again", and an optional dismiss, on a solid ground so it reads over anything. Never blocks
+ * the page under it: what is on the device still shows. [message] and [actionLabel] replace the defaults (Video says it without the site's name).
  */
 @Composable
 fun AccountExpiredBanner(
@@ -76,6 +76,8 @@ fun AccountExpiredBanner(
             .fillMaxWidth()
             .padding(horizontal = CosmoSpacing.margin, vertical = 8.dp)
             .clip(RoundedCornerShape(22.dp))
+            // Solid under the quiet tint: where the banner lies over a page (the phone), the page must not show through its words.
+            .background(com.cosmotune.ui.orbit.orbitFloatGround(look))
             .background(look.row)
             .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
             .semantics { liveRegion = LiveRegionMode.Polite }

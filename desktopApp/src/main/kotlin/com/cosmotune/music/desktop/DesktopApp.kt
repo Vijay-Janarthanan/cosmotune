@@ -3724,6 +3724,10 @@ fun CosmotuneDesktopApp() {
                         ),
                     )
                 },
+                // The sign-in expired and could not be renewed (not even from the browser): "Sign in again", under the bar, in the
+                // page's flow so it pushes the page down rather than lying over its title (and Now Playing covers it, not the other
+                // way round).
+                notice = { if (!overlays.signIn) com.cosmotune.ui.account.SessionExpiredBannerHost(onSignIn = { overlays.signIn = true }) },
                 sidebar = {
                     DesktopSidebar(
                         destination = destination,
@@ -4052,15 +4056,6 @@ fun CosmotuneDesktopApp() {
                                     .clip(RoundedCornerShape(50))
                                     .background(Color.Black.copy(alpha = 0.72f))
                                     .padding(horizontal = 18.dp, vertical = 10.dp),
-                            )
-                        }
-                    }
-                    // The sign-in expired and could not be renewed (not even from the browser): "Sign in again".
-                    if (!overlays.signIn) {
-                        Box(Modifier.fillMaxWidth().padding(top = 64.dp), contentAlignment = Alignment.TopCenter) {
-                            com.cosmotune.ui.account.SessionExpiredBannerHost(
-                                onSignIn = { overlays.signIn = true },
-                                modifier = Modifier.widthIn(max = 640.dp),
                             )
                         }
                     }
@@ -5222,6 +5217,8 @@ private fun DesktopFrame(
     /** The ground behind the chrome and the page (the look's ambient ground). */
     backdrop: @Composable () -> Unit,
     topBar: @Composable (Boolean) -> Unit,
+    /** A notice under the top bar, in the page's flow: it pushes the page down rather than lying over it. */
+    notice: @Composable () -> Unit = {},
     sidebar: @Composable () -> Unit,
     bottomBar: @Composable (Boolean) -> Unit,
     /** The column on the far side of the page — the lyrics or the queue, when one is open. */
@@ -5265,6 +5262,7 @@ private fun DesktopFrame(
                             if (!compact) sidebar()
                             Column(Modifier.weight(1f).fillMaxHeight()) {
                             topBar(compact)
+                            notice()
                             Row(Modifier.fillMaxWidth().weight(1f)) {
                                 Box(
                                     Modifier
@@ -5645,7 +5643,7 @@ private fun DesktopSettingsScreen(
     }
     val settingsQuery = query
     val searching = settingsQuery.isNotBlank()
-    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.24" }
+    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.25" }
     val highlight = remember { com.cosmotune.ui.settings.SettingsHighlight() }
     // The pages the desktop has: a category with none of its settings here (backup is the phone's) is left out of the list.
     val pages = remember {
@@ -6782,7 +6780,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.24" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.25" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )
