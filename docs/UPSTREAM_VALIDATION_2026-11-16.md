@@ -28,6 +28,10 @@ Workflow/action files are now declared inputs of the shared contract tests, so a
 
 GitHub's pre-existing dependency alerts were addressed before the app tag. The torrent helper pins patched torrent/WebSocket/DTLS/STUN/crypto/network modules; Go 1.27.4 was verified against the official archive checksum. Read-only Go tests passed, and the Windows helper plus third-party notices were rebuilt. Binary build information confirms the compiler and all six patched dependency versions; CI builds each target afresh.
 
+The refreshed dependency graph exposed additional OpenTelemetry advisories. The final graph uses OpenTelemetry 1.47.0, x/crypto 0.59.0, x/net 0.62.0 and x/text 0.44.0 (minimum Go 1.26). Official govulncheck source/symbol and complete-module scans report zero known findings against the 11 November database. Read-only tests and the Windows helper/notices rebuild passed again under Go 1.27.4.
+
+The first app release attempt failed before Android APK compilation because Go selected the host `g++` for C++ dependencies while linking Android ARM objects. The builder now supplies matching NDK C and C++ target compilers and statically links the C++ runtime. Three regression cases pass. Actual NDK 27 builds passed for arm64-v8a, armeabi-v7a and x86_64; LLVM inspection confirms target architectures, Android interpreters, 0x4000 LOAD alignment and only system libc/libdl/libm/liblog dependencies. The repair remains on tag 1.0.24.
+
 Firebase uses compatible current development packages and scoped overrides. A checksum-verified Node 24 clean install, rules generation, all 18 local database/Firestore emulator tests and the dependency audit pass; npm reports zero vulnerabilities. Deployment identities and deployed rules were not changed.
 
 The parser publisher initially failed when an SDK setup action requested Google's obsolete `tools` package. Using Ubuntu 24.04's installed SDK and the upstream `androidJar` property resolved it. [The successful parser publication](https://github.com/Vijay-Janarthanan/cosmotune/actions/runs/43813596932) completed both isolated build and signing/publication jobs.

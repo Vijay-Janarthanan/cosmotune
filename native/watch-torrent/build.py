@@ -8,16 +8,19 @@ import subprocess
 import zipfile
 
 
-def build(go, target, arch, output, compiler=None):
+def build(go, target, arch, output, compiler=None, cxx_compiler=None):
     env = dict(os.environ, GOOS=target, GOARCH=arch, CGO_ENABLED="1" if compiler else "0")
     if arch == "arm":
         env["GOARM"] = "7"
     args = [go, "build", "-mod=readonly", "-tags=disable_libutp", "-trimpath", "-ldflags=-s -w", "-o", str(output)]
     if compiler:
+        if not cxx_compiler:
+            raise ValueError("Android cross-builds require matching C and C++ target compilers")
         env["CC"] = str(compiler)
+        env["CXX"] = str(cxx_compiler)
         args[2:2] = ["-buildmode=pie"]
         # The pinned anet dependency uses Android's interface table to refresh Go's IPv6 zone cache.
-        args[args.index("-ldflags=-s -w")] = "-ldflags=-s -w -checklinkname=0 -extldflags=-Wl,-z,max-page-size=16384"
+        args[args.index("-ldflags=-s -w")] = '-ldflags=-s -w -checklinkname=0 "-extldflags=-Wl,-z,max-page-size=16384 -static-libstdc++"'
     output.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(args, env=env, cwd=Path(__file__).parent, check=True)
     return env
@@ -94,8 +97,9 @@ def main():
     ]:
         # Calling clang directly also avoids the NDK's .cmd wrappers on Windows.
         clang = tools / ("clang.exe" if host.startswith("windows") else "clang")
+        clangxx = tools / ("clang++.exe" if host.startswith("windows") else "clang++")
         env = build(args.go, "android", arch, root / "android" / abi / "libcosmotorrent.so",
-                    f'"{clang}" --target={triplet}26')
+                    f'"{clang}" --target={triplet}26', f'"{clangxx}" --target={triplet}26')
     notices(args.go, env, root / "android-assets" / "cosmotune-torrent" / "THIRD-PARTY.txt")
 
 

@@ -25,6 +25,7 @@ runs:
       env:
         TARGET: ${{ inputs.target }}
       run: |
+        python native/watch-torrent/test_build.py
         if [[ "$TARGET" == android ]]; then
           android_sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Android SDK setup did not provide a path}}"
           python native/watch-torrent/build.py android --ndk "$android_sdk/ndk/27.0.12077973"
