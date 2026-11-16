@@ -3,13 +3,26 @@
   "private": true,
   "type": "module",
   "description": "Security rules and rules tests for Cosmotune accounts, sync and rooms",
+  "engines": {
+    "node": ">=24.12.0"
+  },
   "scripts": {
     "build:rules": "node rules/database.rules.src.mjs",
     "test": "node rules/database.rules.src.mjs && firebase emulators:exec --only database,firestore \"node --test tests/rules.test.mjs\""
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^4.0.1",
-    "firebase": "^11.0.0",
-    "firebase-tools": "^15.19.0"
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.3.0",
+    "firebase-tools": "^15.36.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.7",
+    "glob": "^14.0.6",
+    "gaxios@^6.0.0": {
+      "uuid": "^11.1.1"
+    },
+    "@google-cloud/pubsub@^5.0.0": {
+      "@opentelemetry/core": "^2.8.0"
+    }
   }
 }

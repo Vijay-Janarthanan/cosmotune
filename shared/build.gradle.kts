@@ -93,6 +93,8 @@ tasks.withType<Test>().configureEach {
         rootProject.file("web/extension/package.json"), rootProject.file(".github/workflows/check.yml"),
         rootProject.file(".github/workflows/release.yml"), rootProject.file("README.md"))
     inputs.files(rootProject.fileTree("docs/releases") { include("*.md") })
+    // The fork guard inspects every workflow, including newly added manual publishers and composite actions.
+    inputs.files(rootProject.fileTree(".github") { include("workflows/*.yml", "workflows/*.yaml", "actions/**/*.yml", "actions/**/*.yaml") })
     inputs.files(rootProject.fileTree("desktopApp/src/main/kotlin") { include("**/*.kt") },
         rootProject.fileTree("providers/src/jvmSharedMain/kotlin") { include("**/*.kt") })
 }

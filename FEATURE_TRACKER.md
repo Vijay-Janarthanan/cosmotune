@@ -4,7 +4,7 @@ Upstream review index updated 2026-11-16; older implementation rows retain their
 
 ## Selected upstream integration — 16 November 2026
 
-Compared 24 tracked/reference repositories against their previous review pins: 13 advanced, 11 unchanged. The source baseline was Cosmotune 1.0.23. [Findings and per-area implementation evidence](docs/UPSTREAM_REVIEW_2026-11-16.md); [exact commit snapshot](docs/UPSTREAM_SNAPSHOT_2026-11-16.json). Selected behaviors are implemented for 1.0.24; automated validation and publication are being completed. Hardware/account qualification remains separate.
+Compared 24 tracked/reference repositories against their previous review pins: 13 advanced, 11 unchanged. The source baseline was Cosmotune 1.0.23. [Findings and per-area implementation evidence](docs/UPSTREAM_REVIEW_2026-11-16.md); [exact commit snapshot](docs/UPSTREAM_SNAPSHOT_2026-11-16.json). Selected behaviors are implemented for 1.0.24; [automated validation and publication evidence](docs/UPSTREAM_VALIDATION_2026-11-16.md) records the gates and repairs. Hardware/account qualification remains separate.
 
 | ID | Feature | Platforms / scope | Status | Evidence |
 | --- | --- | --- | --- | --- |
