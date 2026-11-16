@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -45,7 +45,19 @@ jobs:
           java-version: '17'
       - name: Verify publication fixtures without production secrets
         run: python3 tools/test_parser_bundle_signer.py
-      - uses: android-actions/setup-android@v3
+      - name: Use the runner's installed Android SDK
+        shell: bash
+        run: |
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk_root" && test -d "$sdk_root"
+          # The pinned runner ships this platform already. No obsolete SDK 'tools' package or download is needed.
+          android_jar="$sdk_root/platforms/android-36/android.jar"
+          test -s "$android_jar" || { echo 'The runner is missing Android SDK platform 36'; exit 1; }
+          test -s "$sdk_root/platforms/android-36/data/api-versions.xml" || { echo 'The runner is missing Android API version metadata'; exit 1; }
+          echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
+          echo "PARSER_ANDROID_JAR=$android_jar" >> "$GITHUB_ENV"
+          printf 'Using installed Android SDK platform 36: %s\n' "$android_jar"
       - uses: gradle/actions/setup-gradle@v4
       - name: Build JVM and Android implementations
         id: build
@@ -53,7 +65,7 @@ jobs:
         shell: bash
         run: |
           chmod +x gradlew
-          ./gradlew parsersBundleJar parsersBundleZip --no-daemon --max-workers=2
+          ./gradlew parsersBundleJar parsersBundleZip -PandroidJar="$PARSER_ANDROID_JAR" --no-daemon --max-workers=2
           echo "version=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
           echo "revision=$(git rev-parse --short=10 HEAD)" >> "$GITHUB_OUTPUT"
           mkdir -p ../unsigned-parser-bundles
