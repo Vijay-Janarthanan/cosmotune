@@ -34,6 +34,7 @@ class OldNameScanTest {
         Allowed("docs/UPSTREAM_IMPLEMENTATION_2026-10-28.md", null, "the requested per-project implementation and remaining-work checklist"),
         Allowed("docs/UPSTREAM_REVIEW_2026-11-02.md", null, "the requested current pinned upstream comparison and integration decisions"),
         Allowed("docs/UPSTREAM_REVIEW_2026-11-09.md", null, "the pinned upstream audit and attribution for the imported fixes"),
+        Allowed("docs/UPSTREAM_REVIEW_2026-11-16.md", "Unchanged against their last reviewed branches:", "the pinned audit records the unchanged upstream repository by its original name for provenance"),
         Allowed("docs/UPSTREAM_REVIEW_AETHER_EUTHOPIAR_2026-11-11.md", null, "the pinned AETHER audit, which records that AETHER credits its lyric and alignment ports to upstream"),
         Allowed("tools/upstream-digest.sh", null, "reads the upstream repository by name"),
         Allowed("licenses/", null, "licence texts as their authors wrote them"),
@@ -70,10 +71,10 @@ class OldNameScanTest {
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }
         .first { File(it, "settings.gradle.kts").isFile }
 
-    /** The tracked files; without git, every file outside build and tool folders. */
+    /** Include new, non-ignored source files so local checks catch them before the first commit. */
     private fun files(): List<String> {
         val listed = try {
-            val git = ProcessBuilder("git", "ls-files", "-z").directory(root).start()
+            val git = ProcessBuilder("git", "ls-files", "--cached", "--others", "--exclude-standard", "-z").directory(root).start()
             val out = git.inputStream.readBytes().decodeToString()
             if (git.waitFor() == 0) out.split('\u0000').filter { it.isNotEmpty() } else null
         } catch (e: IOException) {

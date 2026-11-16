@@ -24,6 +24,23 @@ import kotlinx.coroutines.flow.collect
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
+/** Capture before scheduling collection: suppress startup replay without losing a replacement installed before launch runs. */
+internal fun kotlinx.coroutines.CoroutineScope.observeParserBundleChanges(
+    bundles: kotlinx.coroutines.flow.StateFlow<org.koitharu.kotatsu.parsers.ParsersBundle>,
+    changed: () -> Unit,
+): kotlinx.coroutines.Job {
+    val initial = bundles.value
+    return launch {
+        var observed = initial
+        bundles.collect { next ->
+            if (next !== observed) {
+                observed = next
+                changed()
+            }
+        }
+    }
+}
+
 class MangaRepository(val store: MangaStore,
     /** Offline tests only: a parser in place of the pinned catalogue's. */
     internal val kotatsuParser: ((MangaSourceConfig, ParserContext) -> org.koitharu.kotatsu.parsers.MangaParser)? = null,
@@ -40,11 +57,11 @@ class MangaRepository(val store: MangaStore,
     val sourceChanges = changes.asStateFlow()
     private val parserScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     init {
-        parserScope.launch {
-            context.parserUpdates.bundle.collect { synchronized(this@MangaRepository) {
+        parserScope.observeParserBundleChanges(context.parserUpdates.bundle) {
+            synchronized(this@MangaRepository) {
                 sources.entries.removeAll { it.value.first.kind == "kotatsu" }
                 changes.value++
-            } }
+            }
         }
     }
     fun refreshParsers() {
