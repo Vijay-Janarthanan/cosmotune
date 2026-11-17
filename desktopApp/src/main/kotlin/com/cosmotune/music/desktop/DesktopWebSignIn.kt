@@ -25,7 +25,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  * needs no browser installed, decrypts nothing, and is the same on Windows, macOS and Linux.
  *
  * YouTube Music waits for "Use this profile", as the phone does, so a multi-channel account can pick
- * its identity on the page first. Spotify is taken the moment `sp_dc` is set: JavaFX's WebKit has no
+ * its identity on the page first. Its cookies are then read from music.youtube.com/robots.txt, a page
+ * without scripts: the YouTube Music page renews the sign-in cookies by itself, and one renewed after
+ * they were read leaves Cosmotune a copy YouTube has moved past and then refuses, ending the session. Spotify is taken the moment `sp_dc` is set: JavaFX's WebKit has no
  * DRM, so Spotify's web player fails to start, and closing before it shows is what the phone does
  * too.
  */
@@ -69,6 +71,9 @@ internal object DesktopWebSignIn {
 
     private const val SPOTIFY_COOKIE = "sp_dc"
 
+    /** A music.youtube.com page that runs no scripts, so nothing renews the session while its cookies are read. */
+    private const val SETTLED_URL = "https://music.youtube.com/robots.txt"
+
     /** The cookies [service] would send, as a `Cookie` header value. */
     private fun cookies(service: Service): String = runCatching {
         CookieHandler.getDefault().get(URI(service.cookieUrl), emptyMap())["Cookie"].orEmpty().joinToString("; ")
@@ -96,6 +101,8 @@ internal object DesktopWebSignIn {
         private var view: WebView? = null
         private var storage: Path? = null
         private var done = false
+        // Set once "Use this profile" moved the window to the script-free page the cookies are read from.
+        private var settling = false
 
         init {
             stage.title = service.title
@@ -104,7 +111,7 @@ internal object DesktopWebSignIn {
             bar.padding = Insets(8.0)
             if (service == Service.YOUTUBE_MUSIC) {
                 confirm.isDefaultButton = true
-                confirm.setOnAction { youtubeSession()?.let { complete(Result.success(it)) } }
+                confirm.setOnAction { if (youtubeSession() != null) settle() }
                 bar.children += confirm
             }
             root.bottom = bar
@@ -133,8 +140,12 @@ internal object DesktopWebSignIn {
             engine.userDataDirectory = folder.toFile()
             engine.locationProperty().addListener { _, _, url -> where.text = hostOf(url) }
             engine.loadWorker.stateProperty().addListener { _, _, state ->
-                if (state == Worker.State.SUCCEEDED && view === next) onPage(engine.location.orEmpty())
+                if (view !== next) return@addListener
+                if (state == Worker.State.SUCCEEDED) onPage(engine.location.orEmpty())
+                // The script-free page did not load: the cookies as they stand are still the session.
+                if (settling && (state == Worker.State.FAILED || state == Worker.State.CANCELLED)) takeYouTube()
             }
+            settling = false
             confirm.isDisable = true
             root.center = next
             engine.load(service.startUrl)
@@ -144,8 +155,10 @@ internal object DesktopWebSignIn {
             when (service) {
                 // Reaching YouTube Music only enables confirming: a multi-channel login may still be
                 // choosing its identity on this page.
-                Service.YOUTUBE_MUSIC ->
-                    confirm.isDisable = !url.startsWith("https://music.youtube.com") || youtubeSession() == null
+                Service.YOUTUBE_MUSIC -> when {
+                    settling -> if (url.startsWith(SETTLED_URL)) takeYouTube()
+                    else -> confirm.isDisable = !url.startsWith("https://music.youtube.com") || youtubeSession() == null
+                }
                 Service.SPOTIFY -> if (url.startsWith("https://open.spotify.com")) {
                     spotifySession()?.let { complete(Result.success(it)) }
                 }
@@ -165,6 +178,18 @@ internal object DesktopWebSignIn {
             // Cosmotune keeps its own copy of the session; the window's goes with it.
             DesktopWebCookies.reset()
             finish(result)
+        }
+
+        /** Leaves the YouTube Music page for one without scripts, so nothing renews the cookies while they are read. */
+        private fun settle() {
+            settling = true
+            confirm.isDisable = true
+            view?.engine?.load(SETTLED_URL)
+        }
+
+        private fun takeYouTube() {
+            val session = youtubeSession()
+            complete(if (session != null) Result.success(session) else Result.failure(IllegalStateException("The sign-in did not finish. Try again.")))
         }
 
         private fun hostOf(url: String): String = runCatching { URI(url).host }.getOrNull().orEmpty()

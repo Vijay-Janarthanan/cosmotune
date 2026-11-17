@@ -209,6 +209,28 @@ class YouTubeSessionTest {
         assertEquals(4, transport.rotations.size, "an old rotation starts another (both jars), in the background")
     }
 
+    @Test fun aSignInCapturedAMomentAgoIsNotRotatedAgainAtOnce() = runTest {
+        val transport = FakeTransport()
+        val s = session(transport)
+        // The sign-in page renewed these cookies itself a moment ago; YouTube answers a second renewal straight after with 429,
+        // and the capture was followed by a refused session ten minutes on (Vijay's log, 2026-11-17).
+        s.expectCaptured(login)
+        s.install(login)
+        s.ensureFresh()
+        assertTrue(transport.rotations.isEmpty(), "the first signed request uses the captured cookies as they are")
+        advanceTimeBy(YouTubeSession.ROTATE_EVERY_MS + 1)
+        s.ensureFresh()
+        runCurrent()
+        assertEquals(1, transport.rotations.count { it.first == YouTubeSession.ROTATE_YOUTUBE_URL }, "the routine rotation comes on time")
+
+        // Only the captured value is spared: a stored session installed at start rotates first, as before.
+        val later = session(transport)
+        later.expectCaptured(login)
+        later.install("SID=other; SAPISID=othersecret; __Secure-3PAPISID=other")
+        later.ensureFresh()
+        assertEquals(2, transport.rotations.count { it.first == YouTubeSession.ROTATE_YOUTUBE_URL })
+    }
+
     @Test fun aRefusedRequestRotatesAndIsWorthRetrying() = runTest {
         val transport = FakeTransport()
         transport.rotate = { _, _ -> SessionTransport.Answer(200, listOf("__Secure-1PSIDTS=ts1; Domain=.youtube.com")) }
