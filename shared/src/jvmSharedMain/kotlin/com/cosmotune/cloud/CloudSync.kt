@@ -110,7 +110,7 @@ class CloudSync(
     /** Deletes everything this account stored, for "delete my account". The account itself is deleted by the caller afterwards. */
     suspend fun deleteAllCloudData() {
         val root = "users/${uid()}"
-        for (collection in listOf(COLLECTION, "playlists", "settings", "log", "devices")) {
+        for (collection in listOf(COLLECTION, "playlists", "settings", "log", "devices", "playback")) {
             val ids = docs.listIds("$root/$collection")
             ids.chunked(400).forEach { chunk -> docs.commit(chunk.map { DocWrite("$root/$collection/$it", null) }) }
         }

@@ -263,6 +263,26 @@ internal object DesktopCloud {
     }
 
     /** The library's playlists changed: sync after a quiet spell, unless this is only the library catching up with the sync's own write. */
+    // ---- carrying on from another device -------------------------------------------------------------------------------------
+
+    /** What this computer plays, for the account's other devices, and what they play, for Home's top card. */
+    val handoff: com.cosmotune.cloud.HandoffHost by lazy {
+        val os = System.getProperty("os.name").orEmpty()
+        com.cosmotune.cloud.HandoffHost(
+            deviceName = when {
+                os.startsWith("Windows", ignoreCase = true) -> "your Windows PC"
+                os.startsWith("Mac", ignoreCase = true) -> "your Mac"
+                else -> "your computer"
+            },
+            enabled = { enabledState.value },
+            publish = { account.publishPlayback(it) },
+            latest = { account.latestPlayback() },
+            read = { key -> runCatching { persistence.string(key) }.getOrDefault("") },
+            write = { key, value -> runCatching { persistence.saveString(key, value) } },
+            scope = scope,
+        )
+    }
+
     fun playlistsChanged(playlists: List<DesktopPlaylist>) {
         // Before the first sync there is nothing to compare with, and that sync is coming anyway.
         val seen = lastSeen ?: return

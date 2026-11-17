@@ -37,6 +37,7 @@ import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
 import kotlinx.coroutines.flow.MutableStateFlow
+import androidx.compose.ui.test.onNodeWithText
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -79,13 +80,13 @@ class MusicVisualReviewTest {
         try { block() } finally { playerField.set(null, previousPlayer); uiField.set(null, previousUi) }
     }
 
-    private fun page(palette: CosmoPaletteState, dark: Boolean, content: @Composable () -> Unit) {
+    private fun page(palette: CosmoPaletteState, dark: Boolean, width: androidx.compose.ui.unit.Dp = 390.dp, height: androidx.compose.ui.unit.Dp = 844.dp, content: @Composable () -> Unit) {
         compose.setContent {
             val colors = remember { CosmoColors::class.java.getConstructor(CosmoPaletteState::class.java).newInstance(palette) }
             val type = rememberCosmoType()
             MaterialTheme(colorScheme = colors.palette.toColorScheme(if (dark) androidx.compose.material3.darkColorScheme() else androidx.compose.material3.lightColorScheme()), typography = type.toMaterialTypography(MaterialTheme.typography)) {
                 CompositionLocalProvider(LocalCosmoColors provides colors, LocalCosmoType provides type, LocalReducedMotion provides true) {
-                    Box(Modifier.size(390.dp, 844.dp).testTag("music:review").background(Color(colors.palette.backgroundBottom))) { content() }
+                    Box(Modifier.size(width, height).testTag("music:review").background(Color(colors.palette.backgroundBottom))) { content() }
                 }
             }
         }
@@ -122,6 +123,31 @@ class MusicVisualReviewTest {
                 )
             }
             capture("home-$name")
+        }
+    }
+
+    /** The top card offering another device's song (the phone's, on the desktop), dark and light, at phone and desktop width. */
+    @Test fun homeOffersAnotherDevicesSong() = hosts {
+        val art = listOf(cover("a", 142, 68, 58), cover("b", 44, 96, 120), cover("c", 90, 120, 60), cover("d", 110, 70, 130))
+        val phoneSong = Song("vPhone", "Kichchali Samba", "S. P. Balasubrahmanyam, K. S. Chithra", art[0], albumName = "Oor Mariyadai")
+        val offer = com.cosmotune.ui.home.ElsewhereOffer(phoneSong, "your phone", positionMs = 133_000, durationMs = 285_000, upNext = 24, onContinue = {}, onPutAside = {})
+        for ((name, palette, dark) in listOf(Triple("dark", OneTestPalette.dark(), true), Triple("light", OneTestPalette.light(), false))) {
+            for ((width, w, h) in listOf(Triple("phone", 390.dp, 700.dp), Triple("desktop", 1100.dp, 560.dp))) {
+                page(palette, dark, w, h) {
+                    CompositionLocalProvider(com.cosmotune.ui.home.LocalElsewhere provides offer) {
+                        OrbitHome(
+                            state = UiState.Success(listOf(HomeShelf("Quick picks", items("Pick", 12, art, songs = true)), HomeShelf("Your mixes", items("Mix", 6, art)))),
+                            listState = rememberLazyListState(),
+                            onItemClick = { _, _ -> }, onRetry = {}, refreshing = false, onRefresh = {}, pullState = rememberPullToRefreshState(),
+                            contentPadding = PaddingValues(top = 16.dp),
+                            quickLinks = listOf(HomeQuickLink("Liked songs", CosmoIcons.Heart) {}, HomeQuickLink("Downloads", CosmoIcons.Download) {}),
+                        )
+                    }
+                }
+                compose.onNodeWithText("ON YOUR PHONE").assertExists()
+                compose.onNodeWithText("2:13 / 4:45 · 24 UP NEXT").assertExists()
+                capture("home-elsewhere-$width-$name")
+            }
         }
     }
 

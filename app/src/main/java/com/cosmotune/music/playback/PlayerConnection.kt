@@ -898,7 +898,7 @@ fun mediaIdIn(uri: Uri): String? = if (uri.authority == "podio-youtube") {
  * starts. Built off the main thread and handed to the player back on it, which
  * is where Media3 requires the call to be made.
  */
-suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
+suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int, startPositionMs: Long = 0L) {
     if (songs.isEmpty()) return
     sendCustomCommand(
         SessionCommand(ACTION_CLEAR_BOUNDED_CONTEXT, Bundle.EMPTY),
@@ -935,7 +935,7 @@ suspend fun MediaController.playSongs(songs: List<Song>, startIndex: Int) {
 
         mediaItems
     }
-    setMediaItems(items, queueStartIndex(startIndex, items.size, shuffled), 0L)
+    setMediaItems(items, queueStartIndex(startIndex, items.size, shuffled), startPositionMs.coerceAtLeast(0L))
     prepare()
     play()
 }
