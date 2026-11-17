@@ -2860,7 +2860,8 @@ private fun CosmotuneApp(
                             windowWidth = windowWidth,
                             onPlayProviderSongs = { songs, index -> playFrom(songs, index, QueueSource("Provider", PlaybackSourceType.BROWSE)) },
                             signedIn = signedIn,
-                            account = account,
+                            // YouTube's account menu can fail or still be loading; the saved profile still knows the name and picture.
+                            account = account ?: signedInProfileAccount(googleAccounts, activeAccountId, activeProfileId).takeIf { signedIn },
                             onSignIn = {
                                 showSettings = false
                                 webSession = WebSessionMode.SIGN_IN
@@ -4832,3 +4833,13 @@ private val MUSIC_DOCK = listOf(TAB_HOME, TAB_EXPLORE, TAB_RELEASES, TAB_LIBRARY
  * prefix has to be the one thing both the writing and the reading agree on.
  */
 private const val TAB_KEY = "tab:"
+
+/** The active saved profile as an [com.cosmotune.music.data.model.Account], for when YouTube's account menu has not answered. */
+internal fun signedInProfileAccount(
+    accounts: List<com.cosmotune.music.auth.GoogleAccountSession>, accountId: String?, profileId: String?,
+): com.cosmotune.music.data.model.Account? {
+    val login = accounts.firstOrNull { it.accountId == accountId } ?: accounts.firstOrNull() ?: return null
+    val profile = login.profiles.firstOrNull { it.profileId == (profileId ?: login.activeProfileId) } ?: login.profiles.firstOrNull()
+    val name = profile?.name?.takeIf { it.isNotBlank() } ?: login.name.takeIf { it.isNotBlank() } ?: return null
+    return com.cosmotune.music.data.model.Account(name, profile?.handle?.takeIf { it.isNotBlank() } ?: login.email, profile?.avatar)
+}

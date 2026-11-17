@@ -486,13 +486,15 @@ fun SettingsScreen(
                 SettingsHub(
                     entries = hubEntries,
                     onOpen = { selectedCategory = it },
-                    // Who is signed in comes first, as a card of its own: it opens the account and its services, or signs in.
+                    // Who is signed in comes first, as a card of its own. It opens the Account page, which holds the account and its
+                    // services and cloud sync (turn on, sign in with Google): the hub shows no Account tile while this card stands in for
+                    // it, so opening the services page straight away left cloud sync with no way in.
                     accountCard = {
                         AccountCard(
                             signedIn = signedIn,
                             account = account,
                             onSignIn = onSignIn,
-                            onClick = onAccountScrobbling,
+                            onClick = { selectedCategory = SettingsCategory.ACCOUNT },
                             syncLine = if (cloudEnabled) cloudStatusLine(cloudStatus) else stringResource(R.string.cloud_sync_off),
                         )
                     },
