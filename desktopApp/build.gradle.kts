@@ -284,6 +284,9 @@ dependencies {
 tasks.withType<Test> {
     // The one live check that hooks a real window (DesktopWindowsTaskbarLiveTest) needs a display.
     systemProperty("java.awt.headless", if (System.getenv("COSMOTUNE_TASKBAR_LIVE") == "1") "false" else "true")
+    // The log and state folder (desktop.log, update results) of the tests, not of the Cosmotune installed on this computer: test
+    // fixtures such as "quitting: native library refused" used to land in the real desktop.log.
+    environment("XDG_STATE_HOME", layout.buildDirectory.dir("test-state").get().asFile.absolutePath)
     // Native aborts bypass JUnit's failure report; retain the last executing test in CI logs.
     testLogging.events("started", "failed")
     testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
