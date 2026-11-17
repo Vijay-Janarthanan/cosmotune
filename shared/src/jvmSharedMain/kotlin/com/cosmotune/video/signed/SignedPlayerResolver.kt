@@ -286,14 +286,14 @@ internal class SignedPlayerResolver(
         val sent = if (client.takesCookies) session.cookie else null
         val first = http.post(URL, SignedPlayerRequest.headers(client, scope, sent, session), body)
         if (sent == null) return parse(first)
-        session.absorbSetCookies(sent, first.setCookies)
+        session.absorbSetCookies(sent, first.setCookies, "the signed video player")
         if (first.status != 401 && first.status != 403) return accepted(sent, first)
         session.reportRejected(sent, first.status)
         if (session.refreshAfterRejection(sent) != YouTubeSession.Refresh.ROTATED) throw Refused("HTTP ${first.status}")
         val again = session.cookie
         if (again == null || again == sent || !YouTubeCookieJar.sameLogin(again, sent)) throw Refused("HTTP ${first.status}")
         val second = http.post(URL, SignedPlayerRequest.headers(client, scope, again, session), body)
-        session.absorbSetCookies(again, second.setCookies)
+        session.absorbSetCookies(again, second.setCookies, "the signed video player, again")
         if (second.status == 401 || second.status == 403) session.reportRejected(again, second.status)
         return accepted(again, second)
     }

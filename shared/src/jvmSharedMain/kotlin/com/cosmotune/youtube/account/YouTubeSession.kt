@@ -220,14 +220,46 @@ class YouTubeSession(
      * force (the listener switched while it was in flight), when nothing changes, and when the answer would take the signing secret
      * away (that is a sign-out elsewhere, which the next refused request reports, not a rotation to keep).
      */
-    fun absorbSetCookies(sent: String?, setCookies: List<String>) {
+    fun absorbSetCookies(sent: String?, setCookies: List<String>, where: String = "") {
         if (sent == null || setCookies.isEmpty()) return
+        // Names only: which answer took the sign-in away is what a sign-in that ends minutes after it was made comes down to.
+        if (setCookies.any(::clearsSignIn)) {
+            Log.w(TAG, "YouTube cleared the sign-in in its answer to ${where.ifBlank { "a signed request" }}: ${YouTubeCookieJar.describeSetCookies(setCookies, clock())}")
+        }
         val changed = synchronized(lock) {
             val current = cookieFlow.value ?: return
             if (!YouTubeCookieJar.sameLogin(sent, current)) return
             applyYouTube(setCookies)
         }
         if (changed) schedulePersist()
+    }
+
+    private fun clearsSignIn(setCookie: String): Boolean {
+        val name = setCookie.substringBefore('=').trim()
+        if (name != "SID" && name != "LOGIN_INFO" && name != "__Secure-1PSID") return false
+        val value = setCookie.substringAfter('=').substringBefore(';').trim()
+        return value.isEmpty() || value.equals("deleted", true) || setCookie.contains("1970", true) || setCookie.contains("Max-Age=0", true)
+    }
+
+    /**
+     * For [forMs] after a sign-in, asks the signed-in page every [everyMs] whether YouTube still has it, and logs when it stops.
+     * A sign-in YouTube ends minutes after it was made is otherwise only seen at the next start, with nothing to say what ended it.
+     */
+    fun watchNewSignIn(everyMs: Long = 30_000L, forMs: Long = 5 * 60_000L) {
+        val gen = generation
+        val start = clock()
+        background.launch {
+            while (clock() - start < forMs) {
+                delay(everyMs)
+                if (generation != gen) return@launch
+                val alive = checkSignedIn(gen) ?: continue
+                if (!alive) {
+                    Log.w(TAG, "YouTube ended this sign-in ${(clock() - start) / 1000} s after it was made")
+                    return@launch
+                }
+            }
+            Log.d(TAG, "the new sign-in was still signed in after ${forMs / 1000} s")
+        }
     }
 
     // ---- What the server said ---------------------------------------------------------------------------------------------

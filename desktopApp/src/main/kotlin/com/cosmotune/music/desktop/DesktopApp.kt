@@ -4151,6 +4151,7 @@ fun CosmotuneDesktopApp() {
                                         // Read a moment ago from the sign-in page: its first signed request does not renew it again.
                                         com.cosmotune.youtube.account.YouTubeSession.shared.expectCaptured(cookie)
                                         signIn(cookie, WEB_SIGN_IN)
+                                        com.cosmotune.youtube.account.YouTubeSession.shared.watchNewSignIn()
                                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
                                         throw cancelled
                                     } catch (failure: Exception) {

@@ -1478,7 +1478,7 @@ object Innertube {
     private fun HttpResponse.keepRotatedCookies(sent: String?): HttpResponse {
         if (sent != null) {
             val values = headers.getAll(HttpHeaders.SetCookie).orEmpty()
-            if (values.isNotEmpty()) session.absorbSetCookies(sent, values)
+            if (values.isNotEmpty()) session.absorbSetCookies(sent, values, "${call.request.method.value} ${call.request.url.host}${call.request.url.encodedPath} (HTTP ${status.value})")
         }
         return this
     }

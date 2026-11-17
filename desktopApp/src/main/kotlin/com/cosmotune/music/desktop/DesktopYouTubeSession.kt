@@ -63,6 +63,15 @@ internal object DesktopYouTubeSession {
                 header("Cookie", cookie)
                 DesktopYouTubeAuth.signatureFor(cookie, DesktopYouTubeAuth.MUSIC_ORIGIN)
                     ?.let { header("Authorization", it) }
+            }.also { response ->
+                // Names only, never values: what the page set or cleared is what a lost sign-in comes down to.
+                val set = response.headers.getAll("Set-Cookie").orEmpty()
+                if (set.isNotEmpty()) {
+                    DesktopTrackLog.log(
+                        "session scope page: HTTP ${response.status.value}, set " +
+                            com.cosmotune.youtube.account.YouTubeCookieJar.describeSetCookies(set, System.currentTimeMillis()),
+                    )
+                }
             }.bodyAsText()
         }.getOrElse {
             DesktopTrackLog.log("could not read the session scope: ${it.message}")
