@@ -908,6 +908,10 @@ fun CosmotuneDesktopApp() {
             activeProfileId = DesktopAccounts.activeProfileId()
             overlays.signIn = false
             overlays.accounts = false
+            // Signing in again to the account that was signed in before changes neither id above, so the library and the
+            // "signed in" state are asked to reload outright: otherwise Home kept its Sign in card and the playlists stayed empty.
+            youtubeSignedIn = DesktopYouTubeAuth.isSignedIn
+            sessionRevision++
         } finally {
             signInBusy = null
         }
