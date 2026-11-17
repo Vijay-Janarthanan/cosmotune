@@ -46,29 +46,48 @@ import com.cosmotune.watch.model.TitleSummary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** Watch search's text, filters and last results, kept for the process per repository (a test's fake has its own). */
+internal class WatchSearchMemory {
+    val query = mutableStateOf("")
+    val type = mutableStateOf<String?>(null)
+    val genre = mutableStateOf<String?>(null)
+    val year = mutableStateOf<Int?>(null)
+    @Volatile var found: Pair<String, SearchResults>? = null
+    @Volatile var live: List<LiveNowItem> = emptyList()
+
+    companion object {
+        private val all = java.util.WeakHashMap<Any, WatchSearchMemory>()
+        fun of(owner: Any): WatchSearchMemory = synchronized(all) { all.getOrPut(owner) { WatchSearchMemory() } }
+    }
+}
+
 /** Search (board: Search in the sidebar): Orbit's search pill, then films and series as posters and channels as live rows. */
 @Composable
 internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame, initialQuery: String = "") {
     val repository = actions.repository
     val clock = LocalWatchClock.current
-    var query by rememberSaveable { mutableStateOf(initialQuery) }
-    var results by remember { mutableStateOf<SearchResults?>(null) }
+    // What was searched and found stays for the process: opening a result and coming back finds the same search, not an empty one.
+    val memory = remember(repository) { WatchSearchMemory.of(repository).also { m -> if (initialQuery.isNotEmpty()) m.query.value = initialQuery } }
+    var query by memory.query
+    var results by remember { mutableStateOf(memory.found?.takeIf { it.first == query.trim() }?.second) }
     var searching by remember { mutableStateOf(false) }
-    var type by rememberSaveable { mutableStateOf<String?>(null) }
-    var genre by rememberSaveable { mutableStateOf<String?>(null) }
-    var year by rememberSaveable { mutableStateOf<Int?>(null) }
+    var type by memory.type
+    var genre by memory.genre
+    var year by memory.year
     var genreMenu by remember { mutableStateOf(false) }
     var yearMenu by remember { mutableStateOf(false) }
-    var live by remember { mutableStateOf<List<LiveNowItem>>(emptyList()) }
+    var live by remember { mutableStateOf(memory.live.takeIf { memory.found?.first == query.trim() }.orEmpty()) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(query) {
         val q = query.trim()
         if (q.isEmpty()) { results = null; searching = false; return@LaunchedEffect }
+        if (memory.found?.first == q) { results = memory.found?.second; live = memory.live; return@LaunchedEffect }
         searching = true
         delay(300)
         val found = runCatching { repository.search(q) }.getOrNull()
         live = found?.channels.orEmpty().take(8).map { c -> runCatching { repository.nowNext(c) }.getOrDefault(LiveNowItem(c)) }
         results = found
+        if (found != null) { memory.found = q to found; memory.live = live }
         searching = false
     }
     val side = frame.side

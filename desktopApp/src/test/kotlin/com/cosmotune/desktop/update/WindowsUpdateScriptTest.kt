@@ -75,6 +75,20 @@ class WindowsUpdateScriptTest {
         return Triple(installed, relaunched, result)
     }
 
+    @Test fun aStuckReadOnlyScriptFromBeforeDoesNotStopTheUpdate() {
+        // Windows answers a write over a read-only file with "(Access is denied)", the error the update showed.
+        val dir = File(tmp, "stuck").apply { mkdirs() }
+        val stuck = File(dir, "cosmotune-update.ps1").apply { writeText("old"); setWritable(false) }
+        try {
+            val written = WindowsUpdateScript.write("Write-Output 'new'", dir)
+            assertTrue(written.path != stuck.path, "a file of its own: ${written.path}")
+            assertTrue(written.readText().endsWith("Write-Output 'new'"))
+            assertEquals("old", stuck.readText(), "the stuck one is left as it was")
+        } finally {
+            stuck.setWritable(true)
+        }
+    }
+
     @Test fun installsAndRelaunches() {
         val (installed, relaunched, result) = runScript(0)
         val calls = installed.readText()

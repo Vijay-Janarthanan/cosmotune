@@ -131,6 +131,14 @@ object WatchNav {
     fun open(route: WatchRoute) { stack.value = stack.value + route }
     fun openTitle(summary: TitleSummary) = open(WatchRoute.Page(summary))
 
+    /**
+     * The open page of [key] turned out to be of [type] (a title from a list of no stated kind is a film until its page lists
+     * episodes): its route says so, so the back bar and the sidebar name it a series.
+     */
+    fun retype(key: com.cosmotune.watch.model.WatchKey, type: TitleType) {
+        stack.value = stack.value.map { if (it is WatchRoute.Page && it.summary.key == key && it.summary.type != type) WatchRoute.Page(it.summary.copy(type = type)) else it }
+    }
+
     fun playChannel(target: PlayTarget.Live, summary: TitleSummary) {
         val now = stack.value
         val top = now.lastOrNull() as? WatchRoute.Play

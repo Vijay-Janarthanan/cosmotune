@@ -87,6 +87,7 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
     val title by produceState<Result<Title?>?>(null, summary.key, attempt) { value = runCatching { repository.title(summary.key) } }
     val page = title?.getOrNull()
     val shown = summary.withTitleDetails(page)
+    LaunchedEffect(page, shown.type) { if (page != null && shown.type != summary.type) WatchNav.retype(summary.key, shown.type) }
     val myList by repository.myList.collectAsState()
     val inList = myList.any { it.key == summary.key }
     val (fill, ink) = coverFill(shown.posterUrl ?: shown.backdropUrl, shown.key.value)

@@ -40,6 +40,11 @@ internal object DesktopPreferenceChunks {
             index++
         }
         runCatching { preferences.flush() }
+        // Java does not say when the registry refused a write: what is there now is compared with what was written.
+        val back = read(preferences, key)
+        if (back != chunks.joinToString("")) {
+            DesktopTrackLog.log("preferences: '$key' did not save (wrote ${value.length} chars in ${chunks.size} parts, it reads ${back?.length ?: 0})")
+        }
     }
 
     /** Removes both legacy and chunked forms of one logical value. */

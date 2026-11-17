@@ -262,6 +262,7 @@ internal object DesktopAccounts {
             return null
         }
         val session = sessionFor(account, activeProfile())
+        DesktopTrackLog.log("sign-in: putting the saved account in force: ${describe(session?.cookie)}")
         DesktopYouTubeAuth.adopt(session)
         if (session == null) {
             DesktopTrackLog.log("account '${account.email.ifBlank { account.name }}' has no stored credential any more")
@@ -330,6 +331,7 @@ internal object DesktopAccounts {
     }
 
     fun remove(accountId: String) {
+        unsaved.remove(accountId)
         DesktopSecretStore.remove(attributesFor(accountId))
         DesktopSecretPreferences.shared.write(cookieFallbackKey(accountId), "")
         val remaining = accounts().filterNot { it.accountId == accountId }
@@ -350,7 +352,42 @@ internal object DesktopAccounts {
         mapOf("application" to com.cosmotune.CosmoConfig.STORAGE_NAME, "account" to accountId)
 
     /** The keyring first, and a preference only when there is no keyring. */
+    /** Length and two telling names only, never a value: what a save wrote, for a sign-in that will not stay saved. */
+    private fun describe(cookie: String?): String {
+        if (cookie == null) return "nothing"
+        val names = cookie.split(';').map { it.substringBefore('=').trim() }.filter { it.isNotEmpty() }.toSet()
+        return "${cookie.length} chars, ${names.size} cookies" + (if ("CONSISTENCY" in names) ", with CONSISTENCY" else "") + ", #" + digest(cookie).take(6)
+    }
+
+    /**
+     * Sign-ins this PC would not let the app save, by account: kept for this run instead, so a refused save does not put the
+     * stored copy (an older, dead sign-in) back in force over the one just made. Security software that guards saved browser
+     * cookies refuses the write while reporting nothing; the app is not to get round it, only not to sign the person out.
+     */
+    private val unsaved = java.util.concurrent.ConcurrentHashMap<String, String>()
+    @Volatile private var toldUnsaved = false
+
     private fun writeCookie(accountId: String, cookie: String) {
+        val caller = Throwable().stackTrace.drop(1).firstOrNull { !it.methodName.contains("writeCookie") }?.let { "${it.methodName}:${it.lineNumber}" }
+        DesktopTrackLog.log("sign-in: saving ${describe(cookie)} (from $caller)")
+        try {
+            writeStoredCookie(accountId, cookie)
+        } finally {
+            val stored = storedCookieOf(accountId)
+            if (stored == cookie) {
+                unsaved.remove(accountId)
+            } else {
+                unsaved[accountId] = cookie
+                DesktopTrackLog.log("sign-in: this PC did not let the sign-in be saved (it still holds ${describe(stored)}); keeping it for this run")
+                if (!toldUnsaved) {
+                    toldUnsaved = true
+                    DesktopPlayerHost.messages.value = "Signed in. This PC blocked saving it: sign in again after a restart."
+                }
+            }
+        }
+    }
+
+    private fun writeStoredCookie(accountId: String, cookie: String) {
         val stored = DesktopSecretStore.store(
             label = DesktopStrings["d_cosmotune_youtube_music_session", "Cosmotune — YouTube Music session"],
             attributes = attributesFor(accountId),
@@ -365,7 +402,9 @@ internal object DesktopAccounts {
         }
     }
 
-    fun cookieOf(accountId: String): String? =
+    fun cookieOf(accountId: String): String? = unsaved[accountId] ?: storedCookieOf(accountId)
+
+    private fun storedCookieOf(accountId: String): String? =
         DesktopSecretStore.lookup(attributesFor(accountId))?.toString(Charsets.UTF_8)?.takeIf { it.isNotBlank() }
             ?: DesktopSecretPreferences.shared.read(cookieFallbackKey(accountId)).takeIf { it.isNotBlank() }
 

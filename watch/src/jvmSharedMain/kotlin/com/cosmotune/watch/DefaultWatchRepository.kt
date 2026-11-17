@@ -702,10 +702,12 @@ class DefaultWatchRepository(
         lock.withLock { emitNow() }
         coroutineScope {
             for (p in plugins) launch {
+                // A channel several sources list is asked of each as that source lists it, so its copies are one channel's sources.
+                val asked = if (full is PlayTarget.Live) full.channel.asListedBy(p.id)?.let { PlayTarget.Live(it) } ?: full else full
                 val result = runCatching {
                     withTimeoutOrNull(config.timeoutMs) {
-                        if (Capability.WHERE_TO_WATCH in p.capabilities && Capability.STREAMS !in p.capabilities) Pair(emptyList(), p.whereToWatch(full))
-                        else Pair(p.streams(full), emptyList<WatchProvider>())
+                        if (Capability.WHERE_TO_WATCH in p.capabilities && Capability.STREAMS !in p.capabilities) Pair(emptyList(), p.whereToWatch(asked))
+                        else Pair(p.streams(asked), emptyList<WatchProvider>())
                     } ?: error("Not responding")
                 }
                 lock.withLock {
@@ -760,8 +762,9 @@ class DefaultWatchRepository(
         val favourites = store.state.value.favourites
         val q = filter.query?.trim()?.lowercase()
         val byKey = channelsByKey()
-        return byKey.values.map { list -> if (filter.pluginId != null) list.firstOrNull { it.pluginId == filter.pluginId } else merged(list) }
-            .filterNotNull().filter { c ->
+        val each = byKey.values.map { list -> if (filter.pluginId != null) list.firstOrNull { it.pluginId == filter.pluginId } else merged(list) }.filterNotNull()
+        return (if (filter.pluginId != null) each else ChannelMerge.byName(each))
+            .filter { c ->
                 (filter.country == null || filter.country.lowercase() in c.countries) &&
                     (filter.language == null || c.languages.any { LanguageCodes.same(it, filter.language) }) &&
                     (filter.category == null || c.categories.any { it.equals(filter.category, true) }) &&

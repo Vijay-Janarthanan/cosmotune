@@ -161,7 +161,15 @@ data class Channel(
     val isRadio: Boolean = false,
     /** iptv-org's "Not 24/7", "Geo-blocked". */
     val labels: List<String> = emptyList(),
-)
+    /**
+     * The same channel as other sources list it (same name, no country that differs), each under its own key and plugin: one
+     * row in Live TV and search, and each source is asked for its own copy when it plays ([PlayTarget.Live]).
+     */
+    val also: List<Channel> = emptyList(),
+) {
+    /** This channel as [pluginId] lists it, when it is one of them. */
+    fun asListedBy(pluginId: String): Channel? = if (this.pluginId == pluginId) this else also.firstOrNull { it.pluginId == pluginId }
+}
 
 /** One guide entry (XMLTV `<programme>`, Xtream EPG row, Pluto/Samsung timeline). */
 @Serializable

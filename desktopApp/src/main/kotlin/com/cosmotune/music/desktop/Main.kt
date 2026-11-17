@@ -106,6 +106,15 @@ private fun runDesktop() {
     LyricsTranslation.cacheDir = DesktopMediaCache.directory.toFile()
     // The last content of every main page, shown at once on the next start while the page refreshes (PageCache).
     com.cosmotune.cache.PageCache.configure(DesktopMediaCache.directory.resolveSibling("pages").toFile())
+    // Java's preferences report a refused registry write only as a warning on the error stream, which the app never shows: the
+    // log gets them, so a setting (or a saved sign-in) that does not stay saved says why.
+    runCatching {
+        java.util.logging.Logger.getLogger("java.util.prefs").addHandler(object : java.util.logging.Handler() {
+            override fun publish(record: java.util.logging.LogRecord) { DesktopTrackLog.log("preferences: ${record.level}: ${record.message}") }
+            override fun flush() {}
+            override fun close() {}
+        })
+    }
     com.cosmotune.audio.LibraryLoudness.attach(com.cosmotune.audio.LibraryAnalysisStore.beside(com.cosmotune.desktop.desktopListeningFile()))
     // Listens kept while offline in an earlier session.
     DesktopScrobbling.flushPending()
