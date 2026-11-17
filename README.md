@@ -8,24 +8,6 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-Version 1.0.24 adds recording-safe source selection, provider recovery, persistent artist artwork, provider-specific download choices, per-song player options, Watch episode batches, podcast chapters/transcripts and signed Manga parser updates. macOS gains native Now Playing controls. [1.0.24 release notes and validation limits](docs/releases/1.0.24.md) · [Upstream review](docs/UPSTREAM_REVIEW_2026-11-16.md)
-
-Version 1.0.17 gives the whole app a new look, called Orbit, on the phone, the desktop, the TV and the watch. It adds Watch, a mode for free films, series and live TV with plugins; Live now, for the scores of the matches you follow and live shows; and Indian channels from Prasar Bharati (DD) and the broadcasters' own live news. The sleep timer now pauses on time with the screen off. [1.0.17 changes and limits](docs/releases/1.0.17.md) · [Remaining work](docs/PENDING_WORK.md)
-
-Version 1.0.16 adds shared rooms (listen, watch and talk together, each person in their own app: songs, videos, live radio and podcasts, with chat and voice) and an optional Cosmotune account that keeps your playlists, likes and followed artists the same on your devices, and keeps lyrics and music videos moving when the desktop window loses focus. [1.0.16 changes and validation limits](docs/releases/1.0.16.md)
-
-[Downloads](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest) point to the latest published installers. New source changes require an updated app build; release assets are published after the platform build workflow succeeds. [Playback findings and upstream integration evidence](docs/UPSTREAM_IMPLEMENTATION_2026-10-28.md).
-
-**Included in 1.0.14 and kept in 1.0.15:** device EQ profiles and truthful output guidance, broader local discovery and editable mixes, shared song-list controls, recoverable Video Home feeds, improved Manga browsing and source filtering, plus Read with EPUB/PDF books, colour illustrations, bookmarks and catalogue discovery. [Audio and discovery scope](docs/HEADPHONES_AND_DISCOVERY_PLAN_2026-11-02.md) · [Video repair evidence](docs/VIDEO_PLAYBACK_REPAIRS_2026-11-02.md) · [Read implementation and source matrix](docs/READING_BOOKS_PLAN_2026-11-02.md) · [1.0.14 notes](docs/releases/1.0.14.md).
-
-Version 1.0.9 rebuilds Podio around a satellite radio globe with city-level zoom, nearby-station selection, on-air metadata and station pages with local time, weather, credited photos and articles. Podcasts gain regional charts and genre filters. [1.0.9 changes](docs/releases/1.0.9.md)
-
-Version 1.0.8 aligns Manga and Podio with the native theme, keeps artist photographs visible when replacement artwork fails, repairs case-sensitive radio language searches, expands the radio map, and makes regional/language discovery prominent with shorter menus.
-
-Version 1.0.7 adds provider audio preparation and comparisons, tappable audio details, regional discovery and local playlist previews, automatic verification callbacks, and fixes for Windows playback freezing and Now Playing window dragging. Amazon passed actual Windows decoding as 24-bit/44.1 kHz FLAC; Qobuz package availability remains limited by its gateway. [Playback evidence](docs/PROVIDER_MEDIA_PREPARATION.md).
-
-**Podio** brings live radio and podcasts to Android phone/tablet and desktop: explore stations on a globe, search by country/language, save favourites, discover shows and open publisher RSS feeds without an account. Spotify podcast links can find matching public RSS audio; Spotify-only and paid-only audio are unsupported. Following and episode progress stay on your device. [Reviewed projects, playback evidence and limits](docs/PODIO_RESEARCH.md).
-
 <p>For Android, Windows, Linux and macOS, with a Wear OS watch app, an Android TV app and a browser companion. Free and open source.</p>
 
 <p>
