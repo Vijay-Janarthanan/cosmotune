@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val appVersion: String = providers.gradleProperty("cosmotune.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.0.25"
+    ?: "1.0.26"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -800,4 +800,22 @@ compose.desktop {
         }
     }
 
+}
+
+// The Windows installers use packaging/windows/main.wxs (jpackage's own, plus closing a running Cosmotune before its files are
+// replaced; the file says why). jpackage reads it from its resource folder. The Compose plugin keeps that folder to itself (a
+// private field, no setting): it empties the folder, then reads it again to pass it to jpackage. So the plugin is given a folder
+// that puts main.wxs back each time it is read. tools/check-msi.ps1 checks the built installer in every release build.
+tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
+    if (targetFormat == TargetFormat.Msi || targetFormat == TargetFormat.Exe) {
+        val template = project.layout.projectDirectory.file("packaging/windows/main.wxs").asFile
+        inputs.file(template)
+        val folder = project.layout.buildDirectory.dir("compose/tmp/$name-resources").map { dir ->
+            template.copyTo(dir.file("main.wxs").asFile.apply { parentFile.mkdirs() }, overwrite = true)
+            dir
+        }
+        org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask::class.java
+            .getDeclaredField("jpackageResources").apply { isAccessible = true }
+            .set(this, folder)
+    }
 }
