@@ -263,6 +263,8 @@ import com.cosmotune.music.ui.performance.resolvePerformanceRefreshRate
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.launch
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -1109,6 +1111,36 @@ private fun CosmotuneApp(
     val tabLabels = listOf(homeLabel, exploreLabel, libraryLabel, searchLabel)
 
     val scope = rememberCoroutineScope()
+
+    // Carrying on from another device of the account: what it played, offered in Home's top card while this phone plays nothing.
+    // Looked up only while the app is on screen.
+    val elsewhereHandoff by com.cosmotune.music.data.cloud.AndroidCloud.handoff.elsewhere.collectAsState()
+    val elsewhereLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(player.isPlaying) {
+        if (player.isPlaying) {
+            com.cosmotune.music.data.cloud.AndroidCloud.handoff.look(isPlaying = true)
+            return@LaunchedEffect
+        }
+        elsewhereLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            while (true) {
+                com.cosmotune.music.data.cloud.AndroidCloud.handoff.look(isPlaying = false)
+                kotlinx.coroutines.delay(45_000L)
+            }
+        }
+    }
+    val elsewhereOffer = elsewhereHandoff?.let { handoff ->
+        handoff.song?.let { song ->
+            com.cosmotune.ui.home.ElsewhereOffer(
+                song, handoff.deviceName, handoff.positionAt(System.currentTimeMillis()), handoff.durationMs, handoff.upNext,
+                onContinue = {
+                    if (!ListenTogether.state.value.inParty) scope.launch {
+                        controller?.playSongs(handoff.songs, handoff.index, handoff.positionAt(System.currentTimeMillis()))
+                    }
+                },
+                onPutAside = { com.cosmotune.music.data.cloud.AndroidCloud.handoff.putAside(handoff) },
+            )
+        }
+    }
 
     // Copies tracks to the WebDAV server, leaving the local files alone.
     // A clash suspends the batch on WebDavUploads.conflict until the dialog
@@ -2607,6 +2639,8 @@ private fun CosmotuneApp(
             // walk the hidden page behind the player.
             val pageCovered = showNowPlaying && playerSong != null
             Box(Modifier.weight(1f).fillMaxHeight().then(if (pageCovered) Modifier.clearAndSetSemantics {} else Modifier)) {
+                // Another device's song for Home's top card (see elsewhereOffer above).
+                androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.home.LocalElsewhere provides elsewhereOffer) {
                 AnimatedContent(
                     targetState = when {
                         showSpotify && detail == null -> "spotify"
@@ -4011,6 +4045,7 @@ private fun CosmotuneApp(
                     notices = { QueueActionNoticeHost(queueNotice) },
                     modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = FLOATING_BAR_MAX_WIDTH).fillMaxWidth(),
                 )
+            }
             }
 
         }

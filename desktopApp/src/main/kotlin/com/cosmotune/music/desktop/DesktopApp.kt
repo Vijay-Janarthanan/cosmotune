@@ -947,6 +947,14 @@ fun CosmotuneDesktopApp() {
         playCurrent()
     }
 
+    /** Carries on with what another device of the account was playing: its queue, from where it was up to. */
+    fun continueElsewhere(handoff: com.cosmotune.cloud.PlaybackHandoff) {
+        if (handoff.song == null || partyTrackChangeBlocked()) return
+        liveQueue = DesktopQueue.startingAt(handoff.songs.map(::canonicalSong), handoff.index)
+        preShuffleOrder = emptyList()
+        playCurrent(startAtMs = handoff.positionAt(System.currentTimeMillis()))
+    }
+
     /** Moves within the queue, dropping whatever a forward jump passed over. */
     fun playQueueIndex(target: Int) {
         if (target !in liveQueue.songs.indices) return
@@ -2784,6 +2792,21 @@ fun CosmotuneDesktopApp() {
         DesktopMiniPlayer.publish(DesktopMiniPlayer.NowPlaying(song?.title.orEmpty(), song?.artist.orEmpty(), song?.thumbnailUrl,
             playback.isPlaying, if (playback.durationMs > 0) playback.positionMs.toFloat() / playback.durationMs else 0f,
             playback.durationMs))
+        // What plays here, for the account's other devices to carry on with (a party's shared queue is not the listener's own).
+        if (song != null && !DesktopListenTogether.state.value.inParty) {
+            DesktopCloud.handoff.playing(liveQueue.songs, liveQueue.index, playback.positionMs, playback.durationMs, playback.isPlaying)
+        }
+    }
+    // While nothing plays here, what another device of the account plays is looked up now and then, for Home's top card.
+    LaunchedEffect(playback.isPlaying) {
+        if (playback.isPlaying) {
+            DesktopCloud.handoff.look(isPlaying = true)
+            return@LaunchedEffect
+        }
+        while (true) {
+            DesktopCloud.handoff.look(isPlaying = false)
+            delay(45_000L)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -3528,8 +3551,18 @@ fun CosmotuneDesktopApp() {
         val podioSaved by com.cosmotune.ui.blocks.ModeNav.podioSaved.collectAsState()
         val mangaTab by com.cosmotune.ui.blocks.ModeNav.mangaTab.collectAsState()
         LaunchedEffect(podioTab, podioSaved, mangaTab) { overlays.roomView = false }
+        val elsewhereHandoff by DesktopCloud.handoff.elsewhere.collectAsState()
+        val elsewhereOffer = elsewhereHandoff?.let { handoff ->
+            handoff.song?.let { song ->
+                com.cosmotune.ui.home.ElsewhereOffer(
+                    song, handoff.deviceName, handoff.positionAt(System.currentTimeMillis()), handoff.durationMs, handoff.upNext,
+                    onContinue = { continueElsewhere(handoff) }, onPutAside = { DesktopCloud.handoff.putAside(handoff) },
+                )
+            }
+        }
         CompositionLocalProvider(
             com.cosmotune.ui.room.LocalRoomLauncher provides roomLauncher,
+            com.cosmotune.ui.home.LocalElsewhere provides elsewhereOffer,
             // White on the dark theme; the light theme keeps the look's own ink.
             LocalContentColor provides (if (desktopDark) Color.White else LocalContentColor.current),
             LocalDesktopSongContextMenu provides rememberDesktopSongAction(::openMenu),

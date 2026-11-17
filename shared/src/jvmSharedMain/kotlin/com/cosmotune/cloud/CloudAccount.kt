@@ -144,6 +144,25 @@ class CloudAccount(
         return syncNow()
     }
 
+    /**
+     * Writes what this device plays, for the account's other devices to carry on with. Only with a Google sign-in: a guest's account
+     * belongs to this device alone, so nobody else could read it. Never throws; false when nothing was written.
+     */
+    suspend fun publishPlayback(handoff: PlaybackHandoff): Boolean {
+        val session = sessions.session.value ?: return false
+        if (session.isAnonymous) return false
+        return runCatching { docs.commit(listOf(DocWrite(playbackPath(session.uid), PlaybackHandoff.toFields(handoff)))) }.isSuccess
+    }
+
+    /** What the account last played, on whichever device; null when signed out, a guest, nothing yet, or unreadable. */
+    suspend fun latestPlayback(): PlaybackHandoff? {
+        val session = sessions.session.value ?: return null
+        if (session.isAnonymous) return null
+        return runCatching { docs.get(playbackPath(session.uid)) }.getOrNull()?.let { PlaybackHandoff.fromFields(it.fields) }
+    }
+
+    private fun playbackPath(uid: String) = "users/$uid/playback/now"
+
     /** Forgets this device's session (cloud data stays). */
     suspend fun signOut() {
         sessions.signOut()

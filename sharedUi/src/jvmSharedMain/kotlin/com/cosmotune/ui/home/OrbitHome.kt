@@ -119,6 +119,25 @@ import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 
+/**
+ * A song another device of the same Cosmotune account was playing, which this one can carry on with: the host reads it from the
+ * account (com.cosmotune.cloud.PlaybackHandoff). Home shows it in its top card while this device plays nothing.
+ */
+class ElsewhereOffer(
+    val song: Song,
+    /** Where it plays, as a listener says it: "your phone". */
+    val where: String,
+    val positionMs: Long,
+    val durationMs: Long,
+    val upNext: Int,
+    /** Plays the song here from [positionMs], with the queue that came after it. */
+    val onContinue: () -> Unit,
+    /** Holding the card: no thanks, show the usual card again. */
+    val onPutAside: () -> Unit,
+)
+
+val LocalElsewhere = androidx.compose.runtime.compositionLocalOf<ElsewhereOffer?> { null }
+
 /** A link of Home that is not an item of the feed (Liked songs, Downloads): the host knows where it goes. Shown as a chip. */
 class HomeQuickLink(val title: String, val icon: ImageVector, val onClick: () -> Unit)
 
@@ -156,12 +175,16 @@ fun OrbitHome(
     quickLinks: List<HomeQuickLink> = emptyList(),
     onPlayPause: (() -> Unit)? = null,
     playbackTime: (() -> Pair<Long, Long>)? = null,
+    /** Another device's song to offer in the top card; the desktop provides it as [LocalElsewhere]. */
+    elsewhereOffer: ElsewhereOffer? = LocalElsewhere.current,
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val shelves = (state as? UiState.Success)?.data.orEmpty()
     val moods = remember(browse?.state) { (browse?.state as? UiState.Success)?.let { BrowseSplit.moods(it.data) }.orEmpty() }
     val room = LocalRoomLauncher.current
+    // Another device's song, while this one plays nothing.
+    val elsewhere = elsewhereOffer?.takeIf { !isPlaying }
 
     PullToRefresh(refreshing = refreshing, onRefresh = onRefresh, state = pullState, modifier = modifier) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -172,19 +195,20 @@ fun OrbitHome(
                 item(key = "orbit:live") { com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = side).padding(top = 10.dp)) }
                 item(key = "orbit:greeting") { OrbitGreeting(fonts, look, Modifier.padding(start = side + 6.dp, end = side, top = 18.dp)) }
 
-                if (currentSong != null || shelves.isNotEmpty()) item(key = "orbit:hero") {
-                    val hero = rememberHero(shelves, currentSong, isPlaying)
+                if (currentSong != null || shelves.isNotEmpty() || elsewhere != null) item(key = "orbit:hero") {
+                    val hero = rememberHero(shelves, currentSong, isPlaying, elsewhere)
                     // A hold on the card or its play button opens the menu of what it shows, as a hold on any other card of
                     // the feed does: the song that plays, or the item it starts from.
-                    val heroHeld = hero.item ?: currentSong?.takeIf { hero.isCurrent }?.let {
+                    val heroHeld = if (hero.elsewhere) null else hero.item ?: currentSong?.takeIf { hero.isCurrent }?.let {
                         ShelfItem(it.title, it.artist, it.thumbnailUrl, it.videoId, null, song = it)
                     }
                     val heroCard: @Composable (Modifier) -> Unit = { m ->
                         OrbitHero(
-                            hero = hero, fonts = fonts, look = look, playbackTime = playbackTime.takeIf { hero.isCurrent },
-                            onBite = { if (hero.isCurrent) onPlayPause?.invoke() else hero.item?.let { onItemClick(it, hero.shelfTitle) } },
-                            onCard = { if (!hero.isCurrent) hero.item?.let { onItemClick(it, hero.shelfTitle) } else onPlayPause?.invoke() },
-                            onHold = heroHeld?.let { held -> onItemLongPress?.let { open -> { open(held) } } },
+                            hero = hero, fonts = fonts, look = look,
+                            playbackTime = if (elsewhere != null && hero.elsewhere) ({ elsewhere.positionMs to elsewhere.durationMs }) else playbackTime.takeIf { hero.isCurrent },
+                            onBite = { if (hero.elsewhere) elsewhere?.onContinue?.invoke() else if (hero.isCurrent) onPlayPause?.invoke() else hero.item?.let { onItemClick(it, hero.shelfTitle) } },
+                            onCard = { if (hero.elsewhere) elsewhere?.onContinue?.invoke() else if (!hero.isCurrent) hero.item?.let { onItemClick(it, hero.shelfTitle) } else onPlayPause?.invoke() },
+                            onHold = heroHeld?.let { held -> onItemLongPress?.let { open -> { open(held) } } } ?: elsewhere?.onPutAside?.takeIf { hero.elsewhere },
                             modifier = m,
                         )
                     }
@@ -286,14 +310,18 @@ private fun OrbitGreeting(fonts: OrbitFonts, look: OrbitLook, modifier: Modifier
 
 // ---- hero -----------------------------------------------------------------------------------------------------------------------
 
-private class Hero(val title: String, val subtitle: String, val cover: String?, val label: String, val isCurrent: Boolean, val playing: Boolean, val item: ShelfItem?, val shelfTitle: String, val album: String? = null)
+private class Hero(val title: String, val subtitle: String, val cover: String?, val label: String, val isCurrent: Boolean, val playing: Boolean, val item: ShelfItem?, val shelfTitle: String, val album: String? = null, val elsewhere: Boolean = false, val timeNote: String = "")
 
 @Composable
-private fun rememberHero(shelves: List<HomeShelf>, current: Song?, playing: Boolean): Hero {
+private fun rememberHero(shelves: List<HomeShelf>, current: Song?, playing: Boolean, elsewhere: ElsewhereOffer? = null): Hero {
     val shelf = remember(shelves) { shelves.firstOrNull { s -> s.items.firstOrNull()?.videoId != null } ?: shelves.firstOrNull { it.items.isNotEmpty() } }
     val from = localizeShelfTitle(shelf?.title.orEmpty()).uppercase()
-    return remember(shelf, current, playing, from) {
-        if (current != null) {
+    return remember(shelf, current, playing, from, elsewhere) {
+        if (elsewhere != null) {
+            val song = elsewhere.song
+            val next = if (elsewhere.upNext > 0) " · ${elsewhere.upNext} UP NEXT" else ""
+            Hero(song.title, song.artist, song.thumbnailUrl, "ON ${elsewhere.where.uppercase()}", false, false, null, "", album = song.albumName, elsewhere = true, timeNote = next)
+        } else if (current != null) {
             Hero(current.title, current.artist, current.thumbnailUrl, if (playing) "NOW ORBITING" else "PAUSED", true, playing, null, "", album = current.albumName)
         } else {
             val item = shelf?.items?.firstOrNull()
@@ -329,7 +357,7 @@ private fun OrbitHero(
             Column(Modifier.align(Alignment.BottomStart).padding(start = 22.dp, bottom = 22.dp, end = 104.dp)) {
                 if (playbackTime != null) {
                     val (p, d) = playbackTime()
-                    if (d > 0) Text("${clock(p)} / ${clock(d)}", style = fonts.label, color = ink.copy(alpha = 0.72f), modifier = Modifier.padding(bottom = 10.dp))
+                    if (d > 0) Text("${clock(p)} / ${clock(d)}${hero.timeNote}", style = fonts.label, color = ink.copy(alpha = 0.72f), modifier = Modifier.padding(bottom = 10.dp))
                 }
                 // The hero's title as title art (Cover Cut, or Voiced type), in the plain title's two lines of 27 sp.
                 AlbumTitleArt(

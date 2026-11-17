@@ -118,6 +118,19 @@ object AndroidCloud {
     /** The followed artists as the sync last saw them, so its own write into the store does not ask for another sync. */
     @Volatile private var lastSeenArtists: Map<String, JsonObject>? = null
 
+    /** What this phone plays, for the account's other devices (the service writes it), and what they play, for Home's top card. */
+    val handoff: com.cosmotune.cloud.HandoffHost by lazy {
+        com.cosmotune.cloud.HandoffHost(
+            deviceName = "your phone",
+            enabled = { _enabled.value },
+            publish = { account.publishPlayback(it) },
+            latest = { account.latestPlayback() },
+            read = { key -> runCatching { flags.getString(key, "") }.getOrNull().orEmpty() },
+            write = { key, value -> runCatching { flags.edit().putString(key, value).apply() } },
+            scope = scope,
+        )
+    }
+
     /** From the Application, once [LocalPlaylistStore] is open. */
     fun install(context: Context) {
         if (this::app.isInitialized) return

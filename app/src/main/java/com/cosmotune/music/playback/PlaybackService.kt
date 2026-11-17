@@ -5864,6 +5864,7 @@ class PlaybackService : MediaLibraryService() {
 
     /** Serialize only the bounded window needed for a future cold-start resume. */
     private fun saveQueueSnapshot(player: ExoPlayer) {
+        handoffSongsKey = null
         if (ListenTogether.state.value.inParty) return
         if (player.mediaItemCount == 0) {
             persistedQueueStart = 0
@@ -5944,9 +5945,35 @@ class PlaybackService : MediaLibraryService() {
         LastPlayed.clearImmediately()
     }
 
+    // The songs around the current one, as the account's other devices get them; rebuilt only when the queue or the place in it
+    // changes, since this runs on every progress tick.
+    private var handoffSongsKey: String? = null
+    private var handoffSongs: List<Song> = emptyList()
+    private var handoffIndex = 0
+
+    /** What plays here, for the account's other devices to carry on with (a party's shared queue is not the listener's own). */
+    private fun publishHandoff(player: ExoPlayer) {
+        if (ListenTogether.state.value.inParty || player.mediaItemCount == 0) return
+        val current = player.currentMediaItemIndex
+        if (current !in 0 until player.mediaItemCount) return
+        val key = "${player.mediaItemCount}/$current/${player.currentMediaItem?.mediaId}/${player.getMediaItemAt(player.mediaItemCount - 1).mediaId}"
+        if (key != handoffSongsKey) {
+            val from = (current - com.cosmotune.cloud.PlaybackHandoff.KEEP_BEFORE).coerceAtLeast(0)
+            val to = (current + 1 + com.cosmotune.cloud.PlaybackHandoff.KEEP_AFTER).coerceAtMost(player.mediaItemCount)
+            handoffSongs = (from until to).map { player.getMediaItemAt(it).toSong() }
+            handoffIndex = current - from
+            handoffSongsKey = key
+        }
+        val duration = player.duration.takeIf { it > 0 } ?: 0L
+        runCatching {
+            com.cosmotune.music.data.cloud.AndroidCloud.handoff.playing(handoffSongs, handoffIndex, player.currentPosition, duration, player.isPlaying)
+        }
+    }
+
     /** Persist index and position without touching or serializing queue contents. */
     private fun savePlaybackState(player: ExoPlayer) {
         if (player.mediaItemCount == 0) return
+        publishHandoff(player)
         if (boundedContextWindow != null && !ListenTogether.state.value.inParty) {
             BoundedContextPersistence.savePlaybackState(
                 currentEntryId = player.currentMediaItem?.queueEntryId,
