@@ -81,6 +81,12 @@ class FirebaseAuthClient(
     private fun read(answer: com.opencanvas.core.stream.Fetched): JsonObject {
         val parsed = runCatching { json.parseToJsonElement(answer.text()).jsonObject }.getOrNull()
         if (!answer.isSuccessful) throw failure(parsed, answer.code)
+        // Asked to return the Google credential (returnIdpCredential), linking a guest to a Google account that already has a
+        // Cosmotune account (FEDERATED_USER_ID_ALREADY_LINKED, EMAIL_EXISTS) answers 200 with the error in errorMessage and no
+        // account in it, not as an error: it is one, so the caller can sign in to the existing account instead.
+        (parsed?.get("errorMessage") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { message ->
+            throw CloudException(message.substringBefore(' ').substringBefore(':'), message, answer.code)
+        }
         return parsed ?: throw CloudException("BAD_RESPONSE", "not JSON", answer.code)
     }
 

@@ -18,6 +18,15 @@ class ModeNavigationRequestTest {
         assertNull(ModeNavigationRequest.pending.value)
     }
 
+    @Test fun everyModeWithTheProfileButtonCanHandOffItsPages() {
+        for (mode in listOf(AppMode.PODIO, AppMode.MANGA, AppMode.READ, AppMode.WATCH)) {
+            ModeNavigationRequest.open(ModeNavigationRequest.Destination.SETTINGS, mode)
+            val request = requireNotNull(ModeNavigationRequest.pending.value)
+            assertEquals(mode, request.returnMode)
+            ModeNavigationRequest.handled(request)
+        }
+    }
+
     @Test fun finishingAnOlderHandoffDoesNotDiscardANewerTapFromTheSameMode() {
         ModeNavigationRequest.open(ModeNavigationRequest.Destination.SETTINGS, AppMode.MANGA)
         val old = requireNotNull(ModeNavigationRequest.pending.value)

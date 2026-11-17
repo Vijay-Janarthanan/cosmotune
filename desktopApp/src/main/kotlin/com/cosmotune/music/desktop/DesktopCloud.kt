@@ -190,6 +190,7 @@ internal object DesktopCloud {
         CloudAccount(
             CosmotuneFirebase.config, Http.client, sessionStore, source, marks,
             listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND), scope,
+            log = { DesktopTrackLog.log(it) },
         )
     }
 

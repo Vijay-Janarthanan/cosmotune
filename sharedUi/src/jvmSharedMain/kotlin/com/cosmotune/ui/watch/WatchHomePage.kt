@@ -102,6 +102,8 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
     val viewer by repository.activeProfile.collectAsState()
     // The rows of each tab stay for the process (and on the disk): coming back shows them at once while they refresh.
     val entry = remember(repository, filter, viewer) { watchHomeEntry(repository, filter, viewer) }
+    // Where the page was scrolled to stays too: opening a title and coming back finds the same place.
+    val listState = remember(filter, viewer) { WatchHomeMemory.page(filter.name + ":" + viewer) }
     val cached by entry.collectOnPage()
     val live by repository.continueWatching.collectAsState()
     val myList by repository.myList.collectAsState()
@@ -111,7 +113,7 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
     val data = cached.data
     Box(Modifier.fillMaxSize()) {
         WatchWash(data?.featured?.let { coverFill(it.summary.backdropUrl ?: it.summary.posterUrl, it.summary.key.value).first } ?: HOME_WASH, look)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = frame.padding) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = frame.padding) {
             frame.header?.let { header -> item(key = "watch:header") { header() } }
             item(key = "watch:heading") {
                 val label = remember(filter) {
@@ -185,7 +187,7 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                         }
                     }
                     data.rows.forEach { row ->
-                        if (row.items.isNotEmpty()) item(key = "watch:row:" + row.id) { HomeRowShelf(row, fonts, look, side, actions) }
+                        if (row.items.isNotEmpty() || row.deferred) item(key = "watch:row:" + row.id) { HomeRowShelf(row, fonts, look, side, actions) }
                     }
                 }
             }
@@ -345,12 +347,56 @@ internal fun LiveRow(item: LiveNowItem, fonts: OrbitFonts, look: OrbitLook, cloc
     }
 }
 
-/** A row of Watch home: posters (or wide stills), loading more as the end comes into view when the row says it can. */
+/**
+ * What Watch home keeps for the process, past the page itself: each tab's scroll, and each row's scroll and the titles it loaded
+ * beyond its first ones. Leaving for a title (or another tab) and coming back finds the rows as they were, not reloaded.
+ */
+internal object WatchHomeMemory {
+    private val pages = HashMap<String, androidx.compose.foundation.lazy.LazyListState>()
+    private val rows = HashMap<String, androidx.compose.foundation.lazy.LazyListState>()
+    private val loaded = HashMap<String, androidx.compose.runtime.snapshots.SnapshotStateMap<Int, List<TitleSummary>>>()
+
+    fun page(key: String) = synchronized(this) { pages.getOrPut(key) { androidx.compose.foundation.lazy.LazyListState() } }
+    fun row(id: String) = synchronized(this) { rows.getOrPut(id) { androidx.compose.foundation.lazy.LazyListState() } }
+    /** A row's titles by the skip they were asked from: 0 is a [HomeRow.deferred] row's first page. */
+    fun loaded(id: String) = synchronized(this) { loaded.getOrPut(id) { mutableStateMapOf() } }
+
+    private var sources: List<String>? = null
+
+    /**
+     * The switched-on sources now; true when they differ from the last ones seen in this run (an add-on installed here, or one
+     * that arrived by cloud sync), and the rows and channels kept from before should then be fetched again.
+     */
+    fun sourcesChanged(now: List<String>): Boolean = synchronized(this) {
+        val changed = sources != null && sources != now
+        sources = now
+        if (changed) loaded.clear()
+        changed
+    }
+}
+
+/**
+ * A row of Watch home: posters (or wide stills), loading more as the end comes into view when the row says it can. A
+ * [HomeRow.deferred] row loads its first titles when it is scrolled to (placeholders meanwhile), and is not drawn if it has none.
+ */
 @Composable
 private fun HomeRowShelf(row: HomeRow, fonts: OrbitFonts, look: OrbitLook, side: Dp, actions: WatchActions) {
-    val more = remember(row.id) { mutableStateMapOf<Int, List<TitleSummary>>() }
-    val items = (row.items + more.values.flatten()).distinctBy { it.key }
-    val state = rememberLazyListState()
+    val more = remember(row.id) { WatchHomeMemory.loaded(row.id) }
+    if (row.deferred) LaunchedEffect(row.id) {
+        if (more[0] == null) more[0] = runCatching { actions.repository.rowPage(row.id, 0) }.getOrDefault(emptyList())
+    }
+    val items = (row.items + more.entries.sortedBy { it.key }.flatMap { it.value }).distinctBy { it.key }
+    if (row.deferred && more[0] == null) {
+        Column {
+            Section(row.title, row.subtitle, fonts, look, side)
+            Row(Modifier.padding(horizontal = side), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                repeat(3) { WatchSkeleton(look, Modifier.width(if (row.wide) 250.dp else 142.dp).height(if (row.wide) 140.dp else 213.dp)) }
+            }
+        }
+        return
+    }
+    if (items.isEmpty()) return
+    val state = remember(row.id) { WatchHomeMemory.row(row.id) }
     if (row.pageable) LaunchedEffect(state, row.id) {
         var asked = -1
         snapshotFlow { (state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) to state.layoutInfo.totalItemsCount }.collect { (last, total) ->

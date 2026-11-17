@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -79,6 +80,11 @@ fun WatchApp(
     val repository = watchRepository()
     val preferences by repository.preferences.collectAsState()
     val profileUnlocked by repository.profileUnlocked.collectAsState()
+    // A source added, removed or switched: Home's rows and Live TV's channels kept from before are fetched again when next shown
+    // (still showing what they had meanwhile), rather than leaving a new add-on's catalogues and channels out for minutes.
+    val sources by repository.plugins.collectAsState()
+    val switchedOn = sources.filter { it.enabled }.map { it.id }
+    LaunchedEffect(repository, switchedOn) { if (WatchHomeMemory.sourcesChanged(switchedOn)) watchPages(repository).markStale("watch:") }
     if (!profileUnlocked) { WatchProfileGate(repository, fonts, look); return }
     val scope = rememberCoroutineScope()
     val room = com.cosmotune.ui.room.LocalRoomLauncher.current

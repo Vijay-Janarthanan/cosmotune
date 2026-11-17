@@ -93,7 +93,7 @@ fun AccountAndScrobblingScreen(
                 signedIn = signedIn,
                 account = account,
                 onSignIn = onSignIn,
-                onClick = onSwitchChannel,
+                onClick = onSwitchChannel.takeIf { signedIn },
                 grouped = true,
             )
             if (signedIn) {

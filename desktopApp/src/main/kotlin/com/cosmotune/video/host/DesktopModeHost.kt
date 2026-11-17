@@ -155,9 +155,13 @@ private fun rememberDesktopWatchPlayback(): com.cosmotune.ui.watch.WatchPlayback
 fun DesktopMangaPage(contentPadding: PaddingValues) {
     val shell = LocalCosmoShell.current ?: return
     val mode = shell.settings.mode.collectAsState().value
-    // The sidebar carries the tabs on the desktop, so the pages draw no dock or rail of their own.
-    if (mode == AppMode.READ) com.cosmotune.reading.ui.ReadApp(contentPadding = contentPadding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = false)
-    else com.cosmotune.manga.ui.MangaApp(contentPadding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = false)
+    // The sidebar carries the tabs on the desktop, so the pages draw no tabs of their own; a compact window has no sidebar, and
+    // the page then carries its tab chips, as Watch does and as on the phone. The tab is the same either way (ModeNav).
+    androidx.compose.foundation.layout.BoxWithConstraints {
+        val compact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
+        if (mode == AppMode.READ) com.cosmotune.reading.ui.ReadApp(contentPadding = contentPadding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact)
+        else com.cosmotune.manga.ui.MangaApp(contentPadding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact)
+    }
 }
 
 /**

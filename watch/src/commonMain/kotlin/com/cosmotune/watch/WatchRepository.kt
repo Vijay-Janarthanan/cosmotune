@@ -41,6 +41,11 @@ data class HomeRow(
     val wide: Boolean = false,
     /** More can be loaded with [WatchRepository.rowPage]. */
     val pageable: Boolean = true,
+    /**
+     * Its titles are not loaded yet ([items] is empty): the page loads them with [WatchRepository.rowPage] from 0 when the row is
+     * scrolled to, so every catalogue of every add-on can be a row without the home waiting for all of them.
+     */
+    val deferred: Boolean = false,
 )
 
 /** A Continue watching card: "Harbour Town · S2 E4 · 24 min left". */

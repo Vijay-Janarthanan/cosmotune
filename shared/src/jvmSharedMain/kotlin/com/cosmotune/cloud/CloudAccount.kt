@@ -73,6 +73,8 @@ class CloudAccount(
     kinds: List<String>,
     private val scope: CoroutineScope,
     private val now: () -> Long = System::currentTimeMillis,
+    /** A line for the app's log after each sync: counts and the kind of account only, never names, emails or content. */
+    private val log: (String) -> Unit = {},
 ) {
     private val auth = FirebaseAuthClient(config, client, now)
     val sessions = CloudSessionManager(auth, sessionStore, now)
@@ -105,11 +107,14 @@ class CloudAccount(
             }
             val report = sync.run()
             marks.lastSyncMs = now()
+            log("cloud: synced as ${if (session.isAnonymous) "a guest" else "Google"}: sent ${report.sent}, received ${report.received} " +
+                "(read ${report.documentsRead}, wrote ${report.documentsWritten} documents)")
             state.value = snapshot(sessions.session.value, state.value).copy(syncing = false, lastReport = report, needsSignIn = false)
             Result.success(report)
         } catch (failure: kotlinx.coroutines.CancellationException) {
             throw failure
         } catch (failure: Throwable) {
+            log("cloud: sync failed (${failure.javaClass.simpleName})")
             state.value = snapshot(sessions.session.value, state.value).copy(
                 syncing = false,
                 lastError = readableCloudError(failure),

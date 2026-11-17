@@ -270,7 +270,7 @@ class DesktopShellContractTest {
         assertHas(chrome, "AVATAR_SIZE: Dp = 36.dp", "the avatar stays 36 dp")
     }
 
-    @Test fun theTopBarCallPassesTheAccountNameAndSixEntriesInOrder() {
+    @Test fun theTopBarCallPassesTheAccountNameAndSevenEntriesInOrder() {
         val text = app
         val callAt = text.indexOf("com.cosmotune.desktop.CosmoDesktopTopBar(")
         assertTrue(callAt >= 0)
@@ -280,15 +280,21 @@ class DesktopShellContractTest {
         assertTrue("accountName = activeAccount.shownName(activeProfileId)," in call, call)
         assertTrue("activeAccount.shownAvatar(activeProfileId)," in call, call)
         assertTrue("entries = listOf(" in call, call)
-        assertEquals(6, Regex("""com\.cosmotune\.ui\.chrome\.CosmoDrawerEntry\(""").findAll(call).count(), "six entries")
+        assertEquals(7, Regex("""com\.cosmotune\.ui\.chrome\.CosmoDrawerEntry\(""").findAll(call).count(), "seven entries")
         val parts = call.substringAfter("entries = listOf(").split("com.cosmotune.ui.chrome.CosmoDrawerEntry(").drop(1)
         assertTrue("listeningToolsOpen = true" in parts.first(), "the first entry opens listening tools")
-        val (replay, together, downloads, equaliser, settings) = parts.drop(1)
+        val (replay, together, history, downloads, equaliser) = parts.drop(1)
+        val settings = parts[6]
         assertTrue(replay.startsWith("com.cosmotune.ui.components.CosmoIcons.Replay, DesktopStrings[\"replay\", \"Replay\"],"), replay)
         assertTrue("overlays.replay = true" in replay, "Replay opens the page")
         assertTrue(replay.indexOf("overlays.settingsPage = null") in 0 until replay.indexOf("overlays.replay = true"), "and leaves Settings first, which outranks it: $replay")
         assertTrue(together.startsWith("com.cosmotune.ui.components.CosmoIcons.Together, DesktopStrings[\"listen_together\", \"Listen together\"],"), together)
         assertTrue("onClick = ::openRoomPage" in together, "Listen together opens the shared room (the room view, or the make-or-join panel): $together")
+        // History's only way in besides the sidebar, which a narrow window does not draw.
+        assertTrue(history.startsWith("com.cosmotune.ui.components.CosmoIcons.Clock, DesktopStrings[\"history\", \"History\"],"), history)
+        assertTrue("selectDestination(DesktopDestination.HISTORY)" in history, history)
+        // From Podio, Manga, Read or Watch these are opened in Music, where they are drawn.
+        for (entry in listOf(replay, history, downloads, equaliser)) assertTrue("showInMusic()" in entry, entry)
         assertTrue(downloads.startsWith("com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings[\"downloads\", \"Downloads\"],"), downloads)
         assertTrue("selectDestination(DesktopDestination.DOWNLOADS)" in downloads, downloads)
         assertTrue(equaliser.startsWith("com.cosmotune.ui.components.CosmoIcons.Equaliser, DesktopStrings[\"equalizer\", \"Equalizer\"],"), equaliser)

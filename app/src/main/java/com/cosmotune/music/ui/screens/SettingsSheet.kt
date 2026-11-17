@@ -2281,8 +2281,10 @@ internal fun AccountCard(
         ).joinToString(" · "),
         label = if (signedIn) "Account · Google" else "Account",
         avatarUrl = account?.thumbnailUrl,
+        // The Settings hub's card opens the Account page signed in or not: that page holds cloud sync, which works without a
+        // YouTube sign-in, and its own way to sign in. Without a page to open, a signed-out card signs in.
         onClick = when {
-            signedIn && onClick != null -> onClick
+            onClick != null -> onClick
             !signedIn -> onSignIn
             else -> null
         },

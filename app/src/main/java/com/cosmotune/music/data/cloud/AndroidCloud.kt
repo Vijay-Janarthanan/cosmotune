@@ -95,6 +95,7 @@ object AndroidCloud {
             marks = FileSyncMarks(File(folder, "marks.json")),
             kinds = listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND),
             scope = scope,
+            log = { android.util.Log.i("Cosmotune", it) },
         )
     }
 

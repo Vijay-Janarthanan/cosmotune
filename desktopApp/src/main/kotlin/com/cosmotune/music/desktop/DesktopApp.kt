@@ -2457,8 +2457,20 @@ fun CosmotuneDesktopApp() {
     var settingsCategory by remember(settingsSession) { mutableStateOf(com.cosmotune.ui.settings.SettingsCategory.ALL) }
     val settingsListState = remember(settingsSession) { LazyListState() }
 
+    /**
+     * Settings, Replay, Downloads, the Equalizer and Listen together are Music's pages: Podio, Manga, Read and Watch draw their own
+     * page in their place, so from one of them these open in Music (as on the phone), not unseen behind the mode.
+     */
+    fun showInMusic() {
+        val look = DesktopRoomVideo.look ?: return
+        val mode = look.mode.value
+        if (mode == com.cosmotune.design.AppMode.PODIO || mode == com.cosmotune.design.AppMode.MANGA ||
+            mode == com.cosmotune.design.AppMode.READ || mode == com.cosmotune.design.AppMode.WATCH) look.setMode(com.cosmotune.design.AppMode.MUSIC)
+    }
+
     /** Settings in place of the page — from the sidebar, the account switcher or the tray. */
     fun openSettings() {
+        showInMusic()
         overlays.nowPlaying = false
         overlays.roomView = false
         if (overlays.settingsPage == null) settingsSession++
@@ -2473,6 +2485,7 @@ fun CosmotuneDesktopApp() {
             overlays.roomView = true
             return
         }
+        showInMusic()
         overlays.settingsPage = DesktopSettingsPage.LISTEN_TOGETHER
     }
 
@@ -3753,10 +3766,12 @@ fun CosmotuneDesktopApp() {
                         // The profile drawer's entries. Settings and Replay stand in place of the page, so they leave each other first.
                         entries = listOf(
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Clock, "Your listening", onClick = { listeningToolsOpen = true }),
-                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Replay, DesktopStrings["replay", "Replay"], onClick = { overlays.settingsPage = null; overlays.replay = true }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Replay, DesktopStrings["replay", "Replay"], onClick = { showInMusic(); overlays.settingsPage = null; overlays.replay = true }),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Together, DesktopStrings["listen_together", "Listen together"], onClick = ::openRoomPage),
-                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings["downloads", "Downloads"], onClick = { selectDestination(DesktopDestination.DOWNLOADS) }),
-                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Equaliser, DesktopStrings["equalizer", "Equalizer"], onClick = { overlays.settingsPage = DesktopSettingsPage.EQUALIZER }),
+                            // History's only other way in is the sidebar, which a narrow window does not draw.
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Clock, DesktopStrings["history", "History"], onClick = { showInMusic(); selectDestination(DesktopDestination.HISTORY) }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings["downloads", "Downloads"], onClick = { showInMusic(); selectDestination(DesktopDestination.DOWNLOADS) }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Equaliser, DesktopStrings["equalizer", "Equalizer"], onClick = { showInMusic(); overlays.settingsPage = DesktopSettingsPage.EQUALIZER }),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Settings, DesktopStrings["settings", "Settings"], onClick = { openSettings() }),
                         ),
                     )
@@ -6369,6 +6384,12 @@ private fun DesktopSettingsScreen(
                         DesktopStrings["d_discord_rich_presence_last_fm_and_listenbrainz", "Last.fm and ListenBrainz"],
                         onOpenIntegrations,
                     )
+                    SettingsRow(
+                        Icons.Rounded.Person,
+                        DesktopStrings["d_switch_account", "Switch account"],
+                        DesktopStrings["d_switch_account_line", "Your accounts and profiles on this computer"],
+                        onOpenAccounts,
+                    )
                 }
             }
             DesktopSettingsSection.CLOUD_SYNC -> {
@@ -6658,6 +6679,11 @@ private fun DesktopSettingsScreen(
             val cloudStatusNow by DesktopCloud.status.collectAsState()
             val cloudOnNow by DesktopCloud.enabled.collectAsState()
             val cloudActivityNow by DesktopCloud.activity.collectAsState()
+            val openCategory: (com.cosmotune.ui.settings.SettingsCategory) -> Unit = { category ->
+                onCategoryChange(category)
+                onQueryChange("")
+                settingsScope.launch { listState.scrollToItem(0) }
+            }
             val settingsAccountCard: @Composable (Boolean) -> Unit = { compactCard ->
                 val syncLine = cloudStatusText(cloudStatusNow, cloudActivityNow, cloudOnNow, System.currentTimeMillis()).let { (title, summary) -> "$title · $summary" }
                 com.cosmotune.ui.settings.SettingsAccountCard(
@@ -6665,16 +6691,13 @@ private fun DesktopSettingsScreen(
                     name = accountName ?: DesktopStrings["d_sign_in", "Sign in"],
                     line = syncLine,
                     pictureUrl = accountAvatar,
-                    onClick = onOpenAccounts,
+                    // The Account page: Account & integrations, cloud sync and Switch account. The hub has no Account tile while
+                    // this card stands in for it, so opening the account switcher here left cloud sync with no way in.
+                    onClick = { openCategory(com.cosmotune.ui.settings.SettingsCategory.ACCOUNT) },
                     compact = compactCard,
                 )
             }
             val current = if (selectedCategory == com.cosmotune.ui.settings.SettingsCategory.ALL && twoPane) pages.first() else selectedCategory
-            val openCategory: (com.cosmotune.ui.settings.SettingsCategory) -> Unit = { category ->
-                onCategoryChange(category)
-                onQueryChange("")
-                settingsScope.launch { listState.scrollToItem(0) }
-            }
             Column(Modifier.fillMaxSize()) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 12.dp),

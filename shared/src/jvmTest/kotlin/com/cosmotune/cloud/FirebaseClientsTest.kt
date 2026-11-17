@@ -93,6 +93,18 @@ class FirebaseClientsTest {
         assertFalse(Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject.containsKey("idToken"))
     }
 
+    @Test fun anAlreadyUsedGoogleAccountAnsweredInsideASuccessIsSignedInWithoutLinkingToo() = runBlocking<Unit> {
+        // With returnIdpCredential, Firebase reports the account already linked as a 200 holding errorMessage and no localId.
+        reply(200, """{"errorMessage":"FEDERATED_USER_ID_ALREADY_LINKED","providerId":"google.com","email":"a@b.c","oauthIdToken":"x"}""")
+        reply(200, """{"idToken":"id5","refreshToken":"r5","expiresIn":"3600","localId":"existing-9"}""")
+        val result = auth.signInWithGoogle("google-token", CloudSession("guest-1", "g", "r", clock, isAnonymous = true))
+        assertFalse(result.linkedGuest)
+        assertEquals("existing-9", result.session.uid)
+        assertFalse(result.session.isAnonymous)
+        server.takeRequest()
+        assertFalse(Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject.containsKey("idToken"), "the second try does not link")
+    }
+
     @Test fun aRevokedSignInIsRecognised() = runBlocking<Unit> {
         reply(400, """{"error":{"code":400,"message":"INVALID_REFRESH_TOKEN"}}""")
         val failure = assertFailsWith<CloudException> { auth.refresh(CloudSession("u", "i", "r", clock, true)) }

@@ -86,7 +86,10 @@ class SettingsBlocksContractTest {
         assertTrue(statement.contains("R.string.signed_in") && statement.contains("R.string.not_signed_in"), "the name when the account has none")
         assertTrue(statement.contains("R.string.youtube_music_account") && statement.contains("R.string.tap_to_sign_in_google"), "the subtitle when there is no email")
         assertTrue(statement.contains("account?.thumbnailUrl"), "the avatar")
-        assertTrue(statement.contains("signedIn && onClick != null -> onClick") && statement.contains("!signedIn -> onSignIn") && statement.contains("else -> null"), "signed in with a click opens it, signed out signs in")
+        // The hub's card opens the Account page signed in or not (cloud sync is there, and works without YouTube); only a card
+        // with no page to open signs in when signed out.
+        assertTrue(statement.contains("onClick != null -> onClick") && !statement.contains("signedIn && onClick != null") &&
+            statement.contains("!signedIn -> onSignIn") && statement.contains("else -> null"), "a click opens its page, else signed out signs in")
         assertTrue(statement.contains("grouped = grouped"))
     }
 

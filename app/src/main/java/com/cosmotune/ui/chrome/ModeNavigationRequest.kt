@@ -15,7 +15,7 @@ object ModeNavigationRequest {
     val pending = mutablePending.asStateFlow()
 
     fun open(destination: Destination, returnMode: AppMode) {
-        require(returnMode == AppMode.MANGA || returnMode == AppMode.READ || returnMode == AppMode.PODIO)
+        require(returnMode == AppMode.MANGA || returnMode == AppMode.READ || returnMode == AppMode.PODIO || returnMode == AppMode.WATCH)
         mutablePending.value = Request(destination, returnMode, sequence.incrementAndGet())
     }
 

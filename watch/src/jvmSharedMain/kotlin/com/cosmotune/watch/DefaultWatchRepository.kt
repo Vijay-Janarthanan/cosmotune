@@ -178,6 +178,7 @@ class DefaultWatchRepository(
     private val titles = ConcurrentHashMap<WatchKey, Title>()
     private val channelLock = Mutex()
     private var channelCache: Pair<Long, Map<WatchKey, List<Channel>>>? = null
+    @Volatile private var channelSources: List<String> = emptyList()
 
     private fun defaultBuiltIns(): List<WatchPlugin> {
         val e = config.endpoints
@@ -479,7 +480,7 @@ class DefaultWatchRepository(
         val cw = continueWatching.value.filter { type == null || it.summary.type == type }
         val featured = (featuredPopular(popularFilms(metaRows.await()), free, probed.await()) ?: bestFree(free, rows, ::playable))
             ?.let { (s, badge) -> Featured(s, listOfNotNull(badge), store.state.value.progress[s.key.value]) }
-        WatchHome(featured, cw, live.await(), rows, empty = rows.isEmpty() && live.await().isEmpty() && cw.isEmpty())
+        WatchHome(featured, cw, live.await(), rows, empty = rows.none { it.items.isNotEmpty() } && live.await().isEmpty() && cw.isEmpty())
     }
 
     /** The trending and popular films of the metadata rows, in their order, with a picture for the featured card. */
@@ -538,14 +539,21 @@ class DefaultWatchRepository(
         return runCatching { plugin.streams(targetOf(item)).any { it.isPlayable } }.getOrNull()
     }
 
+    /**
+     * A row for every home catalogue of every switched-on plugin, in plugin order. The first [FIRST_ROWS_PER_PLUGIN] of each are
+     * loaded with the home; the others are [HomeRow.deferred], loaded by the page when it is scrolled to them, so an add-on with a
+     * dozen catalogues shows all of them without the home waiting for every one.
+     */
     private suspend fun pluginRows(type: TitleType?): List<HomeRow> {
-        val catalogs = each(activePlugins().filter { Capability.CATALOG in it.capabilities }) { p -> p.catalogs().filter { it.home && (type == null || it.type == null || it.type == type) }.take(4) }
-        val defs = catalogs.flatMap { (p, list) -> list.orEmpty().map { p to it } }
+        val catalogs = each(activePlugins().filter { Capability.CATALOG in it.capabilities }) { p -> p.catalogs().filter { it.home && (type == null || it.type == null || it.type == type) } }
+        val defs = catalogs.flatMap { (p, list) -> list.orEmpty().mapIndexed { i, c -> Triple(p, c, i < FIRST_ROWS_PER_PLUGIN) } }
         return coroutineScope {
-            defs.map { (p, c) ->
+            defs.map { (p, c, first) ->
                 async {
+                    val id = "plugin:${p.id}:${c.id}"
+                    if (!first) return@async HomeRow(id, c.name, emptyList(), p.displayName, p.id, deferred = true)
                     runCatching { withTimeoutOrNull(config.timeoutMs) { p.catalogPage(c, 0) } }.getOrNull()?.filter { type == null || it.type == type }
-                        ?.takeIf { it.isNotEmpty() }?.let { HomeRow("plugin:${p.id}:${c.id}", c.name, it, p.displayName, p.id) }
+                        ?.takeIf { it.isNotEmpty() }?.let { HomeRow(id, c.name, it, p.displayName, p.id) }
                 }
             }.awaitAll().filterNotNull()
         }
@@ -726,13 +734,17 @@ class DefaultWatchRepository(
 
     /** Every channel of the switched-on live plugins, by key; a key listed by two plugins keeps both. */
     private suspend fun channelsByKey(): Map<WatchKey, List<Channel>> = channelLock.withLock {
-        channelCache?.takeIf { config.now() - it.first < 30 * 60_000L }?.let { return it.second }
-        val lists = each(activePlugins().filter { Capability.LIVE in it.capabilities }) { it.channels() }
+        val live = activePlugins().filter { Capability.LIVE in it.capabilities }
+        // Kept half an hour, for the same live sources: an add-on that arrived by cloud sync (not through addUserSource, which
+        // drops the copy) is asked at once too.
+        val liveIds = live.map { it.id }
+        channelCache?.takeIf { config.now() - it.first < 30 * 60_000L && channelSources == liveIds }?.let { return it.second }
+        val lists = each(live) { it.channels() }
         val byKey = LinkedHashMap<WatchKey, MutableList<Channel>>()
         for ((_, list) in lists) for (c in list.orEmpty()) byKey.getOrPut(c.key) { mutableListOf() } += c
         val result: Map<WatchKey, List<Channel>> = byKey
         // Nothing from any plugin (offline, or each one still loading past its time) is not kept, so the next ask tries again.
-        if (result.isNotEmpty()) channelCache = config.now() to result
+        if (result.isNotEmpty()) { channelCache = config.now() to result; channelSources = liveIds }
         result
     }
 
@@ -977,6 +989,8 @@ class DefaultWatchRepository(
         private val FREE_FILM_PLUGINS = setOf(BuiltInPlugins.PLUTO, BuiltInPlugins.PLEX, BuiltInPlugins.YOUTUBE, BuiltInPlugins.ARCHIVE, BuiltInPlugins.PUBLIC_DOMAIN)
         private const val GUIDE_DISMISSED = "watch.guide.dismissed"
         private const val FEATURED_PROBE_MS = 6_000L
+        /** Catalogues of each plugin loaded with the home; the rest load as the page is scrolled to them. */
+        private const val FIRST_ROWS_PER_PLUGIN = 4
         /** The plugins whose channels play a YouTube live, so have nothing to play when nothing is live. */
         private val LIVE_ON_YOUTUBE = setOf(BuiltInPlugins.PRASAR_BHARATI, BuiltInPlugins.YOUTUBE_LIVE)
         private const val LIVE_NOW_PAGES = 3

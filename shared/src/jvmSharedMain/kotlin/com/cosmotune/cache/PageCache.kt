@@ -155,6 +155,9 @@ class CachedLoad<T> internal constructor(
      */
     fun load(): Job? = start(force = false)
 
+    /** The content is due again: the next [load] fetches, while the page keeps showing what it has. */
+    fun markStale() { fetchedAtMs = 0L }
+
     /** Fetches now whatever the age of the content (a pull to refresh, Try again). */
     fun refresh(): Job = start(force = true)!!
 
@@ -282,6 +285,11 @@ class PageCache(
     fun removeSaved(key: String) {
         val disk = disk() ?: return
         scope.launch(io) { runCatching { disk.remove(key) } }
+    }
+
+    /** Marks every entry whose key starts with [prefix] as due ([CachedLoad.markStale]): what changed under it (a new add-on). */
+    fun markStale(prefix: String) {
+        synchronized(entries) { entries.filterKeys { it.startsWith(prefix) }.values.toList() }.forEach { it.markStale() }
     }
 
     /** Forgets every entry whose key starts with [prefix] (an account's, at sign-out), in memory and on the disk. */
