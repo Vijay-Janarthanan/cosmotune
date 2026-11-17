@@ -545,7 +545,7 @@ class DefaultWatchRepository(
      * dozen catalogues shows all of them without the home waiting for every one.
      */
     private suspend fun pluginRows(type: TitleType?): List<HomeRow> {
-        val catalogs = each(activePlugins().filter { Capability.CATALOG in it.capabilities }) { p -> p.catalogs().filter { it.home && (type == null || it.type == null || it.type == type) } }
+        val catalogs = each(activePlugins().filter { Capability.CATALOG in it.capabilities }) { p -> p.catalogs().filter { it.home && (type == null || !it.anyKind && (it.type == null || it.type == type)) } }
         val defs = catalogs.flatMap { (p, list) -> list.orEmpty().mapIndexed { i, c -> Triple(p, c, i < FIRST_ROWS_PER_PLUGIN) } }
         return coroutineScope {
             defs.map { (p, c, first) ->

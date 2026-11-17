@@ -124,7 +124,24 @@ internal object WindowsUpdateScript {
      */
     fun write(script: String, workDir: File): File {
         workDir.mkdirs()
-        return File(workDir, "cosmotune-update.ps1").apply { writeText("﻿" + script, Charsets.UTF_8) }
+        val text = "﻿" + script
+        // The usual name first; if Windows refuses it ("Access is denied" was seen for a file that was gone a moment later), a name
+        // of its own next to it, then the temporary folder, so one stuck file cannot stop the update. Why it was refused is logged.
+        val tries = listOf(File(workDir, "cosmotune-update.ps1"), File(workDir, "cosmotune-update-${System.currentTimeMillis()}.ps1"),
+            File(System.getProperty("java.io.tmpdir"), "cosmotune-update-${System.currentTimeMillis()}.ps1"))
+        var failure: Exception? = null
+        for (file in tries) {
+            try {
+                file.writeText(text, Charsets.UTF_8)
+                if (failure != null) com.cosmotune.music.desktop.DesktopTrackLog.log("update: wrote the install script as ${file.name} in ${file.parentFile}")
+                return file
+            } catch (e: java.io.IOException) {
+                com.cosmotune.music.desktop.DesktopTrackLog.log("update: could not write ${file.path} (${e.message}; exists=${file.exists()}, " +
+                    "read-only=${file.exists() && !file.canWrite()}, folder writable=${file.parentFile?.canWrite()})")
+                failure = e
+            }
+        }
+        throw failure!!
     }
 
     /** A PowerShell literal: single quotes, an apostrophe doubled. */

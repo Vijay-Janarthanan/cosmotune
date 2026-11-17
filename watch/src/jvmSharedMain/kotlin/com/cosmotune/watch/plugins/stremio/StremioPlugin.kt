@@ -59,28 +59,35 @@ class StremioPlugin(
 
     override suspend fun catalogs(): List<CatalogDef> {
         if (Capability.CATALOG !in capabilities) return emptyList()
-        return manifest().catalogs.filter { c -> c.requiredExtras.all { it == "skip" } && c.type in setOf("movie", "series") }
-            .map { CatalogDef(id, "${it.type}/${it.id}", it.name, if (it.type == "movie") TitleType.FILM else TitleType.SERIES, pageSize = 100) }
+        // Every list that needs nothing but paging, of any kind but live TV (which is Live TV's): "movie", "series", and the kinds an
+        // add-on names itself ("other", "anime"), whose titles are films or series it tells apart only on their pages.
+        return manifest().catalogs.filter { c -> c.requiredExtras.all { it == "skip" } && c.type !in LIVE_TYPES }
+            .map {
+                val kind = when (it.type) { "movie" -> TitleType.FILM; "series" -> TitleType.SERIES; else -> null }
+                CatalogDef(id, "${it.type}/${it.id}", it.name, kind, pageSize = 100, anyKind = kind == null)
+            }
     }
 
     override suspend fun catalogPage(catalog: CatalogDef, skip: Int): List<TitleSummary> {
         val (type, cid) = catalog.id.split('/', limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] } ?: return emptyList()
-        return client.catalog(type, cid, if (skip > 0) mapOf("skip" to skip.toString()) else emptyMap()).mapNotNull { summaryOf(it, type) }
+        val anyKind = type !in KNOWN_TYPES
+        return client.catalog(type, cid, if (skip > 0) mapOf("skip" to skip.toString()) else emptyMap()).mapNotNull { summaryOf(it, type, anyKind) }
     }
 
     override suspend fun search(query: String, type: TitleType?): List<TitleSummary> {
         if (Capability.SEARCH !in capabilities && Capability.CATALOG !in capabilities) return emptyList()
-        val searchable = manifest().catalogs.filter { "search" in it.extras && it.type in setOf("movie", "series") &&
-            (type == null || (it.type == "movie") == (type == TitleType.FILM)) }
-        return searchable.flatMap { runCatching { client.catalog(it.type, it.id, mapOf("search" to query)) }.getOrDefault(emptyList()) }
-            .mapNotNull { summaryOf(it) }.distinctBy { it.key }
+        val searchable = manifest().catalogs.filter { "search" in it.extras && it.type !in LIVE_TYPES &&
+            (type == null || it.type in KNOWN_TYPES && (it.type == "movie") == (type == TitleType.FILM)) }
+        return searchable.flatMap { c -> runCatching { client.catalog(c.type, c.id, mapOf("search" to query)) }.getOrDefault(emptyList())
+            .mapNotNull { summaryOf(it, c.type, c.type !in KNOWN_TYPES) } }.distinctBy { it.key }
     }
 
     override suspend fun title(key: WatchKey): Title? {
         val (type, metaId) = metaRef(key) ?: return null
         if (!manifest().supports("meta", type, metaId)) return null
         val meta = client.meta(type, metaId) ?: return null
-        val summary = summaryOf(meta, type) ?: return null
+        // The add-on's own titles may be of a kind it names itself ("other"); a page shows whether it is a series.
+        val summary = summaryOf(meta, type, anyKind = key.namespace == id) ?: return null
         val videos = meta.list("videos")
         val seasons = videos.mapNotNull { coordinates(it)?.first }.distinct().sortedWith(compareBy({ it == 0 }, { it }))
             .map { n -> Season(summary.key, n, if (n == 0) "Specials" else "Season $n", videos.count { coordinates(it)?.first == n }) }
@@ -156,10 +163,21 @@ class StremioPlugin(
 
     // ── Mapping ──────────────────────────────────────────────────────────
 
-    fun summaryOf(meta: JsonElement, expectedType: String? = null): TitleSummary? {
+    /**
+     * The title [meta] describes. Its kind is the add-on's "movie" or "series"; with [anyKind] (a list or page of a kind the add-on
+     * names itself, such as "other"), a title of another kind is a series when it lists episodes and a film otherwise. Live TV's
+     * kinds are never titles.
+     */
+    fun summaryOf(meta: JsonElement, expectedType: String? = null, anyKind: Boolean = false): TitleSummary? {
         val metaId = meta.str("id") ?: meta.str("imdb_id") ?: return null
+        val stated = meta.str("type") ?: expectedType
         val type = if (meta.list("videos").any { coordinates(it) != null }) TitleType.SERIES
-            else when (meta.str("type") ?: expectedType) { "movie" -> TitleType.FILM; "series" -> TitleType.SERIES; else -> return null }
+            else when {
+                stated == "movie" -> TitleType.FILM
+                stated == "series" -> TitleType.SERIES
+                anyKind && stated !in LIVE_TYPES -> TitleType.FILM
+                else -> return null
+            }
         val imdb = metaId.takeIf { it.startsWith("tt") } ?: meta.str("imdb_id")
         val namespace = if (metaId.startsWith("tt")) "imdb" else id
         val key = if (type == TitleType.FILM) WatchKey.film(namespace, metaId) else WatchKey.series(namespace, metaId)
@@ -233,6 +251,9 @@ class StremioPlugin(
     }
 
     companion object {
+        private val LIVE_TYPES = setOf("tv", "channel")
+        private val KNOWN_TYPES = setOf("movie", "series")
+
         internal fun coordinates(video: JsonElement): Pair<Int, Int>? {
             val parts = video.str("id")?.split(':').orEmpty()
             val season = video.int("season") ?: parts.getOrNull(parts.size - 2)?.toIntOrNull() ?: return null

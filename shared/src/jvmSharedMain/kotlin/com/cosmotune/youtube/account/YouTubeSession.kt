@@ -177,6 +177,8 @@ class YouTubeSession(
             // A value captured from the sign-in page a moment ago is as fresh as it gets: rotating it again at once is answered
             // with 429, so its first rotation is the routine one, ROTATE_EVERY_MS on ([expectCaptured]).
             val captured = value != null && value == justCaptured
+            // Whether it is renewed before its first use, and why: a sign-in put in force twice is otherwise invisible.
+            if (value != null) Log.d(TAG, "session: put in force (${if (captured) "just captured, not renewed at once" else if (justCaptured != null) "not the value just captured, renewed before use" else "stored or rotated, renewed before use"})")
             justCaptured = null
             lastRotationMs = if (captured) clock() else 0L
             lastVerifiedMs = 0L
@@ -226,11 +228,15 @@ class YouTubeSession(
         if (setCookies.any(::clearsSignIn)) {
             Log.w(TAG, "YouTube cleared the sign-in in its answer to ${where.ifBlank { "a signed request" }}: ${YouTubeCookieJar.describeSetCookies(setCookies, clock())}")
         }
+        var added = emptyList<String>()
         val changed = synchronized(lock) {
             val current = cookieFlow.value ?: return
             if (!YouTubeCookieJar.sameLogin(sent, current)) return
-            applyYouTube(setCookies)
+            val before = jar.names.toSet()
+            applyYouTube(setCookies).also { added = jar.names.filterNot(before::contains).sorted() }
         }
+        // A cookie the sign-in did not have before (CONSISTENCY came before every sign-in YouTube ended early): which answer gave it.
+        if (added.isNotEmpty()) Log.d(TAG, "YouTube added ${added.joinToString(",")} in its answer to ${where.ifBlank { "a signed request" }}")
         if (changed) schedulePersist()
     }
 

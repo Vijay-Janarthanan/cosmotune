@@ -24,7 +24,14 @@ enum class PluginKind {
 
 /** A row the plugin offers for Home or the Films/Series/Live pages. [type] null means mixed. */
 @Serializable
-data class CatalogDef(val pluginId: String, val id: String, val name: String, val type: TitleType?, val pageSize: Int = 20, val home: Boolean = true)
+data class CatalogDef(
+    val pluginId: String, val id: String, val name: String, val type: TitleType?, val pageSize: Int = 20, val home: Boolean = true,
+    /**
+     * A list of no stated kind (a Stremio add-on's "other" or "anime" catalogue): films and series mixed, and which one a title is
+     * shows only on its page. It is a row of Home, not of the Films or Series tabs.
+     */
+    val anyKind: Boolean = false,
+)
 
 /**
  * One source of things to watch. Built-in plugins ship inside the app and are switched on or off; user sources
