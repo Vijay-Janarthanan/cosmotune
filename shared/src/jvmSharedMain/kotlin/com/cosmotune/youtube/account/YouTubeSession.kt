@@ -127,6 +127,18 @@ class YouTubeSession(
 
     // ---- Installing ------------------------------------------------------------------------------------------------------
 
+    @Volatile
+    private var justCaptured: String? = null
+
+    /**
+     * [header] was read from the sign-in page a moment ago and is about to be installed. The page renewed those cookies itself
+     * just before, so the first signed request uses them as they are rather than renewing them again at once (YouTube answers
+     * that with 429); the routine rotation follows [ROTATE_EVERY_MS] later.
+     */
+    fun expectCaptured(header: String) {
+        justCaptured = header.takeIf { it.isNotBlank() }
+    }
+
     /**
      * Puts [header] in force (null or blank signs out). Returns whether the session changed: false when it is the value already in
      * force, or when the platform installs again what it installed before for the same login (its stored copy, which a rotation
@@ -162,9 +174,13 @@ class YouTubeSession(
             expiredExplicitly = false
             visitorData = null
             visitorDataIsSessionBound = false
-            lastRotationMs = 0L
+            // A value captured from the sign-in page a moment ago is as fresh as it gets: rotating it again at once is answered
+            // with 429, so its first rotation is the routine one, ROTATE_EVERY_MS on ([expectCaptured]).
+            val captured = value != null && value == justCaptured
+            justCaptured = null
+            lastRotationMs = if (captured) clock() else 0L
             lastVerifiedMs = 0L
-            needsFreshBeforeUse = value != null
+            needsFreshBeforeUse = value != null && !captured
             publish()
             return true
         }
