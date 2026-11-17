@@ -5643,7 +5643,7 @@ private fun DesktopSettingsScreen(
     }
     val settingsQuery = query
     val searching = settingsQuery.isNotBlank()
-    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.25" }
+    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.26" }
     val highlight = remember { com.cosmotune.ui.settings.SettingsHighlight() }
     // The pages the desktop has: a category with none of its settings here (backup is the phone's) is left out of the list.
     val pages = remember {
@@ -6780,7 +6780,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.25" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.26" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )

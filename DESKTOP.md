@@ -47,6 +47,11 @@ Cosmotune 1.0.23 and 1.0.24 installed for the current user only. Their first upd
 installs for all users into the same folder, behind one permission prompt. Windows refuses to install the same version again from
 the other file (the setup.exe over the MSI, or the other way round) with error 1638: uninstall first, or use **Update now**.
 
+From 1.0.26 the installer closes a running Cosmotune before it replaces any file, so installing while Cosmotune is open needs
+no restart. An installer from 1.0.25 or earlier could not close it: it asked for a restart, and the restart deleted most of the
+new version's files. If that happened, run the installer again and choose Repair. Update now downloads through every address
+GitHub lists for its download server (1.0.26 on), so one unreachable address no longer stops it.
+
 **macOS Gatekeeper.** Unsigned binaries built locally or downloaded outside the Mac App Store
 may trigger a macOS security prompt ("Cosmotune is damaged and can't be opened" or "unidentified developer").
 To clear the quarantine flag, run:
