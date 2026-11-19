@@ -102,7 +102,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/CanvasSession.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSession.kt",
       "normalizeLf": true,
-      "sha256": "706b674a2f71750be35ee223f800827bda66a84713184aefda4a88b809af27cd"
+      "sha256": "3d5e2d47f0bd62a68cecbec1663a649f655255431c82c6e584e12af027d5d85c"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",

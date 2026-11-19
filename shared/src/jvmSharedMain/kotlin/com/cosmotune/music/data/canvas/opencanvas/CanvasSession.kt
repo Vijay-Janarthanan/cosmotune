@@ -411,7 +411,7 @@ internal class CanvasSession(
                     result.error != null -> result.error
                     wrong != null -> "confidence ${"%.2f".format(result.confidence)}, but $wrong"
                     else -> "confidence ${"%.2f".format(result.confidence)}, ${result.segments.size} segment(s)"
-                })
+                } + (measured?.let { m -> if (m.videoKbps > 0.0) "; picture ${m.videoKbps.toInt()} kbit/s, motion ${"%.2f".format(m.videoMotion)}" else "; no picture measured" } ?: ""))
             if (result != null && !still && wrong == null && result.error == null && result.confidence >= YouTubeStreamResolver.MIN_SYNC_CONFIDENCE && result.segments.isNotEmpty()) {
                 // The ranking is the main evidence, the match quality settles close calls: a version of the
                 // video that is the same recording as the song lines up cleanly, a different cut needs an
