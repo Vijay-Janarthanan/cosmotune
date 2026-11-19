@@ -45,7 +45,8 @@ object VideoMatcher {
         if (film.isNotEmpty() && (film.all(Char::isDigit) || film.length == 2)) {
             return Regex("(^|[^\\p{L}\\p{N}])${Regex.escape(film)}($|[^\\p{L}\\p{N}])").containsMatchIn(candidateTitle.lowercase())
         }
-        return film.length >= 3 && filmKey(candidateTitle).contains(film)
+        return film.length >= 3 && (filmKey(candidateTitle).contains(film) ||
+            looseKey(cleanFilmName(album)).let { it.length >= 4 && looseKey(candidateTitle).contains(it) })
     }
 
     /** A different verified artist is not evidence for the requested singer. */
@@ -218,7 +219,13 @@ object VideoMatcher {
     }
 
     /** Transliterations differ ("Marudaani" / "Marudhani", "Chinnama" / "Chinnamma"): no h, no doubled letters. */
-    private fun looseKey(text: String): String = compact(text).replace("h", "").replace(Regex("(.)\\1+"), "$1")
+    /**
+     * The spelling of an Indian-language word in English letters varies with the writer: "Kathal", "Kadhal" and "Kaadhal",
+     * "Oyvatillai" and "Oivathillai", "Jensy" and "Jency" are the same words. An "h" after a consonant, t and d, y and i, a
+     * soft c and s, and doubled letters are set aside, so the song's tag and the publisher's title compare as one.
+     */
+    private fun looseKey(text: String): String = compact(text).replace("h", "").replace('d', 't').replace('y', 'i')
+        .replace(Regex("c(?=[ei])"), "s").replace(Regex("(.)\\1+"), "$1")
 
     /** Network corroboration is reserved for plausible publisher videos, not arbitrary fan uploads. */
     fun needsPublisherCorroboration(candidate: VideoCandidate, title: String, artist: String, album: String?): Boolean =

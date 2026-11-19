@@ -53,8 +53,8 @@
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
       "upstreamSha256": "0167082df0251875fe56f3ee30211c1d2cc85eb5f82183ba3d97f30d9b212e61",
-      "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches.",
-      "sha256": "2850b1f0c4f4125fb1a41c60f74c037c32a2a9af37515cf7368e0a48a4aca6bd"
+      "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches; compare song and film names across English spellings of Indian-language words (th/dh, t/d, y/i, c/s, doubled letters).",
+      "sha256": "86f0bf41533bebb70df15fe6c1eddbcd6a2f7fe47bed3301487e898dbc7a9330"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
