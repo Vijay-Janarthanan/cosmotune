@@ -24,6 +24,17 @@ class VideoMatcherSpellingTest {
         assertTrue(VideoMatcher.hasFilmContext(label.title, album), "Oivathillai is Oyvatillai")
     }
 
+    @Test fun uploadsThatSayTheyAreTheVideoSongGoBeforeAPublishersPlainSongUpload() {
+        val poster = VideoCandidate("s_4HQnCki4o", "Kadhal Oviyam Song | Alaigal Oivathillai | Ilaiyaraaja | Jency Anthony", "Ilaiyaraaja Official", 286, isVerifiedChannel = true)
+        val label = VideoCandidate("KdZ4R5GxIDI", "Kadhal Oviyam - Alaigal Oivathillai | Ilaiyaraaja, Jency Anthony | HD VideoSong", "7th Channel Music", 274, isVerifiedChannel = true)
+        val anyone = VideoCandidate("cV8Kuj7afDo", "Alaigal Oivathillai Tamil Movie Songs | Kadhal Oviyam Video Song | Karthik | Radha | Ilayaraja", "Pyramid Glitz Music", 288)
+        assertTrue(VideoMatcher.saysVideo(label.title), "VideoSong written as one word")
+        val order = VideoMatcher.videoSongsFirst(listOf(poster), listOf(poster, anyone), title, artist, album).map { it.videoId }
+        assertTrue(order.indexOf("cV8Kuj7afDo") < order.indexOf("s_4HQnCki4o"), "the video song is measured before the plain upload: $order")
+        val publishersSayVideo = VideoMatcher.videoSongsFirst(listOf(label, poster), listOf(anyone), title, artist, album)
+        assertTrue(publishersSayVideo.none { it.videoId == "cV8Kuj7afDo" }, "a publisher's own video song needs no one else's")
+    }
+
     @Test fun anotherSongOfTheSameFilmIsStillNotTheSong() {
         val other = VideoCandidate("x", "Puthiya Poovithu - Alaigal Oivathillai | Ilaiyaraaja | Video Song", "7th Channel Music", 270, isVerifiedChannel = true)
         assertFalse(VideoMatcher.hasPublisherEvidence(other, title, artist, album))

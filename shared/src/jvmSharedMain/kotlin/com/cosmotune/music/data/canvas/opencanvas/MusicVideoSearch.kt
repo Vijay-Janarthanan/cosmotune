@@ -141,7 +141,10 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
                 val ranked = eligible()
                 if (exhaustive) log("expanded video search '$query': ${batch.size} results in $tookMs ms, eligible " +
                     ranked.joinToString { it.videoId }.ifEmpty { "none" } + leftOut(batch, ranked, title, artist, durationSec, album, excludedVideoIds))
-                if (exhaustive && ranked.isNotEmpty()) return VideoSearchOutcome(preferMovingPictures(ranked, title, artist, album), unanswered, asked)
+                if (exhaustive && ranked.isNotEmpty()) {
+                    val others = VideoMatcher.rank(results.distinctBy { it.videoId }.filter { it.videoId !in excludedVideoIds }, title, artist, durationSec, limit, album)
+                    return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(ranked, others, title, artist, album), title, artist, album), unanswered, asked)
+                }
                 // Do not wait for speculative fallbacks when a publisher's matching song was found.
                 // An album-only hit is insufficient: another track from the same film must not stop search.
                 if (!exhaustive && ranked.any { candidate ->
@@ -159,7 +162,10 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
         // Matching audio can be attached to unrelated footage. Missing publisher evidence is a miss,
         // never permission to promote an unverified fan edit into an automatic music video.
         val publisherVideos = VideoMatcher.rank(distinct.filter { it.videoId !in excludedVideoIds && VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
-        if (publisherVideos.isNotEmpty()) return VideoSearchOutcome(preferMovingPictures(publisherVideos, title, artist, album), unanswered, asked)
+        if (publisherVideos.isNotEmpty()) {
+            val others = VideoMatcher.rank(distinct.filter { it.videoId !in excludedVideoIds }, title, artist, durationSec, limit, album)
+            return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(publisherVideos, others, title, artist, album), title, artist, album), unanswered, asked)
+        }
         // No publisher has the video: an upload by anyone else is tried, and the audio check has the last word.
         val uploads = VideoMatcher.rank(distinct.filter { it.videoId !in excludedVideoIds && VideoMatcher.hasFallbackEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
         if (uploads.isNotEmpty()) log("no publisher video for '$title': trying ${uploads.joinToString { "${it.videoId} by ${it.channelTitle}" }}")

@@ -254,8 +254,21 @@ object VideoMatcher {
     private val gameEdit = Regex("(?i)\\b(?:gameplay|bgmi|amv|gmv)\\b")
 
     private val POSITIVE_KEYWORDS = listOf(
-        "official video", "official music video", "music video", "official mv", "official m/v", "video song",
+        "official video", "official music video", "music video", "official mv", "official m/v", "video song", "videosong",
     )
+
+    /**
+     * The order to measure a song's candidates in when its publishers' uploads ([publisher]) only say "Song": a label's or the
+     * artist's plain upload is often a still poster ("Kadhal Oviyam Song" on Ilaiyaraaja Official), so another upload that says it
+     * is the video song ("Kadhal Oviyam - Alaigal Oivathillai | HD VideoSong", "Kadhal Oviyam Video Song") and names the song with
+     * its artist or film goes first. The audio check still decides; when a publisher's upload says it is the video, nothing changes.
+     */
+    fun videoSongsFirst(publisher: List<VideoCandidate>, others: List<VideoCandidate>, title: String, artist: String, album: String?): List<VideoCandidate> {
+        if (publisher.any { saysVideo(it.title) }) return publisher
+        val ids = publisher.map { it.videoId }.toSet()
+        val videoSongs = others.filter { it.videoId !in ids && saysVideo(it.title) && hasFallbackEvidence(it, title, artist, album) }
+        return videoSongs + publisher
+    }
 
     /** Whether the title itself says it is the music video ("video song", "official video", "MV"). */
     fun saysVideo(title: String): Boolean = title.lowercase().let { t -> POSITIVE_KEYWORDS.any { t.contains(it) } }
