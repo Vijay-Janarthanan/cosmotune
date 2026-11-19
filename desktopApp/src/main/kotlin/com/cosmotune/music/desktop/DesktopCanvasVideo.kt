@@ -262,13 +262,20 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
         val placement = com.opencanvas.core.filter.videoViewport(image.width.toFloat(), image.height.toFloat(),
             size.width, size.height, framing.copy(cx = focalX, cy = focalY),
             spec.contentMode == CanvasContentMode.FIT_PORTRAIT, spec.alignPortraitTop)
-        drawImage(
-            image = image,
-            srcOffset = IntOffset.Zero,
-            srcSize = IntSize(image.width, image.height),
-            dstOffset = IntOffset(placement.left.roundToInt(), placement.top.roundToInt()),
-            dstSize = IntSize(placement.width.roundToInt(), placement.height.roundToInt()),
-        )
+        // Skia turns the frame into a picture as it draws; when the PC is short of memory that fails ("Failed to
+        // Image::makeFromBitmap"), and unguarded it took the whole window down. The frame is skipped instead: the cover
+        // stays behind it, and the next frame is tried as usual.
+        try {
+            drawImage(
+                image = image,
+                srcOffset = IntOffset.Zero,
+                srcSize = IntSize(image.width, image.height),
+                dstOffset = IntOffset(placement.left.roundToInt(), placement.top.roundToInt()),
+                dstSize = IntSize(placement.width.roundToInt(), placement.height.roundToInt()),
+            )
+        } catch (failure: RuntimeException) {
+            CanvasFrameFailures.note(failure)
+        }
         if (bottomFade > 0.001f) {
             val endY = bottomFadeEndPx?.coerceIn(0f, size.height) ?: size.height
             drawRect(
@@ -305,3 +312,17 @@ internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(
 /** A frame this much ahead of the song waits for it; this much behind is dropped. */
 private const val FRAME_EARLY_MS = 8L
 private const val FRAME_LATE_MS = 90L
+
+/** Frames the canvas could not draw, logged at most once a minute so a PC short of memory does not fill the log. */
+internal object CanvasFrameFailures {
+    @Volatile private var lastLoggedMs = 0L
+    @Volatile private var skipped = 0
+
+    fun note(failure: RuntimeException) {
+        skipped++
+        val now = System.currentTimeMillis()
+        if (now - lastLoggedMs < 60_000L) return
+        lastLoggedMs = now
+        DesktopTrackLog.log("canvas: could not draw a video frame (${failure.message}); skipped $skipped so far, the cover shows meanwhile")
+    }
+}
