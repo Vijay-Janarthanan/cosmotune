@@ -109,7 +109,7 @@ class PipContractTest {
 
     @Test fun inPictureInPictureThePagesShowThePictureAlone() {
         assertTrue(
-            "inPip && pipHandle?.manual != true -> Box(Modifier.fillMaxSize().background(Color.Black)) { picture(Modifier.fillMaxSize(), 0.dp) }" in flat(watchPage),
+            "inPip && pipHandle?.manual != true -> Box(Modifier.fillMaxSize().background(Color.Black)) { picture(Modifier.fillMaxSize(), 0.dp, view) }" in flat(watchPage),
             "Watch: the picture alone, no card, no rows",
         )
         val np = flat(nowPlaying)

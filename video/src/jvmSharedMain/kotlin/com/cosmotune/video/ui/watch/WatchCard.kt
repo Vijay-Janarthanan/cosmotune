@@ -131,8 +131,6 @@ internal fun WatchTransportCard(
     onTitle: (() -> Unit)? = null,
     onDownload: (() -> Unit)? = null,
     downloaded: Boolean = false,
-    cinema: Boolean = false,
-    onInteraction: (Boolean) -> Unit = {},
 ) {
     val state by playback.state.collectAsState()
     val settings by LocalVideoGraph.current.settings.settings.collectAsState()
@@ -147,9 +145,6 @@ internal fun WatchTransportCard(
     }
     var settingsOpen by remember { mutableStateOf(false) }
     var screenOpen by remember { mutableStateOf(false) }
-    var scrubbing by remember { mutableStateOf(false) }
-    val interacting = settingsOpen || screenOpen || scrubbing
-    LaunchedEffect(interacting) { onInteraction(interacting) }
     val buttons: @Composable () -> Unit = {
         WatchCardButtons(playback, state, ink, fill, screen, wide, onDownload, downloaded,
             screenOpen = screenOpen, onScreenOpen = { screenOpen = it }, onSettings = { settingsOpen = true }, settingsMenu = if (wide && settingsOpen) {
@@ -161,18 +156,10 @@ internal fun WatchTransportCard(
     val scrubber: @Composable (Modifier) -> Unit = { m ->
         PlayerScrubber(
             playback = playback, state = state, settings = settings, playhead = playhead, lineAtBottom = false, onGlass = false,
-            onScrub = { scrubbing = it }, onInput = {}, modifier = m.fillMaxWidth().height(32.dp).testTag("video:watch:line"), ink = ink,
+            onScrub = {}, onInput = {}, modifier = m.fillMaxWidth().height(32.dp).testTag("video:watch:line"), ink = ink,
         )
     }
-    val line: @Composable (Modifier) -> Unit = { m ->
-        if (cinema && !state.live && state.durationMs > 0) {
-            Row(m.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                OrbitRoundButton(CosmoIcons.Replay30, stringResource(Res.string.video_seek_back, 30), ink, { playback.seekBy(-30_000L) })
-                scrubber(Modifier.weight(1f))
-                OrbitRoundButton(CosmoIcons.Forward30, stringResource(Res.string.video_seek_forward, 30), ink, { playback.seekBy(30_000L) })
-            }
-        } else scrubber(m)
-    }
+    val line: @Composable (Modifier) -> Unit = { m -> scrubber(m) }
     OrbitBiteCard(fill, modifier.fillMaxWidth().testTag("video:watch:card"), bite = { OrbitPlayButton(playing, onPlay, look, Modifier.testTag("video:watch:play")) }) {
         if (wide) {
             Column(Modifier.fillMaxWidth().padding(start = 24.dp, top = 20.dp, end = 24.dp, bottom = 12.dp)) {

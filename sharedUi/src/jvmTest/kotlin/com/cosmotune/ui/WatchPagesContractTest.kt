@@ -50,12 +50,19 @@ class WatchPagesContractTest {
         assertFalse(Regex("""CosmoIcons\.Volume, "Audio"|"Audio"[^)]*icon = CosmoIcons\.Volume""").containsMatchIn(player), "Audio never borrows the speaker")
     }
 
-    @Test fun cinemaShowsTheNextEpisodeCountdownEvenWithTheControlsHidden() {
+    @Test fun fullScreenIsTheSharedPlayerAndKeepsTheCountdownAndSkipIntroWithTheControlsHidden() {
         val src = File(root, "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/WatchPlayerPage.kt").readText()
-        val cinema = SourceContract.functionBody(src, "WatchCinema").replace(Regex("""\s+"""), " ")
-        assertTrue("val nextDue = !failed && state.nextEpisode != null && state.nextEpisodeInMs != null" in cinema, "Cinema knows when the next episode is due")
-        assertTrue("if (!failed && (chrome || nextDue))" in cinema, "the foot is drawn for the countdown even while the controls are hidden")
-        assertTrue(Regex("""if \(nextDue\) .*NextEpisodeRow\(state, controls,""").containsMatchIn(cinema), "the countdown row with Play now and Cancel")
-        assertTrue("if (chrome) FilmCard(" in cinema, "the film card still hides with the controls")
+        val screen = SourceContract.functionBody(src, "WatchPlayerScreen").replace(Regex("""\s+"""), " ")
+        assertTrue("cinema -> com.cosmotune.ui.fullscreen.FullScreenWindow({ cinema = false }, landscape = aspect >= 1f) {" in screen, "the host's full window, a wide film held sideways")
+        val full = SourceContract.functionBody(src, "WatchFullScreen").replace(Regex("""\s+"""), " ")
+        assertTrue("com.cosmotune.ui.fullscreen.FullScreenPlayer(" in full, "the one plain player Now Playing and Video use")
+        assertTrue("transport = com.cosmotune.ui.fullscreen.FullScreenTransport.Skip" in full, "back and ahead 10 s round play")
+        for (menu in listOf("\"Captions\"", "\"Audio\"", "\"Sources\"")) assertTrue(menu in full, "$menu is in the ⋯ menu")
+        // The overlay is drawn whether the controls show or not: the countdown and Skip intro are always a tap away.
+        val overlay = full.substringAfter("overlay = { shown ->")
+        assertTrue(Regex("""state\.nextEpisode != null && state\.nextEpisodeInMs != null.*NextEpisodeRow\(state, controls,""").containsMatchIn(overlay), "the countdown row with Play now and Cancel")
+        assertTrue("state.skipIntervals.firstOrNull { position() in it.startMs until it.endMs }" in overlay && "controls.seekTo(skip.endMs)" in overlay, "Skip intro")
+        assertTrue("val lift = if (shown) 92.dp else 24.dp" in overlay, "above the seek bar while the controls show")
+        assertTrue("holdControls = failed" in full, "a failure keeps the controls up")
     }
 }

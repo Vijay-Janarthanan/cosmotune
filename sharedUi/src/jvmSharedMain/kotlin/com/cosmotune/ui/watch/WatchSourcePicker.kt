@@ -78,14 +78,20 @@ internal fun WatchSourcesMenu(
         filters = { WatchSourceFilters(state.streams, filter, { filter = it }, fonts, look) },
         items = if (matching.isEmpty()) {
             listOf(OrbitMenuItem("No streams match", "Reset filters", keepOpen = true) { filter = WatchStreamFilter() })
-        } else matching.map { stream ->
-            val selected = stream == state.stream
-            val detail = stream.watchMetadata(state.durationMs.takeIf { selected }, runtime)
-            OrbitMenuItem(
-                "${stream.source.pluginName} · ${stream.label}",
-                listOfNotNull(detail, stream.description?.lineSequence()?.firstOrNull { it.isNotBlank() }).joinToString("\n"),
-                selected = selected, enabled = stream.isPlayable,
-            ) { if (!selected || state.status == WatchPlayerStatus.ERROR) switch(stream) }
-        },
+        } else watchSourceItems(state, switch, matching, runtime),
     )
+}
+
+/** The copies to play from as menu lines (the source and its label, what is known of it), the one playing chosen. */
+internal fun watchSourceItems(
+    state: WatchPlayerState, switch: (Stream) -> Unit, streams: List<Stream> = state.streams,
+    runtime: Int? = state.summary?.takeIf { it.type == TitleType.FILM }?.runtimeMin,
+): List<OrbitMenuItem> = streams.map { stream ->
+    val selected = stream == state.stream
+    val detail = stream.watchMetadata(state.durationMs.takeIf { selected }, runtime)
+    OrbitMenuItem(
+        "${stream.source.pluginName} · ${stream.label}",
+        listOfNotNull(detail, stream.description?.lineSequence()?.firstOrNull { it.isNotBlank() }).joinToString("\n"),
+        selected = selected, enabled = stream.isPlayable,
+    ) { if (!selected || state.status == WatchPlayerStatus.ERROR) switch(stream) }
 }

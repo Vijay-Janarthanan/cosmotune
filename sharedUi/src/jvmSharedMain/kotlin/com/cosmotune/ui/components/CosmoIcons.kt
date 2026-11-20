@@ -114,6 +114,14 @@ object CosmoIcons {
         stroke("M19.8 12a7.8 7.8 0 1 1-2.3-5.5M19.8 4.3v3.8H16")
         fill("M7 9h4v7H7v-1.4h2.6v-1.4H7v-1.4h2.6v-1.4H7z M12.5 9h4.5v7h-4.5z M13.9 10.4h1.7v4.2h-1.7z")
     }
+    val Replay10 by icon("replay10") {
+        stroke("M4.2 12a7.8 7.8 0 1 0 2.3-5.5M4.2 4.3v3.8H8")
+        fill("M8.4 9h1.7v7H8.4z M12.5 9h4.5v7h-4.5z M13.9 10.4h1.7v4.2h-1.7z")
+    }
+    val Forward10 by icon("forward10") {
+        stroke("M19.8 12a7.8 7.8 0 1 1-2.3-5.5M19.8 4.3v3.8H16")
+        fill("M8.4 9h1.7v7H8.4z M12.5 9h4.5v7h-4.5z M13.9 10.4h1.7v4.2h-1.7z")
+    }
     val Cellular by icon("cellular") { stroke("M5 19.5v-2.5"); stroke("M9.5 19.5v-6"); stroke("M14 19.5v-9.5"); stroke("M18.5 19.5v-14") }
     val Clock by icon("clock") { circle(12f, 12f, 8.25f); stroke("M12 7.5V12l3 2") }
     val Pin by icon("pin") { stroke("M9 4h6"); stroke("M10 4v5.5L7 13.5h10l-3-4V4"); stroke("M12 13.5V20") }

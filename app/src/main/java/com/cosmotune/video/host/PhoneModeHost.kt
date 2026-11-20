@@ -72,6 +72,9 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     // stored mode, so without this a Music root would stand without its tab bar and its mini player.
     if (shell != null && !AppModes.available(mode)) LaunchedEffect(mode) { shell.settings.setMode(AppMode.MUSIC) }
     val holder = rememberSaveableStateHolder()
+    val fullScreenWindow: com.cosmotune.ui.fullscreen.FullScreenWindowHost = remember {
+        { exit, landscape, content -> com.cosmotune.video.ui.watch.WatchFullWindow(exit, landscape, content) }
+    }
     // Video asks for the Google sign-in in place: PhoneVideo draws the one login screen over Video (see there); Music is not made the mode.
     // A video that Music asked for ("Watch the music video", Y-26 sets it); Video opens it first.
     val asked = remember { mutableStateOf<PendingVideo?>(null) }
@@ -129,7 +132,12 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     com.cosmotune.music.ui.room.PhoneRoomRoot(RoomVideo) {
     CompositionLocalProvider(com.cosmotune.ui.live.LocalLiveNow provides live, com.cosmotune.ui.live.LocalLiveNowInPage provides (live != null)) {
     CompositionLocalProvider(com.cosmotune.ui.blocks.LocalModeProfileAction provides profileAction) {
-    CompositionLocalProvider(LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) }) {
+    // The one full-screen player's window (Now Playing's Cinema, Video's and Watch's full screen): a dialog drawn into the cutout
+    // with the system bars hidden.
+    CompositionLocalProvider(
+        LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) },
+        com.cosmotune.ui.fullscreen.LocalFullScreenWindow provides fullScreenWindow,
+    ) {
         if (shell != null && mode == AppMode.MANGA) holder.SaveableStateProvider("manga") {
             androidx.activity.compose.BackHandler { shell.settings.setMode(AppMode.MUSIC) }
             val request = MusicLink.pending.collectAsStateWithLifecycle()
@@ -166,17 +174,11 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             } else null
             com.cosmotune.ui.watch.ProvideWatch(repository = repository, playback = playback, downloads = downloads, roomPacks = roomPacks,
                 qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
-                androidx.compose.runtime.CompositionLocalProvider(
-                    com.cosmotune.ui.watch.LocalWatchFullscreen provides { exit, landscape, content ->
-                        com.cosmotune.video.ui.watch.WatchFullWindow(exit, landscape, content)
-                    },
-                ) {
-                    com.cosmotune.ui.theme.ModeGround {
-                        com.cosmotune.ui.watch.WatchApp(
-                            contentPadding = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues(),
-                            showNavigation = true,
-                        )
-                    }
+                com.cosmotune.ui.theme.ModeGround {
+                    com.cosmotune.ui.watch.WatchApp(
+                        contentPadding = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues(),
+                        showNavigation = true,
+                    )
                 }
             }
         }

@@ -113,9 +113,6 @@ internal class WatchPlayerControls(
     val pictureInPicture: (() -> Unit)? = null,
 )
 
-typealias WatchFullscreenHost = @Composable (() -> Unit, Boolean, @Composable () -> Unit) -> Unit
-val LocalWatchFullscreen = staticCompositionLocalOf<WatchFullscreenHost?> { null }
-
 /**
  * The player (board notes: "the same player as Now Playing"): the picture, then the film card in the title's colour with play in
  * its bite, where you are, back and forward, audio, subtitles and the screen button (Whole, Fill, Cinema); the next episode
@@ -268,17 +265,18 @@ internal fun WatchPlayerScreen(
     val view = keptView ?: localView
     val setView: (VideoView) -> Unit = { v -> if (settings != null) settings.setVideoView(v) else localView = v }
     var cinema by rememberSaveable { mutableStateOf(startInCinema) }
-    val fullscreen = LocalWatchFullscreen.current
     val summary = state.summary
     val (fill, ink) = coverFill(summary?.backdropUrl ?: summary?.posterUrl, summary?.key?.value ?: "watch")
     val pipHandle = pip?.handle
     val inPip = pipHandle?.active == true
-    val picture: @Composable (Modifier, Dp) -> Unit = { m, radius ->
+    val picture: @Composable (Modifier, Dp, VideoView) -> Unit = { m, radius, shown ->
         val placed = if (pip != null && !inPip) m.onGloballyPositioned { pip.bounds(it.boundsInWindow()) } else m
         if (inPip && pipHandle?.manual == true) {
             WatchPipStandIn(summary?.backdropUrl ?: summary?.posterUrl, summary?.key?.value ?: "watch", radius, fonts, onReturn = { pipHandle.exit() }, modifier = placed)
         } else {
-            WatchVideo(view, aspect, radius, surface, still = summary?.backdropUrl, key = summary?.key?.value ?: "watch", modifier = placed, onDoubleTap = { cinema = !cinema })
+            // In full screen the shared player takes the taps; on the page a double tap goes full screen.
+            WatchVideo(shown, aspect, radius, surface, still = summary?.backdropUrl, key = summary?.key?.value ?: "watch", modifier = placed,
+                onDoubleTap = if (cinema) null else ({ cinema = true }))
         }
     }
     // The keyboard (the desktop's): Esc leaves Cinema, else closes the player; F goes in and out of Cinema.
@@ -295,16 +293,18 @@ internal fun WatchPlayerScreen(
         val focus = remember { FocusRequester() }
         LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
         Box(Modifier.fillMaxSize().focusRequester(focus).focusable().onPreviewKeyEvent(keyHandler)) {
-            if (cinema) WatchCinema(picture, state, playing, position, durationMs, controls, view, setView, onLeave = { cinema = false }, fonts = fonts, look = look, fill = fill, ink = ink, programme = programme,
-                channels = channels, onChannel = onChannel)
-            else WatchPlayerLayout(state, playing, position, durationMs, controls, watchTogether, view, setView, picture, onCinema = { cinema = true }, fonts, look, wide, padding, fill, ink,
+            WatchPlayerLayout(state, playing, position, durationMs, controls, watchTogether, view, setView, { m, r -> picture(m, r, view) }, onCinema = { cinema = true }, fonts, look, wide, padding, fill, ink,
                 programme = programme, channels = channels, onChannel = onChannel, details = details)
         }
     }
     when {
         // The phone's picture-in-picture window is the app itself: the picture alone, nothing over it.
-        inPip && pipHandle?.manual != true -> Box(Modifier.fillMaxSize().background(Color.Black)) { picture(Modifier.fillMaxSize(), 0.dp) }
-        cinema && fullscreen != null -> fullscreen({ cinema = false }, aspect >= 1f, content)
+        inPip && pipHandle?.manual != true -> Box(Modifier.fillMaxSize().background(Color.Black)) { picture(Modifier.fillMaxSize(), 0.dp, view) }
+        // Full screen: the one plain player Now Playing and Video use, in the host's full window (a wide film held in landscape).
+        cinema -> com.cosmotune.ui.fullscreen.FullScreenWindow({ cinema = false }, landscape = aspect >= 1f) {
+            WatchFullScreen(picture, state, playing, position, durationMs, controls, onLeave = { cinema = false }, fonts = fonts, look = look,
+                programme = programme, channels = channels, onChannel = onChannel)
+        }
         else -> content()
     }
 }
@@ -460,12 +460,12 @@ private fun WatchLoading(state: WatchPlayerState, fonts: OrbitFonts) {
 
 /** The picture in its box: Whole at its own shape and centred (never cut), Fill cut to the box. Nothing is drawn on it. */
 @Composable
-private fun WatchVideo(view: VideoView, aspect: Float, radius: Dp, surface: @Composable (WatchSurfaceScale, Modifier) -> Unit, still: String?, key: String, modifier: Modifier, onDoubleTap: () -> Unit) {
+private fun WatchVideo(view: VideoView, aspect: Float, radius: Dp, surface: @Composable (WatchSurfaceScale, Modifier) -> Unit, still: String?, key: String, modifier: Modifier, onDoubleTap: (() -> Unit)?) {
     BoxWithConstraints(modifier) {
         val box = watchPictureFrame(view, maxWidth.value, maxHeight.value, aspect)
         Box(
             Modifier.offset(box[0].dp, box[1].dp).size(box[2].dp, box[3].dp).clip(RoundedCornerShape(radius)).background(Color.Black)
-                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { onDoubleTap() }) },
+                .then(if (onDoubleTap != null) Modifier.pointerInput(onDoubleTap) { detectTapGestures(onDoubleTap = { onDoubleTap() }) } else Modifier),
         ) {
             if (still != null) WatchPicture(still, key, Modifier.fillMaxSize(), radius = 0.dp)
             // The engine draws on a SurfaceView, which can keep the place and size it was first laid out at when only the boxes
@@ -661,90 +661,75 @@ private fun FilmCard(
     }
 }
 
-/** Cinema: tap the picture to toggle controls. Mouse motion reveals them after an automatic hide. */
+/**
+ * Watch's full screen: the one plain full-screen player ([com.cosmotune.ui.fullscreen.FullScreenPlayer], as Now Playing's Cinema
+ * and Video's full screen): the title line with ⋯ (captions, audio, sources, the channels on now, and leaving), back and ahead
+ * 10 s round play, the seek bar (none for a live channel). Over it, whether the controls show or not: the next episode's countdown
+ * with Play now and Cancel, Skip intro while the intro plays, the loading note, and a failure with its way out (the controls stay
+ * up then).
+ */
 @Composable
-private fun WatchCinema(
-    picture: @Composable (Modifier, Dp) -> Unit,
+private fun WatchFullScreen(
+    picture: @Composable (Modifier, Dp, VideoView) -> Unit,
     state: WatchPlayerState,
     playing: Boolean,
     position: () -> Long,
     durationMs: Long,
     controls: WatchPlayerControls,
-    view: VideoView,
-    setView: (VideoView) -> Unit,
     onLeave: () -> Unit,
     fonts: OrbitFonts,
     look: OrbitLook,
-    fill: Color,
-    ink: Color,
     programme: String? = null,
     channels: List<com.cosmotune.watch.LiveNowItem> = emptyList(),
     onChannel: (com.cosmotune.watch.model.Channel) -> Unit = {},
 ) {
-    var stir by remember { mutableIntStateOf(0) }
-    var chrome by remember { mutableStateOf(true) }
-    var manuallyHidden by remember { mutableStateOf(false) }
-    var sourcesOpen by remember { mutableStateOf(false) }
-    var cardMenuOpen by remember { mutableStateOf(false) }
-    var pointerDown by remember { mutableStateOf(false) }
     val failed = state.status == WatchPlayerStatus.ERROR || state.status == WatchPlayerStatus.NOT_FOUND
-    LaunchedEffect(chrome, stir, playing, failed, sourcesOpen, cardMenuOpen, pointerDown) {
-        if (chrome && playing && !failed && !sourcesOpen && !cardMenuOpen && !pointerDown) {
-            delay(3_000)
-            chrome = false
+    // Skip intro follows the playhead: read twice a second, not every frame.
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(playing) { while (playing) { delay(500); tick++ } }
+    val menus = buildList {
+        if (!controls.remote) {
+            add(com.cosmotune.ui.fullscreen.FullScreenMenu("Captions", state.subtitles.firstOrNull { it.id == state.selectedSubtitleId }?.label ?: "Off", CosmoIcons.Lyrics, buildList {
+                add(OrbitMenuItem("Off", null, selected = state.selectedSubtitleId == null) { controls.selectSubtitle(null) })
+                state.subtitles.forEach { s -> add(OrbitMenuItem(s.label, if (s.hearingImpaired) "SDH" else null, selected = s.id == state.selectedSubtitleId) { controls.selectSubtitle(s.id) }) }
+                add(OrbitMenuItem("Find more subtitles", "OpenSubtitles and your subtitle plugins", CosmoIcons.Search) { controls.searchSubtitles() })
+            }))
+            if (state.audioTracks.size > 1) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Audio", state.audioTracks.firstOrNull { it.selected }?.label, CosmoIcons.Waveform,
+                state.audioTracks.map { t -> OrbitMenuItem(t.label, listOfNotNull(t.codec, t.channels?.let { "$it ch" }).joinToString(" · ").ifBlank { null }, selected = t.selected) { controls.selectAudio(t.trackId) } }))
+            if (state.streams.isNotEmpty()) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Sources", state.stream?.let { "${it.source.pluginName} · ${it.label}" }, CosmoIcons.Queue,
+                watchSourceItems(state, controls.switchStream)))
         }
+        if (state.isLive && channels.isNotEmpty()) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Also on now", null, CosmoIcons.Explore,
+            channels.map { row -> OrbitMenuItem(row.channel.name, row.now?.title) { onChannel(row.channel) } }))
     }
-    Box(
-        Modifier.fillMaxSize().background(Color(0xFF050304)).pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    val e = awaitPointerEvent(PointerEventPass.Initial)
-                    pointerDown = e.changes.any { it.pressed }
-                    if (e.type == PointerEventType.Move && !manuallyHidden && e.changes.any { it.type == PointerType.Mouse }) {
-                        chrome = true
-                        stir++
+    com.cosmotune.ui.fullscreen.FullScreenPlayer(
+        title = state.summary?.name ?: "Watch",
+        subtitle = if (state.isLive && programme != null) "On now · $programme" else state.subtitleLine,
+        playing = playing, position = position, durationMs = durationMs,
+        onPlayPause = controls.playPause, onSeek = controls.seekTo, onLeave = onLeave,
+        transport = com.cosmotune.ui.fullscreen.FullScreenTransport.Skip,
+        live = state.isLive, holdControls = failed, menus = menus,
+        picture = { fill, m -> picture(m, 0.dp, if (fill) VideoView.FILL else VideoView.WHOLE) },
+        overlay = { shown ->
+            WatchLoading(state, fonts)
+            if (failed) Box(Modifier.align(Alignment.Center).widthIn(max = 500.dp).padding(24.dp)) { WatchPlaybackFailure(state, controls, fonts, look) }
+            // Above the seek bar while the controls show; at the foot when they are hidden.
+            val lift = if (shown) 92.dp else 24.dp
+            if (!failed && !state.isLive && durationMs > 0) {
+                tick
+                state.skipIntervals.firstOrNull { position() in it.startMs until it.endMs }?.let { skip ->
+                    Box(Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = lift).testTag("watch:fullscreen:skip")) {
+                        WatchCardChip(skip.label, Color.White, fonts, onClick = { controls.seekTo(skip.endMs) }, solid = true, onSolid = Color.Black)
                     }
+                }
+            }
+            if (!failed && state.nextEpisode != null && state.nextEpisodeInMs != null) {
+                BoxWithConstraints(Modifier.align(Alignment.BottomCenter).padding(start = 24.dp, end = 24.dp, bottom = lift).widthIn(max = 860.dp).fillMaxWidth().testTag("watch:cinema:next")) {
+                    NextEpisodeRow(state, controls, maxWidth >= 560.dp, fonts, look)
                 }
             }
         },
-    ) {
-        picture(Modifier.fillMaxSize(), 0.dp)
-        if (!failed) Box(
-            Modifier.fillMaxSize().testTag("watch:cinema:picture").clickable(
-                interactionSource = null, indication = null,
-                onClickLabel = if (chrome) "Hide playback controls" else "Show playback controls",
-            ) {
-                chrome = !chrome
-                manuallyHidden = !chrome
-            },
-        )
-        WatchLoading(state, fonts)
-        if (failed) Box(Modifier.align(Alignment.Center).widthIn(max = 500.dp).padding(24.dp)) {
-            WatchPlaybackFailure(state, controls, fonts, look)
-        }
-        if (chrome || failed) {
-            Box(Modifier.fillMaxSize()) {
-                Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    WatchRoundButton(CosmoIcons.ChevronDown, "Close the player", look, onClick = controls.close, ink = Color(0xFFF7ECE4))
-                    if (!failed && state.streams.isNotEmpty()) {
-                        PlayerSourcesButton(state, controls, fonts, look, onMenuOpen = { sourcesOpen = it })
-                    }
-                    WatchRoundButton(CosmoIcons.Expand, "Exit full screen", look, onClick = onLeave, ink = Color(0xFFF7ECE4))
-                }
-            }
-        }
-        // The foot: the next episode's countdown stays up while the controls hide (so Play now and Cancel are always a tap
-        // away), with the slim film card under it while the controls show.
-        val nextDue = !failed && state.nextEpisode != null && state.nextEpisodeInMs != null
-        if (!failed && (chrome || nextDue)) BoxWithConstraints(Modifier.align(Alignment.BottomCenter).padding(24.dp).widthIn(max = 860.dp).fillMaxWidth()) {
-            val wideFoot = maxWidth >= 560.dp
-            Column(Modifier.fillMaxWidth()) {
-                if (nextDue) Box(Modifier.testTag("watch:cinema:next")) { NextEpisodeRow(state, controls, wideFoot, fonts, look) }
-                if (chrome) FilmCard(state, playing, position, durationMs, controls, view, setView, fonts, look, fill, ink, slim = true, programme = programme,
-                    channels = channels, onChannel = onChannel, onMenuOpen = { cardMenuOpen = it })
-            }
-        }
-    }
+    )
 }
 
 /**

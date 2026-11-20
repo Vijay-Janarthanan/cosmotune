@@ -32,6 +32,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
     private val npControlsMinimizedFlow = MutableStateFlow(store.getBoolean(KEY_NP_CONTROLS_MINIMIZED, false))
     private val amoledFlow = MutableStateFlow(store.getBoolean(KEY_AMOLED, false))
     private val videoViewFlow = MutableStateFlow(VideoView.kept(store.getInt(KEY_VIDEO_VIEW, VideoView.WHOLE.ordinal)))
+    private val fullScreenFillFlow = MutableStateFlow(store.getBoolean(KEY_FULL_SCREEN_FILL, false))
     val coverColours: StateFlow<Boolean> = coverColoursFlow.asStateFlow()
 
     /** How much colour the cover brings: 0 Calm, 1 Balanced (the default), 2 Rich. See [Intensity.multiplier]. */
@@ -67,6 +68,17 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         videoViewFlow.value = kept
     }
 
+    /**
+     * Whether the full-screen player (Now Playing's Cinema, Video's and Watch's full screen) fills the screen, cutting the top and
+     * bottom (a pinch out), or shows the picture at its own shape (a pinch in; the default). One choice for all three.
+     */
+    val fullScreenFill: StateFlow<Boolean> = fullScreenFillFlow.asStateFlow()
+
+    fun setFullScreenFill(fill: Boolean) {
+        store.putBoolean(KEY_FULL_SCREEN_FILL, fill)
+        fullScreenFillFlow.value = fill
+    }
+
     fun setAmoled(on: Boolean) { store.putBoolean(KEY_AMOLED, on); amoledFlow.value = on }
 
     fun setCoverColours(on: Boolean) { store.putBoolean(KEY_COVER_COLOURS, on); coverColoursFlow.value = on }
@@ -95,6 +107,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_NP_CONTROLS_MINIMIZED = "np_controls_minimized"
         const val KEY_AMOLED = "amoled"
         const val KEY_VIDEO_VIEW = "np_video_view"
+        const val KEY_FULL_SCREEN_FILL = "full_screen_fill"
 
         private fun modeOf(stored: Int): AppMode = AppMode.entries.getOrNull(stored) ?: AppMode.MUSIC
     }

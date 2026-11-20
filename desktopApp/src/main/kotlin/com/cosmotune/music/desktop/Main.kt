@@ -313,7 +313,7 @@ private fun desktopMain() = application {
             LocalDesktopWindowActions provides actions,
             LocalDesktopWindowScope provides this,
             com.cosmotune.video.player.smooth.LocalVideoHostWindow provides composeWindow,
-            com.cosmotune.ui.watch.LocalWatchFullscreen provides { exit, _, content ->
+            com.cosmotune.ui.fullscreen.LocalFullScreenWindow provides { exit, _, content ->
                 DisposableEffect(Unit) {
                     val previous = DesktopWindowMode.placement.value
                     val entered = !DesktopWindowMode.fullScreen.value

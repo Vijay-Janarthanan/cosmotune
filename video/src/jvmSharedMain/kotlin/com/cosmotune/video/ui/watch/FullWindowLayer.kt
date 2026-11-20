@@ -123,7 +123,7 @@ internal fun FullWindowContent(
                 }
             },
     ) {
-        // Cinema, as Now Playing's: the video alone, the slim colour card at its foot; both go with the hint 3 s after the pointer stops.
+        // The one full-screen player, as Now Playing's Cinema; its controls go with the hint 3 s after the pointer stops.
         WatchCinema(
             playback = playback,
             surface = surface,
@@ -131,7 +131,6 @@ internal fun FullWindowContent(
             layout = PlayerLayout.WINDOW,
             onExit = onExit,
             onBoundsChanged = onBoundsChanged,
-            onStir = { hint.poke() },
         )
         EscToExit(hint, Modifier.align(Alignment.TopEnd).padding(top = HINT_TOP, end = HINT_END))
     }

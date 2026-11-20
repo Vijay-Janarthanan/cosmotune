@@ -175,7 +175,7 @@ class WatchStructureTest {
         val layer = flat(file("FullWindowLayer"))
         assertTrue("VideoFullWindow(onExit = onExit) { FullWindowContent(playback, surface, title, onExit, onBoundsChanged) }" in layer)
         assertTrue(".onPreviewKeyEvent {" in layer && "onFullWindowKey(name," in layer)
-        assertTrue("WatchCinema(" in layer && "layout = PlayerLayout.WINDOW," in layer, "the full window is Cinema: the video and the slim colour card")
+        assertTrue("WatchCinema(" in layer && "layout = PlayerLayout.WINDOW," in layer, "the full window is Cinema: the shared full-screen player")
         assertTrue("Res.string.video_exit_full_window" in layer, "\"Esc to exit full window\"")
         assertTrue("HINT_TOP = 20.dp" in layer && "HINT_END = 24.dp" in layer && "HINT_SP = 12.5f" in layer, "12.5 sp at the top right")
     }
@@ -224,8 +224,9 @@ class WatchStructureTest {
         assertTrue("WatchCinema(" in content && "layout = PlayerLayout.FULLSCREEN," in content && "onExit = onExit," in content, "full screen is Cinema")
         val cinema = flat(file("WatchCinema"))
         assertEquals(1, Regex("VideoPlayerBox\\(").findAll(cinema).count())
-        assertTrue("controls = false," in cinema && "WatchTransportCard(" in cinema, "nothing on the video; the slim colour card floats under it")
-        assertTrue("delay(VideoMetrics.HIDE_AFTER_MS)" in cinema, "the card goes 3 s after the last movement")
+        assertTrue("chrome = false," in cinema && "FullScreenPlayer(" in cinema, "the picture alone, in the one plain full-screen player Now Playing and Watch use")
+        assertTrue("transport = FullScreenTransport.Skip," in cinema, "back and ahead 10 s round play")
+        assertTrue("SkipSegmentButton(" in cinema && "PlayerErrorState(" in cinema, "SponsorBlock's Skip and the error stay over it")
         val window = flat(VideoSourceContract.functionBody(page, "WatchFullscreen"))
         assertTrue("VideoFullWindow(onExit = onExit) {" in window)
         assertTrue("fullscreen -> WatchFullscreen(" in flat(page), "full screen takes the page's place")
@@ -537,9 +538,9 @@ class WatchStructureTest {
         assertTrue("playback.seekTo(LiveWindow.liveEdgeMs(state.durationMs))" in live)
     }
 
-    @Test fun aPinchInCinemaFillsOrFitsAsTheScreenMenuDoes() {
+    @Test fun aPinchInCinemaFillsTheScreenOrGivesThePictureItsShape() {
         val cinema = flat(file("WatchCinema"))
-        assertTrue("onPinch = { WatchSession.fill = it == VideoScale.FILL }" in cinema, "Cinema's pinch sets the page's Whole or Fill")
+        assertTrue("scale = if (fill) VideoScale.FILL else VideoScale.FIT," in cinema, "the shared player's pinch fills or fits the picture")
         val box = flat(read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/player/VideoPlayerBox.kt"))
         assertTrue("onScale = { onPinch?.invoke(it) }" in box, "the control-less player hands the pinch on")
     }
