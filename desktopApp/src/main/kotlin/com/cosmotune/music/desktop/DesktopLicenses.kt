@@ -119,10 +119,10 @@ internal object DesktopLicenses {
                         "Video mode also finds its videos, channels, playlists, comments and streams with it.",
                 ),
                 DesktopLicense(
-                    "GraalVM JavaScript",
-                    "UPL-1.0",
-                    "https://www.graalvm.org",
-                    "Runs source modules in a sandbox with no access to host classes.",
+                    "QuickJS (quickjs-kt)",
+                    "MIT / Apache-2.0",
+                    "https://github.com/dokar3/quickjs-kt",
+                    "Runs source modules, provider scripts and YouTube's player functions in a sandbox with no access to host classes.",
                 ),
                 DesktopLicense(
                     "dbus-java",

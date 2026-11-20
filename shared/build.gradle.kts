@@ -45,6 +45,8 @@ kotlin {
                 // is compile-only because the phone ships a trimmed jar of it.
                 api("com.github.MetrolistGroup.innertubex:innertubex:v0.7.0")
                 compileOnly("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
+                // NewPipe's JavaScript helper runs on it (org.schabi.newpipe.extractor.utils.JavaScript in this module).
+                implementation("io.github.dokar3:quickjs-kt:1.0.14")
             }
         }
         androidMain.get().dependsOn(jvmSharedMain)
@@ -85,6 +87,9 @@ android {
     namespace = "com.cosmotune.music.shared"
     compileSdk = 36
 }
+
+// The tests run NewPipe the way the apps ship it: without Rhino, on this module's QuickJS JavaScript helper.
+configurations.matching { it.name == "jvmTestRuntimeClasspath" }.configureEach { exclude(group = "org.mozilla") }
 
 // Release contract tests read these files outside this module's compiled test classpath.
 // Notes, workflow and version changes must invalidate an earlier passing test result.

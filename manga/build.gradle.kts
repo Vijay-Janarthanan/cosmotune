@@ -87,8 +87,8 @@ kotlin {
         }
         implementation("org.apache.pdfbox:pdfbox:3.0.7")
         implementation("net.java.dev.jna:jna-platform:5.19.1")
-        implementation("org.graalvm.polyglot:polyglot:24.1.2")
-        implementation("org.graalvm.polyglot:js:24.1.2")
+        // The phone's interpreter (quickjs-kt-android above) in its JVM build.
+        implementation("io.github.dokar3:quickjs-kt:1.0.14")
     }
     sourceSets.getByName("androidInstrumentedTest").dependencies {
         implementation("androidx.test.ext:junit:1.3.0")

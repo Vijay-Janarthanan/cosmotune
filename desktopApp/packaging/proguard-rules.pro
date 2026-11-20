@@ -10,13 +10,13 @@
 #
 # Everything else is kept whole, because a large part of it is reached in ways the shrinker cannot see:
 # - by reflection or by name: kotlinx.serialization serializers, Ktor and its engine (ServiceLoader), NewPipe's
-#   service list, JavaFX's toolkit and pipelines, Rhino's lazily loaded built-ins, ICU's data and services,
+#   service list, JavaFX's toolkit and pipelines, ICU's data and services,
 #   SQLite's JDBC driver, dbus-java proxies, SLF4J's provider, Coil's service-loaded fetchers and decoders;
 # - from native code: JavaCPP/FFmpeg (bytedeco), ONNX Runtime, Skiko, WebRTC, QuickJS, JNA, mpv, and our own
 #   JNI entry points (the analyser, the Windows frame and media bridges);
 # - by code that is not in the package at all: manga parser bundles downloaded at run time are loaded into the
 #   app's class loader and may call any of kotatsu-parsers' dependencies (OkHttp, jsoup, org.json, coroutines);
-# - by the scripting engines' host code.
+# - by QuickJS's bindings, which call back into Kotlin.
 # Our own code (com.cosmotune.**, com.my.kizzy.**) is kept whole too: it is serialised, found by name in settings
 # and called back from native code.
 -keep class !androidx.**, ** { *; }
@@ -39,7 +39,7 @@
 }
 
 # The libraries above reference optional dependencies that are not on this classpath and are never reached here
-# (Graal's optional compiler and native-image pieces, OkHttp's Conscrypt/BouncyCastle/OpenJSSE platforms, PDFBox's
+# (OkHttp's Conscrypt/BouncyCastle/OpenJSSE platforms, PDFBox's
 # JBIG2/JPX codecs, Log4j and Commons Logging bridges, Android-only paths in shared libraries, and so on). Their
 # classes are kept unchanged whatever is reported, so these warnings say nothing about the packaged app.
 -ignorewarnings

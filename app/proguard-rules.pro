@@ -10,10 +10,9 @@
 -keepattributes SourceFile,LineNumberTable,Signature,InnerClasses,EnclosingMethod,Exceptions,*Annotation*
 
 # ---- Script engines and extractors ------------------------------------------
-# Rhino compiles and runs YouTube's player JavaScript and binds Java classes into
-# it reflectively; NewPipe and InnerTubeX drive it and parse with nanojson/jsoup.
--keep class org.mozilla.javascript.** { *; }
--keep class org.mozilla.classfile.** { *; }
+# YouTube's player JavaScript runs in QuickJS: InnerTubeX's cipher directly, and
+# NewPipe's through shared's org.schabi.newpipe.extractor.utils.JavaScript (no
+# Rhino ships). NewPipe and InnerTubeX parse with nanojson/jsoup.
 -keep class org.schabi.newpipe.** { *; }
 -keep class com.grack.nanojson.** { *; }
 -keep class org.jsoup.** { *; }

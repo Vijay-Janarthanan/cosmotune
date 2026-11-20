@@ -139,6 +139,25 @@ listOf("runtimeClasspath", "testRuntimeClasspath").forEach { name ->
     configurations.named(name) { exclude(group = "org.xerial", module = "sqlite-jdbc") }
 }
 
+// NewPipeExtractor without org.schabi.newpipe.extractor.utils.JavaScript, its one Rhino entry point: shared carries
+// a QuickJS version of that class, and on a class path the first copy found would win. :video and :watch declare
+// the extractor too, so the module is excluded from the desktop's runtime and this jar stands in for it, and Rhino
+// (which nothing else uses) goes with it.
+val newPipeExtractorRaw by configurations.creating { isTransitive = false }
+dependencies { newPipeExtractorRaw("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3") }
+val targetNewPipeExtractor by tasks.registering(Jar::class) {
+    archiveFileName.set("NewPipeExtractor-v0.26.3-quickjs.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("target-runtime"))
+    from(provider { zipTree(newPipeExtractorRaw.singleFile) })
+    exclude("org/schabi/newpipe/extractor/utils/JavaScript.class", "org/schabi/newpipe/extractor/utils/JavaScript\$*.class")
+}
+listOf("runtimeClasspath", "testRuntimeClasspath").forEach { name ->
+    configurations.named(name) {
+        exclude(group = "com.github.TeamNewPipe", module = "NewPipeExtractor")
+        exclude(group = "org.mozilla")
+    }
+}
+
 dependencies {
     // Already on the classpath through the NewPipe extractor.
     implementation("org.jsoup:jsoup:1.22.2")
@@ -221,13 +240,16 @@ dependencies {
     implementation("com.github.hypfvieh:dbus-java-core:5.2.0")
     implementation("com.github.hypfvieh:dbus-java-transport-junixsocket:5.2.0")
 
-    // Same URL deobfuscation helper used by Android's StreamResolver.
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
+    // Same URL deobfuscation helper used by Android's StreamResolver, as the phone ships it: without its own
+    // JavaScript class (shared's QuickJS one replaces it) and so without Rhino. The extractor's other dependencies
+    // are listed by hand, because dropping the module drops them too.
+    implementation(files(targetNewPipeExtractor.flatMap { it.archiveFile }))
+    implementation("com.github.TeamNewPipe:nanojson:e9d656ddb49a412a5a0a5d5ef20ca7ef09549996")
+    implementation("com.google.code.findbugs:jsr305:3.0.2")
+    implementation("com.google.protobuf:protobuf-javalite:4.35.0")
 
-    // JVM equivalent of Android's QuickJS module host.
-    implementation("org.graalvm.polyglot:polyglot:24.1.2")
-    implementation("org.graalvm.polyglot:js:24.1.2")
-    implementation("org.graalvm.js:js-language:24.1.2")
+    // Source modules run in QuickJS, as on Android (see DesktopModules).
+    implementation("io.github.dokar3:quickjs-kt:1.0.14")
 
     testImplementation(kotlin("test"))
 }
