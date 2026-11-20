@@ -9,6 +9,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 
 /**
  * Remembers measured [SyncOffset]s: in a small in-memory LRU and, when a [directory] is given, as
@@ -68,7 +70,7 @@ internal class SyncStore(
                 put("channelTitle", video.channel)
                 put("publisher", video.publisher)
             }.toString().drop(1)
-            temporary.writeText(if (verifiedSelection) encoded.dropLast(1) + ",\"selectionPolicy\":3}" else encoded)
+            temporary.writeText(if (verifiedSelection) encoded.dropLast(1) + ",\"selectionPolicy\":$SELECTION_POLICY}" else encoded)
             if (!temporary.renameTo(file)) {
                 file.delete()
                 temporary.renameTo(file)
@@ -100,10 +102,31 @@ internal class SyncStore(
         }
         val prefix = "${trackVideoId}_"
         return directory?.listFiles { _, name -> name.startsWith(prefix) && name.endsWith(".json") }
-            ?.firstOrNull { file -> runCatching {
-                Json.parseToJsonElement(file.readText()).jsonObject["selectionPolicy"]?.jsonPrimitive?.intOrNull == 3 && readFile(file) != null
-            }.getOrDefault(false) }?.name?.removePrefix(prefix)?.removeSuffix(".json")
+            ?.firstOrNull(::settled)?.name?.removePrefix(prefix)?.removeSuffix(".json")
     }
+
+    /** Whether the stored map of the pair is an automatic choice that still stands (see [settled]). */
+    fun isSettled(trackVideoId: String, videoId: String): Boolean {
+        if (synchronized(entries) { key(trackVideoId, videoId) in verified }) return true
+        return fileFor(trackVideoId, videoId)?.takeIf(File::isFile)?.let(::settled) == true
+    }
+
+    /**
+     * Whether a stored map is an automatic choice that still stands: one made under today's rules, or one of the policy before
+     * unless it is someone else's upload that matched less than [com.opencanvas.core.matcher.VideoMatcher.PUBLISHER_COVERAGE]
+     * of the song. Those were taken as soon as they lined up (a fan's re-upload starting a verse in, cut shorter), before the
+     * film's own channel and other uploads were tried; the song is searched for again.
+     */
+    private fun settled(file: File): Boolean = runCatching {
+        val root = Json.parseToJsonElement(file.readText()).jsonObject
+        val stands = when (root["selectionPolicy"]?.jsonPrimitive?.intOrNull) {
+            SELECTION_POLICY -> true
+            3 -> root["publisher"]?.jsonPrimitive?.booleanOrNull != false ||
+                (root["coverage"]?.jsonPrimitive?.doubleOrNull ?: 1.0) >= com.opencanvas.core.matcher.VideoMatcher.PUBLISHER_COVERAGE
+            else -> false
+        }
+        stands && readFile(file) != null
+    }.getOrDefault(false)
 
     /**
      * The music video chosen for a song, whichever track id it was measured under: what lets the same song played from
@@ -216,6 +239,9 @@ internal class SyncStore(
 
     companion object {
         const val DEFAULT_CAPACITY = 256
+
+        /** The rules an automatic choice was made under: 4 tries every candidate before a partial match (see [settled]). */
+        private const val SELECTION_POLICY = 4
 
         /** The folder of song-to-video entries ([songVideo]), beside the maps. */
         private const val SONGS = "songs"

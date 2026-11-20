@@ -110,6 +110,13 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
         var asked = 0
         fun eligible() = VideoMatcher.rank(results.distinctBy { it.videoId }
             .filter { it.videoId !in excludedVideoIds && VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
+        // The film's own channel, verified or not, by what else of the film it shows in these results; its uploads go first.
+        fun marked(list: List<VideoCandidate>): List<VideoCandidate> {
+            val film = VideoMatcher.filmChannels(results.distinctBy { it.videoId }, title, album)
+            return list.map { if (VideoMatcher.channelKey(it) in film) it.copy(filmChannel = true) else it }
+        }
+        fun ranked(list: List<VideoCandidate>): List<VideoCandidate> =
+            marked(VideoMatcher.rank(list, title, artist, durationSec, Int.MAX_VALUE, album)).sortedBy { if (it.filmChannel) 0 else 1 }.take(limit)
         val lease = traffic.lease(foreground)
         try {
             for (query in queries) {
@@ -142,8 +149,8 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
                 if (exhaustive) log("expanded video search '$query': ${batch.size} results in $tookMs ms, eligible " +
                     ranked.joinToString { it.videoId }.ifEmpty { "none" } + leftOut(batch, ranked, title, artist, durationSec, album, excludedVideoIds))
                 if (exhaustive && ranked.isNotEmpty()) {
-                    val others = VideoMatcher.rank(results.distinctBy { it.videoId }.filter { it.videoId !in excludedVideoIds }, title, artist, durationSec, limit, album)
-                    return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(ranked, others, title, artist, album), title, artist, album), unanswered, asked)
+                    val others = ranked(results.distinctBy { it.videoId }.filter { it.videoId !in excludedVideoIds })
+                    return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(marked(ranked), others, title, artist, album), title, artist, album), unanswered, asked)
                 }
                 // Do not wait for speculative fallbacks when a publisher's matching song was found.
                 // An album-only hit is insufficient: another track from the same film must not stop search.
@@ -153,7 +160,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
                             (titleWords.size >= 2 && titleWords.all { name.contains(it) })
                         val contextMatches = !ambiguousContext || VideoMatcher.isCreditedArtistChannel(candidate, artist)
                         titleMatches && contextMatches && VideoMatcher.advertisesVideo(candidate.title)
-                    }) return VideoSearchOutcome(preferMovingPictures(ranked, title, artist, album), unanswered, asked)
+                    }) return VideoSearchOutcome(preferMovingPictures(marked(ranked), title, artist, album), unanswered, asked)
             }
         } finally {
             lease.close()
@@ -163,11 +170,12 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
         // never permission to promote an unverified fan edit into an automatic music video.
         val publisherVideos = VideoMatcher.rank(distinct.filter { it.videoId !in excludedVideoIds && VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
         if (publisherVideos.isNotEmpty()) {
-            val others = VideoMatcher.rank(distinct.filter { it.videoId !in excludedVideoIds }, title, artist, durationSec, limit, album)
-            return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(publisherVideos, others, title, artist, album), title, artist, album), unanswered, asked)
+            val others = ranked(distinct.filter { it.videoId !in excludedVideoIds })
+            return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(marked(publisherVideos), others, title, artist, album), title, artist, album), unanswered, asked)
         }
-        // No publisher has the video: an upload by anyone else is tried, and the audio check has the last word.
-        val uploads = VideoMatcher.rank(distinct.filter { it.videoId !in excludedVideoIds && VideoMatcher.hasFallbackEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
+        // No publisher has the video: an upload by anyone else is tried, and the audio check has the last word. The film's
+        // own channel's go first, before the list is cut to [limit].
+        val uploads = ranked(distinct.filter { it.videoId !in excludedVideoIds && VideoMatcher.hasFallbackEvidence(it, title, artist, album) })
         if (uploads.isNotEmpty()) log("no publisher video for '$title': trying ${uploads.joinToString { "${it.videoId} by ${it.channelTitle}" }}")
         if (uploads.isEmpty() && unanswered > 0) log("video search for '$title': nothing found, but $unanswered of $asked search(es) got no answer")
         return VideoSearchOutcome(preferMovingPictures(uploads, title, artist, album), unanswered, asked)
@@ -189,13 +197,14 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
 
     /**
      * Within one ranked list the order of measuring is: the label's or artist's uploads that say they are the video
-     * ("Video Song", "Music Video"), then anyone's that say so, then the rest. An artist's art track ("Hangova (From
+     * ("Video Song", "Music Video", or the film's own channel's "2k Video"), then anyone's that say so, then the rest. An artist's art track ("Hangova (From
      * "DC")") ranks high on its channel alone but is a still picture: measured first, it used up the first batch.
      */
     private fun preferMovingPictures(ranked: List<VideoCandidate>, title: String, artist: String, album: String?): List<VideoCandidate> =
         ranked.sortedBy { candidate ->
             when {
                 VideoMatcher.saysVideo(candidate.title) && VideoMatcher.hasPublisherEvidence(candidate, title, artist, album) -> 0
+                candidate.filmChannel && VideoMatcher.advertisesVideo(candidate.title) -> 0
                 VideoMatcher.advertisesVideo(candidate.title) -> 1
                 else -> 2
             }
@@ -204,7 +213,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
     private enum class Endpoint(val label: String) { PAGE("page"), API("api") }
 
     private sealed interface Attempt {
-        class Answered(val results: List<VideoCandidate>) : Attempt
+        class Answered(val endpoint: Endpoint, val results: List<VideoCandidate>) : Attempt
         class Failed(val endpoint: Endpoint, val retryable: Boolean) : Attempt
     }
 
@@ -247,11 +256,23 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
                     var pending = launched
                     var retried = false
                     var winner: List<VideoCandidate>? = null
+                    var empty: List<VideoCandidate>? = null
                     while (winner == null && pending > 0) {
                         val attempt = attempts.receive()
                         pending--
                         when (attempt) {
-                            is Attempt.Answered -> winner = attempt.results
+                            is Attempt.Answered -> if (attempt.results.isNotEmpty()) winner = attempt.results else {
+                                // A page with no videos at all for a song's name has come from youtube.com under load (the same
+                                // query answered with 20 results a moment later): asked once more the other way, unless a
+                                // hedge already is. Two empty answers are a real "nothing found".
+                                empty = attempt.results
+                                failures += "an empty answer from the ${attempt.endpoint.label} at ${sinceMs()} ms"
+                                if (pending == 0 && !retried && timeoutMs - sinceMs() >= MIN_QUERY_MS) {
+                                    retried = true
+                                    ask(0L, if (attempt.endpoint == Endpoint.PAGE) Endpoint.API else Endpoint.PAGE)
+                                    pending++
+                                }
+                            }
                             is Attempt.Failed -> if (attempt.retryable && !retried && timeoutMs - sinceMs() >= MIN_QUERY_MS) {
                                 retried = true
                                 // The retry goes out now, the other way; a hedge still waiting to go is the same question.
@@ -265,7 +286,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
                         }
                     }
                     running.forEach { it.cancel() }
-                    winner
+                    winner ?: empty
                 }
             }
         } finally {
@@ -304,7 +325,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
             // A page that carries its data and no videos is a real "nothing found"; anything else (a consent page, a
             // throttled reply) is worth another try.
             val parsed = if (answer.isSuccessful) parseAnswer(answer.text()) else null
-            if (parsed != null) Attempt.Answered(parsed)
+            if (parsed != null) Attempt.Answered(endpoint, parsed)
             else {
                 failures += "try $number: ${endpoint.label} HTTP ${answer.code} without results at ${sinceMs()} ms"
                 Attempt.Failed(endpoint, retryable = true)

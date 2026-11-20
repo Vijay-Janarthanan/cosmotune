@@ -166,6 +166,8 @@ class InnerTubeBackend(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inflight = ConcurrentHashMap<String, Deferred<List<PlayerFormat>?>>()
     private val answers = ConcurrentHashMap<String, Pair<Long, List<PlayerFormat>>>()
+    /** The storyboard spec each player answer carried, by video id: the same answer, kept for [storyboardSpec]. */
+    private val storyboards = ConcurrentHashMap<String, String>()
     private val visitor = VisitorToken(http, visitorEndpoint, clock)
 
     override suspend fun resolveVideo(videoId: String, resolution: OpenCanvasResolution): StreamInfo? {
@@ -187,6 +189,12 @@ class InnerTubeBackend(
             durationMs = format.durationMs,
             contentLength = format.contentLength,
         )
+    }
+
+    override suspend fun storyboardSpec(videoId: String): String? {
+        storyboards[videoId]?.let { return it }
+        formatsFor(videoId)
+        return storyboards[videoId]
     }
 
     /** Opens the connection to YouTube (and gets the visitor token) ahead of the first lookup. */
@@ -226,7 +234,10 @@ class InnerTubeBackend(
             val formats = tryOrNull {
                 withRetry { timeoutMs ->
                     val answer = http.newCall(request).within(timeoutMs).fetch()
-                    if (answer.isSuccessful) parsePlayerResponse(answer.text()) else null
+                    if (answer.isSuccessful) answer.text().let { body ->
+                        parseStoryboardSpec(body)?.let { storyboards[videoId] = it }
+                        parsePlayerResponse(body)
+                    } else null
                 }
             }
             if (formats != null) return formats
@@ -295,6 +306,13 @@ class InnerTubeBackend(
          * playable (`playabilityStatus` is not `OK`) or the body is not a response at all; a
          * playable video without any plain-URL stream yields an empty list.
          */
+        /** The `storyboards.playerStoryboardSpecRenderer.spec` of a player answer: where the video's preview frames are. */
+        internal fun parseStoryboardSpec(body: String): String? {
+            val root = runCatching { parser.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return null
+            val renderer = (root["storyboards"] as? JsonObject)?.get("playerStoryboardSpecRenderer") as? JsonObject ?: return null
+            return renderer["spec"].text()?.takeIf { it.startsWith("https://") }
+        }
+
         internal fun parsePlayerResponse(body: String): List<PlayerFormat>? {
             val root = runCatching { parser.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return null
             val status = (root["playabilityStatus"] as? JsonObject)?.get("status").text()

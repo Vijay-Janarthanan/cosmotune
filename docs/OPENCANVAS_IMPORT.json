@@ -53,8 +53,8 @@
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
       "upstreamSha256": "0167082df0251875fe56f3ee30211c1d2cc85eb5f82183ba3d97f30d9b212e61",
-      "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches; compare song and film names across English spellings of Indian-language words (th/dh, t/d, y/i, c/s, doubled letters). Measure a song's uploads that say they are the video song before a publisher's plain \"Song\" upload.",
-      "sha256": "1d90668589fea3756be693b86777399d84db335aef33dec3dbb27701ed58b1aa"
+      "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches; compare song and film names across English spellings of Indian-language words (th/dh, t/d, y/i, c/s, doubled letters). Measure a song's uploads that say they are the video song before a publisher's plain \"Song\" upload. Recognise the film's own channel, verified or not, by its other songs of the film in the same results.",
+      "sha256": "7e4ca7833e38779303c919d2a2541061817d6d81552a80fc6eaf4693ea058c26"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
@@ -102,7 +102,8 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/CanvasSession.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSession.kt",
       "normalizeLf": true,
-      "sha256": "3d5e2d47f0bd62a68cecbec1663a649f655255431c82c6e584e12af027d5d85c"
+      "localAdaptation": "A candidate's preview frames (storyboard) decide whether it is a still picture when they can be read. Show someone else's upload that matches only part of the song only when no other candidate matches more of it; prefer the film's own channel.",
+      "sha256": "6375a3117eaa3d12e57b64105d4a30936b698555ecbaffd12119b4d4b42e5629"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",
@@ -162,13 +163,15 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/InnerTubeBackend.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/InnerTubeBackend.kt",
       "normalizeLf": true,
-      "sha256": "e19e748e64fb26588182f6fd65f2ec25cee5f622c26b5ea3730766286f9df260"
+      "localAdaptation": "Keep the storyboard spec of each player answer.",
+      "sha256": "1ae56f922ac39cba1338388ddf6440e49a45103f7b2c85dd4c84c50b607159f7"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
       "normalizeLf": true,
-      "sha256": "c7ac1d2d0420c4ef9f7ba4ff127373980c269baec4bbbf4bdc3134a4b09d4d0a"
+      "sha256": "8423212caeff975ee6ab6a5c13e520980317ffb561d8e17a70db6dfe91524184",
+      "localAdaptation": "Measure the film's own channel's uploads first; ask an empty search answer once more the other way."
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
@@ -186,13 +189,15 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/StreamBackend.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/StreamBackend.kt",
       "normalizeLf": true,
-      "sha256": "36776ed337285badae5ab76b7e4b5858865ef0613b3943d0fad568dd83be9120"
+      "localAdaptation": "A backend can give a video's storyboard spec.",
+      "sha256": "9cfae3898f7252ac969756dee47ffcd3c84bba1677eff719045f8f02c1d09e0a"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/SyncStore.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SyncStore.kt",
       "normalizeLf": true,
-      "sha256": "4632bdb5e10e9ffce23dd923d8b50c150aac512abd00d43239aab5d098f48a19"
+      "sha256": "05240e2971eb03cf8a7cfc40e655a5c5007bc0156ec5e96712857f141456c9be",
+      "localAdaptation": "Search again for an older choice of someone else's upload that matched only part of the song."
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/YouTubeStreamResolver.kt",
@@ -259,6 +264,12 @@
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/PublisherChannelProof.kt",
       "normalizeLf": true,
       "sha256": "2e0c1b0ba16960a8eec8d6ea483d01a6db8a99f72c7a4282b846669a6d5dd98a"
+    },
+    {
+      "source": null,
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/PreviewFrames.kt",
+      "normalizeLf": true,
+      "sha256": "29ae88a57069585535e41bc35252addfbbc994f10b391deb8af61dad52323bf7"
     },
     {
       "source": null,

@@ -78,6 +78,15 @@ internal class Environment(val config: OpenCanvasConfig) {
     suspend fun syncSource(videoId: String): AudioStream? =
         listOfNotNull(instantBackend, backend).firstNotNullOfOrNull { tryOrNull { it.resolveAudio(videoId) } }
 
+    /**
+     * Whether [videoId] is a still picture by its preview frames ([com.opencanvas.core.stream.PreviewFrames]); null when no backend has its storyboard,
+     * the platform cannot open it, or there are too few frames to tell.
+     */
+    suspend fun previewStill(videoId: String): Boolean? {
+        val spec = listOfNotNull(instantBackend, backend).firstNotNullOfOrNull { tryOrNull { it.storyboardSpec(videoId) } } ?: return null
+        return com.opencanvas.core.stream.PreviewFrames.isStill(config.httpClient, spec)
+    }
+
     /** The same file through each backend on its own, in the order tried: one can hand out a file whose tables are unreadable where the other's is fine. */
     suspend fun syncSourcesByBackend(videoId: String): List<AudioStream?> =
         listOfNotNull(instantBackend, backend).map { tryOrNull { it.resolveAudio(videoId) } }
@@ -239,6 +248,7 @@ internal class CanvasSession(
         if (chosenVideoId == null && identity != null) {
             env.store.songVideo(identity)?.takeIf { it.trackVideoId != id }?.let { other ->
                 val map = env.store[other.trackVideoId, other.videoId] ?: return@let
+                if (!env.store.isSettled(other.trackVideoId, other.videoId)) return@let
                 chosenVideoId = other.videoId
                 chosenCandidate = VideoCandidate(other.videoId, other.videoTitle.ifBlank { request.title }, other.channelTitle,
                     0L, other.officialArtist, other.verifiedChannel)
@@ -314,7 +324,10 @@ internal class CanvasSession(
         val track = songSource.await()
         // Three candidates at a time: the usual case is decided by the first batch, and a song whose
         // official video sits further down the results still gets found.
-        var winner: Pair<VideoCandidate, AlignResult>? = null
+        var winner: Pick? = null
+        // Someone else's upload that lines up with only part of the song (a re-upload cut shorter, starting a verse in): kept
+        // in case nothing better lines up, but the other candidates and the expanded search are tried first.
+        var partial: Pick? = null
         var attemptedCount = 0
         val tried = HashSet<String>()
         suspend fun measureInBatches(candidates: List<VideoCandidate>) {
@@ -324,8 +337,12 @@ internal class CanvasSession(
             for ((batchIndex, batch) in fresh.chunked(BATCH_SIZE).withIndex()) {
                 // A queued song's measuring waits while the playing song is searching: both read from youtube.com.
                 env.search.traffic.awaitQuiet(priority)
-                winner = bestOf(batch, rankBase + batchIndex * BATCH_SIZE, track, songVideoId)
-                if (winner != null) break
+                val pick = bestOf(batch, rankBase + batchIndex * BATCH_SIZE, track, songVideoId) ?: continue
+                if (!pick.partial) {
+                    winner = pick
+                    break
+                }
+                if (partial.let { it == null || pick.score > it.score }) partial = pick
             }
         }
         measureInBatches(ranked)
@@ -343,7 +360,10 @@ internal class CanvasSession(
                 budgetMs = maxOf(SEARCH_BUDGET_MS - spent, EXPANDED_MIN_BUDGET_MS)))
             measureInBatches(alternatives)
         }
-        val found = winner
+        val found = winner ?: partial?.also { only ->
+            log("only ${only.candidate.videoId} by ${only.candidate.channelTitle} lines up, with ${(only.result.coverage * 100).toInt()}% of the song: " +
+                "shown, as no other upload does")
+        }
         if (found == null) {
             log("no map: none of $attemptedCount candidate video(s) lines up with the song" +
                 if (searchUnanswered) " (a search went unanswered, so this is not remembered as a song without a video)" else "")
@@ -351,7 +371,8 @@ internal class CanvasSession(
             publish()
             return@coroutineScope
         }
-        val (candidate, result) = found
+        val candidate = found.candidate
+        val result = found.result
         env.store.put(id, candidate.videoId, SyncOffset(result.offsetMs, result.confidence, result.segments, result.coverage),
             verifiedSelection = request.videoId == null, video = if (request.videoId == null) chosen(candidate) else null)
         if (request.videoId == null) request.identity?.let { identity ->
@@ -378,27 +399,39 @@ internal class CanvasSession(
      * the first usable map opens a short grace period in which better-ranked candidates may still
      * overtake it, then the rest are dropped.
      */
-    private suspend fun bestOf(batch: List<VideoCandidate>, rankBase: Int, track: AudioStream?, songVideoId: String?): Pair<VideoCandidate, AlignResult>? = coroutineScope {
-        val arrivals = Channel<Triple<Int, VideoCandidate, Measurement?>>(batch.size)
-        batch.forEachIndexed { index, candidate -> launch { arrivals.send(Triple(rankBase + index, candidate, measureOne(track, candidate.videoId, songVideoId))) } }
+    /** A candidate that lines up, how it [score]d against the others, and whether it matches only part of the song (see [verify]). */
+    private class Pick(val candidate: VideoCandidate, val result: AlignResult, val score: Double, val partial: Boolean)
 
-        var winner: Pair<VideoCandidate, AlignResult>? = null
-        var winnerScore = Double.NEGATIVE_INFINITY
+    private suspend fun bestOf(batch: List<VideoCandidate>, rankBase: Int, track: AudioStream?, songVideoId: String?): Pick? = coroutineScope {
+        val arrivals = Channel<Triple<Int, VideoCandidate, Pair<Measurement?, Boolean?>>>(batch.size)
+        batch.forEachIndexed { index, candidate ->
+            launch {
+                // The preview frames are read while the audio is measured: a small image, ready long before the map.
+                val preview = async { if (request.videoId == null) env.previewStill(candidate.videoId) else null }
+                val measured = measureOne(track, candidate.videoId, songVideoId)
+                arrivals.send(Triple(rankBase + index, candidate, measured to preview.await()))
+            }
+        }
+
+        var winner: Pick? = null
         // Until a usable map exists the batch has this long; after one does, the short grace below.
         var graceEndsAt = System.currentTimeMillis() + BATCH_TIMEOUT_MS
         var arrived = 0
         while (arrived < batch.size) {
-            val (rank, candidate, measured) =
+            val (rank, candidate, both) =
                 withTimeoutOrNull((graceEndsAt - System.currentTimeMillis()).coerceAtLeast(0L)) { arrivals.receive() }
                     ?: break
+            val (measured, previewStill) = both
             arrived++
             val result = measured?.align
-            val still = measured != null &&
+            // The preview frames decide when they could be read: the frame sizes of the file cannot tell a full-HD poster with an
+            // animated intro from a video, nor a re-upload with even keyframes from a poster. Without them, the sizes decide.
+            val still = measured != null && (previewStill ?:
                 (measured.videoKbps in 0.01..STILL_PICTURE_KBPS || measured.videoMotion < STILL_PICTURE_MOTION ||
                     (request.videoId == null && measured.keyIrregularity?.let { it < 0.01 } == true &&
                         (!VideoMatcher.advertisesVideo(candidate.title) ||
                             !candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo && !candidate.linkedVerifiedPublisher) &&
-                        !VideoMatcher.isCreditedArtistChannel(candidate, request.artist)))
+                        !VideoMatcher.isCreditedArtistChannel(candidate, request.artist))))
             // Lining up is not enough: a reaction plays the song inside it. An automatic choice must also look like the song's
             // video (no talk-over words, no long stretches of something else, about the song's length).
             val songSec = request.durationSec.takeIf { it > 0L } ?: ((track?.durationMs ?: 0L) / 1_000L)
@@ -407,22 +440,29 @@ internal class CanvasSession(
             log("candidate ${candidate.videoId} \"${candidate.title.take(48)}\" by ${candidate.channelTitle} (${candidate.durationSec}s): " +
                 when {
                     result == null -> "not readable"
+                    still && previewStill == true -> "a still picture (its preview frames do not change), not a music video"
                     still -> "a still picture (${measured.videoKbps.toInt()} kbit/s, motion ${"%.2f".format(measured.videoMotion)}), not a music video"
                     result.error != null -> result.error
                     wrong != null -> "confidence ${"%.2f".format(result.confidence)}, but $wrong"
-                    else -> "confidence ${"%.2f".format(result.confidence)}, ${result.segments.size} segment(s)"
-                } + (measured?.let { m -> if (m.videoKbps > 0.0) "; picture ${m.videoKbps.toInt()} kbit/s, motion ${"%.2f".format(m.videoMotion)}" else "; no picture measured" } ?: ""))
+                    else -> "confidence ${"%.2f".format(result.confidence)}, ${result.segments.size} segment(s), ${(result.coverage * 100).toInt()}% of the song" +
+                        if (candidate.filmChannel) ", from the film's channel" else ""
+                } + (measured?.let { m -> if (m.videoKbps > 0.0) "; picture ${m.videoKbps.toInt()} kbit/s, motion ${"%.2f".format(m.videoMotion)}" else "; no picture measured" } ?: "") +
+                    when (previewStill) { true -> "; preview frames: still"; false -> "; preview frames: moving"; null -> "; preview frames: not read" })
             if (result != null && !still && wrong == null && result.error == null && result.confidence >= YouTubeStreamResolver.MIN_SYNC_CONFIDENCE && result.segments.isNotEmpty()) {
                 // The ranking is the main evidence, the match quality settles close calls: a version of the
                 // video that is the same recording as the song lines up cleanly, a different cut needs an
                 // edit-heavy map; a lower rank costs a little.
-                val score = result.confidence - RANK_PENALTY * rank + if (VideoMatcher.saysVideo(candidate.title)) SAYS_VIDEO_BONUS else 0.0
-                if (winner == null) graceEndsAt = System.currentTimeMillis() + OTHER_CANDIDATES_GRACE_MS
-                if (score > winnerScore) {
-                    winner = candidate to result
-                    winnerScore = score
-                }
-                if (rank == 0 && result.confidence >= CONFIDENT_FIRST_CHOICE) break // no need to wait for the others
+                // Someone else's upload that matches less of the song than a publisher's must (a fan's re-upload cut shorter,
+                // starting a verse in) loses to any that matches more; the film's own channel counts for more than a title.
+                val partial = request.videoId == null && result.coverage < VideoMatcher.PUBLISHER_COVERAGE &&
+                    !VideoMatcher.hasPublisherEvidence(candidate, request.title, request.artist, request.album)
+                val score = result.confidence - RANK_PENALTY * rank +
+                    (if (VideoMatcher.saysVideo(candidate.title)) SAYS_VIDEO_BONUS else 0.0) +
+                    (if (candidate.filmChannel) FILM_CHANNEL_BONUS else 0.0) - (if (partial) PARTIAL_PENALTY else 0.0)
+                // A partial map does not shorten the wait: the rest of the batch may still match the whole song.
+                if (!partial && winner.let { it == null || it.partial }) graceEndsAt = System.currentTimeMillis() + OTHER_CANDIDATES_GRACE_MS
+                if (winner.let { it == null || score > it.score }) winner = Pick(candidate, result, score, partial)
+                if (rank == 0 && !partial && result.confidence >= CONFIDENT_FIRST_CHOICE) break // no need to wait for the others
             }
         }
         coroutineContext.job.cancelChildren()
@@ -579,6 +619,10 @@ internal class CanvasSession(
         const val RANK_PENALTY = 0.03
         /** Between two videos that line up, one that calls itself the video song beats a poster that does not. */
         const val SAYS_VIDEO_BONUS = 0.15
+        /** The film's own channel (it shows the film's other songs as well) over an upload that only says it is the video. */
+        const val FILM_CHANNEL_BONUS = 0.2
+        /** More than any confidence: a map of part of the song loses to every map of most of it. */
+        const val PARTIAL_PENALTY = 1.0
         const val OTHER_CANDIDATES_GRACE_MS = 600L
         const val BATCH_SIZE = 3
         const val BATCH_TIMEOUT_MS = 12_000L

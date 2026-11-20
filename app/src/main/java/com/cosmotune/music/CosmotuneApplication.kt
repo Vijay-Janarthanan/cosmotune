@@ -96,6 +96,16 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         LyricsTranslation.cacheDir = cacheDir
         // The last content of every main page, shown at once on the next start while the page refreshes (PageCache).
         com.cosmotune.cache.PageCache.configure(java.io.File(cacheDir, "pages"))
+        // A song video candidate's preview frames (a WebP sheet), to tell a still poster from a video.
+        com.opencanvas.core.stream.PreviewFrames.decoder = { bytes ->
+            runCatching {
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { bitmap ->
+                    val pixels = IntArray(bitmap.width * bitmap.height)
+                    bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                    com.opencanvas.core.stream.PreviewImage(bitmap.width, bitmap.height, pixels).also { bitmap.recycle() }
+                }
+            }.getOrNull()
+        }
         com.cosmotune.music.data.recommendations.LocalRecommendations.configure(
             java.io.File(cacheDir, "recommendations"), java.io.File(filesDir, "recommendations"))
         com.cosmotune.providers.ProviderAuthCallbackBridge.configure(this)

@@ -88,4 +88,7 @@ interface StreamBackend {
      * default) to leave that to the built-in client: hosts normally only implement [resolveVideo].
      */
     suspend fun resolveAudio(videoId: String): AudioStream? = null
+
+    /** YouTube's storyboard spec for [videoId] (where its seek-bar preview frames are), or null when the backend has none. */
+    suspend fun storyboardSpec(videoId: String): String? = null
 }

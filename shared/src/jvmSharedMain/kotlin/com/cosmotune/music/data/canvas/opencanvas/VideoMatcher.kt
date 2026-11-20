@@ -5,6 +5,8 @@ package com.opencanvas.core.matcher
  * A video found by searching for a song's music video.
  *
  * @property isOfficialMusicVideo True when the channel carries YouTube's verified-artist badge.
+ * @property filmChannel True when the same search shows this channel with another song of the film as well (see
+ *   [VideoMatcher.filmChannels]): the film's label, verified or not.
  */
 data class VideoCandidate(
     val videoId: String,
@@ -15,6 +17,7 @@ data class VideoCandidate(
     val isVerifiedChannel: Boolean = false,
     val channelId: String? = null,
     val linkedVerifiedPublisher: Boolean = false,
+    val filmChannel: Boolean = false,
 )
 
 object VideoMatcher {
@@ -221,7 +224,7 @@ object VideoMatcher {
     /** Transliterations differ ("Marudaani" / "Marudhani", "Chinnama" / "Chinnamma"): no h, no doubled letters. */
     /**
      * The spelling of an Indian-language word in English letters varies with the writer: "Kathal", "Kadhal" and "Kaadhal",
-     * "Oyvatillai" and "Oivathillai", "Jensy" and "Jency" are the same words. An "h" after a consonant, t and d, y and i, a
+     * "Oyvatillai" and "Oivathillai", "Rensy" and "Rency" are the same words. An "h" after a consonant, t and d, y and i, a
      * soft c and s, and doubled letters are set aside, so the song's tag and the publisher's title compare as one.
      */
     private fun looseKey(text: String): String = compact(text).replace("h", "").replace('d', 't').replace('y', 'i')
@@ -259,16 +262,35 @@ object VideoMatcher {
 
     /**
      * The order to measure a song's candidates in when its publishers' uploads ([publisher]) only say "Song": a label's or the
-     * artist's plain upload is often a still poster ("Kadhal Oviyam Song" on Ilaiyaraaja Official), so another upload that says it
-     * is the video song ("Kadhal Oviyam - Alaigal Oivathillai | HD VideoSong", "Kadhal Oviyam Video Song") and names the song with
-     * its artist or film goes first. The audio check still decides; when a publisher's upload says it is the video, nothing changes.
+     * artist's plain upload is often a still poster ("Song Name Song" on the artist's channel), so another upload that says it
+     * is the video song ("Song Name - Film | HD VideoSong", "Song Name Video Song") and names the song with its artist or film
+     * goes first. The audio check still decides; when a publisher's upload says it is the video, nothing changes.
      */
     fun videoSongsFirst(publisher: List<VideoCandidate>, others: List<VideoCandidate>, title: String, artist: String, album: String?): List<VideoCandidate> {
         if (publisher.any { saysVideo(it.title) }) return publisher
         val ids = publisher.map { it.videoId }.toSet()
-        val videoSongs = others.filter { it.videoId !in ids && saysVideo(it.title) && hasFallbackEvidence(it, title, artist, album) }
+        val videoSongs = others.filter { it.videoId !in ids && (saysVideo(it.title) || it.filmChannel && advertisesVideo(it.title)) &&
+            hasFallbackEvidence(it, title, artist, album) }.sortedBy { if (it.filmChannel) 0 else 1 }
         return videoSongs + publisher
     }
+
+    /**
+     * The channels of one search's results that put up the film's songs: one with an upload of this song and one of another
+     * song of the same film. A film's label often has no verified badge ("Song One | Film | 2k
+     * Video" and "Song Two | Film | 2k Video" from the same channel), while a fan re-uploads the one song they like, often
+     * cut shorter and in a lower quality. Keyed by [channelKey]. None without the film's name, nor for a title
+     * track, whose name every song of the film carries.
+     */
+    fun filmChannels(results: List<VideoCandidate>, title: String, album: String?): Set<String> {
+        if (album.isNullOrBlank()) return emptySet()
+        return results.filter { it.channelTitle.isNotBlank() && hasFilmContext(it.title, album) }
+            .groupBy(::channelKey)
+            .filterValues { uploads -> uploads.any { namesSong(it, title) } && uploads.any { !namesSong(it, title) } }
+            .keys
+    }
+
+    /** Which channel a result is from: its id, or its name when the result has none. */
+    fun channelKey(candidate: VideoCandidate): String = candidate.channelId ?: compact(candidate.channelTitle)
 
     /** Whether the title itself says it is the music video ("video song", "official video", "MV"). */
     fun saysVideo(title: String): Boolean = title.lowercase().let { t -> POSITIVE_KEYWORDS.any { t.contains(it) } }

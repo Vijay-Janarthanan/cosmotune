@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -106,6 +107,15 @@ private fun runDesktop() {
     LyricsTranslation.cacheDir = DesktopMediaCache.directory.toFile()
     // The last content of every main page, shown at once on the next start while the page refreshes (PageCache).
     com.cosmotune.cache.PageCache.configure(DesktopMediaCache.directory.resolveSibling("pages").toFile())
+    // A song video candidate's preview frames (a WebP sheet) are opened with Skia, to tell a still poster from a video.
+    com.opencanvas.core.stream.PreviewFrames.decoder = { bytes ->
+        runCatching {
+            val image = org.jetbrains.skia.Image.makeFromEncoded(bytes).toComposeImageBitmap()
+            val pixels = IntArray(image.width * image.height)
+            image.readPixels(pixels)
+            com.opencanvas.core.stream.PreviewImage(image.width, image.height, pixels)
+        }.getOrNull()
+    }
     // Java's preferences report a refused registry write only as a warning on the error stream, which the app never shows: the
     // log gets them, so a setting (or a saved sign-in) that does not stay saved says why.
     runCatching {
