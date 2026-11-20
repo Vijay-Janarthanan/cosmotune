@@ -1,5 +1,7 @@
 package com.cosmotune.ui.watch
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.OrbitBiteCard
+import com.cosmotune.ui.orbit.OrbitChipRow
 import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitLabel
 import com.cosmotune.ui.orbit.OrbitLook
@@ -73,10 +77,15 @@ import com.cosmotune.watch.model.TitleType
 import com.cosmotune.watch.model.WatchKey
 import com.cosmotune.watch.model.WatchProgress
 
+/** The tabs under a title's card. */
+private enum class TitleTab(val label: String) { EPISODES("Episodes"), DETAILS("Details and cast"), MORE("More like this") }
+
 /**
- * A film page (board section 2) or a series page (section 3): the colour card in the picture's colours with Play in the bite
- * (Resume where you were, or the next episode), My list, Watch together and more; then for a film the sources it can play from
- * (best first) with the cast and more like this, and for a series the seasons as chips and the episodes as rows.
+ * A film page (board frame 7) or a series page (frame 8): the colour card in the picture's colours with Play in its bite, the
+ * page's one main action (Resume where you were, the next episode, or the first episode of a series not started), and the other
+ * actions as one row of round buttons. A film then has its description folded to three lines, the best three copies to play from
+ * (Show all for the rest), and the tabs Details and cast / More like this; a series has the tabs Episodes / More like this /
+ * Details, the seasons as chips with Download episodes at their end, and the episodes as rows with how far each was watched.
  */
 @Composable
 internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
@@ -93,27 +102,40 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
     val (fill, ink) = coverFill(shown.posterUrl ?: shown.backdropUrl, shown.key.value)
     val series = shown.type == TitleType.SERIES
     val nextUp by produceState<NextUp?>(null, shown.key, series) { if (series) value = runCatching { repository.nextUp(shown.key) }.getOrNull() }
+    // A series nobody has started plays its first episode: the first of the first numbered season.
+    val firstSeason = page?.seasons?.map { it.number }?.filter { it > 0 }?.minOrNull() ?: page?.seasons?.firstOrNull()?.number
+    val firstEpisode by produceState<Episode?>(null, shown.key, series, firstSeason) {
+        if (series && firstSeason != null) value = runCatching { repository.episodes(shown.key, firstSeason).minByOrNull { it.number } }.getOrNull()
+    }
     val target = remember(shown) { repository.targetOf(shown) }
     val sources by (if (series) remember { kotlinx.coroutines.flow.flowOf<SourcesState?>(null) } else remember(target) { repository.sources(target) })
         .collectAsState(null)
     val resume by produceState<WatchProgress?>(null, summary.key) { if (!series) value = runCatching { repository.progress(summary.key) }.getOrNull() }
     val side = frame.side
-    val about: @Composable (Modifier) -> Unit = { modifier ->
-        Column(modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(if (series) "About this series" else "About this film", style = fonts.section, color = look.ink)
+    var tab by rememberSaveable(summary.key.value) { mutableStateOf(if (series) TitleTab.EPISODES else TitleTab.DETAILS) }
+    val details: @Composable (Modifier) -> Unit = { modifier ->
+        Column(modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             WatchTitleFacts(shown, page, fonts, look, showMissingPlot = title != null)
         }
     }
 
     val play: () -> Unit = {
         val n = nextUp
+        val first = firstEpisode
         when {
             series && n != null && page != null -> actions.playEpisode(page, n.episode)
             series && n != null -> actions.playEpisode(shown, n.episode)
+            series && first != null && page != null -> actions.playEpisode(page, first)
+            series && first != null -> actions.playEpisode(shown, first)
             series -> Unit
             else -> actions.play(shown)
         }
     }
+    val downloads = actions.downloads
+    val best = sources?.best
+    val download: (() -> Unit)? = if (!series && downloads != null && best != null && downloads.canDownload(best)) ({
+        downloads.start(target, shown, best, listOfNotNull(best.source.pluginName, best.label).joinToString(" · "))
+    }) else null
 
     Box(Modifier.fillMaxSize()) {
         WatchWash(fill, look)
@@ -121,46 +143,57 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
             frame.header?.let { header -> item(key = "title:header") { header() } }
             item(key = "title:card") {
                 TitleCard(
-                    shown, page, series, fonts, look, fill, ink, frame.wide, inList, nextUp, resume?.takeIf { !it.completed && it.positionMs > 60_000 },
-                    sources?.best, onPlay = play, onMyList = { actions.setInMyList(shown, it) }, watchTogether = actions.watchTogetherReady,
-                    onWatchTogether = { actions.watchTogether(shown, page, sources?.best) },
+                    shown, page, series, fonts, look, fill, ink, frame.wide, inList, nextUp, firstEpisode, resume?.takeIf { !it.completed && it.positionMs > 60_000 },
+                    best, onPlay = play, onMyList = { actions.setInMyList(shown, it) }, watchTogether = actions.watchTogetherReady,
+                    onWatchTogether = { actions.watchTogether(shown, page, best) },
+                    onDownload = download,
                     onTrailer = { actions.playTrailer(shown, it) },
                     onAnimeMapping = { animeMapping = true },
                     onPlaylist = { playlistPicker = true },
-                    modifier = Modifier.padding(horizontal = side).padding(top = 18.dp),
+                    modifier = Modifier.padding(horizontal = side).padding(top = 12.dp),
                 )
             }
-            if (series) {
-                item(key = "title:about") { about(Modifier.padding(horizontal = side).widthIn(max = 780.dp)) }
-                when {
+            if (!series) {
+                shown.overview?.takeIf { it.isNotBlank() }?.let { text ->
+                    item(key = "title:overview") { FoldedText(text, fonts, look, Modifier.padding(horizontal = side + 4.dp).padding(top = 14.dp).widthIn(max = 780.dp)) }
+                }
+                item(key = "title:sources") { Column(Modifier.padding(horizontal = side).widthIn(max = 780.dp)) { PlayFrom(sources, shown, actions, fonts, look) } }
+            }
+            item(key = "title:tabs") {
+                val tabs = if (series) listOf(TitleTab.EPISODES, TitleTab.MORE, TitleTab.DETAILS) else listOf(TitleTab.DETAILS, TitleTab.MORE)
+                OrbitChipRow(side, Modifier.padding(top = 22.dp)) {
+                    tabs.forEach { t ->
+                        val count = if (t == TitleTab.EPISODES) page?.seasons?.filter { it.number > 0 }?.sumOf { it.episodeCount }?.takeIf { it > 0 } else null
+                        OrbitSelectChip(if (t == TitleTab.DETAILS && series) "Details" else t.label + (count?.let { " · $it" } ?: ""), tab == t, fonts, look,
+                            onClick = { tab = t }, haptic = false)
+                    }
+                }
+            }
+            when {
+                series && tab == TitleTab.EPISODES -> when {
                     title == null -> item(key = "title:loading") {
-                        Column(Modifier.padding(horizontal = side).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            repeat(3) { WatchSkeleton(look, Modifier.fillMaxWidth().height(88.dp), radius = 22.dp) }
+                        Column(Modifier.padding(horizontal = side).padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            repeat(3) { WatchSkeleton(look, Modifier.fillMaxWidth().height(81.dp), radius = 14.dp) }
                         }
                     }
                     page == null -> item(key = "title:error") {
                         WatchMessage("Episodes", "Could not load episodes", "Episode details are unavailable from this catalogue.", fonts, look,
-                            Modifier.padding(horizontal = side).padding(top = 24.dp), action = "Try again", onAction = { attempt++ })
+                            Modifier.padding(horizontal = side).padding(top = 18.dp), action = "Try again", onAction = { attempt++ })
                     }
-                    else -> {
-                        item(key = "title:episodes") { SeriesBody(page, nextUp, actions, fonts, look, side) }
-                        item(key = "title:more") { PeopleAndMore(page, actions, fonts, look, frame) }
+                    else -> item(key = "title:episodes") { SeriesBody(page, nextUp, actions, fonts, look, side) }
+                }
+                tab == TitleTab.MORE -> item(key = "title:more") {
+                    val more = page?.moreLikeThis.orEmpty()
+                    if (more.isEmpty()) Text(if (title == null) "Loading…" else "Nothing like this yet.", style = fonts.body, color = look.dim,
+                        modifier = Modifier.padding(horizontal = side + 6.dp).padding(top = 18.dp))
+                    else MoreLikeThis(more, actions, fonts, look, side)
+                }
+                else -> item(key = "title:details") {
+                    Column {
+                        details(Modifier.padding(horizontal = side + 6.dp).widthIn(max = 780.dp))
+                        page?.let { Cast(it, fonts, look, side) }
                     }
                 }
-            } else if (frame.wide) {
-                item(key = "title:film") {
-                    Row(Modifier.padding(horizontal = side), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                        Column(Modifier.weight(1f)) {
-                            about(Modifier.widthIn(max = 780.dp))
-                            page?.let { PeopleAndMore(it, actions, fonts, look, frame, inColumn = true) }
-                        }
-                        Column(Modifier.weight(1f).widthIn(max = 600.dp)) { PlayFrom(sources, shown, actions, fonts, look) }
-                    }
-                }
-            } else {
-                item(key = "title:about") { about(Modifier.padding(horizontal = side)) }
-                page?.let { detail -> item(key = "title:more") { PeopleAndMore(detail, actions, fonts, look, frame) } }
-                item(key = "title:sources") { Column(Modifier.padding(horizontal = side)) { PlayFrom(sources, shown, actions, fonts, look) } }
             }
             item(key = "title:end") { Spacer(Modifier.height(40.dp)) }
         }
@@ -177,6 +210,19 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
         }
     }
     if (playlistPicker) WatchPlaylistPicker(summary, actions, fonts, look) { playlistPicker = false }
+}
+
+/** A description folded to three lines, with More to open it (and Less to fold it again) when it runs longer. */
+@Composable
+private fun FoldedText(text: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+    var open by rememberSaveable(text) { mutableStateOf(false) }
+    var long by remember(text) { mutableStateOf(false) }
+    Column(modifier) {
+        Text(text, style = fonts.body.copy(fontSize = 14.sp, lineHeight = 20.sp), color = look.dim, maxLines = if (open) Int.MAX_VALUE else 3,
+            overflow = TextOverflow.Ellipsis, onTextLayout = { if (!open) long = it.hasVisualOverflow })
+        if (long || open) Text(if (open) "Less" else "More", style = fonts.title.copy(fontSize = 14.sp), color = look.ink,
+            modifier = Modifier.padding(top = 4.dp).clickable(role = androidx.compose.ui.semantics.Role.Button) { open = !open })
+    }
 }
 
 /** "Film · 2021 · 1h 52m · Drama, Thriller · ★ 7.4 TMDB" or "Series · 3 seasons · 2019–2025 · ★ 8.1". */
@@ -196,6 +242,18 @@ private fun streamBadges(best: Stream?): List<String> = if (best == null) emptyL
     best.qualityBadge, best.hdr, best.audioChannels, best.subtitles.size.takeIf { it > 0 }?.let { "CC · $it" },
 )
 
+/**
+ * What Play in the bite will do, said under the title: "Resume at 40:12 · 1h 12m left" for a film part-watched, "Resume S1 E3 ·
+ * 24 min left" or "Play S2 E4 · …" for a series under way, "Play Season 1, Episode 1 · 24 episodes" for one not started.
+ */
+internal fun playLine(series: Boolean, nextUp: NextUp?, first: Episode?, resume: WatchProgress?, episodes: Int?): String? = when {
+    series && nextUp != null -> nextUp.label + (nextUp.progress?.takeIf { nextUp.resume }?.let { " · " + leftText(it.remainingMs) } ?: " · ${nextUp.episode.name}")
+    series && first != null -> "Play Season ${first.season}, Episode ${first.number}" + (episodes?.let { " · $it episodes" } ?: "")
+    series -> null
+    resume != null -> "Resume at ${longClock(resume.positionMs)} · " + leftText(resume.remainingMs)
+    else -> null
+}
+
 @Composable
 private fun TitleCard(
     s: TitleSummary,
@@ -208,12 +266,14 @@ private fun TitleCard(
     wide: Boolean,
     inList: Boolean,
     nextUp: NextUp?,
+    firstEpisode: Episode?,
     resume: WatchProgress?,
     best: Stream?,
     onPlay: () -> Unit,
     onMyList: (Boolean) -> Unit,
     watchTogether: Boolean,
     onWatchTogether: () -> Unit,
+    onDownload: (() -> Unit)?,
     onTrailer: (com.cosmotune.watch.model.Trailer) -> Unit,
     onAnimeMapping: () -> Unit,
     onPlaylist: () -> Unit,
@@ -221,95 +281,89 @@ private fun TitleCard(
 ) {
     var more by remember { mutableStateOf(false) }
     val uri = LocalUriHandler.current
+    val trailer = page?.trailers?.firstOrNull()
+    val episodes = page?.seasons?.filter { it.number > 0 }?.sumOf { it.episodeCount }?.takeIf { it > 0 }
+    val line = playLine(series, nextUp, firstEpisode, resume, episodes) ?: page?.tagline
+    val badges = listOfNotNull(page?.certification) + streamBadges(best)
+    val menu: @Composable () -> Unit = {
+        OrbitMenu(
+            more, onDismiss = { more = false }, fonts = fonts, look = look, header = s.name,
+            items = buildList {
+                if (series) trailer?.let { t -> add(OrbitMenuItem("Trailer", t.name, CosmoIcons.Video) { onTrailer(t) }) }
+                if (series) add(OrbitMenuItem("Anime opening and ending skips", "Match this season to MyAnimeList", CosmoIcons.Settings) { onAnimeMapping() })
+                add(OrbitMenuItem("Add to Watch playlist", null, CosmoIcons.Plus) { onPlaylist() })
+                page?.whereToWatch?.forEach { w -> add(OrbitMenuItem("On ${w.name}", "Opens outside the app", CosmoIcons.Share, enabled = w.link != null) { w.link?.let(uri::openUri) }) }
+            },
+        )
+    }
+    val cardActions = buildList {
+        add(WatchCardAction(if (inList) CosmoIcons.Check else CosmoIcons.Plus, "My list", on = inList, description = if (inList) "Remove from My list" else "Add to My list") { onMyList(!inList) })
+        add(WatchCardAction(CosmoIcons.Together, "Together", enabled = watchTogether, description = "Watch together", onClick = onWatchTogether))
+        if (!series) add(WatchCardAction(CosmoIcons.Download, "Download", enabled = onDownload != null, description = "Download the best copy") { onDownload?.invoke() })
+        if (!series && trailer != null) add(WatchCardAction(CosmoIcons.Video, "Trailer", description = "Play the trailer") { onTrailer(trailer) })
+        add(WatchCardAction(CosmoIcons.More, "More", description = "More", anchor = { menu() }) { more = true })
+    }
     val text: @Composable (Modifier) -> Unit = { m ->
         Column(m) {
-            // On the phone a film's line stands beside its poster instead.
-            if (wide || series) OrbitLabel(pageLine(s, page), fonts, ink.copy(alpha = 0.75f))
-            Text(s.name, style = fonts.heroTitle.copy(fontSize = if (wide) 42.sp else 30.sp, lineHeight = if (wide) 44.sp else 32.sp), color = ink,
-                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
-            val line = if (series) nextUp?.let { n ->
-                val left = n.progress?.takeIf { n.resume }?.let { " · " + leftText(it.remainingMs) }.orEmpty()
-                "Next up: Season ${n.episode.season}, Episode ${n.episode.number} · “${n.episode.name}”$left"
-            } ?: page?.tagline else page?.tagline
+            OrbitLabel(pageLine(s, page).removePrefix("Film · ").removePrefix("Series · "), fonts, ink.copy(alpha = 0.75f))
+            Text(s.name, style = fonts.heroTitle.copy(fontSize = if (wide) 40.sp else 28.sp, lineHeight = if (wide) 42.sp else 30.sp), color = ink,
+                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
             line?.let {
-                Text(it, style = fonts.body.copy(fontSize = 14.5.sp, lineHeight = 21.sp), color = ink.copy(alpha = 0.88f), maxLines = 3, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 10.dp).widthIn(max = 620.dp))
+                Text(it, style = fonts.body.copy(fontSize = 13.5.sp, lineHeight = 19.sp), color = ink.copy(alpha = 0.88f), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 6.dp).widthIn(max = 620.dp))
             }
-            val badges = listOfNotNull(page?.certification) + streamBadges(best)
-            if (!series && badges.isNotEmpty()) Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { badges.forEach { WatchBadge(it, fonts, ink) } }
-            // On the phone the chips stop short of Play's bite and wrap rather than scroll under it.
-            WatchCardChipRow(wide, biteRoom = 84.dp, Modifier.padding(top = 18.dp)) {
-                if (!series) WatchCardChip(resume?.let { "Resume ${longClock(it.positionMs)}" } ?: "Play", ink, fonts, onPlay, icon = CosmoIcons.Play, solid = true, onSolid = fill)
-                WatchCardChip(if (inList) "In my list" else "My list", ink, fonts, onClick = { onMyList(!inList) }, icon = if (inList) CosmoIcons.Check else CosmoIcons.Plus)
-                WatchCardChip("Watch together", ink, fonts, onClick = onWatchTogether, icon = CosmoIcons.Together, enabled = watchTogether)
-                Box {
-                    WatchRoundButton(CosmoIcons.More, "More", look, onClick = { more = true }, ink = ink)
-                    OrbitMenu(
-                        more, onDismiss = { more = false }, fonts = fonts, look = look, header = s.name,
-                        items = buildList {
-                            page?.trailers?.firstOrNull()?.let { t -> add(OrbitMenuItem("Trailer", t.name, CosmoIcons.Video) { onTrailer(t) }) }
-                            if (series) add(OrbitMenuItem("Anime opening and ending skips", "Match this season to MyAnimeList", CosmoIcons.Settings) { onAnimeMapping() })
-                            add(OrbitMenuItem("Add to Watch playlist", null, CosmoIcons.Plus) { onPlaylist() })
-                            page?.whereToWatch?.forEach { w -> add(OrbitMenuItem("On ${w.name}", "Opens outside the app", CosmoIcons.Share, enabled = w.link != null) { w.link?.let(uri::openUri) }) }
-                            add(OrbitMenuItem(if (inList) "Remove from My list" else "Add to My list", null, CosmoIcons.Plus) { onMyList(!inList) })
-                        },
-                    )
-                }
-            }
+            if (badges.isNotEmpty()) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { badges.take(5).forEach { WatchBadge(it, fonts, ink) } }
         }
     }
-    OrbitBiteCard(fill, modifier.fillMaxWidth().then(if (wide) Modifier.height(if (series) 260.dp else 300.dp) else Modifier),
-        bite = { if (!series || nextUp != null) OrbitPlayButton(false, onPlay, look) }) {
-        if (wide) {
-            BoxWithConstraints(Modifier.fillMaxSize()) {
-                if (series) {
-                    val w = (maxWidth * 0.36f).coerceAtMost(356.dp)
-                    WatchPicture(s.backdropUrl ?: s.posterUrl, s.key.value + "b", Modifier.align(Alignment.TopEnd).padding(top = 20.dp, end = 120.dp).size(w, w * 9f / 16f), radius = 22.dp)
-                    text(Modifier.padding(start = 26.dp, top = 30.dp, end = w + 150.dp))
-                } else {
-                    WatchPicture(s.posterUrl, s.key.value, Modifier.padding(24.dp).size(168.dp, 252.dp), radius = 20.dp)
-                    text(Modifier.padding(start = 220.dp, top = 34.dp, end = 120.dp))
+    // The page's one main action is Play in the bite: there for a film always, and for a series once it knows which episode.
+    val playable = !series || nextUp != null || firstEpisode != null
+    // How far a film is, on its poster (the time is in the line under the title).
+    val watched = resume?.fraction?.takeIf { !series && it > 0f }
+    OrbitBiteCard(fill, modifier.fillMaxWidth(), bite = { if (playable) OrbitPlayButton(false, onPlay, look) }) {
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 18.dp)) {
+            Row {
+                Box(Modifier.size(if (wide) 132.dp else 88.dp, if (wide) 198.dp else 132.dp)) {
+                    WatchPicture(s.posterUrl ?: s.backdropUrl, s.key.value, Modifier.fillMaxSize(), radius = 14.dp)
+                    watched?.let { WatchPictureProgress(it, look.accent) }
                 }
+                text(Modifier.padding(start = 14.dp, top = 2.dp).weight(1f))
             }
-        } else {
-            Column(Modifier.fillMaxWidth()) {
-                if (series) WatchPicture(s.backdropUrl ?: s.posterUrl, s.key.value + "b", Modifier.padding(14.dp).fillMaxWidth().aspectRatio(16f / 9f), radius = 22.dp)
-                else Row(Modifier.padding(start = 18.dp, top = 18.dp, end = 18.dp)) {
-                    WatchPicture(s.posterUrl, s.key.value, Modifier.size(104.dp, 156.dp), radius = 18.dp)
-                    Column(Modifier.padding(start = 16.dp, top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        pageLine(s, page).split(" · ").forEach { OrbitLabel(it, fonts, ink.copy(alpha = 0.75f)) }
-                    }
-                }
-                text(Modifier.padding(start = 20.dp, end = 20.dp, top = if (series) 0.dp else 16.dp, bottom = 22.dp))
-            }
+            WatchCardActions(cardActions, ink, fill, fonts, Modifier.padding(top = 14.dp))
         }
     }
 }
 
-/** "Play from" (board section 2): the copies the plugins found, best first; the first has the accent wash and the mono "Best". */
+/** "Play from" (board frame 7): the best three copies the plugins found, best first, the first highlighted; Show all for the rest. */
 @Composable
 private fun PlayFrom(sources: SourcesState?, summary: TitleSummary, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook) {
     val uri = LocalUriHandler.current
     var filter by remember(summary.key) { mutableStateOf(WatchStreamFilter()) }
+    var all by rememberSaveable(summary.key.value) { mutableStateOf(false) }
     val streams = sources?.streams.orEmpty()
     val matching = filter.applyTo(streams)
-    Column(Modifier.padding(top = 26.dp)) {
-        Text("Play from", style = fonts.section, color = look.ink, modifier = Modifier.padding(start = 6.dp))
-        val pending = sources?.pending.orEmpty()
-        val sub = when {
-            sources == null -> "Asking your plugins…"
-            sources.notFound -> "Not on your sources"
-            pending.isNotEmpty() -> "Best first · ${pending.size} more still answering"
-            else -> "Best first · tap to choose another"
+    Column(Modifier.padding(top = 22.dp)) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f).padding(start = 6.dp)) {
+                Text("Play from", style = fonts.section, color = look.ink)
+                val pending = sources?.pending.orEmpty()
+                val sub = when {
+                    sources == null -> "Asking your plugins…"
+                    sources.notFound -> "Not on your sources"
+                    pending.isNotEmpty() -> "${streams.size} found · ${pending.size} more still answering"
+                    streams.size == 1 -> "1 copy"
+                    else -> "${streams.size} copies · best first"
+                }
+                Text(sub, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, modifier = Modifier.padding(top = 2.dp))
+            }
+            if (matching.size > PLAY_FROM_SHOWN) WatchCardChip(if (all) "Show fewer" else "Show all ${matching.size}", look.ink, fonts, onClick = { all = !all })
         }
-        Text(sub, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 14.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (sources == null) repeat(3) { WatchSkeleton(look, Modifier.fillMaxWidth().height(62.dp), radius = 22.dp) }
-            if (streams.isNotEmpty()) {
+            if (all && streams.isNotEmpty()) {
                 WatchSourceFilters(streams, filter, { filter = it }, fonts, look)
                 if (matching.isEmpty()) WatchCardChip("No matches · Reset filters", look.ink, fonts, onClick = { filter = WatchStreamFilter() })
             }
-            matching.forEach { stream ->
+            (if (all) matching else matching.take(PLAY_FROM_SHOWN)).forEach { stream ->
                 val onClick: (() -> Unit)? = when {
                     stream.isPlayable && sources != null -> ({ actions.playStream(summary, sources.target, stream) })
                     stream.url.startsWith("https://") -> ({ uri.openUri(stream.url) })
@@ -326,12 +380,15 @@ private fun PlayFrom(sources: SourcesState?, summary: TitleSummary, actions: Wat
                     }
                 }
             }
-            sources?.errors.orEmpty().forEach { (plugin, message) ->
+            if (all) sources?.errors.orEmpty().forEach { (plugin, message) ->
                 Text("$plugin: $message", style = fonts.body.copy(fontSize = 12.sp), color = look.dim, modifier = Modifier.padding(start = 6.dp))
             }
         }
     }
 }
+
+/** How many copies "Play from" lists before Show all. */
+private const val PLAY_FROM_SHOWN = 3
 
 @Composable
 internal fun SourceRow(
@@ -353,35 +410,50 @@ internal fun SourceRow(
     }
 }
 
-/** The cast as portraits and more like this as wide stills; in a column beside Play from on a wide film page. */
+/** The cast as portraits and more like this as wide stills; in a column beside the player on a wide page. */
 @Composable
 internal fun PeopleAndMore(page: Title, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame, inColumn: Boolean = false) {
     val side = if (inColumn) 0.dp else frame.side
     Column {
-        if (page.cast.isNotEmpty()) {
-            Text("Cast", style = fonts.section, color = look.ink, modifier = Modifier.padding(start = side + 6.dp, top = 26.dp, bottom = 16.dp))
-            LazyRow(contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                itemsIndexed(page.cast.take(16), key = { i, p -> p.name + i }) { _, person ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        // The cast have no page of their own: the portrait is not a button that does nothing.
-                        OrbitPortrait(person.name, person.photoUrl, 96.dp, fonts, look, onClick = null)
-                        person.role?.let { Text(it, style = fonts.body.copy(fontSize = 11.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(96.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-                    }
-                }
-            }
-        }
+        Cast(page, fonts, look, side)
         if (page.moreLikeThis.isNotEmpty()) {
             Text("More like this", style = fonts.section, color = look.ink, modifier = Modifier.padding(start = side + 6.dp, top = 30.dp, bottom = 14.dp))
-            LazyRow(contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                itemsIndexed(page.moreLikeThis, key = { i, it -> it.key.value + i }) { _, s ->
-                    WatchCard(s.name, posterLine(s), s.backdropUrl ?: s.posterUrl, s.key.value, fonts, look, onClick = { actions.open(s) }, width = 170.dp, wide = true)
-                }
+            MoreLikeThis(page.moreLikeThis, actions, fonts, look, side)
+        }
+    }
+}
+
+/** The cast as portraits in a sideways row (they have no page of their own, so a portrait is not a button). */
+@Composable
+private fun Cast(page: Title, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
+    if (page.cast.isEmpty()) return
+    Text("Cast", style = fonts.section, color = look.ink, modifier = Modifier.padding(start = side + 6.dp, top = 26.dp, bottom = 16.dp))
+    LazyRow(contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        itemsIndexed(page.cast.take(16), key = { i, p -> p.name + i }) { _, person ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // The cast have no page of their own: the portrait is not a button that does nothing.
+                OrbitPortrait(person.name, person.photoUrl, 96.dp, fonts, look, onClick = null)
+                person.role?.let { Text(it, style = fonts.body.copy(fontSize = 11.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(96.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
         }
     }
 }
 
-/** Seasons as chips, then the season's episodes as rows (board section 3). */
+/** More like this as wide stills in a sideways row. */
+@Composable
+private fun MoreLikeThis(items: List<TitleSummary>, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
+    LazyRow(Modifier.padding(top = 16.dp), contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        itemsIndexed(items, key = { i, it -> it.key.value + i }) { _, s ->
+            WatchCard(s.name, posterLine(s), s.backdropUrl ?: s.posterUrl, s.key.value, fonts, look, onClick = { actions.open(s) }, width = 170.dp, wide = true)
+        }
+    }
+}
+
+/**
+ * The seasons as chips with Download episodes at their end, then the chosen season's episodes as rows (board frame 8): the still
+ * with how far it was watched along its foot (a tick when it was watched to the end), the number and name, and the length with
+ * one line of what happens, or the time left on the one in progress; the next one up is highlighted.
+ */
 @Composable
 private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
     var batchOpen by remember { mutableStateOf(false) }
@@ -395,14 +467,18 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
         value = episodes.orEmpty().mapNotNull { e -> runCatching { repository.progress(e.key) }.getOrNull()?.let { e.key to it } }.toMap()
     }
     if (batchOpen) WatchBatchSheet(page, chosen, episodes.orEmpty(), actions, fonts, look) { batchOpen = false }
-    Column(Modifier.padding(top = 22.dp)) {
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = side), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            seasons.forEach { s -> OrbitSelectChip(if (s.number == 0) "Specials" else s.name, s.number == chosen, fonts, look, onClick = { season = s.number }, haptic = false) }
+    Column(Modifier.padding(top = 12.dp)) {
+        Row(Modifier.fillMaxWidth().padding(end = side), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(start = side), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                seasons.forEach { s -> OrbitSelectChip(if (s.number == 0) "Specials" else s.name, s.number == chosen, fonts, look, onClick = { season = s.number }, haptic = false) }
+            }
+            if (actions.downloads != null && !episodes.isNullOrEmpty()) {
+                WatchRoundButton(CosmoIcons.Download, "Download episodes", look, onClick = { batchOpen = true }, modifier = Modifier.padding(start = 8.dp))
+            }
         }
-        Column(Modifier.padding(horizontal = side).padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (actions.downloads != null && !episodes.isNullOrEmpty()) WatchCardChip("Download episodes", look.ink, fonts, onClick = { batchOpen = true }, icon = CosmoIcons.Download)
+        Column(Modifier.padding(horizontal = side).padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val list = episodes
-            if (list == null) repeat(4) { WatchSkeleton(look, Modifier.fillMaxWidth().height(88.dp), radius = 22.dp) }
+            if (list == null) repeat(4) { WatchSkeleton(look, Modifier.fillMaxWidth().height(81.dp), radius = 14.dp) }
             else if (list.isEmpty()) Text("No episodes listed for this season.", style = fonts.body, color = look.dim, modifier = Modifier.padding(6.dp))
             else list.forEach { e ->
                 val next = nextUp?.episode?.key == e.key
@@ -416,17 +492,22 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
 
 @Composable
 private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watched: Boolean, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
-    WatchRowFrame(look, height = 88.dp, highlighted = next, onClick = onClick) {
-        WatchPicture(e.stillUrl, e.key.value, Modifier.size(128.dp, 72.dp), radius = 14.dp)
-        Column(Modifier.weight(1f)) {
-            val label = listOfNotNull("E${e.number}", runtimeText(e.runtimeMin), if (next) "next up" else null).joinToString(" · ")
-            OrbitLabel(label, fonts, if (next) look.accent else look.dim)
-            Text(e.name, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-            when {
-                progress != null && !progress.completed && progress.fraction > 0f -> WatchProgressLine(progress.fraction, look, Modifier.padding(top = 8.dp).widthIn(max = 300.dp))
-                watched -> Text("Watched", style = fonts.body.copy(fontSize = 12.sp), color = look.dim)
-                else -> Text("New", style = fonts.body.copy(fontSize = 12.sp), color = look.dim)
+    WatchRowFrame(look, height = 97.dp, highlighted = next, onClick = onClick) {
+        Box(Modifier.size(144.dp, 81.dp)) {
+            WatchPicture(e.stillUrl, e.key.value, Modifier.fillMaxSize(), radius = 14.dp)
+            val fraction = when { watched -> 1f; progress != null && progress.fraction > 0f -> progress.fraction; else -> null }
+            fraction?.let { WatchPictureProgress(it, look.accent) }
+            if (watched) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                .background(look.accent), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Icon(CosmoIcons.Check, "Watched", tint = look.ground, modifier = Modifier.size(14.dp))
             }
+        }
+        Column(Modifier.weight(1f)) {
+            Text("${e.number}. ${e.name}", style = fonts.title.copy(fontSize = 14.sp, lineHeight = 18.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val inProgress = progress != null && !progress.completed && progress.fraction > 0f
+            val second = if (inProgress) leftText(progress!!.remainingMs) else e.overview?.lineSequence()?.firstOrNull { it.isNotBlank() }
+            Text(listOfNotNull(runtimeText(e.runtimeMin), second).joinToString(" · "), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
+                color = if (next) look.accent else look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }
