@@ -49,4 +49,13 @@ class WatchPagesContractTest {
         assertTrue("WatchCardChip(\"Audio\", ink, fonts, onClick = { audio = true }, icon = CosmoIcons.Waveform" in player, "the Audio chip is the waveform")
         assertFalse(Regex("""CosmoIcons\.Volume, "Audio"|"Audio"[^)]*icon = CosmoIcons\.Volume""").containsMatchIn(player), "Audio never borrows the speaker")
     }
+
+    @Test fun cinemaShowsTheNextEpisodeCountdownEvenWithTheControlsHidden() {
+        val src = File(root, "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/WatchPlayerPage.kt").readText()
+        val cinema = SourceContract.functionBody(src, "WatchCinema").replace(Regex("""\s+"""), " ")
+        assertTrue("val nextDue = !failed && state.nextEpisode != null && state.nextEpisodeInMs != null" in cinema, "Cinema knows when the next episode is due")
+        assertTrue("if (!failed && (chrome || nextDue))" in cinema, "the foot is drawn for the countdown even while the controls are hidden")
+        assertTrue(Regex("""if \(nextDue\) .*NextEpisodeRow\(state, controls,""").containsMatchIn(cinema), "the countdown row with Play now and Cancel")
+        assertTrue("if (chrome) FilmCard(" in cinema, "the film card still hides with the controls")
+    }
 }

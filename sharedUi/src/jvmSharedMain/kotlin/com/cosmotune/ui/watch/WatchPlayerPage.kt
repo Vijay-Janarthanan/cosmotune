@@ -731,10 +731,17 @@ private fun WatchCinema(
                     }
                     WatchRoundButton(CosmoIcons.Expand, "Exit full screen", look, onClick = onLeave, ink = Color(0xFFF7ECE4))
                 }
-                if (!failed) Box(Modifier.align(Alignment.BottomCenter).padding(24.dp).widthIn(max = 860.dp).fillMaxWidth()) {
-                    FilmCard(state, playing, position, durationMs, controls, view, setView, fonts, look, fill, ink, slim = true, programme = programme,
-                        channels = channels, onChannel = onChannel, onMenuOpen = { cardMenuOpen = it })
-                }
+            }
+        }
+        // The foot: the next episode's countdown stays up while the controls hide (so Play now and Cancel are always a tap
+        // away), with the slim film card under it while the controls show.
+        val nextDue = !failed && state.nextEpisode != null && state.nextEpisodeInMs != null
+        if (!failed && (chrome || nextDue)) BoxWithConstraints(Modifier.align(Alignment.BottomCenter).padding(24.dp).widthIn(max = 860.dp).fillMaxWidth()) {
+            val wideFoot = maxWidth >= 560.dp
+            Column(Modifier.fillMaxWidth()) {
+                if (nextDue) Box(Modifier.testTag("watch:cinema:next")) { NextEpisodeRow(state, controls, wideFoot, fonts, look) }
+                if (chrome) FilmCard(state, playing, position, durationMs, controls, view, setView, fonts, look, fill, ink, slim = true, programme = programme,
+                    channels = channels, onChannel = onChannel, onMenuOpen = { cardMenuOpen = it })
             }
         }
     }
