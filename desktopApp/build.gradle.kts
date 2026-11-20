@@ -96,9 +96,11 @@ plugins {
 // Java APIs, metadata and licences, and only the libraries this package can load.
 val onnxRuntimeRaw by configurations.creating { isTransitive = false }
 val sqliteRuntimeRaw by configurations.creating { isTransitive = false }
+val ffmpegNativesRaw by configurations.creating { isTransitive = false }
 dependencies {
     onnxRuntimeRaw("com.microsoft.onnxruntime:onnxruntime:$onnxRuntimeVersion")
     sqliteRuntimeRaw("org.xerial:sqlite-jdbc:3.47.1.0")
+    ffmpegNativesRaw("org.bytedeco:ffmpeg:$ffmpegVersion:$nativeClassifier")
 }
 val targetOnnxRuntime by tasks.registering(Jar::class) {
     archiveFileName.set("onnxruntime-$onnxRuntimeVersion-$onnxNativePlatform.jar")
@@ -133,6 +135,31 @@ val targetSqliteRuntime by tasks.registering(Jar::class) {
         }
     }
 }
+// FFmpeg's natives for this platform without what the app never loads: it calls avformat, avcodec, avutil, swresample and
+// swscale through their Java bindings (decoding, resampling, the canvas video, a provider's FLAC encode), never avfilter or
+// avdevice, and never runs the ffmpeg or ffprobe programs. JavaCPP loads each library only when its binding class is first
+// used, so the ones left out are never looked for. (Video mode's libmpv carries its own FFmpeg, a different major version.)
+val targetFfmpegNatives by tasks.registering(Jar::class) {
+    archiveFileName.set("ffmpeg-$ffmpegVersion-$nativeClassifier.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("target-runtime"))
+    from(provider { zipTree(ffmpegNativesRaw.singleFile) })
+    exclude { element ->
+        val path = element.path
+        val file = path.substringAfterLast('/')
+        path.startsWith("org/bytedeco/ffmpeg/$nativeClassifier/") &&
+            ("avfilter" in file || "avdevice" in file || file.substringBefore('.') in setOf("ffmpeg", "ffprobe"))
+    }
+    doLast {
+        ZipFile(archiveFile.get().asFile).use { zip ->
+            val names = zip.entries().asSequence().map { it.name.substringAfterLast('/') }.toList()
+            listOf("avformat", "avcodec", "avutil", "swresample", "swscale").forEach { library ->
+                check(names.any { it.contains(library) && !it.startsWith("jni") }) { "FFmpeg natives: $library is missing" }
+                check(names.any { it.startsWith("jni$library") || it.startsWith("libjni$library") }) { "FFmpeg natives: the $library binding is missing" }
+            }
+        }
+    }
+}
+
 // :video also declares SQLite. Its compile dependency stays intact; the desktop
 // runtime uses the platform-specific copy below, including in native smoke tests.
 listOf("runtimeClasspath", "testRuntimeClasspath").forEach { name ->
@@ -190,7 +217,7 @@ dependencies {
     implementation("org.bytedeco:javacpp:$javacppVersion")
     implementation("org.bytedeco:javacpp:$javacppVersion:$nativeClassifier")
     implementation("org.bytedeco:ffmpeg:$ffmpegVersion")
-    implementation("org.bytedeco:ffmpeg:$ffmpegVersion:$nativeClassifier")
+    implementation(files(targetFfmpegNatives.flatMap { it.archiveFile }))
 
     // Voice in shared rooms: WebRTC, peer to peer (see voice/DesktopVoiceEngine). Not transitive: the
     // main jar's POM names its natives through a classifier that only Maven's OS profiles fill in, so
@@ -698,19 +725,18 @@ compose.desktop {
             copyright = "Copyright © 2026 Cosmotune contributors, based on BitChord"
 
             modules(
+                // What the app's jars refer to (jdeps), plus the modules found through services or by name below. No longer
+                // listed: java.instrument, java.scripting and jdk.dynalink, which only GraalJS and Rhino used, and java.naming,
+                // which jdk.security.auth brings in by itself.
                 "java.base",
                 "java.desktop",
-                "java.instrument",
                 "java.logging",
                 "java.management",
-                "java.naming",
                 "java.net.http",
                 "java.prefs",
-                "java.scripting",
                 "java.sql",
                 "java.xml",
                 "jdk.crypto.ec",
-                "jdk.dynalink",
                 // Video mode's desktop player reads the video through a loopback range proxy (com.sun.net.httpserver);
                 // without this module the slim production runtime cannot serve it, while development runs work.
                 "jdk.httpserver",
@@ -779,6 +805,18 @@ compose.desktop {
         }
     }
 
+}
+
+// The bundled Java runtime: date and number formats only for the languages the app has words for (DesktopStrings and the
+// Android catalogues: English plus 24), rather than for every locale CLDR knows. java.util.Locale itself is unaffected; a
+// system locale outside the list formats dates and numbers as the root locale does. The module image stays uncompressed:
+// --compress=zip-6 halves it on disk but makes the installers about 8 MB larger, since they compress it better themselves.
+val runtimeLocales = listOf(
+    "en", "bn", "de", "es", "fr", "gu", "he", "hi", "id", "it", "ja", "kn", "ml", "mr", "or", "pa", "pl", "pt", "ru", "ta",
+    "te", "th", "tr", "vi", "zh",
+)
+tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJLinkTask>().configureEach {
+    freeArgs.addAll("--include-locales=${runtimeLocales.joinToString(",")}")
 }
 
 // ProGuard writes the stack map frames of every class it reads anew, and its preverifier gets the largest composables wrong:
