@@ -64,7 +64,6 @@ Later candidates: desktop lyric-image sharing, a combined lower-data preset usin
 | Music/video transition | Enter Video from a song, ensure the music overlay is gone, verify only intended audio plays, return to Music, and verify restored controls/state. |
 | Background and outputs | Lock screen/media keys, suspend/resume, audio interruptions, headphone removal, output changes, and Android foreground/background lifecycle. |
 | Integrations | Actual two-device Listen Together session and reconnect, Cast on supported hardware, configured/absent API keys, source failures, and expired sign-in. |
-| Restricted network | Test the opt-in Tor route, searches, stream reads, redirects, seeking and downloads on the intended Mac/network. A successful Tor check endpoint alone does not validate music playback. |
 | Presentation/accessibility | Narrow windows, large text, relevant scripts, light/dark where supported, reduced motion, keyboard operation and platform screen readers. |
 | Packaged install | Install and run release artifacts on each supported OS/architecture; verify bundled runtime/native libraries and update behavior. Development launch is not sufficient. |
 

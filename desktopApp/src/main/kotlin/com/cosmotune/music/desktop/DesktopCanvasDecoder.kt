@@ -80,7 +80,7 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
         close()
         DesktopAudioDecoder.ensureNetworkReady()
         val options = AVDictionary(null)
-        com.cosmotune.desktop.TorConnection.configureNative(options, url)
+        configureNativeNetwork(options, url)
         if (headers.isNotEmpty()) {
             av_dict_set(
                 options,

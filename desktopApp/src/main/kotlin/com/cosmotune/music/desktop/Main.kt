@@ -84,9 +84,12 @@ private fun runDesktop() {
     com.cosmotune.manga.ui.MangaTextPlatform.lookup = { key, fallback -> DesktopStrings[key, fallback] }
     com.cosmotune.manga.ui.DesktopMangaLibrary.startUpdates()
     Runtime.getRuntime().addShutdownHook(Thread({ com.cosmotune.manga.ui.DesktopMangaLibrary.stopUpdates() }, "Manga updates shutdown"))
-    com.cosmotune.desktop.TorConnection.install()
-    // The listener's proxy and offline mode (Extras), right after Tor has chosen the routing.
+    // The listener's proxy and offline mode (Extras), before any client is built.
     DesktopExtras.install()
+    // Versions before 1.0.31 unpacked a Tor client here (about 100 MB); Cosmotune no longer has it.
+    kotlin.concurrent.thread(name = "Old Tor files", isDaemon = true) {
+        runCatching { java.io.File(System.getProperty("user.home"), ".local/share/cosmotune/tor").deleteRecursively() }
+    }
     // The audio level tap the Pulse lyric style moves to; idle until a Pulse stage listens.
     DesktopAudioLevels.install()
     coil3.SingletonImageLoader.setSafe(DesktopArtworkCache::imageLoader)

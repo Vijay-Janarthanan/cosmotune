@@ -5544,7 +5544,6 @@ private enum class DesktopSettingsSection(val category: com.cosmotune.ui.setting
     LISTENING(com.cosmotune.ui.settings.SettingsCategory.LISTENING),
     LISTEN_TOGETHER(com.cosmotune.ui.settings.SettingsCategory.INTEGRATIONS),
     SERVICES(com.cosmotune.ui.settings.SettingsCategory.INTEGRATIONS),
-    NETWORK(com.cosmotune.ui.settings.SettingsCategory.INTEGRATIONS),
     ABOUT(com.cosmotune.ui.settings.SettingsCategory.ABOUT),
     ADVANCED(com.cosmotune.ui.settings.SettingsCategory.ABOUT),
     COLOPHON(com.cosmotune.ui.settings.SettingsCategory.ABOUT),
@@ -5686,8 +5685,6 @@ private fun DesktopSettingsScreen(
     val settingsScope = rememberCoroutineScope()
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     var editingSubsonic by remember { mutableStateOf<DesktopSourceConfig?>(null) }
-    val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
-    val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
     val sourceProbeKey = sourceConfigs
         .filter { it.kind.needsServer && it.isComplete }
         .joinToString { "${it.id}@${it.baseUrl}" }
@@ -6620,20 +6617,6 @@ private fun DesktopSettingsScreen(
                         com.cosmotune.ui.settings.SettingsText.SERVICES.text(),
                         com.cosmotune.ui.settings.SettingsText.SERVICES_SUMMARY.text(),
                         onOpenIntegrations,
-                    )
-                }
-            }
-            DesktopSettingsSection.NETWORK -> {
-                SettingsGroup("Restricted network · experimental") {
-                    SettingsToggle(
-                        "Connect through Tor",
-                        if (torEnabled != com.cosmotune.desktop.TorConnection.active) {
-                            "Restart Cosmotune to ${if (torEnabled) "enable Tor" else "return to a direct connection"}."
-                        } else {
-                            "$torStatus. Routes HTTPS requests through Tor. Plain-HTTP sources are unavailable; music services may block Tor. Changes require a restart."
-                        },
-                        torEnabled,
-                        com.cosmotune.desktop.TorConnection::select,
                     )
                 }
             }

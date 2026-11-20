@@ -243,15 +243,6 @@ The licence and original source hash are preserved in `providers/third-party/`.
 Cosmotune implements its own Kotlin host and platform script-engine bindings. Provider packages
 remain separate software with their own licences, authentication and availability requirements.
 
-## Optional Tor client
-
-Desktop builds include the Tor Expert Bundle 15.0.25 from https://archive.torproject.org/tor-package-archive/torbrowser/15.0.25/.
-Tor is distributed under its upstream BSD-style licence. The complete bundle's component notices
-(including Tor, OpenSSL, libevent and bundled transports) are included in the application's
-`tor-bundle/docs/` resources and copied alongside the client when enabled. Upstream source and
-licence information: https://gitlab.torproject.org/tpo/core/tor and the bundle's `docs/tor.txt`.
-Cosmotune is not affiliated with or endorsed by the Tor Project.
-
 Android extension networking also uses the Apache-2.0 OkHttp Brotli/Zstandard modules at 5.3.2,
 Google's MIT-licensed Java Brotli decoder, and Apache-2.0 Square zstd-kmp 0.4.0 (with its Zstandard native decoder).
 Their upstream projects are https://github.com/square/okhttp, https://github.com/google/brotli,

@@ -28,9 +28,8 @@ internal object DesktopExtras {
         override fun putString(key: String, value: String) = node.put(key, value).also { runCatching { node.flush() } }
     }
 
-    /** After Tor has chosen the routing and before any client is built: Tor, when on, keeps the traffic. */
+    /** Before any client is built: the listener's proxy and offline mode. */
     fun install() {
-        if (com.cosmotune.desktop.TorConnection.active) NetworkPolicy.lockedBy = "Tor"
         NetworkPolicy.installAsDefault()
         Extras.install(Store(Preferences.userRoot().node("com.cosmotune.desktop").node("extras")))
         com.cosmotune.lyrics.autosync.LyricsAutoOffset.configure(DesktopMediaCache.directory.resolve("lyrics").toFile())
@@ -81,12 +80,11 @@ internal object DesktopExtras {
     }
 
     /**
-     * The proxy the desktop's own Ktor and FFmpeg clients should use, as a URL: Tor's while Tor is on, otherwise the
-     * listener's HTTP proxy. Those clients take only HTTP proxies; a SOCKS proxy reaches them through the JVM default only.
+     * The proxy the desktop's own Ktor and FFmpeg clients should use, as a URL: the listener's HTTP proxy. Those clients take
+     * only HTTP proxies; a SOCKS proxy reaches them through the JVM default only.
      */
     val httpProxyUrl: String?
-        get() = com.cosmotune.desktop.TorConnection.proxyUrl
-            ?: NetworkPolicy.proxy?.takeIf { it.type == Proxy.Type.HTTP && NetworkPolicy.lockedBy == null }?.let { proxy ->
+        get() = NetworkPolicy.proxy?.takeIf { it.type == Proxy.Type.HTTP && NetworkPolicy.lockedBy == null }?.let { proxy ->
                 val login = if (proxy.hasLogin) {
                     "${java.net.URLEncoder.encode(proxy.username, "UTF-8")}:${java.net.URLEncoder.encode(proxy.password, "UTF-8")}@"
                 } else {
@@ -138,4 +136,19 @@ internal fun DesktopExtrasHost() {
     cast?.let { song ->
         com.cosmotune.ui.extras.DlnaCastDialog(song, onDismiss = { DesktopExtras.castSong.value = null })
     }
+}
+
+/**
+ * What a native (FFmpeg) open of [url] needs from the network settings: offline mode refuses a remote URL before a socket opens,
+ * and the listener's HTTP proxy, if any, is passed to FFmpeg. Local files and this machine's own addresses are left alone.
+ */
+internal fun configureNativeNetwork(options: org.bytedeco.ffmpeg.avutil.AVDictionary, url: String) {
+    if (java.io.File(url).isFile) return
+    NetworkPolicy.checkAllowed(url)
+    val proxy = DesktopExtras.httpProxyUrl ?: return
+    val scheme = runCatching { java.net.URI(url).scheme?.lowercase() }.getOrNull()
+    if (scheme == null || scheme == "file") return
+    val host = runCatching { java.net.URI(url).host }.getOrNull().orEmpty()
+    if (NetworkPolicy.isLocalHost(host)) return
+    org.bytedeco.ffmpeg.global.avutil.av_dict_set(options, "http_proxy", proxy, 0)
 }

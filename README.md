@@ -395,7 +395,7 @@ No. Music and Video mode both work without signing in anywhere. A Cosmotune clou
 
 Settings opens on a home page: your account first, then the categories, each with a line of what it is set to now: Playback & audio
 quality, Sources & providers, Downloads & storage, Lyrics & music video, Appearance, Video, Manga & Read, Podio & radio, Listening
-tools & recommendations, Integrations (Listen Together, scrobbling, Discord, Wear OS, Tor), Privacy & backup and About & updates.
+tools & recommendations, Integrations (Listen Together, scrobbling, Discord, Wear OS), Privacy & backup and About & updates.
 The search field at the top looks through every setting's name, description and related words; picking a result opens its page
 and lights the setting up. On the desktop the categories stay in a column on the left and the page is on the right. Video mode
 and Manga keep their own settings in their own drawers; their categories here lead to them.

@@ -2,7 +2,7 @@
 
 Reviewed 17 October 2026. This covers Sources settings and desktop networking, not a full application audit.
 
-Update: an opt-in Tor prototype has now been implemented. See [TOR_PROTOTYPE.md](TOR_PROTOTYPE.md) for its tested scope, restart requirement and remaining Mac/playback validation. The research and initial recommendations below predate that implementation.
+Update (November 2026): the opt-in Tor client this review led to has been removed from Cosmotune. It added about 100 MB to every desktop install for a setting few people used; a proxy of your own (Settings, Extras) is still supported.
 
 ## Revised requirement: integrated macOS access
 
