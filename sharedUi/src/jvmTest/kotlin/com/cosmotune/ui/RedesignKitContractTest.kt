@@ -93,7 +93,7 @@ class RedesignKitContractTest {
         assertTrue(CosmoNav.usesRail(600.dp))
         assertEquals(88f, CosmoNav.RAIL_WIDTH_DP)
         val shell = code("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/shell/CosmoNavShell.kt")
-        assertTrue("if (rail) CosmoNavRail(" in shell && "bottomChrome(!rail," in shell, "the shell decides: the rail and the bare mini player, or the bar")
+        assertTrue("if (rail && navigation) CosmoNavRail(" in shell && "bottomChrome(!rail && navigation," in shell, "the shell decides: the rail and the bare mini player, or the bar")
         val chrome = code("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/shell/CosmoBottomChrome.kt")
         assertTrue("DockSearchButton(search)" in chrome, "Search is a round button beside the tabs")
         val phone = SourceContract.read("app/src/main/java/com/cosmotune/music/MainActivity.kt")
@@ -104,6 +104,35 @@ class RedesignKitContractTest {
         assertTrue("val railed = compact && com.cosmotune.ui.shell.CosmoNav.usesRail(maxWidth)" in desktop, "a desktop window between 600 dp and the sidebar has the rail")
         val kitRail = SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/kit/KitStates.kt")
         assertTrue("com.cosmotune.ui.shell.CosmoNavRail(" in kitRail, "one rail: the kit's is the shell's")
+    }
+
+    @Test fun everyModeIsOnTheSharedNavigationWithItsSmallPlayer() {
+        // Video: its four tabs in the bar or the rail, the capsule above the bar; neither on the watch page or in Shorts.
+        val video = code("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/CosmoVideoApp.kt")
+        assertTrue("com.cosmotune.ui.shell.CosmoNavShell(" in video && "selectedIndex = videoTabIndex(navigator)," in video, "Video's phone shell")
+        assertTrue("val navShown = videoStored && !fullScreen && !onWatch" in video && "showTabs = showTabs, maxWidth = com.cosmotune.ui.shell.CosmoNav.dockMaxWidth(showTabs))" in video)
+        val videoDesktop = code("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/desktop/VideoDesktopEntry.kt")
+        assertTrue("com.cosmotune.ui.shell.CosmoNavShell(" in videoDesktop && "navigation = compact," in videoDesktop, "a narrow desktop window: the bar, or the rail from 600 dp")
+        // Watch: Home, Live TV, Search, My list; its small player in the dock.
+        val watch = code("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/WatchApp.kt")
+        assertTrue("com.cosmotune.ui.shell.CosmoNavShell(" in watch && "WatchMiniPlayer(keptPlayback, fonts, look, docked = true)" in watch)
+        // Podio: four tabs (Following with its new episodes), its mini player above the bar, its full player bar beside the rail.
+        val podio = code("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/podio/ui/PodioApp.kt")
+        assertTrue("private val NAV_SECTIONS = listOf(PodioSection.RADIO, PodioSection.PODCASTS, PodioSection.FOLLOWING, PodioSection.DOWNLOADS)" in podio)
+        assertTrue("val tabs = navTabs(newEpisodes(m, env).size)" in podio && "com.cosmotune.ui.shell.CosmoNavShell(" in podio, "Following carries its count")
+        assertTrue("if (playerBar) PodioPlayerBar(" in podio && "KitNavRail(" !in podio, "the shell's rail, with the full player bar under the page")
+        // Read and Manga: the bar (or the rail) and Music's small player, which their hosts hand in.
+        val frame = code("manga/src/jvmSharedMain/kotlin/com/cosmotune/manga/ui/ReadKit.kt")
+        assertTrue("com.cosmotune.ui.shell.CosmoNavShell(" in frame && "val music = com.cosmotune.ui.shell.LocalCosmoMusicMini.current" in frame && "song = music?.song," in frame)
+        assertFalse("ReadChip(mangaText(tab), tab == selected" in frame, "no tab chips any more")
+        val manga = code("manga/src/jvmSharedMain/kotlin/com/cosmotune/manga/ui/MangaApp.kt")
+        assertTrue("ReadModeFrame(MangaTabs.bar," in manga && "counts = mapOf(MangaTabs.UPDATES to newChapters)," in manga, "Updates carries the new chapters")
+        val phone = SourceContract.read("app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt")
+        assertEquals(2, Regex(Regex.escape("com.cosmotune.ui.shell.LocalCosmoMusicMini provides rememberPhoneMusicMini(shell.settings)")).findAll(phone).count(), "the phone hands Read and Manga Music's player")
+        val desktop = SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt")
+        assertTrue("com.cosmotune.ui.shell.LocalCosmoMusicMini provides musicMini," in desktop, "and so does the desktop")
+        assertTrue("== com.cosmotune.design.AppMode.MUSIC) com.cosmotune.ui.shell.CosmoNavRail(" in desktop, "the frame's rail is Music's alone; the other modes draw their own")
+        assertTrue("showNavigation = podioCompact, followModeNav = true," in desktop, "Podio in a narrow desktop window has its navigation")
     }
 
     @Test fun placeholdersTakeThePagesShape() {

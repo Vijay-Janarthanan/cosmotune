@@ -360,7 +360,7 @@ class ShellStructureTest {
         assertTrue("navigator.push(VideoRoute.Watch(it.videoId))" in tabs, "a tap on the mini player opens the watch page")
         assertTrue("playback.togglePlayPause()" in tabs && "playback.playNext()" in tabs && "onClose = { playback.stop() }" in tabs)
         assertTrue("ownMedia = true" in tabs, "the shared mini player owes nothing to Music's player here")
-        assertTrue("dark = onShorts" in tabs && "onShorts -> TAB_SHORTS" in tabs, "next to the pager the dock is dark, with Shorts chosen")
+        assertTrue("dark = onShorts" in tabs && "navigator.top is VideoRoute.Shorts -> TAB_SHORTS" in tabs, "next to the pager the dock is dark, with Shorts chosen")
         // nothing else in the module draws the chrome, and Video has no mini player of its own
         for (other in listOf(app, shell("VideoPageChrome"), desktop("VideoDesktopEntry"))) assertFalse("CosmoBottomChrome(" in VideoSourceContract.code(other))
         for (gone in listOf("VideoMiniPlayer", "VideoCapsule")) assertFalse(java.io.File(VideoSourceContract.root, "$shellDir/$gone.kt").exists(), "$gone is gone: the dock's mini player is the one drawn")

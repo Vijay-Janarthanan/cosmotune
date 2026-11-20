@@ -142,14 +142,19 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             androidx.activity.compose.BackHandler { shell.settings.setMode(AppMode.MUSIC) }
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
-            // Manga, Read and Watch paint no ground of their own; the window under them is black in both themes.
-            com.cosmotune.ui.theme.ModeGround { com.cosmotune.manga.ui.MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
+            // Manga, Read and Watch paint no ground of their own; the window under them is black in both themes. Music's small player
+            // stands above their bar, so music (or a podcast) that keeps playing has its control on screen.
+            CompositionLocalProvider(com.cosmotune.ui.shell.LocalCosmoMusicMini provides rememberPhoneMusicMini(shell.settings)) {
+                com.cosmotune.ui.theme.ModeGround { com.cosmotune.manga.ui.MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
+            }
         }
         else if (shell != null && mode == AppMode.READ) holder.SaveableStateProvider("read") {
             androidx.activity.compose.BackHandler { shell.settings.setMode(AppMode.MUSIC) }
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
-            com.cosmotune.ui.theme.ModeGround { com.cosmotune.reading.ui.ReadApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
+            CompositionLocalProvider(com.cosmotune.ui.shell.LocalCosmoMusicMini provides rememberPhoneMusicMini(shell.settings)) {
+                com.cosmotune.ui.theme.ModeGround { com.cosmotune.reading.ui.ReadApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
+            }
         }
         else if (shell != null && mode == AppMode.PODIO) holder.SaveableStateProvider("podio") {
             val request = MusicLink.pending.collectAsStateWithLifecycle()
@@ -194,6 +199,34 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     // The picture-in-picture window is the app: a film or a song's video kept there after its page went (a link switched the
     // mode) is drawn over everything, so the small window keeps showing it.
     com.cosmotune.ui.pip.PipKeptPicture()
+}
+
+/**
+ * Music's player for Read's and Manga's dock ([com.cosmotune.ui.shell.LocalCosmoMusicMini]): the music service's controller, as
+ * Podio's page binds it, so what keeps playing under those modes (a song, an episode, a station) has its small player. Play and
+ * next go to the service; a tap opens the player where it lives: Podio's for an episode or a station, Music's for a song (Music
+ * becomes the mode and its root opens Now Playing, as a widget tap does).
+ */
+@Composable
+private fun rememberPhoneMusicMini(settings: CosmoLookSettings): com.cosmotune.ui.shell.CosmoMusicMini {
+    val controller = com.cosmotune.music.playback.rememberMediaController()
+    val state = com.cosmotune.music.playback.rememberPlayerState(controller)
+    return com.cosmotune.ui.shell.CosmoMusicMini(
+        song = state.song,
+        isPlaying = state.isPlaying,
+        isLoading = state.isLoading,
+        position = state.position,
+        durationMs = state.durationMs,
+        onPlayPause = { controller?.let { if (it.isPlaying) it.pause() else it.play() } },
+        onNext = { controller?.seekToNextMediaItem() },
+        onExpand = {
+            if (state.song?.videoId?.startsWith("podio:") == true) settings.setMode(AppMode.PODIO)
+            else {
+                settings.setMode(AppMode.MUSIC)
+                com.cosmotune.music.playback.PlayerDeepLink.request()
+            }
+        },
+    )
 }
 
 /**

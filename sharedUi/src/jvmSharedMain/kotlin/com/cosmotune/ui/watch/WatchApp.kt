@@ -17,6 +17,10 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -28,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,11 +50,9 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.blocks.LocalModeProfileAction
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.kit.KitModeSwitcher
-import com.cosmotune.ui.orbit.OrbitChipRow
 import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitLabel
 import com.cosmotune.ui.orbit.OrbitLook
-import com.cosmotune.ui.orbit.OrbitSelectChip
 import com.cosmotune.ui.orbit.WatchRoundButton
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
@@ -66,7 +69,9 @@ import kotlinx.coroutines.launch
 /**
  * Watch mode (Canvas repo, design/cosmotune/watch-orbit/board.html): films, series and live TV from the plugins that are on. The
  * page shown is the top of [WatchNav]'s stack (a film or series page, the player) or else the tab. On the desktop the sidebar
- * carries the tabs ([showNavigation] false); on the phone the page starts with the mode pill and the tabs as chips. Wide (840 dp
+ * carries the tabs ([showNavigation] false); on the phone (and a narrow desktop window) the page starts with the mode pill and the
+ * tabs stand in the shared navigation ([com.cosmotune.ui.shell.CosmoNavShell]: the bottom bar under 600 dp with the small player
+ * above it, the rail from 600 dp), on every page but the player. Wide (840 dp of page
  * and up) lays cards side by side as the board does; narrower stacks them. [wideLayout], when set, decides that instead of the width (the TV,
  * which draws the pages larger, keeps the side-by-side layout).
  *
@@ -114,22 +119,38 @@ fun WatchApp(
     val actions = remember(repository, scope, room, downloads) { WatchActions(repository, scope, room, downloads) }
     androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.orbit.LocalWatchCardScale provides preferences.density.scale) {
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val wide = wideLayout ?: (maxWidth >= 840.dp)
         val top = stack.lastOrNull()
+        // The navigation rule (CosmoNav): with [showNavigation], the bottom bar under 600 dp and the rail from 600 dp, on every page
+        // but the player, which has the whole window.
+        val navShown = showNavigation && top !is WatchRoute.Play
+        val railShown = navShown && com.cosmotune.ui.shell.CosmoNav.usesRail(maxWidth)
+        val pageWidth = if (railShown) maxWidth - com.cosmotune.ui.shell.CosmoNav.RAIL_WIDTH_DP.dp else maxWidth
+        val wide = wideLayout ?: (pageWidth >= 840.dp)
         val header: (@Composable () -> Unit)? = when {
             top != null -> ({ WatchBackHeader(when { top is WatchRoute.Playlists -> "Watch playlists"; top is WatchRoute.Page && top.summary.type == TitleType.SERIES -> "Series"; else -> "Film" }, fonts, look) })
             // Downloads, Plugins and Settings are reached from the profile menu on the phone: they come back with a back button.
             showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader(if (tab == WatchTab.SETTINGS) "Watch settings" else tab.label, fonts, look) })
-            showNavigation -> ({ WatchPhoneHeader(tab, fonts, look) })
+            showNavigation -> ({ WatchPhoneHeader(fonts, look) })
             else -> null
         }
         // The small player: a film or an episode closed while it plays goes on in the capsule at the foot of every page.
         val keepsPlaying = keptPlayback != null && !pageUnderPlayer
         val mini = keepsPlaying && top !is WatchRoute.Play && keptPlayback != null && watchMiniShown(keptPlayback)
-        val padding = if (!mini) contentPadding else PaddingValues(
-            start = contentPadding.calculateStartPadding(LayoutDirection.Ltr), top = contentPadding.calculateTopPadding(),
-            end = contentPadding.calculateEndPadding(LayoutDirection.Ltr), bottom = contentPadding.calculateBottomPadding() + WATCH_MINI_ROOM,
-        )
+        // What the dock takes from the foot of the window (its gap to the edge included), measured.
+        var dockPx by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        val dock = with(androidx.compose.ui.platform.LocalDensity.current) { dockPx.toDp() }
+        val padding = when {
+            // Beside the rail the page starts at the rail (which keeps the cut-out clear), and above the dock it ends at the dock.
+            navShown -> PaddingValues(
+                start = if (railShown) 0.dp else contentPadding.calculateStartPadding(LayoutDirection.Ltr), top = contentPadding.calculateTopPadding(),
+                end = contentPadding.calculateEndPadding(LayoutDirection.Ltr), bottom = maxOf(contentPadding.calculateBottomPadding(), dock) + 8.dp,
+            )
+            !mini -> contentPadding
+            else -> PaddingValues(
+                start = contentPadding.calculateStartPadding(LayoutDirection.Ltr), top = contentPadding.calculateTopPadding(),
+                end = contentPadding.calculateEndPadding(LayoutDirection.Ltr), bottom = contentPadding.calculateBottomPadding() + WATCH_MINI_ROOM,
+            )
+        }
         val frame = WatchFrame(
             wide = wide,
             side = side ?: 16.dp,
@@ -137,29 +158,63 @@ fun WatchApp(
             header = if (onScrolled == null) header else ({ WatchScrollMark(contentPadding, onScrolled) { header?.invoke() } }),
             filterChips = filterChips,
         )
-        androidx.compose.runtime.CompositionLocalProvider(LocalWatchKeepsPlaying provides keepsPlaying) {
-        when (top) {
-            is WatchRoute.Playlists -> WatchPlaylistsPage(top.id, actions, fonts, look, frame)
-            is WatchRoute.Play -> WatchPlayerPage(top, actions, fonts, look, frame)
-            is WatchRoute.Page -> WatchTitlePage(top.summary, actions, fonts, look, frame)
-            null -> when (tab) {
-                WatchTab.HOME -> WatchHomePage(null, actions, fonts, look, frame)
-                WatchTab.FILMS -> WatchHomePage(com.cosmotune.watch.HomeFilter.FILMS, actions, fonts, look, frame)
-                WatchTab.SERIES -> WatchHomePage(com.cosmotune.watch.HomeFilter.SERIES, actions, fonts, look, frame)
-                WatchTab.LIVE -> WatchLivePage(actions, fonts, look, frame)
-                WatchTab.SEARCH -> WatchSearchPage(actions, fonts, look, frame)
-                WatchTab.MY_LIST -> WatchMyListPage(actions, fonts, look, frame)
-                WatchTab.DOWNLOADS -> WatchDownloadsPage(actions, fonts, look, frame)
-                WatchTab.PLUGINS -> WatchPluginsPage(fonts, look, frame)
-                WatchTab.SETTINGS -> WatchSettingsPage(fonts, look, frame)
+        val pages: @Composable () -> Unit = {
+            androidx.compose.runtime.CompositionLocalProvider(LocalWatchKeepsPlaying provides keepsPlaying) {
+            when (top) {
+                is WatchRoute.Playlists -> WatchPlaylistsPage(top.id, actions, fonts, look, frame)
+                is WatchRoute.Play -> WatchPlayerPage(top, actions, fonts, look, frame)
+                is WatchRoute.Page -> WatchTitlePage(top.summary, actions, fonts, look, frame)
+                null -> when (tab) {
+                    WatchTab.HOME -> WatchHomePage(null, actions, fonts, look, frame)
+                    WatchTab.FILMS -> WatchHomePage(com.cosmotune.watch.HomeFilter.FILMS, actions, fonts, look, frame)
+                    WatchTab.SERIES -> WatchHomePage(com.cosmotune.watch.HomeFilter.SERIES, actions, fonts, look, frame)
+                    WatchTab.LIVE -> WatchLivePage(actions, fonts, look, frame)
+                    WatchTab.SEARCH -> WatchSearchPage(actions, fonts, look, frame)
+                    WatchTab.MY_LIST -> WatchMyListPage(actions, fonts, look, frame)
+                    WatchTab.DOWNLOADS -> WatchDownloadsPage(actions, fonts, look, frame)
+                    WatchTab.PLUGINS -> WatchPluginsPage(fonts, look, frame)
+                    WatchTab.SETTINGS -> WatchSettingsPage(fonts, look, frame)
+                }
+            }
             }
         }
+        if (showNavigation) {
+            // The bar or the rail: Home, Live TV, Search and My list (Films and Series light Home, whose own chips they are; a page
+            // opened over a tab lights that tab; Downloads, Plugins and Settings, which the profile menu opens, light none). The
+            // small player stands above the bar, or alone along the foot beside the rail.
+            val lit = if (tab == WatchTab.FILMS || tab == WatchTab.SERIES) WatchTab.HOME else tab
+            val tabs = watchNavTabs()
+            com.cosmotune.ui.shell.CosmoNavShell(
+                windowWidth = maxWidth,
+                tabs = tabs,
+                selectedIndex = WATCH_PHONE_TABS.indexOf(lit),
+                onTabSelected = { WatchNav.go(WATCH_PHONE_TABS[it]) },
+                navigation = navShown,
+                bottomChrome = { showTabs, _ ->
+                    if (top !is WatchRoute.Play) com.cosmotune.ui.shell.CosmoBottomChrome(
+                        tabs = tabs, selectedIndex = WATCH_PHONE_TABS.indexOf(lit), onTabSelected = { WatchNav.go(WATCH_PHONE_TABS[it]) },
+                        song = null, isPlaying = false, isLoading = false, position = remember { com.cosmotune.music.playback.PlaybackPosition() },
+                        durationMs = 0L, onPlayPause = {}, onNext = {}, onExpand = {}, controlsLocked = false, onBlockedControl = {},
+                        hazeState = null, onHeightChanged = { dockPx = it },
+                        modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = com.cosmotune.ui.shell.CosmoNav.dockMaxWidth(showTabs)).fillMaxWidth(),
+                        // Without a shell (a render, a test) the dock is drawn as Music's, since it draws only for the stored mode.
+                        mode = if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) com.cosmotune.design.AppMode.MUSIC else com.cosmotune.design.AppMode.WATCH,
+                        miniPlayer = if (mini && keptPlayback != null) ({ WatchMiniPlayer(keptPlayback, fonts, look, docked = true) }) else null,
+                        showTabs = showTabs,
+                        ownMedia = true,
+                    )
+                },
+            ) {
+                pages()
+                // The phone's pages scroll under the status bar: a solid band of the ground keeps the clock readable and keeps the titles
+                // from showing through under it; it fades out only below the bar.
+                WatchStatusBand(look, Modifier.align(Alignment.TopCenter))
+            }
+        } else {
+            pages()
+            if (mini && keptPlayback != null) WatchMiniPlayer(keptPlayback, fonts, look,
+                Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 8.dp))
         }
-        if (mini && keptPlayback != null) WatchMiniPlayer(keptPlayback, fonts, look,
-            Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 8.dp))
-        // The phone's pages scroll under the status bar: a solid band of the ground keeps the clock readable and keeps the titles
-        // from showing through under it; it fades out only below the bar.
-        if (showNavigation) WatchStatusBand(look, Modifier.align(Alignment.TopCenter))
         pending?.let { link -> WatchInstallSheet(link, fonts, look, onDone = { WatchNav.pendingInstall.value = null }) }
         // A link opened from outside (an intent, the system's URL handler, a second launch): its Install or pack sheet.
         when (val link = opened) {
@@ -272,20 +327,33 @@ internal class WatchActions(
 internal fun WatchWash(color: Color, look: OrbitLook, modifier: Modifier = Modifier) =
     com.cosmotune.ui.orbit.OrbitPageWash(color, modifier, height = 620.dp, look = look, darkAlpha = 0.55f, lightAlpha = 0.22f, tail = 0.33f)
 
-/** The tabs of the phone's head, in the order the bottom bar will have them; Films and Series are Home's own chips. */
+/** The tabs of the bottom bar and the rail, in their order; Films and Series are Home's own chips. */
 internal val WATCH_PHONE_TABS = listOf(WatchTab.HOME, WatchTab.LIVE, WatchTab.SEARCH, WatchTab.MY_LIST)
+
+/** [WATCH_PHONE_TABS] as the bar's and the rail's tabs: each its name and its two icons (outlined at rest, filled when chosen). */
+@Composable
+private fun watchNavTabs(): List<com.cosmotune.ui.shell.CosmoTab> = remember {
+    val outlined = androidx.compose.material.icons.Icons.Outlined
+    val filled = androidx.compose.material.icons.Icons.Filled
+    WATCH_PHONE_TABS.map { tab ->
+        when (tab) {
+            WatchTab.HOME -> com.cosmotune.ui.shell.CosmoTab(tab.label, CosmoIcons.Home, CosmoIcons.HomeFill)
+            WatchTab.LIVE -> com.cosmotune.ui.shell.CosmoTab(tab.label, outlined.LiveTv, filled.LiveTv)
+            WatchTab.SEARCH -> com.cosmotune.ui.shell.CosmoTab(tab.label, CosmoIcons.Search, CosmoIcons.Search)
+            else -> com.cosmotune.ui.shell.CosmoTab(tab.label, outlined.BookmarkBorder, filled.Bookmark)
+        }
+    }
+}
 
 /** The pages the profile menu opens on the phone (they are not tabs there). */
 internal val WATCH_MENU_PAGES = setOf(WatchTab.DOWNLOADS, WatchTab.PLUGINS, WatchTab.SETTINGS)
 
 /**
  * The phone's head of every tab: the mode pill, the Watch profile button (its menu holds Downloads, Plugins and Settings) and the
- * account button when the host gives one, the Live pill, then the four tabs (Home, Live TV, Search, My list) as chips. Films and
- * Series light Home, whose own chips they are.
+ * account button when the host gives one, then the Live pill. The tabs themselves are the bottom bar's (or the rail's).
  */
 @Composable
-private fun WatchPhoneHeader(tab: WatchTab, fonts: OrbitFonts, look: OrbitLook) {
-    val lit = if (tab == WatchTab.FILMS || tab == WatchTab.SERIES) WatchTab.HOME else tab
+private fun WatchPhoneHeader(fonts: OrbitFonts, look: OrbitLook) {
     Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             KitModeSwitcher()
@@ -295,9 +363,6 @@ private fun WatchPhoneHeader(tab: WatchTab, fonts: OrbitFonts, look: OrbitLook) 
         }
         // The Live pill under the top bar, when something followed is live (the phone's; nothing elsewhere).
         com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp))
-        OrbitChipRow(16.dp, Modifier.padding(top = 12.dp)) {
-            WATCH_PHONE_TABS.forEach { t -> OrbitSelectChip(t.label, t == lit, fonts, look, onClick = { WatchNav.go(t) }, haptic = false) }
-        }
     }
 }
 

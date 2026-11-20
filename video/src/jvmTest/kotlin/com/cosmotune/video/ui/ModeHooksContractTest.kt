@@ -178,9 +178,15 @@ class ModeHooksContractTest {
 
     @Test fun theMusicPlayerBarAndSidePanelStandAsideWhileTheModeIsVideo() {
         val chrome = read(desktopDir + "CosmoDesktopChrome.kt")
+        // Read and Manga keep Music's bar under their pages (music plays on under them), except while their reader is open.
+        val bar = VideoSourceContract.functionBody(chrome, "CosmoDesktopPlayerBarHost")
         assertEquals(
-            "if (com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopWatchShown()) return",
-            VideoSourceContract.firstStatement(VideoSourceContract.functionBody(chrome, "CosmoDesktopPlayerBarHost")),
+            "val reading = com.cosmotune.video.host.desktopMangaShown() && com.cosmotune.video.host.DesktopModeHost.readerOpen",
+            VideoSourceContract.firstStatement(bar),
+        )
+        assertTrue(
+            "if (com.cosmotune.video.host.desktopVideoShown() || reading || com.cosmotune.video.host.desktopWatchShown()) return" in bar,
+            "Video and Watch play their own media: the bar stands aside",
         )
         val panel = read(desktopDir + "CosmoDesktopSidePanel.kt")
         assertEquals(

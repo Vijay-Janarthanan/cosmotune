@@ -74,7 +74,10 @@ class WatchPagesContractTest {
         assertEquals(listOf(WatchTab.HOME, WatchTab.LIVE, WatchTab.SEARCH, WatchTab.MY_LIST), com.cosmotune.ui.watch.WATCH_PHONE_TABS)
         assertEquals(setOf(WatchTab.DOWNLOADS, WatchTab.PLUGINS, WatchTab.SETTINGS), com.cosmotune.ui.watch.WATCH_MENU_PAGES)
         val app = read(dir + "WatchApp.kt")
-        assertTrue("WATCH_PHONE_TABS.forEach { t -> OrbitSelectChip(t.label, t == lit" in app, "the head shows the four tabs, not every page")
+        assertFalse("WATCH_PHONE_TABS.forEach { t -> OrbitSelectChip(" in app, "the tabs are no longer chips in the head")
+        assertTrue("com.cosmotune.ui.shell.CosmoNavShell(" in app && "selectedIndex = WATCH_PHONE_TABS.indexOf(lit)," in app && "onTabSelected = { WatchNav.go(WATCH_PHONE_TABS[it]) }," in app,
+            "the four tabs stand in the shared bottom bar (or the rail from 600 dp)")
+        assertTrue("navigation = navShown," in app && "val navShown = showNavigation && top !is WatchRoute.Play" in app, "on every page but the player")
         assertFalse("WatchTab.entries.forEach" in app, "no chip for every page any more")
         for (entry in listOf("OrbitMenuItem(\"Downloads\"", "OrbitMenuItem(\"Plugins\"", "OrbitMenuItem(\"Settings\"")) assertTrue(entry in app, "the profile menu has $entry")
         assertTrue("showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader(" in app, "the menu's pages come back with a back button")
@@ -132,6 +135,8 @@ class WatchPagesContractTest {
         assertTrue("if (!keepsPlaying && (!route.attached || returned)" in page, "where Watch draws the small player the page does not stop the film")
         val app = read(dir + "WatchApp.kt")
         assertTrue("val mini = keepsPlaying && top !is WatchRoute.Play" in app && "WatchMiniPlayer(keptPlayback" in app, "the capsule shows over every other page")
+        assertTrue("miniPlayer = if (mini && keptPlayback != null) ({ WatchMiniPlayer(keptPlayback, fonts, look, docked = true) }) else null," in app,
+            "on the phone it stands in the dock, above the bottom bar")
         assertTrue("onDispose { if (keptPlayback != null && !pageUnderPlayer) stopWhenLeaving(keptPlayback) }" in app, "leaving Watch stops it")
         val mini = read(dir + "WatchMiniPlayer.kt")
         assertTrue("WatchNav.showPlaying(target, summary)" in mini, "a tap reopens the player on what plays")

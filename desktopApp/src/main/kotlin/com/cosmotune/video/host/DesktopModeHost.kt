@@ -39,6 +39,9 @@ object DesktopModeHost {
     @Volatile var podioActive: Boolean = false
     @Volatile var watchActive: Boolean = false
 
+    /** True while Read's or Manga's reader is open: the music player bar, which stands under their pages, steps aside for it. */
+    var readerOpen: Boolean by mutableStateOf(false)
+
     /**
      * A video waiting to be opened, set by the host when Music asks for one ("Watch the music video", Y-26). It is snapshot state, so a
      * request that arrives while Video is open is noticed; [DesktopVideoPage]'s links read it and clear it when the page is opened.
@@ -114,10 +117,11 @@ fun DesktopWatchPage(contentPadding: PaddingValues) {
     }
     com.cosmotune.ui.watch.ProvideWatch(repository = repository, playback = playback, downloads = downloads, roomPacks = roomPacks, linkHandler = linkHandler,
         qrCode = { payload, size -> com.cosmotune.music.desktop.DesktopQrCode(payload, size) }) {
-        // A compact window has no sidebar: the page then carries its own tabs, as on the phone.
+        // A compact window has no sidebar: the page then carries its own navigation, as on the phone (the bottom bar under 600 dp, the
+        // rail from 600 dp), and keeps no room for Music's dock, which does not draw in Watch.
         androidx.compose.foundation.layout.BoxWithConstraints {
             val compact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
-            com.cosmotune.ui.watch.WatchApp(contentPadding = contentPadding, showNavigation = compact)
+            com.cosmotune.ui.watch.WatchApp(contentPadding = modePagePadding(contentPadding, compact), showNavigation = compact)
         }
     }
 }
@@ -156,13 +160,23 @@ fun DesktopMangaPage(contentPadding: PaddingValues) {
     val shell = LocalCosmoShell.current ?: return
     val mode = shell.settings.mode.collectAsState().value
     // The sidebar carries the tabs on the desktop, so the pages draw no tabs of their own; a compact window has no sidebar, and
-    // the page then carries its tab chips, as Watch does and as on the phone. The tab is the same either way (ModeNav).
+    // the page then carries its own navigation with Music's small player (LocalCosmoMusicMini, from the root), as Watch does and as
+    // on the phone. The tab is the same either way (ModeNav). While a chapter or a book is open the music player bar stands aside.
     androidx.compose.foundation.layout.BoxWithConstraints {
         val compact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
-        if (mode == AppMode.READ) com.cosmotune.reading.ui.ReadApp(contentPadding = contentPadding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact)
-        else com.cosmotune.manga.ui.MangaApp(contentPadding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact)
+        val padding = modePagePadding(contentPadding, compact)
+        val reader: (Boolean) -> Unit = { DesktopModeHost.readerOpen = it }
+        if (mode == AppMode.READ) com.cosmotune.reading.ui.ReadApp(contentPadding = padding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact, onReaderVisibility = reader)
+        else com.cosmotune.manga.ui.MangaApp(padding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact, onReaderVisibility = reader)
     }
 }
+
+/**
+ * The padding a mode page that draws its own navigation gets: in a compact window the frame keeps room for Music's dock, which
+ * does not draw in the other modes, so the page keeps only the top; a wide window's padding (the player bar's room) is kept.
+ */
+internal fun modePagePadding(contentPadding: PaddingValues, compact: Boolean): PaddingValues =
+    if (compact) PaddingValues(top = contentPadding.calculateTopPadding()) else contentPadding
 
 /**
  * Video's page in the window's content area, with the desktop's links: leave for Music, "play as a song" (the mode becomes Music, then

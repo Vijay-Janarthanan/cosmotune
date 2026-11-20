@@ -30,12 +30,8 @@ import com.cosmotune.design.AppMode
 import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.ui.player.PlayerBackHandler
 import com.cosmotune.podio.*
-import com.cosmotune.ui.blocks.LocalModeProfileAction
 import com.cosmotune.ui.blocks.ModeNav
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.kit.KitModeSwitcher
-import com.cosmotune.ui.kit.KitNavRail
-import com.cosmotune.ui.kit.KitTextButton
 import com.cosmotune.ui.room.roomItem
 import com.cosmotune.ui.shell.CosmoBottomChrome
 import com.cosmotune.ui.shell.CosmoTab
@@ -58,17 +54,24 @@ private fun tabOf(section: PodioSection): CosmoTab = when (section) {
     PodioSection.DOWNLOADS -> CosmoTab(section.label, CosmoIcons.Download, CosmoIcons.Downloaded)
 }
 
-/** The phone's dock carries four sections (the Globe opens full screen from Radio); a tablet's rail carries all five. */
-private val DOCK_SECTIONS = listOf(PodioSection.RADIO, PodioSection.PODCASTS, PodioSection.FOLLOWING, PodioSection.DOWNLOADS)
-private val DOCK_TABS = DOCK_SECTIONS.map(::tabOf)
-private val RAIL_TABS = PodioSection.entries.map(::tabOf)
+/**
+ * The bottom bar and the rail carry the same four sections: Radio, Podcasts, Following (with its count of new episodes) and
+ * Downloads. The Globe is opened from Radio (full screen on a phone) and lights Radio.
+ */
+private val NAV_SECTIONS = listOf(PodioSection.RADIO, PodioSection.PODCASTS, PodioSection.FOLLOWING, PodioSection.DOWNLOADS)
+
+/** [NAV_SECTIONS] as tabs, Following carrying [following] (the new episodes of the shows followed; 0 for none). */
+private fun navTabs(following: Int): List<CosmoTab> = NAV_SECTIONS.map { section ->
+    tabOf(section).let { if (section == PodioSection.FOLLOWING) it.copy(count = following) else it }
+}
 
 /**
  * The same account-free radio/podcast mode is used by Android and every desktop target, in Orbit (Canvas repo,
- * design/cosmotune/batch-be/board.html, section C), laid out by the window: on a phone the page with the shared dock (the mini
- * player over four labelled tabs, the Globe full screen from Radio); from 600 dp the rail with all five sections and the player
- * bar along the foot. On the desktop ([showNavigation] false) the sidebar chooses the section ([ModeNav]) and the host's frame
- * holds the page.
+ * design/cosmotune/batch-be/board.html, section C), laid out by the window on the shared navigation
+ * ([com.cosmotune.ui.shell.CosmoNavShell]): under 600 dp the page with the shared dock (the mini player over the four tabs, the
+ * Globe full screen from Radio); from 600 dp the rail with the same four tabs and the full player bar along the foot. On a wide
+ * desktop window ([showNavigation] false) the sidebar chooses the section ([ModeNav]) and the host's frame holds the page; a host
+ * that keeps the section in [ModeNav] while it also shows the navigation (a narrow desktop window) passes [followModeNav].
  */
 @Composable
 fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -> Unit,
@@ -78,6 +81,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     padding: PaddingValues = PaddingValues(), directory: PodioCatalogue? = null,
     /** False on the desktop, where the sidebar chooses Radio, Podcasts, Globe, Following and Downloads (see [ModeNav]). */
     showNavigation: Boolean = true,
+    /** The section and the open station page are [ModeNav]'s even while the page shows its own navigation (the desktop). */
+    followModeNav: Boolean = false,
     /** The desktop's volume (0..1) and a way to set it; null on the phone, where the volume keys do it. */
     volume: Float = 1f, onVolume: ((Float) -> Unit)? = null,
     /** Opens the application's settings; kept for hosts that pass it (the account menu reaches Settings). */
@@ -121,22 +126,24 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     m.host = host
     val queued by m.queue.state.collectAsUiState()
 
-    // The section: the dock's or the rail's tab here, the sidebar's row on the desktop.
+    // The section: the dock's or the rail's tab here, the sidebar's row on the desktop (the same channel in a narrow desktop window).
+    val local = showNavigation && !followModeNav
     var localSection by rememberSaveable { mutableStateOf(PodioSection.RADIO) }
     val sidebarTab by ModeNav.podioTab.collectAsState()
     val sidebarSaved by ModeNav.podioSaved.collectAsState()
-    val section = if (showNavigation) localSection else PodioFormat.section(sidebarTab, sidebarSaved)
+    val section = if (local) localSection else PodioFormat.section(sidebarTab, sidebarSaved)
     val globeView = rememberGlobeView()
     var compactLayout by remember { mutableStateOf(false) }
     fun chooseSection(next: PodioSection) {
         // The phone has no Globe tab: the Globe opens full screen over Radio.
-        if (next == PodioSection.GLOBE && compactLayout) { localSection = PodioSection.RADIO; m.globeFull = true; return }
-        if (showNavigation) localSection = next else { ModeNav.podioTab.value = next.label; ModeNav.podioSaved.value = false }
+        val shown = if (next == PodioSection.GLOBE && compactLayout) PodioSection.RADIO else next
+        if (local) localSection = shown else { ModeNav.podioTab.value = shown.label; ModeNav.podioSaved.value = false }
+        if (shown != next) m.globeFull = true
     }
     var localDetail by rememberSaveable { mutableStateOf(false) }
     val sidebarDetail by ModeNav.podioDetail.collectAsState()
-    val detailOpen = if (showNavigation) localDetail else sidebarDetail
-    fun setDetail(open: Boolean) { if (showNavigation) localDetail = open else ModeNav.podioDetail.value = open }
+    val detailOpen = if (local) localDetail else sidebarDetail
+    fun setDetail(open: Boolean) { if (local) localDetail = open else ModeNav.podioDetail.value = open }
     val searchFocus = remember { FocusRequester() }
     fun openSearch() { m.searchShows = section == PodioSection.PODCASTS || section == PodioSection.FOLLOWING; m.searching = true }
     fun closeSearch() { m.searching = false; m.query = ""; m.browse() }
@@ -151,8 +158,9 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         withContext(Dispatchers.Main.immediate) { if (stationsWanted || showsWanted) m.loadDirectory(stations = stationsWanted) }
     }
     var inboxRequest by remember { mutableIntStateOf(0) }
-    // Following lists the new episodes of the followed shows, and the Podcasts home what was started of them.
-    val inboxWanted = section == PodioSection.FOLLOWING || section == PodioSection.PODCASTS
+    // Following lists the new episodes of the followed shows, and the Podcasts home what was started of them; the Following tab
+    // counts the new ones, so the list is asked for (from its cache while that is fresh) wherever something is followed.
+    val inboxWanted = section == PodioSection.FOLLOWING || section == PodioSection.PODCASTS || saved.shows.isNotEmpty()
     LaunchedEffect(inboxWanted, saved.shows, saved.inboxEpisodesPerShow, inboxRequest) {
         if (inboxWanted) withContext(Dispatchers.Main.immediate) { m.loadInbox(saved.shows, force = inboxRequest > 0, episodeLimit = saved.inboxEpisodesPerShow) }
     }
@@ -213,11 +221,11 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         val density = LocalDensity.current
         // The dock steps aside for the full-screen globe only (design system 4.16).
         val dockShown = compact && !m.globeFull
-        val bottom = if (compact) with(density) { dockPx.toDp() } + 16.dp else 16.dp
+        val bottom = if (dockShown) with(density) { dockPx.toDp() } + 16.dp else 16.dp
         val head = rememberLivePlayheadOf(playback.positionMs, playback.playing && !playback.loading, playback.rate, playback.id)
         val env = PodioEnv(saved, playback, downloadedEpisodes, episodeDownloadStatus, episodeDownloadsRunning, bottom,
-            // The rail carries the account (or the way back to Music) on a tablet; the page's head does elsewhere.
-            onMusic.takeIf { compact || !showNavigation },
+            // The page's head carries the account (or the way back to Music) at every width.
+            onMusic,
             ::chooseSection, wide = !compact, onToggle = onToggle, head = head, onSeek = onSeek, queue = queued)
         // The player bar along the foot of the wide layouts: an episode anywhere; a station where no page shows its card.
         val stationCardShown = live && (detailOpen && playingStation != null ||
@@ -263,36 +271,44 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             Box(Modifier.weight(1f).fillMaxWidth()) { content(); banner(Modifier.align(Alignment.BottomCenter)) }
             if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live },
                 queued = queued.entries.size, onQueue = ::openQueue)
-        } else if (!compact) Row(Modifier.fillMaxSize().padding(padding).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))) {
-            KitNavRail(RAIL_TABS, section.ordinal, { chooseSection(PodioSection.entries[it]) }, Modifier.fillMaxHeight().windowInsetsPadding(WindowInsets.statusBars), header = {
-                KitModeSwitcher(collapsed = true)
-                val account = LocalModeProfileAction.current
-                if (account != null) account() else if (onMusic != null) KitTextButton("Music", onMusic)
-                Spacer(Modifier.height(12.dp))
-            })
-            Column(Modifier.weight(1f).fillMaxHeight()) {
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    CompositionLocalProvider(LocalModeProfileAction provides null) { content() }
-                    banner(Modifier.align(Alignment.BottomCenter))
+        } else {
+            // The shared navigation (CosmoNav): under 600 dp the dock (Podio's mini player above the four tabs), from 600 dp the rail with
+            // the same tabs and the full player bar under the page. The page leads with the mode pill at every width, as every mode's does.
+            val tabs = navTabs(newEpisodes(m, env).size)
+            val lit = NAV_SECTIONS.indexOf(if (section == PodioSection.GLOBE) PodioSection.RADIO else section)
+            com.cosmotune.ui.shell.CosmoNavShell(
+                windowWidth = maxWidth,
+                tabs = tabs,
+                selectedIndex = lit,
+                onTabSelected = { chooseSection(NAV_SECTIONS[it]) },
+                modifier = Modifier.padding(padding),
+                // The full-screen globe has the whole window.
+                navigation = !(compact && m.globeFull),
+                bottomChrome = { showTabs, _ ->
+                    if (showTabs) Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+                        banner(Modifier)
+                        // Without a shell (no theme above: a test, a preview) the dock is drawn as Music's, since it draws only for the stored mode.
+                        CosmoBottomChrome(
+                            tabs = tabs, selectedIndex = lit, onTabSelected = { chooseSection(NAV_SECTIONS[it]) },
+                            song = null, isPlaying = playback.playing, isLoading = playback.loading, position = remember { PlaybackPosition() }, durationMs = playback.durationMs,
+                            onPlayPause = onToggle, onNext = {}, onExpand = { if (live) setDetail(true) else m.playerSheet = true },
+                            controlsLocked = false, onBlockedControl = {}, hazeState = null, onHeightChanged = { dockPx = it },
+                            modifier = Modifier.fillMaxWidth(), mode = if (LocalCosmoShell.current == null) AppMode.MUSIC else AppMode.PODIO,
+                            miniPlayer = if (podio) ({ PodioMiniPlayer(playback, playingStation, song, nowArt ?: playingStation?.artwork ?: playingEntry?.show?.artwork, onToggle,
+                                onOpen = { if (live) setDetail(true) else m.playerSheet = true }, onSeek = onSeek, queued = queued.entries.size, onQueue = ::openQueue) }) else null,
+                        )
+                    }
+                },
+            ) {
+                // One tree at every width (the player bar joins it beside the rail), so the page keeps its state when the window turns.
+                Column(Modifier.fillMaxSize().then(if (compact) Modifier else Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End + WindowInsetsSides.Bottom)))) {
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        CompositionLocalProvider(LocalPodioModeSwitcher provides true) { content() }
+                        if (!compact) banner(Modifier.align(Alignment.BottomCenter))
+                    }
+                    if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live },
+                        queued = queued.entries.size, onQueue = ::openQueue)
                 }
-                if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live },
-                    queued = queued.entries.size, onQueue = ::openQueue)
-            }
-        } else Box(Modifier.fillMaxSize().padding(padding)) {
-            CompositionLocalProvider(LocalPodioModeSwitcher provides true) { content() }
-            if (dockShown) Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-                banner(Modifier)
-                // The shared dock (design system 4.16): Podio's mini player above four tabs. Without a shell (no theme above: a test,
-                // a preview) it is drawn as Music's, since the dock draws only for the stored mode.
-                CosmoBottomChrome(
-                    tabs = DOCK_TABS, selectedIndex = DOCK_SECTIONS.indexOf(section).coerceAtLeast(0), onTabSelected = { chooseSection(DOCK_SECTIONS[it]) },
-                    song = null, isPlaying = playback.playing, isLoading = playback.loading, position = remember { PlaybackPosition() }, durationMs = playback.durationMs,
-                    onPlayPause = onToggle, onNext = {}, onExpand = { if (live) setDetail(true) else m.playerSheet = true },
-                    controlsLocked = false, onBlockedControl = {}, hazeState = null, onHeightChanged = { dockPx = it },
-                    modifier = Modifier.fillMaxWidth(), mode = if (LocalCosmoShell.current == null) AppMode.MUSIC else AppMode.PODIO,
-                    miniPlayer = if (podio) ({ PodioMiniPlayer(playback, playingStation, song, nowArt ?: playingStation?.artwork ?: playingEntry?.show?.artwork, onToggle,
-                        onOpen = { if (live) setDetail(true) else m.playerSheet = true }, onSeek = onSeek, queued = queued.entries.size, onQueue = ::openQueue) }) else null,
-                )
             }
         }
         if (m.playerSheet && podio && !live) EpisodePlayerSheet(playback, nowArt ?: playingEntry?.item()?.artwork, onToggle, onSeek, onSpeed, timer,

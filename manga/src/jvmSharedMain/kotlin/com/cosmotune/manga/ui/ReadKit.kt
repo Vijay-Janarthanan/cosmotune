@@ -30,7 +30,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,11 +47,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.disabled
-import androidx.compose.foundation.horizontalScroll
 import com.cosmotune.ui.orbit.OrbitCardChip
 import com.cosmotune.ui.orbit.OrbitCardColors
 import com.cosmotune.ui.orbit.OrbitProgressLine
@@ -119,9 +123,12 @@ internal val ReadGutter = 16.dp
 internal val ReadPosterMin = 100.dp
 
 /**
- * A mode's frame. With [showNavigation] (the phone and the tablet) the page starts with the mode pill and the account button,
- * then the tabs as chips; the desktop's sidebar carries the tabs, so there the page alone. The page gets the room it keeps free
- * at its bottom (the navigation bar and a gutter).
+ * A mode's frame. With [showNavigation] (the phone, the tablet, a narrow desktop window) the mode's tabs stand in the shared
+ * navigation ([com.cosmotune.ui.shell.CosmoNavShell]: the bottom bar under 600 dp, the rail from 600 dp) with Music's small player
+ * ([com.cosmotune.ui.shell.LocalCosmoMusicMini]) above the bar or along the foot beside the rail, and a root page ([showHead])
+ * starts with the mode pill and the account button. Without it (the desktop's sidebar carries the tabs) the page alone. [counts]
+ * puts a count on a tab (Manga's Updates). The page gets the room it keeps free at its bottom (the dock or the navigation bar,
+ * and a gutter).
  */
 @Composable
 internal fun ReadModeFrame(
@@ -129,36 +136,84 @@ internal fun ReadModeFrame(
     selected: String,
     onSelect: (String) -> Unit,
     showNavigation: Boolean,
+    showHead: Boolean,
     onMusic: (() -> Unit)?,
     showAccount: Boolean,
     modifier: Modifier = Modifier,
+    counts: Map<String, Int> = emptyMap(),
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    // The status bar is kept clear on every page, not only the tabs' (a series, a catalogue and a search have no tab head to carry
-    // it), so no page's head is drawn under the clock.
-    Column(modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
-        if (showNavigation) {
-            Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalAlignment = Alignment.CenterVertically) {
-                    LocalReadModeSwitcher.current?.invoke()
-                    Spacer(Modifier.weight(1f))
-                    if (showAccount) ReadAccountAction(onMusic)
-                }
-                com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = ReadMargin).padding(top = 12.dp))
-                // The chosen tab is scrolled into view, so History or Sources on a narrow phone is never off the edge.
-                val row = androidx.compose.foundation.rememberScrollState()
-                val starts = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
-                androidx.compose.runtime.LaunchedEffect(selected, starts[selected]) { starts[selected]?.let { row.animateScrollTo((it - row.viewportSize / 3).coerceAtLeast(0)) } }
-                Row(Modifier.fillMaxWidth().padding(top = 12.dp).horizontalScroll(row).padding(horizontal = ReadMargin), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tabs.forEach { tab ->
-                        ReadChip(mangaText(tab), tab == selected, { onSelect(tab) }, Modifier.onGloballyPositioned { starts[tab] = it.positionInParent().x.toInt() })
+    if (!showNavigation) {
+        // The desktop's sidebar carries the tabs: the page alone.
+        Column(modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
+            Box(Modifier.weight(1f).fillMaxWidth()) { content(PaddingValues(bottom = 24.dp)) }
+        }
+        return
+    }
+    val names = tabs.map { mangaText(if (it == MangaTabs.SOURCES) "More" else it) }
+    val navTabs = remember(tabs, names, counts) { tabs.mapIndexed { index, tab -> readNavTab(tab, names[index], counts[tab]) } }
+    val music = com.cosmotune.ui.shell.LocalCosmoMusicMini.current
+    val stored = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value
+    var dockPx by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val idle = remember { com.cosmotune.music.playback.PlaybackPosition() }
+    val density = LocalDensity.current
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        com.cosmotune.ui.shell.CosmoNavShell(
+            windowWidth = maxWidth,
+            tabs = navTabs,
+            selectedIndex = tabs.indexOf(selected),
+            onTabSelected = { onSelect(tabs[it]) },
+            bottomChrome = { showTabs, _ ->
+                // Music's small player above the bar (Read and Manga play nothing of their own): music that keeps playing has its
+                // control on screen. The dock belongs to whichever of the two modes is stored, so it always draws here.
+                com.cosmotune.ui.shell.CosmoBottomChrome(
+                    tabs = navTabs, selectedIndex = tabs.indexOf(selected), onTabSelected = { onSelect(tabs[it]) },
+                    song = music?.song, isPlaying = music?.isPlaying == true, isLoading = music?.isLoading == true,
+                    position = music?.position ?: idle, durationMs = music?.durationMs ?: 0L,
+                    onPlayPause = { music?.onPlayPause?.invoke() }, onNext = { music?.onNext?.invoke() }, onExpand = { music?.onExpand?.invoke() },
+                    controlsLocked = false, onBlockedControl = {}, hazeState = null, onHeightChanged = { dockPx = it },
+                    modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = com.cosmotune.ui.shell.CosmoNav.dockMaxWidth(showTabs)).fillMaxWidth(),
+                    mode = stored ?: com.cosmotune.design.AppMode.MUSIC,
+                    showTabs = showTabs,
+                    ownMedia = true,
+                )
+            },
+        ) {
+            // The status bar is kept clear on every page, not only the tabs' (a series, a catalogue and a search have no tab head to
+            // carry it), so no page's head is drawn under the clock.
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
+                if (showHead) {
+                    Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalAlignment = Alignment.CenterVertically) {
+                            LocalReadModeSwitcher.current?.invoke()
+                            Spacer(Modifier.weight(1f))
+                            if (showAccount) ReadAccountAction(onMusic)
+                        }
+                        com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = ReadMargin).padding(top = 12.dp))
                     }
                 }
+                // The page ends above the dock (its gap to the window's edge included), with the gutter.
+                val dock = with(density) { dockPx.toDp() }
+                val bottom = maxOf(dock, WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()) + 24.dp
+                Box(Modifier.weight(1f).fillMaxWidth()) { content(PaddingValues(bottom = bottom)) }
             }
         }
-        val bottom = if (showNavigation) WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp else 24.dp
-        Box(Modifier.weight(1f).fillMaxWidth()) { content(PaddingValues(bottom = bottom)) }
     }
+}
+
+/** A tab of Read's or Manga's bar and rail: its [name], its two icons and its count (Manga's Updates: the new chapters). */
+private fun readNavTab(tab: String, name: String, count: Int?): com.cosmotune.ui.shell.CosmoTab {
+    val outlined = androidx.compose.material.icons.Icons.Outlined
+    val filled = androidx.compose.material.icons.Icons.Filled
+    val (icon, chosen) = when (tab) {
+        MangaTabs.UPDATES -> CosmoIcons.Bell to CosmoIcons.BellFill
+        MangaTabs.BROWSE -> CosmoIcons.Explore to CosmoIcons.ExploreFill
+        MangaTabs.HISTORY -> CosmoIcons.Clock to CosmoIcons.Clock
+        MangaTabs.SOURCES -> CosmoIcons.More to CosmoIcons.More
+        BookTabs.BOOKMARKS -> outlined.BookmarkBorder to filled.Bookmark
+        else -> CosmoIcons.Library to CosmoIcons.LibraryFill
+    }
+    return com.cosmotune.ui.shell.CosmoTab(name, icon, chosen, count = count)
 }
 
 /**

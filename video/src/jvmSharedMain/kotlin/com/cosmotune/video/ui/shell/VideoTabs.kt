@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import com.cosmotune.design.AppMode
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.playback.PlaybackPosition
@@ -65,6 +66,26 @@ private const val TAB_SHORTS = 1
 private const val TAB_SUBSCRIPTIONS = 2
 private const val TAB_LIBRARY = 3
 
+/** The tab the bar and the rail light: Shorts while its pager is up, else the stack's tab. */
+internal fun videoTabIndex(navigator: VideoNavigator): Int = when {
+    navigator.top is VideoRoute.Shorts -> TAB_SHORTS
+    else -> when (navigator.tab) {
+        VideoTab.HOME -> TAB_HOME
+        VideoTab.SUBSCRIPTIONS -> TAB_SUBSCRIPTIONS
+        VideoTab.LIBRARY -> TAB_LIBRARY
+    }
+}
+
+/** A tab of the bar or the rail chosen: its stack ([VideoNavigator.selectTab]), or the Shorts pager over the page shown. */
+internal fun selectVideoTab(navigator: VideoNavigator, index: Int) {
+    when (index) {
+        TAB_HOME -> navigator.selectTab(VideoTab.HOME)
+        TAB_SHORTS -> if (navigator.top !is VideoRoute.Shorts) navigator.push(VideoRoute.Shorts(ShortsOrigin.Home))
+        TAB_SUBSCRIPTIONS -> navigator.selectTab(VideoTab.SUBSCRIPTIONS)
+        else -> navigator.selectTab(VideoTab.LIBRARY)
+    }
+}
+
 /**
  * Video's dock (DESIGN_SYSTEM.md 4.16): the shared `CosmoBottomChrome`, with `mode = AppMode.VIDEO` so it draws only while the stored mode
  * is Video, the tabs (when [showTabs]) and, while a video is loaded and [capsuleShown] (the caller says no on the watch page and in
@@ -83,6 +104,7 @@ fun VideoBottomChrome(
     modifier: Modifier = Modifier,
     onHeightChanged: (Int) -> Unit = {},
     showTabs: Boolean = true,
+    maxWidth: Dp = FLOATING_BAR_MAX_WIDTH,
 ) {
     val capsule by rememberVideoCapsule(playback)
     val position = rememberCapsulePosition(playback, capsule)
@@ -97,22 +119,8 @@ fun VideoBottomChrome(
     if (!showTabs && song == null) return
     CosmoBottomChrome(
         tabs = videoTabs(),
-        selectedIndex = when {
-            onShorts -> TAB_SHORTS
-            else -> when (navigator.tab) {
-                VideoTab.HOME -> TAB_HOME
-                VideoTab.SUBSCRIPTIONS -> TAB_SUBSCRIPTIONS
-                VideoTab.LIBRARY -> TAB_LIBRARY
-            }
-        },
-        onTabSelected = { index ->
-            when (index) {
-                TAB_HOME -> navigator.selectTab(VideoTab.HOME)
-                TAB_SHORTS -> if (!onShorts) navigator.push(VideoRoute.Shorts(ShortsOrigin.Home))
-                TAB_SUBSCRIPTIONS -> navigator.selectTab(VideoTab.SUBSCRIPTIONS)
-                else -> navigator.selectTab(VideoTab.LIBRARY)
-            }
-        },
+        selectedIndex = videoTabIndex(navigator),
+        onTabSelected = { index -> selectVideoTab(navigator, index) },
         song = song,
         isPlaying = capsule.playing,
         isLoading = capsule.loading,
@@ -125,7 +133,7 @@ fun VideoBottomChrome(
         onBlockedControl = {},
         hazeState = hazeState,
         onHeightChanged = onHeightChanged,
-        modifier = modifier.widthIn(max = FLOATING_BAR_MAX_WIDTH).fillMaxWidth(),
+        modifier = modifier.widthIn(max = maxWidth).fillMaxWidth(),
         mode = AppMode.VIDEO,
         onClose = { playback.stop() },
         showTabs = showTabs,

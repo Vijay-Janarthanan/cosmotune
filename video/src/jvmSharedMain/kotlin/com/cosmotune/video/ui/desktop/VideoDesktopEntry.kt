@@ -41,6 +41,9 @@ import com.cosmotune.video.ui.local.rememberVideoFilePicker
 import com.cosmotune.video.ui.local.videoDropTarget
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.VideoBottomChrome
+import com.cosmotune.video.ui.shell.videoTabs
+import com.cosmotune.video.ui.shell.videoTabIndex
+import com.cosmotune.video.ui.shell.selectVideoTab
 import com.cosmotune.video.ui.shell.VideoNavHost
 import com.cosmotune.video.ui.shell.rememberVideoCapsule
 import com.cosmotune.video.ui.shell.videoDrawerEntries
@@ -64,7 +67,8 @@ import androidx.compose.runtime.setValue
  * `wide`) on Video's ground, and handles the search shortcut: Ctrl K (Cmd K on macOS) takes the focus to the header's field. The
  * bottom is left to the pages (16 dp): Music's player bar, which
  * the frame reserves room for, stands aside in Video. A window narrower than the desktop's compact width (980 dp) has no sidebar
- * and the frame's bottom bar is Music's, so the page draws the dock itself, and the shortcut opens the search page.
+ * and the frame's bottom bar is Music's, so the page draws its own navigation ([com.cosmotune.ui.shell.CosmoNavShell]: the dock
+ * under 600 dp, the rail from 600 dp, the small player along the foot beside it), and the shortcut opens the search page.
  * The Shorts pager gets the whole page.
  */
 @Composable
@@ -95,7 +99,13 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
     val onWatch = route is VideoRoute.Watch || route is VideoRoute.LocalPlayer
     val capsuleShown = videoLoaded && !onWatch && !fullPage
     var chromePixels by remember { mutableIntStateOf(0) }
-    val chromeHeight = maxOf(ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = capsuleShown).dp, with(density) { chromePixels.toDp() })
+    // A narrow window has no sidebar: the navigation rule (CosmoNav) gives it the bottom bar under 600 dp and the rail from 600 dp.
+    val railed = compact && com.cosmotune.ui.shell.CosmoNav.usesRail(windowWidth)
+    val chromeHeight = when {
+        // Beside the rail only the small player stands along the foot, and nothing while no video is loaded.
+        railed -> if (capsuleShown) with(density) { chromePixels.toDp() } else 0.dp
+        else -> maxOf(ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = capsuleShown).dp, with(density) { chromePixels.toDp() })
+    }
     val frameBottom = contentPadding.calculateBottomPadding()
     val padding = when {
         fullPage -> PaddingValues(bottom = if (compact) chromeHeight else 0.dp)
@@ -130,24 +140,36 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
                 }
             },
     ) {
-        Column(Modifier.fillMaxSize().hazeSource(hazeState).background(Color(LocalCosmoColors.current.palette.backgroundBottom))) {
-            // The header (menu, search, account) stands over every page but the Shorts pager; a narrow window has no guide and no header.
-            if (!compact && !fullPage) VideoDesktopHeader()
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                VideoNavHost(navigator, padding, wide = true)
+        com.cosmotune.ui.shell.CosmoNavShell(
+            windowWidth = windowWidth,
+            tabs = videoTabs(),
+            selectedIndex = videoTabIndex(navigator),
+            onTabSelected = { selectVideoTab(navigator, it) },
+            // A wide window's sidebar carries the tabs.
+            navigation = compact,
+            bottomChrome = { showTabs, _ ->
+                // A narrow window keeps the tabs beside the Shorts pager (it has no sidebar and no Back key): the dock is dark there.
+                if (showTabs || (!fullPage && capsuleShown)) {
+                    VideoBottomChrome(
+                        navigator = navigator,
+                        playback = graph.playback,
+                        hazeState = hazeState,
+                        capsuleShown = capsuleShown,
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                        showTabs = showTabs,
+                        onHeightChanged = { chromePixels = it },
+                        maxWidth = if (railed) com.cosmotune.ui.shell.CosmoNav.dockMaxWidth(false) else com.cosmotune.music.ui.components.FLOATING_BAR_MAX_WIDTH,
+                    )
+                }
+            },
+        ) {
+            Column(Modifier.fillMaxSize().hazeSource(hazeState).background(Color(LocalCosmoColors.current.palette.backgroundBottom))) {
+                // The header (menu, search, account) stands over every page but the Shorts pager; a narrow window has no guide and no header.
+                if (!compact && !fullPage) VideoDesktopHeader()
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    VideoNavHost(navigator, padding, wide = true)
+                }
             }
-        }
-        // A narrow window keeps the tabs beside the Shorts pager (it has no sidebar and no Back key): the dock is dark there.
-        if (compact || (!fullPage && capsuleShown)) {
-            VideoBottomChrome(
-                navigator = navigator,
-                playback = graph.playback,
-                hazeState = hazeState,
-                capsuleShown = capsuleShown,
-                modifier = Modifier.align(Alignment.BottomCenter),
-                showTabs = compact,
-                onHeightChanged = { chromePixels = it },
-            )
         }
         com.cosmotune.video.ui.notice.FirstRunNoticeLayer()
 

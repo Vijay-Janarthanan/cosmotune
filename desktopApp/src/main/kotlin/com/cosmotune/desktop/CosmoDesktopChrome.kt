@@ -154,11 +154,13 @@ private fun DesktopLiveNowPill() {
  * clear of the sidebar (220 dp and a 16 dp margin) and, while [panelOpen] (the lyrics or queue column, 360 dp), of the column
  * (and a 16 dp margin); the margin follows the column as it slides, over the same 260 ms. In a window narrower than 980 dp
  * (compact) the sidebar is gone and the phone's chrome is the bottom bar, so this draws nothing. It draws nothing either while the
- * mode is Video ([com.cosmotune.video.host.desktopVideoShown]): the music player bar stands aside there.
+ * mode is Video or Watch ([com.cosmotune.video.host.desktopVideoShown]), which play their own media: the music player bar stands
+ * aside there. Read and Manga keep it under their pages (music plays on under them), except while their reader is open.
  */
 @Composable
 internal fun CosmoDesktopPlayerBarHost(panelOpen: Boolean, content: @Composable (Modifier) -> Unit) {
-    if (com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopWatchShown()) return
+    val reading = com.cosmotune.video.host.desktopMangaShown() && com.cosmotune.video.host.DesktopModeHost.readerOpen
+    if (com.cosmotune.video.host.desktopVideoShown() || reading || com.cosmotune.video.host.desktopWatchShown()) return
     val reduced = LocalReducedMotion.current
     val end by animateDpAsState(
         if (panelOpen) (ShellMetrics.DESKTOP_SIDE_PANEL_DP + SIDE_MARGIN).dp else SIDE_MARGIN.dp,

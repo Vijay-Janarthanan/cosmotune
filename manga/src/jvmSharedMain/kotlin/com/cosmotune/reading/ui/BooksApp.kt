@@ -182,7 +182,7 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
         return
     }
     MangaBackHandler(!navigation.atRoot || navigation.tab != BookTabs.LIBRARY) { navigation.back() }
-    ReadModeFrame(BookTabs.all, navigation.tab, { navigation.select(it) }, showNavigation && navigation.atRoot, onMusic, showAccount,
+    ReadModeFrame(BookTabs.all, navigation.tab, { navigation.select(it) }, showNavigation, showNavigation && navigation.atRoot, onMusic, showAccount,
         modifier = Modifier.testTag("books:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
         val page = ReadScope(repository, pages, navigation, onMusic, showAccount, bottom, ::action, ::open, { error = it }, busy, pick)

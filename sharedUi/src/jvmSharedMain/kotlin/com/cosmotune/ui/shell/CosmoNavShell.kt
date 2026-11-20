@@ -73,6 +73,12 @@ object CosmoNav {
 
     /** Whether a window [width] wide has the side rail (rather than the bottom bar). */
     fun usesRail(width: Dp): Boolean = width >= RAIL_FROM_DP.dp
+
+    /**
+     * How wide a mode's dock may grow: the phone's 440 dp with its tabs, and 760 dp for the small player alone along the foot of a
+     * page beside the rail (Music's figures).
+     */
+    fun dockMaxWidth(showTabs: Boolean): Dp = if (showTabs) 440.dp else 760.dp
 }
 
 /**
@@ -90,7 +96,9 @@ class CosmoNavSearch(val label: String, val selected: Boolean, val onClick: () -
  * it is given whether to show the tabs and the modifier that places it.
  *
  * The rail is [CosmoNav.RAIL_WIDTH_DP] wide; the page beside it measures the rest, so its own breakpoints see the page, not the
- * window. [windowWidth] is the width the decision is made on (a measured constraint, never the display's).
+ * window. [windowWidth] is the width the decision is made on (a measured constraint, never the display's). [navigation] false
+ * takes the tabs away at every width (a full-screen page: Video's watch page and Shorts, Watch's player); [bottomChrome] is still
+ * called, with its tabs off. Every mode plugs in here the same way (Music, Video, Watch, Podio, Read and Manga).
  */
 @Composable
 fun CosmoNavShell(
@@ -102,18 +110,40 @@ fun CosmoNavShell(
     search: CosmoNavSearch? = null,
     railHeader: (@Composable () -> Unit)? = null,
     railFooter: (@Composable () -> Unit)? = null,
+    navigation: Boolean = true,
     bottomChrome: @Composable BoxScope.(showTabs: Boolean, placement: Modifier) -> Unit = { _, _ -> },
     content: @Composable BoxScope.() -> Unit,
 ) {
     val rail = CosmoNav.usesRail(windowWidth)
     Row(modifier.fillMaxSize()) {
-        if (rail) CosmoNavRail(tabs, selectedIndex, onTabSelected, Modifier.fillMaxHeight(), search, railHeader, railFooter)
+        // The rail comes and goes inside its own group, so the page beside it keeps its state when it does.
+        if (rail && navigation) CosmoNavRail(tabs, selectedIndex, onTabSelected, Modifier.fillMaxHeight(), search, railHeader, railFooter)
         Box(Modifier.weight(1f).fillMaxHeight()) {
             content()
-            bottomChrome(!rail, Modifier.align(Alignment.BottomCenter).fillMaxWidth())
+            bottomChrome(!rail && navigation, Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }
     }
 }
+
+/**
+ * Music's player as the dock of a mode that plays nothing of its own shows it (Read and Manga: music that keeps playing under them
+ * keeps its control on screen): the song, its state and what the small player does. The host that knows Music's player provides
+ * it ([LocalCosmoMusicMini]); [onExpand] opens Music's player (on the phone it makes Music the mode first).
+ */
+@Immutable
+class CosmoMusicMini(
+    val song: com.cosmotune.music.data.model.Song?,
+    val isPlaying: Boolean,
+    val isLoading: Boolean,
+    val position: com.cosmotune.music.playback.PlaybackPosition,
+    val durationMs: Long,
+    val onPlayPause: () -> Unit,
+    val onNext: () -> Unit,
+    val onExpand: () -> Unit,
+)
+
+/** Music's player for another mode's dock, where the host has one to give; null: that dock draws no small player. */
+val LocalCosmoMusicMini = androidx.compose.runtime.compositionLocalOf<CosmoMusicMini?> { null }
 
 /**
  * The side rail (the Music board's 9): 88 dp, on the page's ground with a hairline at its end. From the top: [header] (the mark), the

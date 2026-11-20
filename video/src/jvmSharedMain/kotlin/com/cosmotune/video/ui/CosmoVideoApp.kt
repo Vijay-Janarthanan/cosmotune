@@ -62,6 +62,10 @@ import com.cosmotune.video.ui.shell.rememberVideoCapsule
 import com.cosmotune.video.ui.shell.rememberVideoNavigator
 import com.cosmotune.video.ui.shell.routeTitle
 import com.cosmotune.video.ui.shell.videoDrawerEntries
+import com.cosmotune.video.ui.shell.videoTabs
+import com.cosmotune.video.ui.shell.videoTabIndex
+import com.cosmotune.video.ui.shell.selectVideoTab
+import com.cosmotune.ui.theme.LocalCosmoShell
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.flow.filterNotNull
@@ -78,7 +82,8 @@ import androidx.compose.runtime.setValue
  *
  * It provides [LocalVideoGraph] and [LocalVideoNavigator] and draws, on the flat page ground: the nav host with the content padding
  * of the top bar and the dock; the shared top bar ([CosmoTopBar]); and the shared dock ([VideoBottomChrome], with the mini player in it
- * while a video is loaded). The watch page has neither bar nor dock, as a full-screen surface (DESIGN_SYSTEM.md 4.16, 5.1; its player
+ * while a video is loaded), on the shared navigation ([com.cosmotune.ui.shell.CosmoNavShell]: the four tabs in the bar under 600 dp,
+ * in the rail from 600 dp with the mini player alone along the foot). The watch page has neither bar nor dock, as a full-screen surface (DESIGN_SYSTEM.md 4.16, 5.1; its player
  * stands under the status bar); the Shorts pager has no top bar, no dock and no padding (spec 5.15). The system Back key pops a page; a
  * video waiting in [VideoHostLinks.pendingVideo] opens its watch page. A playing video changes no colour here.
  *
@@ -118,8 +123,18 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
     val capsule = rememberVideoCapsule(graph.playback)
     val videoLoaded by remember(capsule) { derivedStateOf { capsule.value.song != null } }
     val capsuleShown = videoLoaded && !onWatch && !fullScreen
+    // The navigation rule (CosmoNav): the bottom bar under 600 dp, the rail from 600 dp; neither on the watch page or in Shorts. They
+    // draw for the stored mode only, as the dock always has (a host that draws Video under another mode, the TV, keeps its own).
+    val videoStored = LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value == com.cosmotune.design.AppMode.VIDEO
+    val navShown = videoStored && !fullScreen && !onWatch
+    val railShown = navShown && com.cosmotune.ui.shell.CosmoNav.usesRail(windowWidth)
+    val pageWidth = if (railShown) windowWidth - com.cosmotune.ui.shell.CosmoNav.RAIL_WIDTH_DP.dp else windowWidth
     var chromePixels by remember { mutableIntStateOf(0) }
-    val chromeHeight = maxOf(ShellMetrics.phoneChromeHeightDp(navigationInsetDp, withMiniPlayer = capsuleShown).dp, with(density) { chromePixels.toDp() })
+    val chromeHeight = when {
+        // Beside the rail only the small player stands along the foot, and nothing while no video is loaded.
+        railShown -> if (capsuleShown) with(density) { chromePixels.toDp() } else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        else -> maxOf(ShellMetrics.phoneChromeHeightDp(navigationInsetDp, withMiniPlayer = capsuleShown).dp, with(density) { chromePixels.toDp() })
+    }
     val contentPadding = when {
         fullScreen -> PaddingValues()
         onWatch -> PaddingValues(bottom = PAGE_GAP + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
@@ -136,8 +151,22 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
     val palette = LocalCosmoColors.current.palette
 
     Box(modifier.fillMaxSize().background(Color(palette.backgroundBottom))) {
+    // Video's tabs in the bar (with the small player above it) or the rail (the small player alone along the foot of the page).
+    com.cosmotune.ui.shell.CosmoNavShell(
+        windowWidth = windowWidth,
+        tabs = videoTabs(),
+        selectedIndex = videoTabIndex(navigator),
+        onTabSelected = { selectVideoTab(navigator, it) },
+        navigation = navShown,
+        bottomChrome = { showTabs, _ ->
+            if (!fullScreen && !onWatch) {
+                VideoBottomChrome(navigator, graph.playback, hazeState, capsuleShown, Modifier.align(Alignment.BottomCenter), onHeightChanged = { chromePixels = it },
+                    showTabs = showTabs, maxWidth = com.cosmotune.ui.shell.CosmoNav.dockMaxWidth(showTabs))
+            }
+        },
+    ) {
         Box(Modifier.fillMaxSize().hazeSource(hazeState).nestedScroll(tracker.connection)) {
-            VideoNavHost(navigator, contentPadding, wide = windowWidth.value >= VideoMetrics.WIDE_MIN_DP)
+            VideoNavHost(navigator, contentPadding, wide = pageWidth.value >= VideoMetrics.WIDE_MIN_DP)
         }
         if (!fullScreen && !onWatch) {
             VideoBar(
@@ -150,10 +179,8 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
-        if (!fullScreen && !onWatch) {
-            VideoBottomChrome(navigator, graph.playback, hazeState, capsuleShown, Modifier.align(Alignment.BottomCenter), onHeightChanged = { chromePixels = it })
-        }
-        com.cosmotune.video.ui.notice.FirstRunNoticeLayer()
+    }
+    com.cosmotune.video.ui.notice.FirstRunNoticeLayer()
 
     }
 }

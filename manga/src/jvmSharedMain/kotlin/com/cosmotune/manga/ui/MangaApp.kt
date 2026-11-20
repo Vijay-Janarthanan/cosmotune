@@ -218,7 +218,10 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
         }
         return
     }
-    ReadModeFrame(MangaTabs.all, navigation.tab, { navigation.select(it) }, showNavigation && navigation.atRoot, onMusic, showAccount,
+    // The bar and the rail: Library, Updates (its count: the new chapters), Browse, History and More (the sources and their settings).
+    val newChapters = remember(state) { mangaUpdateDays(state).sumOf { it.entries.size } }
+    ReadModeFrame(MangaTabs.bar, navigation.tab, { navigation.select(it) }, showNavigation, showNavigation && navigation.atRoot, onMusic, showAccount,
+        counts = mapOf(MangaTabs.UPDATES to newChapters),
         modifier = Modifier.testTag("manga:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
         val pageScope = MangaScope(repository, navigation, transfer, updates, onMusic, showAccount, bottom, ::action, ::openBook) { error = it }

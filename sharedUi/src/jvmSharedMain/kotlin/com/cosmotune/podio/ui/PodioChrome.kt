@@ -69,7 +69,7 @@ internal class PodioEnv(
     fun playedFraction(): Float? = playback.durationMs.takeIf { it > 0 }?.let { head?.fraction(it) ?: (playback.positionMs.toFloat() / it).coerceIn(0f, 1f) }
 }
 
-/** Whether Podio's pages lead with the mode pill: on the phone yes; the rail and the desktop sidebar have their own. */
+/** Whether Podio's pages lead with the mode pill: wherever the page shows its own navigation (at every width); the desktop sidebar has its own. */
 internal val LocalPodioModeSwitcher = staticCompositionLocalOf { false }
 
 /**

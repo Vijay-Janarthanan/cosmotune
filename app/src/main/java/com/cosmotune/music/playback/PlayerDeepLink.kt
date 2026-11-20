@@ -52,4 +52,12 @@ object PlayerDeepLink {
     fun handled() {
         _pending.value = false
     }
+
+    /**
+     * Asks for the player from inside the app: the small player of another mode (Read, Manga), which makes Music the mode and then
+     * has Music's root open its player, as a widget tap does.
+     */
+    fun request() {
+        _pending.value = true
+    }
 }

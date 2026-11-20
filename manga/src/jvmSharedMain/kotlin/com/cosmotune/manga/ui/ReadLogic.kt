@@ -30,6 +30,9 @@ internal object MangaTabs {
     const val HISTORY = "History"
     val all = listOf(LIBRARY, UPDATES, BROWSE, SOURCES, HISTORY)
 
+    /** The bottom bar's and the rail's order (the Manga board): Sources stands last, under the name More. */
+    val bar = listOf(LIBRARY, UPDATES, BROWSE, HISTORY, SOURCES)
+
     /** A tab name from the shared channel; one this mode does not have (Read's "Bookmarks", the old "Home") maps onto its own. */
     fun of(name: String): String = when (name) {
         in all -> name

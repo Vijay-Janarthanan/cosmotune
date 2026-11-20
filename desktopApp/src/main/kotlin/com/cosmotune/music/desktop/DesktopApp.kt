@@ -3588,7 +3588,18 @@ fun CosmotuneDesktopApp() {
                 )
             }
         }
+        // Music's small player for the dock of a mode that plays nothing of its own (Read and Manga, in a narrow window): what plays on
+        // under them keeps its control. A tap opens the player where it lives: Podio's for an episode or a station, else Music's.
+        val musicMini = com.cosmotune.ui.shell.CosmoMusicMini(
+            song = selectedSong, isPlaying = playback.isPlaying, isLoading = playback.isLoading, position = playerPosition,
+            durationMs = playback.durationMs, onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() }, onNext = { playNext() },
+            onExpand = {
+                if (selectedSong?.videoId?.startsWith("podio:") == true) cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO)
+                else { cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC); overlays.nowPlaying = true }
+            },
+        )
         CompositionLocalProvider(
+            com.cosmotune.ui.shell.LocalCosmoMusicMini provides musicMini,
             com.cosmotune.ui.room.LocalRoomLauncher provides roomLauncher,
             com.cosmotune.ui.home.LocalElsewhere provides elsewhereOffer,
             // White on the dark theme; the light theme keeps the look's own ink.
@@ -3815,7 +3826,9 @@ fun CosmotuneDesktopApp() {
                     )
                 },
                 rail = {
-                    com.cosmotune.ui.shell.CosmoNavRail(
+                    // Music's rail. Every other mode's page draws its own navigation in a narrow window (CosmoNavShell), so the frame
+                    // has no rail for it.
+                    if ((cosmoShell?.settings?.mode?.collectAsState()?.value ?: com.cosmotune.design.AppMode.MUSIC) == com.cosmotune.design.AppMode.MUSIC) com.cosmotune.ui.shell.CosmoNavRail(
                         tabs = desktopMusicTabs(),
                         selectedIndex = MUSIC_DOCK.indexOf(destination),
                         onTabSelected = { index -> selectDestination(MUSIC_DOCK[index]) },
@@ -3947,7 +3960,11 @@ fun CosmotuneDesktopApp() {
                                 com.cosmotune.ui.blocks.ModeNav.podioTab.value = "Radio"; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = false
                                 com.cosmotune.ui.blocks.ModeNav.podioDetail.value = true
                                 cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO)
-                            } else overlays.nowPlaying = true
+                            } else {
+                                // Under Read and Manga the bar is Music's: its player opens in Music.
+                                if (cosmoShell?.settings?.mode?.value.let { it == com.cosmotune.design.AppMode.READ || it == com.cosmotune.design.AppMode.MANGA }) cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC)
+                                overlays.nowPlaying = true
+                            }
                         },
                                 onBlockedControl = {},
                                 hazeState = LocalDesktopHaze.current,
@@ -4335,7 +4352,9 @@ fun CosmotuneDesktopApp() {
                     // An episode as the desktop player takes it: from its downloaded file when there is one.
                     fun podioSong(item: com.cosmotune.podio.PodioItem): Song =
                         com.cosmotune.podio.PodioDownloads.withOfflinePath(item.song(), downloads.firstOrNull { it.videoId == item.id })
-                    return@DesktopFrame com.cosmotune.podio.ui.PodioApp(
+                    return@DesktopFrame BoxWithConstraints {
+                    val podioCompact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
+                    com.cosmotune.podio.ui.PodioApp(
                         storage = com.cosmotune.podio.PodioLibrary.desktopFile(),
                         playback = com.cosmotune.podio.ui.PodioPlayback(playback.song?.videoId, playback.song?.title.orEmpty(), playback.song?.artist.orEmpty(),
                             playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playback.error, rate = playbackEngine.playbackRate),
@@ -4365,8 +4384,10 @@ fun CosmotuneDesktopApp() {
                         },
                         onToggle = ::togglePlayPauseFromUser,
                         onSeek = playbackEngine::seekTo, onSpeed = playbackEngine::setPlaybackSpeed,
-                        padding = contentPadding,
-                        showNavigation = false,
+                        // Music's dock, which the frame keeps room for in a narrow window, does not draw in Podio.
+                        padding = if (podioCompact) PaddingValues(top = contentPadding.calculateTopPadding()) else contentPadding,
+                        // A narrow window has no sidebar: Podio draws its own navigation there, its section still ModeNav's.
+                        showNavigation = podioCompact, followModeNav = true,
                         volume = volume, onVolume = { volume = it },
                         onSettings = ::openSettings,
                         sleepTimerMinutes = sleepTimerMinutes, sleepAfterEpisode = sleepAfterTrack,
@@ -4400,6 +4421,7 @@ fun CosmotuneDesktopApp() {
                             }
                         },
                     )
+                    }
                 }
                 // Desktop pages start at the same top edge as Library. Only preserve space for the
                 // floating player/navigation bar at the bottom in compact windows.

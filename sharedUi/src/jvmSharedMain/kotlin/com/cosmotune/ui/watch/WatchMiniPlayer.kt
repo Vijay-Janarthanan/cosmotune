@@ -77,9 +77,10 @@ internal fun stopWhenLeaving(playback: WatchPlayback) {
  * The small player after the player page closes (board: "Mini player after closing the player"): one 64 dp capsule in the
  * picture's colour above the foot of the page, with the still, the title over the episode line, play or pause, and close (which
  * stops the film and saves where it was); a thin line along its foot says how far. A tap reopens the player page on what plays.
+ * [docked]: it stands in the dock, above the bottom bar (or alone beside the rail), which gives it its width and its sides.
  */
 @Composable
-internal fun WatchMiniPlayer(playback: WatchPlayback, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+internal fun WatchMiniPlayer(playback: WatchPlayback, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, docked: Boolean = false) {
     val player = playback.player
     val state by player.state.collectAsState()
     val snapshot by player.engine.snapshot.collectAsState()
@@ -97,7 +98,7 @@ internal fun WatchMiniPlayer(playback: WatchPlayback, fonts: OrbitFonts, look: O
         }
     }
     Box(
-        modifier.padding(horizontal = 12.dp).widthIn(max = 640.dp).fillMaxWidth().height(64.dp).testTag("watch:mini")
+        (if (docked) modifier.fillMaxWidth() else modifier.padding(horizontal = 12.dp).widthIn(max = 640.dp).fillMaxWidth()).height(64.dp).testTag("watch:mini")
             .clip(RoundedCornerShape(30.dp)).background(fill)
             .clickable(onClickLabel = "Open the player", role = Role.Button) { WatchNav.showPlaying(target, summary) },
     ) {
