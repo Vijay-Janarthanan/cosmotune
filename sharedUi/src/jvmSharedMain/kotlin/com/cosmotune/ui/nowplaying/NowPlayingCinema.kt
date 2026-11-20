@@ -41,6 +41,8 @@ internal fun NowPlayingCinema(
     hasPrevious: Boolean,
     hasNext: Boolean,
     onLeave: () -> Unit,
+    /** Picture in picture where the device has it (the screen menu's own item); null hides it. */
+    pictureInPicture: (() -> Unit)? = null,
 ) {
     FullScreenWindow(onExit = onLeave) {
         FullScreenPlayer(
@@ -48,6 +50,8 @@ internal fun NowPlayingCinema(
             position = { t.live?.positionMs() ?: t.position.positionMs }, durationMs = t.durationMs,
             onPlayPause = t.onPlayPause, onSeek = onSeek, onLeave = onLeave,
             transport = FullScreenTransport.Tracks(t.onPrevious, t.onNext, hasPrevious, hasNext),
+            // The song's video follows the song, so there is no 2x here; picture in picture where the device has it.
+            actions = listOfNotNull(pictureInPicture?.let { enter -> com.cosmotune.ui.orbit.OrbitMenuItem("Picture in picture", "A small floating video, the music plays on", com.cosmotune.ui.components.CosmoIcons.Pip, onClick = enter) }),
             picture = { fill, modifier ->
                 Box(modifier) {
                     // Under the video until its first frame is on screen, and whenever the video has nothing to show (the song

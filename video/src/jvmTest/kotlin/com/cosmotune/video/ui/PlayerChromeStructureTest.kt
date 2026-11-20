@@ -195,7 +195,8 @@ class PlayerChromeStructureTest {
         val skip = VideoSourceContract.code(file("SkipSegmentButton"))
         assertTrue("stringResource(Res.string.video_skip_segment, stringResource(segmentName(segment.category)))" in skip)
         val gestures = VideoSourceContract.code(file("PlayerGestures"))
-        assertTrue("contentDescription = label" in gestures, "the meter says what it is")
+        assertTrue("label = stringResource(if (meter == MeterKind.BRIGHTNESS) Res.string.video_brightness else Res.string.video_volume)" in gestures,
+            "the meter says what it is (the shared kit's LevelMeter names itself with it)")
     }
 
     @Test fun touchTargetsAreFortyEightDp() {
@@ -271,7 +272,10 @@ class PlayerChromeStructureTest {
                 assertTrue("hazeState = null" in call, "$name: a glass surface with a backdrop: $call")
             }
         }
-        assertTrue(seen >= 5, "the bar, bubble, pill, meter and stats card are glass ($seen; the skip toast is a flat Orbit card)")
+        assertTrue(seen >= 4, "the bar, bubble, pill and stats card are glass ($seen; the skip toast is a flat Orbit card)")
+        // The meter is the shared kit's LevelMeter, glass with no backdrop too.
+        val meter = VideoSourceContract.code(read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/fullscreen/FullScreenDevice.kt"))
+        assertTrue(".cosmoGlass(hazeState = null, shape = shape, overVideo = true)" in meter, "the meter is glass with no backdrop")
         assertFalse("HazeState" in allCode, "no haze state in the chrome")
     }
 

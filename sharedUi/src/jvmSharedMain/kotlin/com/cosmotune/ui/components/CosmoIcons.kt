@@ -114,6 +114,11 @@ object CosmoIcons {
         stroke("M19.8 12a7.8 7.8 0 1 1-2.3-5.5M19.8 4.3v3.8H16")
         fill("M7 9h4v7H7v-1.4h2.6v-1.4H7v-1.4h2.6v-1.4H7z M12.5 9h4.5v7h-4.5z M13.9 10.4h1.7v4.2h-1.7z")
     }
+    val Brightness by icon("brightness") {
+        circle(12f, 12f, 3.5f)
+        stroke("M12 3.5V5"); stroke("M12 19v1.5"); stroke("M3.5 12H5"); stroke("M19 12h1.5")
+        stroke("m6 6 1 1"); stroke("m17 17 1 1"); stroke("m6 18 1-1"); stroke("m17 7 1-1")
+    }
     val Replay10 by icon("replay10") {
         stroke("M4.2 12a7.8 7.8 0 1 0 2.3-5.5M4.2 4.3v3.8H8")
         fill("M8.4 9h1.7v7H8.4z M12.5 9h4.5v7h-4.5z M13.9 10.4h1.7v4.2h-1.7z")

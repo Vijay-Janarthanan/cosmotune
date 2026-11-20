@@ -12,6 +12,7 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.CosmoLoadingBlob
 import com.cosmotune.ui.fullscreen.FullScreenMenu
 import com.cosmotune.ui.fullscreen.FullScreenPlayer
+import com.cosmotune.ui.fullscreen.FullScreenSpeed
 import com.cosmotune.ui.fullscreen.FullScreenTransport
 import com.cosmotune.ui.orbit.OrbitMenuItem
 import com.cosmotune.video.player.PlaybackUiState
@@ -34,7 +35,8 @@ import com.cosmotune.video.ui.player.rememberPlayhead
  */
 
 /**
- * Full screen for [playback]: a tap shows the title line (⋯ holds captions, quality and leaving), back and ahead 10 s round play,
+ * Full screen for [playback]: a tap shows the title line (⋯ holds captions, quality, picture in picture ([onEnterPip], where
+ * the device has it) and leaving), back and ahead 10 s round play,
  * and the seek bar (none while live); they hide 3 s after the last touch; a double tap on the left or right third skips 10 s; a
  * pinch fills the screen or gives the picture back its own shape. Over it whatever the controls do: the loading blob, the error
  * with "Try again" (the controls stay up), and SponsorBlock's "Skip". [onExit] leaves; [onBoundsChanged] reports the picture's
@@ -48,7 +50,7 @@ internal fun WatchCinema(
     layout: PlayerLayout,
     onExit: () -> Unit,
     onBoundsChanged: (Rect) -> Unit,
-    @Suppress("UNUSED_PARAMETER") onEnterPip: (() -> Unit)? = null,
+    onEnterPip: (() -> Unit)? = null,
 ) {
     val state by playback.state.collectAsState()
     val failed = state.error != null || state.status == PlayerStatus.ERROR
@@ -68,6 +70,9 @@ internal fun WatchCinema(
         live = state.live,
         holdControls = failed,
         menus = videoMenus(playback, state),
+        // Picture in picture where the device has it; a long press plays at 2x (not live).
+        actions = listOfNotNull(onEnterPip?.let { enter -> OrbitMenuItem("Picture in picture", "A small floating video", CosmoIcons.Pip, onClick = enter) }),
+        speed = if (state.live) null else FullScreenSpeed({ playback.state.value.speed }, playback::setSpeed),
         picture = { fill, modifier ->
             VideoPlayerBox(
                 playback = playback, surface = surface, layout = layout, modifier = modifier, onToggleFullscreen = onExit,

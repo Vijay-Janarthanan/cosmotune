@@ -181,7 +181,10 @@ private const val PINCH_STEP = 1.12f
  * middle, and the seek bar with its times at the bottom (none while [live]). They hide [FULL_SCREEN_HIDE_MS] after the last
  * touch, not while the seek bar is dragged or a menu is open ([holdControls] keeps them up, a failure for example); a tap toggles
  * them, a mouse that moves shows them. A double tap on the left or right third skips [FULL_SCREEN_SKIP_MS] back or ahead, shown
- * as a soft half-circle with the seconds. Keys: Space or K plays and pauses, the arrows or J and L skip, F and Escape leave.
+ * as a soft half-circle with the seconds. A long press plays at 2x while the finger stays down ([speed]; the speed before comes
+ * back on release, with a "2x speed" hint). On a touch screen ([rememberFullScreenDevice]) a vertical drag on the left half sets
+ * the brightness and on the right half the volume, with the level meter at that edge. [actions] are direct lines of the ⋯ menu
+ * (Picture in picture where the platform has it). Keys: Space or K plays and pauses, the arrows or J and L skip, F and Escape leave.
  * [overlay] is drawn over everything and stays when the controls hide (Watch's next-episode countdown and Skip intro, Video's
  * segment skip, a loading or failure note); it is told whether the controls show, so it can sit above the seek bar.
  */
@@ -199,6 +202,8 @@ fun FullScreenPlayer(
     picture: @Composable (fill: Boolean, modifier: Modifier) -> Unit,
     modifier: Modifier = Modifier,
     menus: List<FullScreenMenu> = emptyList(),
+    actions: List<OrbitMenuItem> = emptyList(),
+    speed: FullScreenSpeed? = null,
     live: Boolean = false,
     holdControls: Boolean = false,
     overlay: @Composable BoxScope.(controlsShown: Boolean) -> Unit = {},
@@ -216,6 +221,11 @@ fun FullScreenPlayer(
     val canSkip = !live && durationMs > 0
     val skip: (Long) -> Unit = { delta -> if (canSkip) onSeek((position() + delta).coerceIn(0L, durationMs)) }
     val flash = remember { SkipFlash() }
+    val device = rememberFullScreenDevice()
+    val held = remember { mutableStateOf<Float?>(null) }
+    val meter = remember { mutableStateOf<LevelKind?>(null) }
+    val meterLevel = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val currentSpeed by androidx.compose.runtime.rememberUpdatedState(speed)
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
@@ -249,6 +259,15 @@ fun FullScreenPlayer(
                 .pinchToFill { wanted -> setFill(wanted); shown = false }
                 .pointerInput(canSkip) {
                     detectTapGestures(
+                        onPress = {
+                            tryAwaitRelease()
+                            // A long press holds 2x only while the finger stays down: the speed before comes back.
+                            held.value?.let { before -> currentSpeed?.set(before) }
+                            held.value = null
+                        },
+                        onLongPress = {
+                            currentSpeed?.let { s -> held.value = s.get(); s.set(FULL_SCREEN_HOLD_SPEED) }
+                        },
                         onTap = { shown = !shown; stamp++ },
                         onDoubleTap = { at ->
                             when (tapThird(at.x / size.width)) {
@@ -258,15 +277,25 @@ fun FullScreenPlayer(
                             }
                         },
                     )
-                },
+                }
+                // After the taps, so a drag is taken before the tap detector sees it (and cancels the tap).
+                .levelDrags(device, meter, meterLevel),
         )
         SkipFlashes(flash)
+        if (held.value != null) Text(
+            "2x speed", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 24.dp)
+                .background(Color.Black.copy(alpha = 0.55f), CircleShape).padding(horizontal = 12.dp, vertical = 6.dp).testTag("fullscreen:hold"),
+        )
+        meter.value?.let { kind ->
+            LevelMeter(kind, meterLevel, Modifier.align(if (kind == LevelKind.BRIGHTNESS) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = 24.dp))
+        }
         AnimatedVisibility(shown || holdControls, Modifier.fillMaxSize(), enter = fadeIn(tween(200)), exit = fadeOut(tween(360))) {
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize().background(CONTROLS_SCRIM))
                 Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 24.dp, vertical = 20.dp)) {
                     TitleLine(
-                        title, subtitle, menus, onLeave, onMenuOpen = { menuOpen = it; stamp++ },
+                        title, subtitle, menus, actions, onLeave, onMenuOpen = { menuOpen = it; stamp++ },
                         Modifier.align(Alignment.TopStart).fillMaxWidth(),
                     )
                     CentreControls(transport, playing, canSkip, onPlayPause = { onPlayPause(); stamp++ }, skip = { skip(it); stamp++ }, Modifier.align(Alignment.Center))
@@ -293,7 +322,7 @@ private val CONTROLS_SCRIM = Brush.verticalGradient(
 
 /** "Title · subtitle" and ⋯ (the [menus], then "Leave full screen"). */
 @Composable
-private fun TitleLine(title: String, subtitle: String?, menus: List<FullScreenMenu>, onLeave: () -> Unit, onMenuOpen: (Boolean) -> Unit, modifier: Modifier) {
+private fun TitleLine(title: String, subtitle: String?, menus: List<FullScreenMenu>, actions: List<OrbitMenuItem>, onLeave: () -> Unit, onMenuOpen: (Boolean) -> Unit, modifier: Modifier) {
     val fonts = orbitFonts()
     var open by remember { mutableStateOf(false) }
     var page by remember { mutableStateOf<FullScreenMenu?>(null) }
@@ -318,6 +347,7 @@ private fun TitleLine(title: String, subtitle: String?, menus: List<FullScreenMe
                 OrbitMenuItem(item.title, item.detail, item.icon, item.selected, item.enabled, item.keepOpen, item.testTag) { item.onClick(); if (!item.keepOpen) setOpen(false) }
             } else buildList {
                 menus.forEach { m -> add(OrbitMenuItem(m.title, m.detail, m.icon, keepOpen = true, enabled = m.items.isNotEmpty()) { page = m }) }
+                actions.forEach { item -> add(OrbitMenuItem(item.title, item.detail, item.icon, item.selected, item.enabled, false, item.testTag) { setOpen(false); item.onClick() }) }
                 add(OrbitMenuItem("Leave full screen", "Back, Esc or F", CosmoIcons.Expand, testTag = "fullscreen:leave") { setOpen(false); onLeave() })
             }
             OrbitMenu(open, { setOpen(false) }, items, fonts, FullScreenLook, header = shownPage?.title, width = 280.dp)
@@ -426,3 +456,43 @@ private fun BoxScope.SkipFlashes(flash: SkipFlash) {
         }
     }
 }
+
+/**
+ * A vertical drag on the left half sets the brightness and on the right half the volume ([device]'s; nothing where it is null),
+ * showing [meter] at [level] while it lasts. A second finger is a pinch, left to the pinch; a sideways drag is left alone.
+ */
+private fun Modifier.levelDrags(device: FullScreenDevice?, meter: androidx.compose.runtime.MutableState<LevelKind?>, level: androidx.compose.runtime.MutableFloatState): Modifier =
+    if (device == null) this else pointerInput(device) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val height = size.height.coerceAtLeast(1).toFloat()
+            val kind = if (down.position.x < size.width / 2f) LevelKind.BRIGHTNESS else LevelKind.VOLUME
+            val target = if (kind == LevelKind.BRIGHTNESS) device.brightness else device.volume
+            var dragging = false
+            var start = 0f
+            try {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    if (event.changes.count { it.pressed } >= 2 || target == null) break
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!change.pressed) break
+                    val dy = change.position.y - down.position.y
+                    val dx = change.position.x - down.position.x
+                    if (!dragging && kotlin.math.abs(dy) > viewConfiguration.touchSlop && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                        dragging = true
+                        start = target.get()
+                        level.floatValue = start
+                        meter.value = kind
+                    }
+                    if (dragging) {
+                        change.consume()
+                        val next = (start - dy / height).coerceIn(0f, 1f)
+                        level.floatValue = next
+                        target.set(next)
+                    }
+                }
+            } finally {
+                if (dragging) meter.value = null
+            }
+        }
+    }

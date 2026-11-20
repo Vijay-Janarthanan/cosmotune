@@ -71,8 +71,6 @@ private const val ZOOM_CHIP_MS = 1_500L
 private const val ZOOM_IN = 1.1f
 private const val ZOOM_OUT = 0.9f
 private const val METER_EDGE_DP = 24f
-private const val METER_RADIUS_DP = 12f
-private const val METER_ICON_DP = 20f
 private const val METER_PAD_DP = 8f
 private const val HOLD_SPEED = 2f
 private const val HOVER_INPUT_MS = 250L
@@ -328,52 +326,15 @@ internal fun BoxScope.GestureOverlays(feedback: GestureFeedback, metrics: Chrome
 
     val meter = feedback.meter
     if (meter != null && layout == PlayerLayout.FULLSCREEN) {
-        PlayerMeter(
-            kind = meter,
+        // The shared kit's glass meter (the full-screen player's too), at spec 6.5's size, named for assistive technology.
+        com.cosmotune.ui.fullscreen.LevelMeter(
+            kind = if (meter == MeterKind.BRIGHTNESS) com.cosmotune.ui.fullscreen.LevelKind.BRIGHTNESS else com.cosmotune.ui.fullscreen.LevelKind.VOLUME,
             level = feedback.meterLevel,
+            label = stringResource(if (meter == MeterKind.BRIGHTNESS) Res.string.video_brightness else Res.string.video_volume),
+            width = VideoMetrics.METER_W_DP.dp, height = VideoMetrics.METER_H_DP.dp,
             modifier = Modifier
                 .align(if (meter == MeterKind.BRIGHTNESS) Alignment.CenterStart else Alignment.CenterEnd)
                 .padding(horizontal = METER_EDGE_DP.dp),
         )
     }
 }
-
-/**
- * The brightness or volume meter (spec 6.5: a C glass meter 36 x 160, radius 18): the level filled from the bottom in ink, the icon at
- * the foot. The level is read while drawing.
- */
-@Composable
-private fun PlayerMeter(kind: MeterKind, level: androidx.compose.runtime.MutableFloatState, modifier: Modifier) {
-    val colors = LocalCosmoColors.current
-    val shape = remember { RoundedCornerShape(METER_RADIUS_DP.dp) }
-    val label = stringResource(if (kind == MeterKind.BRIGHTNESS) Res.string.video_brightness else Res.string.video_volume)
-    Box(
-        modifier
-            .size(VideoMetrics.METER_W_DP.dp, VideoMetrics.METER_H_DP.dp)
-            .semantics { contentDescription = label }
-            .cosmoGlass(hazeState = null, shape = shape, overVideo = true)
-            .drawBehind {
-                val ink = colors.live(CoverField.TEXT_PRIMARY)
-                val inset = METER_PAD_DP.dp.toPx()
-                val trackTop = inset
-                val trackBottom = size.height - inset - METER_ICON_DP.dp.toPx() - inset
-                val trackH = (trackBottom - trackTop).coerceAtLeast(0f)
-                val w = size.width - 2 * inset
-                val corner = CornerRadius(w / 2f)
-                drawRoundRect(ink.copy(alpha = ink.alpha * REST_TRACK_ALPHA), Offset(inset, trackTop), Size(w, trackH), corner)
-                val filled = trackH * level.floatValue.coerceIn(0f, 1f)
-                if (filled > 0f) drawRoundRect(ink, Offset(inset, trackBottom - filled), Size(w, filled), corner)
-            },
-        contentAlignment = Alignment.BottomCenter,
-    ) {
-        Icon(
-            if (kind == MeterKind.BRIGHTNESS) VideoIcons.Brightness else CosmoIcons.Volume,
-            contentDescription = null,
-            tint = Color(colors.palette.textPrimary),
-            modifier = Modifier.padding(bottom = METER_PAD_DP.dp).size(METER_ICON_DP.dp),
-        )
-    }
-}
-
-/** The meter's empty track: ink at 25 %. */
-private const val REST_TRACK_ALPHA = 0.25f

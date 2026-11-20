@@ -85,11 +85,8 @@ object VideoIcons {
     val PlaylistAdd by icon("playlist-add") { stroke("M4 6.5h11"); stroke("M4 11.5h11"); stroke("M4 16.5h7"); stroke("M17.5 13.5v7"); stroke("M14 17h7") }
     val Bookmark by icon("bookmark") { stroke("M7 4.5h10a1 1 0 0 1 1 1v14l-6-4-6 4v-14a1 1 0 0 1 1-1z") }
     val VolumeOff by icon("volume-off") { stroke("M4 9.6h3.2L11.5 6v12l-4.3-3.6H4z"); stroke("m15.5 9.5 5 5"); stroke("m20.5 9.5-5 5") }
-    val Brightness by icon("brightness") {
-        circle(12f, 12f, 3.5f)
-        stroke("M12 3.5V5"); stroke("M12 19v1.5"); stroke("M3.5 12H5"); stroke("M19 12h1.5")
-        stroke("m6 6 1 1"); stroke("m17 17 1 1"); stroke("m6 18 1-1"); stroke("m17 7 1-1")
-    }
+    /** The shared kit's, which the full-screen player's brightness meter draws too. */
+    val Brightness: ImageVector get() = com.cosmotune.ui.components.CosmoIcons.Brightness
     val Shorts by icon("shorts") { rect(7f, 3.5f, 10f, 17f, 3f); fill("M10.8 9.8v4.4l3.6-2.2z") }
     val Hd by icon("hd") {
         rect(3.5f, 6f, 17f, 12f, 2.5f)

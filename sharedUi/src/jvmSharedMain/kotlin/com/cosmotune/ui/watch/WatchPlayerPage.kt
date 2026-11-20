@@ -111,6 +111,8 @@ internal class WatchPlayerControls(
     val remote: Boolean = false,
     /** Enters picture-in-picture now; null where there is none (no support, or the film plays on a cast receiver). */
     val pictureInPicture: (() -> Unit)? = null,
+    /** The engine's speed, for full screen's long press at 2x; null where it cannot change (a cast receiver). */
+    val speed: com.cosmotune.ui.fullscreen.FullScreenSpeed? = null,
 )
 
 /**
@@ -169,6 +171,7 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
             cast = if (roomOwnsPlayback) null else ({ castOpen = true }),
             remote = castRenderer != null,
             pictureInPicture = if (pip.supported && castRenderer == null) ({ pip.enter(); Unit }) else null,
+            speed = if (castRenderer == null) com.cosmotune.ui.fullscreen.FullScreenSpeed({ player.engine.snapshot.value.speed }, player.engine::setSpeed) else null,
             watchTogether = {
                 val s = player.state.value
                 s.target?.let { t -> actions.watchTogether(t, s.summary ?: route.summary, s.stream, s.durationMs.takeIf { it > 0 } ?: player.engine.snapshot.value.durationMs) }
@@ -709,6 +712,9 @@ private fun WatchFullScreen(
         onPlayPause = controls.playPause, onSeek = controls.seekTo, onLeave = onLeave,
         transport = com.cosmotune.ui.fullscreen.FullScreenTransport.Skip,
         live = state.isLive, holdControls = failed, menus = menus,
+        // Picture in picture where the device has it; a long press plays at 2x (not a live channel).
+        actions = listOfNotNull(controls.pictureInPicture?.let { enter -> OrbitMenuItem("Picture in picture", "The film plays on in a small window", CosmoIcons.Pip, onClick = enter) }),
+        speed = controls.speed.takeIf { !state.isLive },
         picture = { fill, m -> picture(m, 0.dp, if (fill) VideoView.FILL else VideoView.WHOLE) },
         overlay = { shown ->
             WatchLoading(state, fonts)
