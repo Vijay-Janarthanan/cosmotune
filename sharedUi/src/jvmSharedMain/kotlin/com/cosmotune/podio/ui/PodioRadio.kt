@@ -35,7 +35,9 @@ import com.cosmotune.ui.orbit.*
 import com.cosmotune.ui.watch.WatchWash
 
 /** What the radio pages need of the station that is on. */
-internal class OnAir(val station: RadioStation?, val song: String?, val onPrevious: (() -> Unit)?, val onNext: (() -> Unit)?, val onOpen: () -> Unit)
+internal class OnAir(val station: RadioStation?, val song: String?, val onPrevious: (() -> Unit)?, val onNext: (() -> Unit)?, val onOpen: () -> Unit,
+    /** The station Next goes to, named on the card under the buttons ("Next: Station two"). */
+    val nextName: String? = null)
 
 /** The deep colour of a station's card and the ink on it: its logo's colour once known, else the deep form of its own colour. */
 @Composable internal fun stationCardColors(station: RadioStation): OrbitCardColors {
@@ -52,7 +54,7 @@ internal class OnAir(val station: RadioStation?, val song: String?, val onPrevio
  * bite plays it. [large] is the station page's card: from 600 dp the disc stands at the start and the words beside it.
  */
 @Composable internal fun StationCard(station: RadioStation, env: PodioEnv, m: PodioModel, live: Boolean, song: String?, onPrevious: (() -> Unit)?, onNext: (() -> Unit)?,
-    modifier: Modifier = Modifier, label: String = "", large: Boolean = false, onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier, label: String = "", large: Boolean = false, onClick: (() -> Unit)? = null, nextName: String? = null,
     extra: @Composable RowScope.(OrbitCardColors) -> Unit = {}) {
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -86,6 +88,7 @@ internal class OnAir(val station: RadioStation?, val song: String?, val onPrevio
                     color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
                 if (now.isNotBlank()) Text(now, style = fonts.body.copy(fontSize = 14.sp), color = ink.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 8.dp))
+                if (live && onNext != null && !nextName.isNullOrBlank()) OrbitLabel("Next: $nextName", fonts, ink.copy(alpha = 0.7f), Modifier.padding(top = 8.dp).testTag("podio:card:next"))
             }
             val buttons: @Composable (Modifier) -> Unit = { at ->
                 Row(at, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -121,10 +124,6 @@ internal class OnAir(val station: RadioStation?, val song: String?, val onPrevio
     }
 }
 
-/** The discs beside the wide Radio page's card: two rows of three. */
-private const val SIDE_COLUMNS = 3
-private const val SIDE_DISCS = 6
-
 /** How many station records fit a row of [width] with [side] gutters, and how wide each disc is. */
 internal fun stationCells(width: Dp, side: Dp, wide: Boolean): Pair<Int, Dp> {
     val room = width - side * 2
@@ -148,19 +147,21 @@ private fun stationsLine(m: PodioModel): String {
 }
 
 /**
- * Radio (board section C): the heading with Search, the Globe, region and language chips, the station that is on as the colour
- * card (or one to tune in to), your stations beside it (wide) or as discs under it (phone), then every station as a disc.
+ * Radio (board frame 6): the heading with Search; the Globe, region and language chips; the station on air as the colour card (only
+ * while one plays) with "Next: …" under previous and next, the heart and the sleep timer; your stations as small discs; then every
+ * station, as a grid of discs or as rows with place, language and bitrate (the switch beside the title).
  */
-@Composable internal fun RadioPage(m: PodioModel, env: PodioEnv, onAir: OnAir, onSearch: () -> Unit, onGlobe: () -> Unit) {
+@Composable internal fun RadioPage(m: PodioModel, env: PodioEnv, onAir: OnAir, onSearch: () -> Unit, timer: PodioTimer? = null, onGlobe: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val list = rememberLazyListState()
+    var rows by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize().testTag("podio:radio")) {
         val wide = maxWidth >= 840.dp
         val side = orbitPageSide(maxWidth)
         val (columns, cell) = stationCells(maxWidth, side, wide)
         val favourites = env.saved.stations
-        val featured = onAir.station ?: favourites.firstOrNull() ?: m.radio.firstOrNull()
+        val featured = onAir.station
         if (featured != null) WatchWash(stationCardColors(featured).fill, look)
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = env.bottom + 16.dp)) {
             item(key = "head") {
@@ -175,60 +176,54 @@ private fun stationsLine(m: PodioModel): String {
                 }
             }
             if (featured != null) item(key = "card") {
-                val live = onAir.station?.id == featured.id
-                val why = when { live -> ""; favourites.any { it.id == featured.id } -> "Tune in · your station"; else -> "Tune in · popular" }
-                val card: @Composable (Modifier) -> Unit = { at ->
-                    StationCard(featured, env, m, live, onAir.song.takeIf { live }, onAir.onPrevious.takeIf { live }, onAir.onNext.takeIf { live }, at, label = why,
-                        onClick = if (live) onAir.onOpen else null)
-                }
-                if (wide) Row(Modifier.fillMaxWidth().padding(horizontal = side).padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    card(Modifier.weight(1.45f))
-                    Column(Modifier.weight(1f)) {
-                        // Your stations as discs, then the most listened stations near you, so the column is never left empty.
-                        val yours = favourites.filter { it.id != featured.id }
-                        val near = m.radio.filter { s -> s.id != featured.id && favourites.none { it.id == s.id } }
-                        val discs = (yours + near).take(SIDE_DISCS)
-                        val filler = discs.size > yours.size
-                        OrbitPageSection(if (yours.isEmpty()) "Popular near you" else "Your stations",
-                            subtitle = when {
-                                favourites.isEmpty() -> "From Radio Browser"
-                                yours.isEmpty() || !filler -> "${favourites.size} saved"
-                                else -> "${favourites.size} saved · then popular near you"
-                            },
-                            action = if (favourites.size > 1) "All" else null, onAction = { env.chooseSection(PodioSection.FOLLOWING) })
-                        BoxWithConstraints(Modifier.padding(top = 14.dp).fillMaxWidth()) {
-                            val gap = 12.dp
-                            val disc = ((maxWidth - gap * (SIDE_COLUMNS - 1)) / SIDE_COLUMNS - 12.dp).coerceIn(64.dp, 112.dp)
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                discs.chunked(SIDE_COLUMNS).forEach { line ->
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                                        line.forEach { station -> Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) { StationTile(station, env, m, fonts, look, disc) } }
-                                        repeat(SIDE_COLUMNS - line.size) { Spacer(Modifier.weight(1f)) }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else card(Modifier.padding(horizontal = side).padding(top = 20.dp).fillMaxWidth())
+                StationCard(featured, env, m, live = true, onAir.song, onAir.onPrevious, onAir.onNext,
+                    Modifier.padding(horizontal = side).padding(top = 20.dp).fillMaxWidth().then(if (wide) Modifier.widthIn(max = 760.dp) else Modifier),
+                    onClick = onAir.onOpen, nextName = onAir.nextName) { colors -> if (timer != null) SleepTimerChip(timer, episode = false, card = colors) }
             }
-            if (!wide && favourites.isNotEmpty()) item(key = "yours") {
+            if (favourites.isNotEmpty()) item(key = "yours") {
                 Column {
-                    OrbitPageSection("Your stations", Modifier.padding(horizontal = side + 4.dp).padding(top = 30.dp, bottom = 12.dp), subtitle = "${favourites.size} saved")
-                    OrbitShelfRow(side, 8.dp) { items(favourites, key = { "fav-" + it.id }) { station -> StationTile(station, env, m, fonts, look, 84.dp) } }
+                    OrbitPageSection("Your stations", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp), subtitle = "${favourites.size} saved")
+                    OrbitShelfRow(side, 8.dp) { items(favourites, key = { "fav-" + it.id }) { station -> StationTile(station, env, m, fonts, look, if (wide) 84.dp else 68.dp) } }
                 }
             }
             item(key = "stations-title") {
-                OrbitPageSection("Stations", Modifier.padding(horizontal = side + 4.dp).padding(top = 30.dp, bottom = 10.dp), subtitle = stationsLine(m))
+                Row(Modifier.fillMaxWidth().padding(start = side + 4.dp, end = side).padding(top = 24.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OrbitPageSection("Stations", Modifier.weight(1f), subtitle = stationsLine(m))
+                    OrbitPageButton(if (rows) CosmoIcons.Grid else CosmoIcons.List, if (rows) "Show as a grid" else "Show as a list", { rows = !rows },
+                        Modifier.testTag("podio:stations:layout"))
+                }
             }
             when {
-                m.directoryLoading && m.radio.isEmpty() -> item(key = "loading") { PodioSkeletonRows(4, look, side, Modifier.testTag("podio:loading")) }
+                m.directoryLoading && m.radio.isEmpty() -> item(key = "loading") {
+                    if (rows) PodioSkeletonRows(6, look, side, Modifier.testTag("podio:loading")) else DiscSkeletonGrid(columns, cell, side, look, Modifier.testTag("podio:loading"))
+                }
                 m.error != null && m.radio.isEmpty() -> item(key = "error") {
                     PodioMessage("Radio Browser", "Couldn't reach the stations", m.error.orEmpty(), fonts, look, side, "Retry") { m.request++ }
                 }
                 m.radio.isEmpty() -> item(key = "empty") { PodioMessage("Stations", "No stations found", "Try another name, country or language.", fonts, look, side) }
             }
-            stationGrid("s", m.radio.take(400), columns, cell, side, env, m, fonts, look)
+            if (rows) items(m.radio.take(400), key = { "r-" + it.id }) { station ->
+                val current = env.playback.id == station.item().id
+                StationRow(station, env.saved.stations.any { it.id == station.id }, current, current && env.playback.playing, { m.playStation(station) },
+                    { m.toggleFavourite(station) }, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 6.dp), onAir = if (current) onAir.song else null)
+            } else stationGrid("s", m.radio.take(400), columns, cell, side, env, m, fonts, look)
             item(key = "credit") { PodioCredit("Stations: Radio Browser · Imagery: NASA GIBS", fonts, look, side) }
+        }
+    }
+}
+
+/** Discs standing in while the station grid loads: the grid's own geometry, not rows. */
+@Composable private fun DiscSkeletonGrid(columns: Int, cell: Dp, side: Dp, look: OrbitLook, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().padding(horizontal = side).padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        repeat(3) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                repeat(columns) {
+                    Column(Modifier.width(cell + 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WatchSkeleton(look, Modifier.size(cell), radius = cell / 2)
+                        WatchSkeleton(look, Modifier.fillMaxWidth(0.7f).height(10.dp), radius = 5.dp)
+                    }
+                }
+            }
         }
     }
 }

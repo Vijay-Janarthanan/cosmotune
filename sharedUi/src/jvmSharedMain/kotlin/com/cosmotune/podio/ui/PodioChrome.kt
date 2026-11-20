@@ -55,7 +55,16 @@ internal class PodioEnv(
     val head: LivePlayhead? = null,
     /** Seek the active episode without replacing it or its podcast rate. */
     val onSeek: (Long) -> Unit = {},
+    /** Podio's queue as it stands (Play next, Up next). */
+    val queue: com.cosmotune.podio.PodioQueueState = com.cosmotune.podio.PodioQueueState(),
 ) {
+    /** Whether [id] (an episode's player id) is new: neither heard, started nor put away as seen. */
+    fun isNew(id: String): Boolean = id !in saved.completedEpisodes && (saved.progress[id] ?: 0) <= 0 && id !in saved.seenEpisodes
+
+    /** Whether [id] is played to its end. */
+    fun isPlayed(id: String, durationMs: Long): Boolean =
+        id in saved.completedEpisodes || com.cosmotune.podio.PodioPlaybackPolicy.isFinished(saved.progress[id] ?: 0, durationMs)
+
     /** How far through what is playing, 0..1, or null for a live stream or nothing known. Read while drawing. */
     fun playedFraction(): Float? = playback.durationMs.takeIf { it > 0 }?.let { head?.fraction(it) ?: (playback.positionMs.toFloat() / it).coerceIn(0f, 1f) }
 }

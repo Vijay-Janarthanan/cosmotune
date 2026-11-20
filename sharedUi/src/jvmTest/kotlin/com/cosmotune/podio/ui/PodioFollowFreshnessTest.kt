@@ -23,7 +23,7 @@ class PodioFollowFreshnessTest {
             val show = PodcastShow("show", "Show", "Publisher", "http://127.0.0.1:${server.address.port}/feed")
             val library = PodioLibrary(java.io.File(directory, "library.json"))
             val model = PodioModel(PodioCatalogue(), library, this,
-                PodioHost({ _, _ -> }, null, null, null, null, null, false, {}),
+                PodioHost({ _, _ -> }, null, null, null, false, {}),
                 mutableStateOf(""), mutableStateOf(""), mutableStateOf(""), mutableStateOf(""),
                 mutableStateOf(false), mutableStateOf(false), mutableStateOf(false), mutableStateOf(false))
             model.loadInbox(listOf(show), force = false)

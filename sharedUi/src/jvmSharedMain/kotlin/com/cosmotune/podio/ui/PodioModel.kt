@@ -14,6 +14,12 @@ import com.cosmotune.cache.FEED_FRESH_MS
 import com.cosmotune.cache.PageCache
 import com.cosmotune.cache.SLOW_FRESH_MS
 
+/** How many episodes of the followed shows Keep going lines up after the queue. */
+private const val KEEP_GOING = 10
+
+/** A removal that can be taken back: what the notice says, and the way back. */
+internal class PodioUndo(val message: String, val undo: () -> Unit)
+
 /** Genres of Apple's podcast chart (id, name). */
 internal val PODCAST_GENRES = listOf("1489" to "News", "1303" to "Comedy", "1318" to "Technology", "1321" to "Business", "1324" to "Society & culture",
     "1304" to "Education", "1512" to "Health & fitness", "1545" to "Sports", "1488" to "True crime", "1487" to "History", "1533" to "Science",
@@ -54,10 +60,15 @@ internal class PodioHost(
     val onDownloadEpisode: ((PodioItem) -> Unit)?,
     val onRemoveDownload: (suspend (PodioItem) -> Boolean)?,
     val onImportOpmlFile: (suspend () -> String?)?,
-    val onExportOpmlFile: (suspend (String) -> Boolean)?,
-    val onShareOpmlFile: (suspend (String) -> Unit)?,
     val remoteGlobeControls: Boolean,
     val copyText: (String) -> Unit,
+    /**
+     * Plays an episode with what follows it in the queue, so the player itself goes on to the next one (with the screen off, or
+     * after leaving Podio). Null: the host plays one item at a time ([onPlay]).
+     */
+    val onPlayQueue: ((PodioItem, Long, List<PodioItem>) -> Unit)? = null,
+    /** Replaces what comes after the playing episode in the player, after a change of the queue. */
+    val onUpcoming: ((List<PodioItem>) -> Unit)? = null,
 )
 
 /**
@@ -79,6 +90,8 @@ internal class PodioModel(
      */
     private val pages: PageCache = PageCache.of(catalogue, persistent = false),
 ) {
+    /** Podio's queue (Play next, Up next), kept beside the library and shared with the playback service's tracker. */
+    val queue: PodioQueue = library.queue()
     var query by queryState
     var language by languageState
     var country by countryState
@@ -117,6 +130,10 @@ internal class PodioModel(
     var episodeSheet by mutableStateOf<InboxEpisode?>(null)
     /** The phone's episode player sheet is open. */
     var playerSheet by mutableStateOf(false)
+    /** The queue page (Up next) is open over the section. */
+    var queueOpen by mutableStateOf(false)
+    /** The last removal from the queue or the inbox, with the way to put it back ("Removed · Undo"). */
+    var undo by mutableStateOf<PodioUndo?>(null)
 
     var inbox by mutableStateOf(emptyList<InboxEpisode>())
     var inboxLoading by mutableStateOf(false)
@@ -145,24 +162,102 @@ internal class PodioModel(
             } }
             // Following is an explicit freshness request, even when an older inbox cache is still fresh.
             if (added) loadInbox(library.state.value.shows, force = true, episodeLimit = library.state.value.inboxEpisodesPerShow)
+            else undo = PodioUndo("Unfollowed ${show.title.ifBlank { "the show" }}") { toggleFollow(show) }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { error = "Couldn't save or refresh your followed show. Retry from Following." }
     } }
-
-    fun setInboxEpisodeLimit(limit: Int) = save { it.copy(inboxEpisodesPerShow = limit.coerceIn(1, 24)) }
 
     fun setShowSkipSilence(shows: Set<String>, enabled: Boolean?) = save { old ->
         old.copy(skipSilenceByShow = if (enabled == null) old.skipSilenceByShow - shows
             else old.skipSilenceByShow + shows.associateWith { enabled })
     }
 
-    fun playEpisode(entry: InboxEpisode) = play(entry.item().copy(skipSilence = library.state.value.skipSilenceByShow[entry.show.id]))
+    /** The playable item of [entry] with its show's playback choices (skip silence). */
+    fun itemOf(entry: InboxEpisode): PodioItem = entry.item().copy(skipSilence = library.state.value.skipSilenceByShow[entry.show.id])
 
-    fun playEpisodeAt(entry: InboxEpisode, positionMs: Long) {
-        val item = entry.item().copy(skipSilence = library.state.value.skipSilenceByShow[entry.show.id])
-        lastPlayed = item
-        host.onPlay(item, positionMs.coerceAtLeast(0))
+    private fun itemOf(entry: PodioQueueEntry): PodioItem = itemOf(InboxEpisode(entry.episode, entry.show))
+
+    fun playEpisode(entry: InboxEpisode) {
+        val item = itemOf(entry)
+        start(entry, item, library.resumePosition(item.id, entry.episode.durationSeconds * 1000))
     }
+
+    fun playEpisodeAt(entry: InboxEpisode, positionMs: Long) = start(entry, itemOf(entry), positionMs.coerceAtLeast(0))
+
+    /** [entry] plays now: it leaves the queue, and what is queued after it goes to the player with it. */
+    private fun start(entry: InboxEpisode, item: PodioItem, positionMs: Long) {
+        lastPlayed = item
+        runCatching { queue.update { PodioQueueOrder.play(it, PodioQueueEntry(entry.episode, entry.show)) } }
+        val queuePlay = host.onPlayQueue
+        if (queuePlay != null) queuePlay(item, positionMs, upcoming()) else host.onPlay(item, positionMs)
+    }
+
+    /**
+     * What the player goes on to after the playing episode: the queue in its order, then (with Keep going) the newest episodes of
+     * the followed shows that are neither heard, started, seen nor queued.
+     */
+    fun upcoming(state: PodioQueueState = queue.state.value): List<PodioItem> {
+        val queued = state.entries.map(::itemOf)
+        if (!state.keepGoing) return queued
+        val taken = queued.map { it.id }.toSet() + listOfNotNull(state.current?.id, lastPlayed?.id)
+        val saved = library.state.value
+        val more = inbox.asSequence().map { it to itemOf(it) }.filter { (_, item) ->
+            item.id !in taken && item.id !in saved.completedEpisodes && item.id !in saved.seenEpisodes && (saved.progress[item.id] ?: 0) <= 0
+        }.take(KEEP_GOING).map { it.second }.toList()
+        return queued + more
+    }
+
+    private fun changeQueue(change: (PodioQueueState) -> PodioQueueState) {
+        try { queue.update(change) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { error = "Couldn't save your queue. Check available storage and retry." }
+    }
+
+    fun playNext(entry: InboxEpisode) { changeQueue { PodioQueueOrder.playNext(it, PodioQueueEntry(entry.episode, entry.show)) }; notice = "Plays next: ${entry.episode.title}" }
+
+    fun addToQueue(entry: InboxEpisode) { changeQueue { PodioQueueOrder.add(it, PodioQueueEntry(entry.episode, entry.show)) }; notice = "Added to Up next" }
+
+    fun removeFromQueue(id: String) {
+        val state = queue.state.value
+        val index = state.entries.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: return
+        val removed = state.entries[index]
+        changeQueue { PodioQueueOrder.remove(it, id) }
+        undo = PodioUndo("Removed from the queue") { changeQueue { PodioQueueOrder.restore(it, removed, index) } }
+    }
+
+    fun moveInQueue(from: Int, to: Int) = changeQueue { PodioQueueOrder.move(it, from, to) }
+    fun clearPlayNext() = changeQueue(PodioQueueOrder::clearPlayNext)
+    fun clearQueue() {
+        val before = queue.state.value.entries
+        if (before.isEmpty()) return
+        changeQueue(PodioQueueOrder::clear)
+        undo = PodioUndo("Queue cleared") { changeQueue { it.copy(entries = before + it.entries) } }
+    }
+    fun shuffleQueue() = changeQueue { PodioQueueOrder.shuffle(it) }
+    fun setKeepGoing(on: Boolean) = changeQueue { it.copy(keepGoing = on) }
+
+    /** Plays a queued episode at once (a tap on its row in Up next). */
+    fun playQueued(entry: PodioQueueEntry) = playEpisode(InboxEpisode(entry.episode, entry.show))
+
+    /** The speed chosen for [showId] with "Use for this show", or null. */
+    fun speedFor(showId: String?): Float? = showId?.let { library.state.value.speedByShow[it] }
+
+    fun setShowSpeed(showId: String, speed: Float?) = save { old ->
+        old.copy(speedByShow = if (speed == null || speed == 1f) old.speedByShow - showId else old.speedByShow + (showId to speed.coerceIn(0.5f, 3f)))
+    }
+
+    /** Puts [ids] away from Following's New list (they stay in the show's own list). */
+    fun markSeen(ids: Collection<String>, undoable: Boolean = true) {
+        val fresh = ids.filterNot { it in library.state.value.seenEpisodes }
+        if (fresh.isEmpty()) return
+        save { it.copy(seenEpisodes = it.seenEpisodes + fresh) }
+        if (undoable) undo = PodioUndo(if (fresh.size == 1) "Marked as seen" else "${fresh.size} marked as seen") {
+            save { it.copy(seenEpisodes = it.seenEpisodes - fresh.toSet()) }
+        }
+    }
+
+    fun setRefreshInBackground(on: Boolean) = save { it.copy(refreshInBackground = on) }
+    fun setAutoDownloadNew(on: Boolean) = save { it.copy(autoDownloadNew = on) }
 
     fun play(item: PodioItem) {
         val resume = if (item.live) 0 else library.resumePosition(item.id, item.durationSeconds * 1000)
@@ -247,29 +342,6 @@ internal class PodioModel(
 
     fun pasteOpml() { opmlText = ""; opmlError = null; importingOpml = true }
 
-    fun exportOpml() {
-        val shows = library.state.value.shows
-        val text = PodioOpml.encode(shows)
-        val export = host.onExportOpmlFile
-        if (export == null) { host.copyText(text); notice = "Copied ${shows.size} podcast subscriptions as OPML."; return }
-        scope.launch {
-            pickingFile = true
-            try { if (export(text)) notice = "Saved podcast subscriptions as OPML." }
-            catch (e: CancellationException) { throw e }
-            catch (_: Exception) { error = "Couldn't save the OPML file. Please retry." }
-            finally { pickingFile = false }
-        }
-    }
-
-    fun shareOpml() {
-        val share = host.onShareOpmlFile ?: return
-        scope.launch {
-            try { share(PodioOpml.encode(library.state.value.shows)) }
-            catch (e: CancellationException) { throw e }
-            catch (_: Exception) { error = "Couldn't share the OPML file. Please retry." }
-        }
-    }
-
     /**
      * The newest episodes of the followed shows (up to 40 shows, four feeds at a time), newest first. A show
      * that fails is left out; only when every one fails is it an error. The same follows are not fetched twice unless [force].
@@ -294,8 +366,20 @@ internal class PodioModel(
             if (generation != inboxGeneration) return
             val state = entry.state.value
             if (state.error != null) inboxError = "Couldn't refresh your shows. Check your connection and try again."
-            else { inbox = state.data.orEmpty(); inboxFor = key }
+            else { inbox = state.data.orEmpty(); inboxFor = key; learn(inbox) }
         } finally { if (generation == inboxGeneration) inboxLoading = false }
+    }
+
+    /** What Following just fetched is what the background refresh need not announce again ([PodioRefresh.learn]). */
+    private fun learn(entries: List<InboxEpisode>) {
+        val seen = entries.groupBy { it.show.id }.map { (_, list) -> list.first().show to list.map { it.episode } }
+        save { it.copy(knownEpisodes = PodioRefresh.learn(it.knownEpisodes, seen), lastRefreshMs = System.currentTimeMillis()) }
+    }
+
+    /** Marks an episode heard (or not), as its row's or sheet's "Mark played" does. */
+    fun markPlayed(item: PodioItem, durationMs: Long, played: Boolean) = save { old ->
+        if (played) old.copy(progress = (old.progress - item.id) + (item.id to durationMs.coerceAtLeast(1)), completedEpisodes = old.completedEpisodes + item.id)
+        else old.copy(progress = old.progress - item.id, completedEpisodes = old.completedEpisodes - item.id)
     }
 
     private suspend fun fetchInbox(follows: List<PodcastShow>, episodeLimit: Int): List<InboxEpisode> {

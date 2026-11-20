@@ -197,7 +197,9 @@ class PodioInteractionTest {
             compose.onNodeWithText("Retry").performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }
             assertEquals(2, calls.get())
-            compose.onNodeWithContentDescription("Refresh").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            // Refresh is in the show's More menu now.
+            compose.onNodeWithContentDescription("More").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.onNodeWithText("Refresh").performClick()
             compose.waitUntil(5_000) { calls.get() == 3 }
             compose.onNode(podioTab("Radio")).performSemanticsAction(SemanticsActions.OnClick) { it() }
             // Let the delayed response finish: it must not replace the newly selected Radio page.

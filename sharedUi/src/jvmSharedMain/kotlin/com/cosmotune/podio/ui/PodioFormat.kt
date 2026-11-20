@@ -122,4 +122,54 @@ internal object PodioFormat {
     }
 
     private const val FLING = 1200f
+
+    /** "just now", "8 min ago", "3 h ago", "2 days ago": how long ago [thenMs] was, for "Checked 8 min ago". */
+    fun ago(thenMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+        val minutes = (nowMs - thenMs).coerceAtLeast(0) / 60_000
+        return when {
+            minutes < 1 -> "just now"
+            minutes < 60 -> "$minutes min ago"
+            minutes < 48 * 60 -> "${minutes / 60} h ago"
+            else -> "${minutes / (24 * 60)} days ago"
+        }
+    }
+
+    /**
+     * [items] grouped by the day [at] gives each, in their order: "Today", "Yesterday", "Monday 9 Nov" this year, "9 Nov 2025"
+     * before, and "Earlier" for those without a readable date.
+     */
+    fun <T> byDay(items: List<T>, today: LocalDate = LocalDate.now(), zone: java.time.ZoneId = java.time.ZoneId.systemDefault(), at: (T) -> Long?): List<Pair<String, List<T>>> =
+        items.groupBy { item ->
+            val day = at(item)?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+            when {
+                day == null -> "Earlier"
+                day == today -> "Today"
+                day == today.minusDays(1) -> "Yesterday"
+                day.year == today.year -> DateTimeFormatter.ofPattern("EEEE d MMM", Locale.ENGLISH).format(day)
+                else -> DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH).format(day)
+            }
+        }.toList()
+
+    /** The chapter playing at [positionMs] (the last that started by then), or -1 before the first. */
+    fun chapterAt(chapters: List<com.cosmotune.podio.PodcastChapter>, positionMs: Long): Int = chapters.indexOfLast { it.startMs <= positionMs }
+
+    /**
+     * Where "previous chapter" goes from [positionMs]: the start of the chapter playing, or the one before it within its first three
+     * seconds (as a music player's previous button does).
+     */
+    fun previousChapterStart(chapters: List<com.cosmotune.podio.PodcastChapter>, positionMs: Long): Long {
+        val index = chapterAt(chapters, positionMs)
+        if (index < 0) return 0
+        val start = chapters[index].startMs
+        return if (positionMs - start > 3_000 || index == 0) start else chapters[index - 1].startMs
+    }
+
+    /** "1×", "1.25×", "0.75×": a speed as the chip prints it. */
+    fun speed(rate: Float): String {
+        val rounded = Math.round(rate * 100) / 100f
+        return if (rounded % 1f == 0f) "${rounded.toInt()}×" else rounded.toString().trimEnd('0') + "×"
+    }
+
+    /** The speeds the speed menu offers. */
+    val SPEEDS = listOf(0.75f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f)
 }

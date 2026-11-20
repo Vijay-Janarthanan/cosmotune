@@ -48,7 +48,7 @@ import java.util.Locale
  */
 @Composable
 internal fun RadioDetail(station: RadioStation, m: PodioModel, env: PodioEnv, song: String?, neighbours: List<RadioStation>, volume: Float, onVolume: ((Float) -> Unit)?,
-    onPrevious: (() -> Unit)?, onNext: (() -> Unit)?, onBack: () -> Unit, timer: PodioTimer? = null) {
+    onPrevious: (() -> Unit)?, onNext: (() -> Unit)?, onBack: () -> Unit, timer: PodioTimer? = null, nextName: String? = null) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val catalogue = m.catalogue
@@ -71,7 +71,8 @@ internal fun RadioDetail(station: RadioStation, m: PodioModel, env: PodioEnv, so
         WatchWash(stationCardColors(station).fill, look)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = env.bottom + 16.dp)) {
             PodioBackHead("Station", onBack, fonts, look, side, backLabel = "Back to the map")
-            StationCard(station, env, m, live = true, song, onPrevious, onNext, Modifier.padding(horizontal = side).padding(top = 16.dp).fillMaxWidth(), large = true) { colors ->
+            StationCard(station, env, m, live = true, song, onPrevious, onNext, Modifier.padding(horizontal = side).padding(top = 16.dp).fillMaxWidth(), large = true,
+                nextName = nextName) { colors ->
                 if (timer != null) SleepTimerChip(timer, episode = false, card = colors)
                 // Shown only where rooms are offered, and only for an https stream every member's device can open.
                 RoomPlayButton(remember(station) { station.roomItem() }, dense = true)
