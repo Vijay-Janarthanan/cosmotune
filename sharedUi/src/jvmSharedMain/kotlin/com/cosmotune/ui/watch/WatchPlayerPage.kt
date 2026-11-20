@@ -629,8 +629,9 @@ private fun FilmCard(
                 if (!controls.remote) WatchRoundButton(CosmoIcons.Volume, if (state.muted) "Unmute" else "Mute", look,
                     onClick = controls.toggleMute, ink = ink, on = state.muted)
                 if (!controls.remote) Box {
-                    if (narrow) WatchRoundButton(CosmoIcons.Volume, "Audio", look, onClick = { audio = true }, ink = ink, enabled = state.audioTracks.size > 1)
-                    else WatchCardChip("Audio", ink, fonts, onClick = { audio = true }, icon = CosmoIcons.Volume, enabled = state.audioTracks.size > 1)
+                    // The audio track gets the waveform, so it does not read as a second Mute beside the speaker.
+                    if (narrow) WatchRoundButton(CosmoIcons.Waveform, "Audio", look, onClick = { audio = true }, ink = ink, enabled = state.audioTracks.size > 1)
+                    else WatchCardChip("Audio", ink, fonts, onClick = { audio = true }, icon = CosmoIcons.Waveform, enabled = state.audioTracks.size > 1)
                     OrbitMenu(audio, { audio = false }, fonts = fonts, look = look, header = "Audio",
                         items = state.audioTracks.map { t -> OrbitMenuItem(t.label, listOfNotNull(t.codec, t.channels?.let { "$it ch" }).joinToString(" · ").ifBlank { null }, selected = t.selected) { controls.selectAudio(t.trackId) } })
                 }
