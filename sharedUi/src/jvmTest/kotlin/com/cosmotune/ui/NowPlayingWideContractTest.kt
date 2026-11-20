@@ -28,7 +28,7 @@ class NowPlayingWideContractTest {
 
     @Test fun theTopRowIsCloseTheSourceTheChipsAndMoreInThatOrder() {
         val body = SourceContract.functionBody(top, "NowPlayingTopRow")
-        val at = listOf("CosmoIcons.ChevronDown", "\"FROM · \${source.uppercase()}\"", "PanelChips(", "CosmoIcons.More", "OrbitMenu(")
+        val at = listOf("CosmoIcons.ChevronDown", "\"FROM · \${source.uppercase()}\"", "PanelChips(", "MoreButton(more,")
             .map { body.indexOf(it).also { i -> assertTrue(i >= 0, "$it is in the top row") } }
         assertEquals(at.sorted(), at, "in the order of the board")
         assertTrue(body.contains("LocalCosmoPlayerDismiss.current"), "the chevron closes the player")

@@ -37,6 +37,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.design.LyricsMetrics
 import com.cosmotune.design.NowPlayingLayout
@@ -500,18 +501,29 @@ fun CosmoNowPlaying(
         )
     }
     val panelOpen = panels.panel != NowPlayingPanel.NONE
+    // The phone's top row (board B): close, the source, and the screen button on every frame (it says so when there is no video).
     val phoneTop: @Composable (Modifier) -> Unit = { m ->
         NowPlayingTopRow(
             source = sourceLabel, onOpenOrigin = openOrigin, panel = panels.panel, onPanel = { panels.panel = it },
-            more = moreItems(true), fonts = orbitType, look = orbitInk, modifier = m, chips = false, moreOverlay = sleepMenu,
+            more = moreItems(true), fonts = orbitType, look = orbitInk, modifier = m, chips = false,
+            screen = {
+                Box(Modifier.testTag("nowplaying:screen")) {
+                    com.cosmotune.ui.orbit.OrbitRoundButton(
+                        VIDEO_VIEW_ICON, if (musicVideo) "How the video is shown" else "No video for this song", orbitInk.ink,
+                        { videoMenuOpen = true }, on = videoMenuOpen, onInk = orbitInk.ground, enabled = musicVideo,
+                    )
+                    videoMenu()
+                }
+            },
         )
     }
+    // The phone's card (board B): More beside Like, play in the middle of back and next.
     val phoneCard: @Composable (Modifier) -> Unit = { m ->
         Column(m) {
-        NowPlayingSongCard(
-            transport, orbitType, orbitInk, modifier = Modifier.fillMaxWidth(), buttonSize = 44.dp,
-            buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton),
-            lyricLine = lyricLineOf(panelOpen), quality = cardQuality,
+        NowPlayingPhoneCard(
+            transport, orbitType, orbitInk, like = likeButton, previous = previousButton, next = nextButton,
+            more = { ink, fill -> MoreButton(moreItems(true), orbitType, orbitInk, ink, fill, sleepMenu) },
+            modifier = Modifier.fillMaxWidth(), lyricLine = lyricLineOf(panelOpen), quality = cardQuality,
         )
         if (inlineLyrics && !panelOpen && !landscape && windowHeight >= 620.dp && !lyrics.isNullOrEmpty()) inlinePreview(Modifier.fillMaxWidth().height(128.dp))
         }
@@ -559,6 +571,7 @@ fun CosmoNowPlaying(
                     canvas = canvas, isPlaying = isPlaying, aspect = videoAspect, onAspect = { videoAspect = it },
                     reveal = reveal, onRenderedChanged = { rendered = it }, coverUrl = remoteArt, t = transport, onSeek = onSeek,
                     hasPrevious = controlsLocked || hasPrevious || pastRestartPoint, hasNext = controlsLocked || hasNext, onLeave = leaveCinema,
+                    pictureInPicture = enterPip?.let { enter -> { leaveCinema(); enter() } },
                 )
             }
             if (chooseVideoOpen) ChooseVideoSheet(song, canvas?.takeIf { musicVideo }?.videoId, playerHaze) { chooseVideoOpen = false }

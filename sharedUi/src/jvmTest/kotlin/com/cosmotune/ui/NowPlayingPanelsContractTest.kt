@@ -226,4 +226,27 @@ class NowPlayingPanelsContractTest {
         assertTrue(src.contains("lyricLine = lyricLineOf(panelOpen), quality = cardQuality"), "the phone's card: the line being sung and the quality, for the video and the cover")
         assertFalse(src.contains("showLine = wantVideo"), "the seek line is always there")
     }
+
+    @Test fun thePhonesCardHasPlayInTheMiddleOfItsTransportAndMoreBesideLike() {
+        val card = code(nowPlaying("NowPlayingCard.kt"))
+        val body = SourceContract.functionBody(card, "NowPlayingPhoneCard")
+        val row = body.substring(body.indexOf("testTag(\"nowplaying:transport\")"))
+        val at = listOf("CardButtons(listOf(previous)", "NowPlayingPlayButton(t, look, 72.dp, PLAY_RING)", "CardButtons(listOf(next)").map { row.indexOf(it).also { i -> assertTrue(i >= 0, "$it is in the transport row") } }
+        assertEquals(at.sorted(), at, "back, play, next in order")
+        assertTrue(body.contains("Modifier.size(PLAY_RING).background(look.ground, CircleShape)"), "play in a ring of the page: the bite off the corner")
+        assertFalse(body.contains("OrbitBiteCard("), "no corner bite on the phone's card")
+        val top = body.substring(0, body.indexOf("lyricLine"))
+        assertTrue(top.contains("CardButtons(listOf(like)") && top.indexOf("more(ink, fill)") > top.indexOf("CardButtons(listOf(like)"), "More beside Like, at the card's top")
+        val src = code(nowPlaying("CosmoNowPlaying.kt"))
+        assertTrue(src.contains("more = { ink, fill -> MoreButton(moreItems(true), orbitType, orbitInk, ink, fill, sleepMenu) }"), "the card's More holds the rarer actions")
+    }
+
+    @Test fun thePhonesTopRowEndsInTheScreenButtonOnEveryFrame() {
+        val src = code(nowPlaying("CosmoNowPlaying.kt"))
+        val top = src.substring(src.indexOf("val phoneTop"), src.indexOf("val phoneCard"))
+        assertTrue(top.contains("screen = {") && top.contains("VIDEO_VIEW_ICON") && top.contains("videoMenu()"), "the screen button and its five views")
+        assertTrue(top.contains("enabled = musicVideo"), "shown on every frame, offered when there is a video")
+        val row = SourceContract.functionBody(code(nowPlaying("NowPlayingTopRow.kt")), "NowPlayingTopRow")
+        assertTrue(row.contains("if (screen != null) screen() else MoreButton("), "the screen button takes More's place on the phone")
+    }
 }

@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.OrbitChip
 import com.cosmotune.ui.orbit.OrbitFonts
@@ -54,9 +55,10 @@ internal fun NowPlayingTopRow(
     status: @Composable () -> Unit = {},
     /** A menu opened from a "more" row (the sleep timer's), anchored where "more" is. */
     moreOverlay: @Composable () -> Unit = {},
+    /** The phone's end of the row (the board, B): the screen button in place of More, which the phone's card carries. */
+    screen: (@Composable () -> Unit)? = null,
 ) {
     val dismiss = LocalCosmoPlayerDismiss.current
-    var moreOpen by androidx.compose.runtime.remember { mutableStateOf(false) }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         OrbitRoundButton(CosmoIcons.ChevronDown, "Close the player", look.ink, dismiss)
         // While a dropped connection is being waited out, the row says so instead of where the
@@ -70,11 +72,23 @@ internal fun NowPlayingTopRow(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { status() }
         if (chips) PanelChips(panel, onPanel, fonts, look, closable = false)
-        Box {
-            OrbitRoundButton(CosmoIcons.More, "More", look.ink, { moreOpen = true }, on = moreOpen, onInk = look.ground)
-            OrbitMenu(moreOpen, { moreOpen = false }, more, fonts, look, header = "More")
-            moreOverlay()
-        }
+        if (screen != null) screen() else MoreButton(more, fonts, look, look.ink, look.ground, moreOverlay)
+    }
+}
+
+/**
+ * The round "more" button and its Orbit menu of the rarer actions ([more]), in [ink] (solid in it while open, the glyph in
+ * [onInk]); [overlay] is a menu one of its lines opens (the sleep timer's), anchored where it is. The wide page's top row and the
+ * phone's song card (beside Like) hold it.
+ */
+@Composable
+internal fun MoreButton(more: List<OrbitMenuItem>, fonts: OrbitFonts, look: OrbitLook, ink: androidx.compose.ui.graphics.Color, onInk: androidx.compose.ui.graphics.Color,
+    overlay: @Composable () -> Unit = {}, size: androidx.compose.ui.unit.Dp = 40.dp) {
+    var open by androidx.compose.runtime.remember { mutableStateOf(false) }
+    Box(Modifier.testTag("nowplaying:more")) {
+        OrbitRoundButton(CosmoIcons.More, "More", ink, { open = true }, on = open, onInk = onInk, size = size)
+        OrbitMenu(open, { open = false }, more, fonts, look, header = "More")
+        overlay()
     }
 }
 

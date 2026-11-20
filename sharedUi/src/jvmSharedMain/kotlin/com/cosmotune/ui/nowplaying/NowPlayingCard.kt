@@ -68,6 +68,7 @@ import com.cosmotune.ui.orbit.AlbumTitleArt
 import com.cosmotune.ui.orbit.TitleArtAlbum
 import com.cosmotune.design.TitleArt
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 
 /**
  * What the song card shows and does: the song, the playhead, the transport. Built once per recomposition of the screen; the
@@ -369,6 +370,64 @@ internal fun NowPlayingSongCard(
         }
     }
 }
+
+/**
+ * The phone's song card (the Now Playing board, B1 to B3): the cover's colour, flat, no bite. At the top the mono eyebrow, the
+ * title and the artists, with [like] and [more] (the rarer actions) beside them; then the line being sung ([lyricLine]), the seek
+ * line with the time played, the measured quality ([quality]) and the length; and at the foot back, play and next in one row,
+ * play in the middle in a ring of the page's own ground (the bite moved off the corner, so the three read in order).
+ */
+@Composable
+internal fun NowPlayingPhoneCard(
+    t: NowPlayingTransport,
+    fonts: OrbitFonts,
+    look: OrbitLook,
+    like: CardButton,
+    previous: CardButton,
+    next: CardButton,
+    more: @Composable (ink: Color, fill: Color) -> Unit,
+    modifier: Modifier = Modifier,
+    lyricLine: (@Composable (Color) -> Unit)? = null,
+    quality: (@Composable (Color) -> Unit)? = null,
+) {
+    val (fill, ink) = coverFill(t.coverUrl, t.song.title)
+    Column(modifier.clip(RoundedCornerShape(PHONE_CARD_RADIUS)).background(fill).padding(20.dp).testTag("nowplaying:phone-card")) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                OrbitingLabel(t, fonts, ink)
+                Spacer(Modifier.height(10.dp))
+                CardTitle(t, fonts, ink, fill, 26, maxLines = 2)
+            }
+            Spacer(Modifier.width(8.dp))
+            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                CardButtons(listOf(like), ink, fill, 40.dp, 6.dp)
+                more(ink, fill)
+            }
+        }
+        if (lyricLine != null) {
+            Spacer(Modifier.height(12.dp))
+            lyricLine(ink)
+        }
+        Spacer(Modifier.height(16.dp))
+        OrbitProgressLine(t::progress, ink, onSeek = t::seek)
+        CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth().testTag("nowplaying:transport"), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            CardButtons(listOf(previous), ink, fill, 52.dp, 0.dp)
+            Spacer(Modifier.width(36.dp))
+            // Play in the middle, in a ring of the page round it (the board's bite, moved off the corner).
+            Box(Modifier.size(PLAY_RING).background(look.ground, CircleShape), contentAlignment = Alignment.Center) {
+                NowPlayingPlayButton(t, look, 72.dp, PLAY_RING)
+            }
+            Spacer(Modifier.width(36.dp))
+            CardButtons(listOf(next), ink, fill, 52.dp, 0.dp)
+        }
+    }
+}
+
+/** The phone card's corner, and the ring of page round its play button. */
+private val PHONE_CARD_RADIUS = 30.dp
+private val PLAY_RING = 84.dp
 
 /**
  * The card's heading: the song's title as the album's title art (the lyrics-titles board's placement table: Cover Cut, or Voiced
