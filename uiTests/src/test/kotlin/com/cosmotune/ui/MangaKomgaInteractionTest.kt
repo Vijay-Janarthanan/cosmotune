@@ -1,6 +1,7 @@
 package com.cosmotune.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
@@ -12,7 +13,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import com.cosmotune.manga.data.MangaRepository
 import com.cosmotune.manga.data.MangaStore
-import com.cosmotune.manga.ui.MangaApp
+import com.cosmotune.manga.ui.MangaSettingsSection
 import com.cosmotune.ui.theme.*
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
@@ -50,14 +51,16 @@ class MangaKomgaInteractionTest {
         compose.setContent {
             MaterialTheme(colorScheme = CosmoBrandPalettes.of(true).toColorScheme(darkColorScheme())) {
                 CompositionLocalProvider(LocalCosmoColors provides colors, LocalCosmoType provides rememberCosmoType()) {
-                    Box(Modifier.width(600.dp).fillMaxHeight()) { MangaApp(repository = MangaRepository(store)) }
+                    // Komga is in Settings › Manga now, no longer above the Sources tab's list.
+                    Box(Modifier.width(600.dp).fillMaxHeight()) {
+                        androidx.compose.foundation.layout.Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                            MangaSettingsSection(repository = MangaRepository(store))
+                        }
+                    }
                 }
             }
         }
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
-        compose.onNodeWithTag("manga:options").performClick()
-        compose.onNodeWithText("Manage sources").performClick()
-        compose.onNodeWithText("Connect Komga library").performClick()
+        compose.onNodeWithText("Connect Komga library").performScrollTo().performClick()
         compose.onNodeWithTag("manga:komga:server").performScrollTo().performTextInput("http://127.0.0.1:${server.address.port}")
         compose.onNodeWithTag("manga:komga:key").performScrollTo().performTextInput("wrong-key")
         compose.onNodeWithText("Test and save").performScrollTo().assertIsDisplayed().performClick()

@@ -2859,6 +2859,7 @@ private fun CosmotuneApp(
                         EqualizerScreen(contentPadding = listPadding)
                     } else if (key == "settings") {
                         SettingsScreen(
+                            openedFrom = returnToMode,
                             windowWidth = windowWidth,
                             onPlayProviderSongs = { songs, index -> playFrom(songs, index, QueueSource("Provider", PlaybackSourceType.BROWSE)) },
                             signedIn = signedIn,

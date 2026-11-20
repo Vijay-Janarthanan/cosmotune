@@ -36,27 +36,20 @@ class PodioToolsInteractionTest {
             val offline = mutableStateOf(emptyList<PodioItem>())
             val downloadCalls = CopyOnWriteArrayList<PodioItem>()
             val played = CopyOnWriteArrayList<PodioItem>()
-            val exports = CopyOnWriteArrayList<String>()
-            val shares = CopyOnWriteArrayList<String>()
             var imported = 0
             compose.setContent { PodioTestTheme { Box(Modifier.size(1200.dp, 820.dp)) {
                 PodioApp(file, PodioPlayback(), { item, _ -> played += item }, {}, {}, {}, directory = catalogue,
                     onDownloadEpisode = { downloadCalls += it }, downloadedEpisodes = offline.value,
-                    onImportOpmlFile = { imported++; """<opml><body><outline text="Stories" xmlUrl="${server.url("/feed")}"/></body></opml>""" },
-                    onExportOpmlFile = { exports += it; true }, onShareOpmlFile = { shares += it })
+                    onImportOpmlFile = { imported++; """<opml><body><outline text="Stories" xmlUrl="${server.url("/feed")}"/></body></opml>""" })
             } } }
-            // The subscription tools are at the foot of Following.
+            // Following with nothing followed offers to bring the shows from another app (OPML, through the native file dialog).
             libraryTab().performClick()
-            compose.onNodeWithText("Import OPML").performScrollTo().performClick()
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Stories").fetchSemanticsNodes().isNotEmpty() }
-            // The import finishes off the UI thread; Export only acts once the show is in the library.
+            compose.onNodeWithTag("podio:import-opml").performScrollTo().performClick()
+            // The import finishes off the UI thread.
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Imported", substring = true).fetchSemanticsNodes().isNotEmpty() }
             assertEquals(1, imported)
-            compose.onNodeWithText("Export OPML").performScrollTo().performClick()
-            compose.waitUntil(5_000) { exports.isNotEmpty() }
-            assertEquals(server.url("/feed").toString(), PodioOpml.decode(exports.single()).single().feed)
-            compose.onNodeWithText("Share OPML").performScrollTo().performClick()
-            compose.waitUntil(5_000) { shares.isNotEmpty() }
+            compose.onNodeWithTag("podio:following:shows").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Stories").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Stories").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("First story").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithContentDescription("Download episode").performClick()
@@ -102,9 +95,11 @@ class PodioToolsInteractionTest {
                     onSleepTimer = { timers += it }, onSleepAfterEpisode = {})
             } } }
             libraryTab().performClick()
-            compose.onNodeWithText("Import OPML").performScrollTo().performClick()
+            compose.onNodeWithTag("podio:import-opml").performScrollTo().performClick()
             compose.onNodeWithText("OPML document").performTextInput("""<opml><body><outline text="Stories" xmlUrl="${server.url("/feed")}"/></body></opml>""")
             compose.onNodeWithText("Import subscriptions").performClick()
+            compose.waitUntil(10_000) { library.state.value.shows.isNotEmpty() }
+            compose.onNodeWithTag("podio:following:shows").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Stories").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Stories").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("First story").fetchSemanticsNodes().isNotEmpty() }
@@ -118,8 +113,31 @@ class PodioToolsInteractionTest {
             compose.onNodeWithText("30 minutes").performClick()
             compose.runOnIdle { assertEquals(listOf(30), timers.toList()) }
             compose.onNodeWithContentDescription("Back").performClick()
-            compose.onNodeWithText("Export OPML").performScrollTo().assertIsEnabled()
             assertEquals("Stories", library.state.value.shows.single().title)
         }
+    }
+
+    /** Settings › Podio holds what used to sit at the foot of Following: OPML export and share, and the background refresh. */
+    @Test fun podioSettingsExportShareAndChooseTheBackgroundRefresh() {
+        val file = temporary.newFile("settings.json")
+        val library = PodioLibrary(file)
+        library.update { it.copy(shows = listOf(com.cosmotune.podio.PodcastShow("stories", "Stories", "Host", "https://publisher.example/feed"))) }
+        val exports = CopyOnWriteArrayList<String>()
+        val shares = CopyOnWriteArrayList<String>()
+        val refresh = CopyOnWriteArrayList<Boolean>()
+        compose.setContent { PodioTestTheme { Box(Modifier.size(600.dp, 1200.dp)) {
+            com.cosmotune.podio.ui.PodioSettingsSection(file, onExportOpmlFile = { exports += it; true }, onShareOpmlFile = { shares += it },
+                onRefreshChange = { refresh += it })
+        } } }
+        compose.onNodeWithText("Export OPML").performClick()
+        compose.waitUntil(5_000) { exports.isNotEmpty() }
+        assertEquals("https://publisher.example/feed", PodioOpml.decode(exports.single()).single().feed)
+        compose.onNodeWithText("Share OPML").performClick()
+        compose.waitUntil(5_000) { shares.isNotEmpty() }
+        compose.onNodeWithTag("settings:podio:auto-download").performClick()
+        compose.waitUntil(5_000) { library.state.value.autoDownloadNew }
+        compose.onNodeWithTag("settings:podio:refresh").performClick()
+        compose.waitUntil(5_000) { !library.state.value.refreshInBackground }
+        compose.runOnIdle { assertEquals(listOf(false), refresh.toList()) }
     }
 }

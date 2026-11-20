@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Extension
@@ -73,6 +74,13 @@ import com.cosmotune.music.sharedui.resources.cosmo_settings_cat_playback
 import com.cosmotune.music.sharedui.resources.cosmo_settings_cat_playback_summary
 import com.cosmotune.music.sharedui.resources.cosmo_settings_cat_podio
 import com.cosmotune.music.sharedui.resources.cosmo_settings_cat_podio_summary
+import com.cosmotune.music.sharedui.resources.cosmo_settings_cat_manga
+import com.cosmotune.music.sharedui.resources.cosmo_settings_cat_manga_summary
+import com.cosmotune.music.sharedui.resources.cosmo_settings_open_manga
+import com.cosmotune.music.sharedui.resources.cosmo_settings_open_manga_summary
+import com.cosmotune.music.sharedui.resources.cosmo_settings_group_modes
+import com.cosmotune.music.sharedui.resources.cosmo_settings_group_general
+import com.cosmotune.music.sharedui.resources.cosmo_settings_this_mode
 import com.cosmotune.music.sharedui.resources.cosmo_settings_cat_privacy
 import com.cosmotune.music.sharedui.resources.cosmo_settings_cat_privacy_summary
 import com.cosmotune.music.sharedui.resources.cosmo_settings_cat_read
@@ -144,6 +152,7 @@ val SettingsCategory.icon: ImageVector
         SettingsCategory.APPEARANCE -> Icons.Rounded.Palette
         SettingsCategory.VIDEO -> Icons.Rounded.SmartDisplay
         SettingsCategory.READ -> Icons.AutoMirrored.Rounded.MenuBook
+        SettingsCategory.MANGA -> Icons.Rounded.AutoStories
         SettingsCategory.PODIO -> Icons.Rounded.Podcasts
         SettingsCategory.LISTENING -> Icons.Rounded.Insights
         SettingsCategory.INTEGRATIONS -> Icons.Rounded.Hub
@@ -161,6 +170,7 @@ private fun SettingsCategory.titleRes(): StringResource? = when (this) {
     SettingsCategory.APPEARANCE -> Res.string.cosmo_settings_cat_appearance
     SettingsCategory.VIDEO -> Res.string.cosmo_settings_cat_video
     SettingsCategory.READ -> Res.string.cosmo_settings_cat_read
+    SettingsCategory.MANGA -> Res.string.cosmo_settings_cat_manga
     SettingsCategory.PODIO -> Res.string.cosmo_settings_cat_podio
     SettingsCategory.LISTENING -> Res.string.cosmo_settings_cat_listening
     SettingsCategory.INTEGRATIONS -> Res.string.cosmo_settings_cat_integrations
@@ -178,6 +188,7 @@ private fun SettingsCategory.blurbRes(): StringResource? = when (this) {
     SettingsCategory.APPEARANCE -> Res.string.cosmo_settings_cat_appearance_summary
     SettingsCategory.VIDEO -> Res.string.cosmo_settings_cat_video_summary
     SettingsCategory.READ -> Res.string.cosmo_settings_cat_read_summary
+    SettingsCategory.MANGA -> Res.string.cosmo_settings_cat_manga_summary
     SettingsCategory.PODIO -> Res.string.cosmo_settings_cat_podio_summary
     SettingsCategory.LISTENING -> Res.string.cosmo_settings_cat_listening_summary
     SettingsCategory.INTEGRATIONS -> Res.string.cosmo_settings_cat_integrations_summary
@@ -222,6 +233,11 @@ enum class SettingsText(internal val res: StringResource) {
     OPEN_READ_SUMMARY(Res.string.cosmo_settings_open_read_summary),
     OPEN_PODIO(Res.string.cosmo_settings_open_podio),
     OPEN_PODIO_SUMMARY(Res.string.cosmo_settings_open_podio_summary),
+    OPEN_MANGA(Res.string.cosmo_settings_open_manga),
+    OPEN_MANGA_SUMMARY(Res.string.cosmo_settings_open_manga_summary),
+    GROUP_MODES(Res.string.cosmo_settings_group_modes),
+    GROUP_GENERAL(Res.string.cosmo_settings_group_general),
+    THIS_MODE(Res.string.cosmo_settings_this_mode),
 }
 
 @Composable
@@ -258,14 +274,24 @@ fun List<SettingsCategoryEntry>.asSearchItems(): List<SettingsItem> = map { entr
 
 const val CATEGORY_ID_PREFIX = "category:"
 
-/** The order of the settings home's tiles: the account, what you listen to, what is yours, the other modes, and the rest. */
-private val HUB_ORDER = listOf(
-    SettingsCategory.ACCOUNT,
+/** The modes' own pages, which the settings home lists first as "Modes" (board frame 15). */
+val SETTINGS_MODE_PAGES = listOf(SettingsCategory.VIDEO, SettingsCategory.PODIO, SettingsCategory.READ, SettingsCategory.MANGA)
+
+/** The order of the settings home's tiles: the account, the modes, then what you listen to, what is yours, and the rest. */
+private val HUB_ORDER = listOf(SettingsCategory.ACCOUNT) + SETTINGS_MODE_PAGES + listOf(
     SettingsCategory.PLAYBACK, SettingsCategory.SOURCES, SettingsCategory.DOWNLOADS, SettingsCategory.LYRICS,
     SettingsCategory.APPEARANCE, SettingsCategory.LISTENING,
-    SettingsCategory.VIDEO, SettingsCategory.READ, SettingsCategory.PODIO,
     SettingsCategory.INTEGRATIONS, SettingsCategory.PRIVACY, SettingsCategory.ABOUT,
 )
+
+/** The settings page of the mode Settings was opened from (Podio's page from Podio), or null for Music. */
+fun settingsCategoryOf(mode: com.cosmotune.design.AppMode?): SettingsCategory? = when (mode) {
+    com.cosmotune.design.AppMode.PODIO -> SettingsCategory.PODIO
+    com.cosmotune.design.AppMode.READ -> SettingsCategory.READ
+    com.cosmotune.design.AppMode.MANGA -> SettingsCategory.MANGA
+    com.cosmotune.design.AppMode.VIDEO, com.cosmotune.design.AppMode.WATCH -> SettingsCategory.VIDEO
+    else -> null
+}
 
 /**
  * The squircle tile of [category]'s icon (DESIGN_SYSTEM.md 4.10, the owner's Prism-style tiles): one of the kit's muted tile tints,
@@ -282,6 +308,7 @@ val SettingsCategory.tile: KitTileTint
         SettingsCategory.APPEARANCE -> KitTileTint.BLUE
         SettingsCategory.VIDEO -> KitTileTint.RED
         SettingsCategory.READ -> KitTileTint.ORANGE
+        SettingsCategory.MANGA -> KitTileTint.PINK
         SettingsCategory.PODIO -> KitTileTint.PURPLE
         SettingsCategory.LISTENING -> KitTileTint.TEAL
         SettingsCategory.INTEGRATIONS -> KitTileTint.ORANGE
@@ -297,14 +324,17 @@ fun settingsCategoryTint(category: SettingsCategory): Color {
 }
 
 
-/** The settings home's title in Orbit: the page heading in the wide face with its peach full stop, for a host that draws its own bar. */
+/**
+ * The settings home's title in Orbit: the page heading in the wide face with its peach full stop, for a host that draws its own bar;
+ * [label] over it says where Settings was opened from ("Opened from Podio").
+ */
 @Composable
-fun SettingsHubTitle(text: String, modifier: Modifier = Modifier) {
+fun SettingsHubTitle(text: String, modifier: Modifier = Modifier, label: String = "") {
     val fonts = orbitFonts()
     val look = orbitLook()
     OrbitPageHeading(
         title = text,
-        label = "",
+        label = label,
         fonts = fonts,
         look = look,
         modifier = modifier.padding(start = HUB_SIDE, end = HUB_SIDE, top = 12.dp, bottom = 16.dp).semantics { heading() },
@@ -337,9 +367,10 @@ fun SettingsAccountCard(
 }
 
 /**
- * The settings home (board 2): [accountCard] first when there is one (it stands in for the Account category), then one tile per
- * category of [entries] in two columns: its colour tile with the category's icon, its name and its summary on one line. Picking one
- * calls [onOpen]. A cell under 240 dp wide (the phone) stacks the icon over the words.
+ * The settings home (board 2, frame 15 of the modes' board): [accountCard] first when there is one (it stands in for the Account
+ * category), then the modes' own pages under "Modes", the one Settings was opened from ([current]) tagged "This mode", then the rest
+ * under "General"; one tile per category in two columns: its colour tile with the category's icon, its name and its summary on one
+ * line. Picking one calls [onOpen]. A cell under 240 dp wide (the phone) stacks the icon over the words.
  */
 @Composable
 fun SettingsHub(
@@ -347,14 +378,23 @@ fun SettingsHub(
     onOpen: (SettingsCategory) -> Unit,
     modifier: Modifier = Modifier,
     accountCard: (@Composable () -> Unit)? = null,
+    current: SettingsCategory? = null,
 ) {
     val shown = hubOrder(entries).filter { accountCard == null || it.category != SettingsCategory.ACCOUNT }
+    val (modes, general) = shown.partition { it.category in SETTINGS_MODE_PAGES }
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Column(modifier.fillMaxWidth().padding(horizontal = HUB_SIDE)) {
         if (accountCard != null) {
             accountCard()
             Spacer(Modifier.height(16.dp))
         }
-        SettingsTiles(shown, selected = null, onOpen = onOpen, tag = "settings:hub:")
+        if (modes.isNotEmpty()) {
+            OrbitLabel(SettingsText.GROUP_MODES.text(), fonts, look.dim, Modifier.padding(start = 6.dp, bottom = 8.dp).testTag("settings:hub:modes"))
+            SettingsTiles(modes, selected = null, onOpen = onOpen, tag = "settings:hub:", current = current)
+            OrbitLabel(SettingsText.GROUP_GENERAL.text(), fonts, look.dim, Modifier.padding(start = 6.dp, top = 22.dp, bottom = 8.dp).testTag("settings:hub:general"))
+        }
+        SettingsTiles(general, selected = null, onOpen = onOpen, tag = "settings:hub:")
     }
 }
 
@@ -363,25 +403,31 @@ private fun hubOrder(entries: List<SettingsCategoryEntry>): List<SettingsCategor
     HUB_ORDER.mapNotNull { category -> entries.firstOrNull { it.category == category } } + entries.filter { it.category !in HUB_ORDER }
 
 @Composable
-private fun SettingsTiles(entries: List<SettingsCategoryEntry>, selected: SettingsCategory?, onOpen: (SettingsCategory) -> Unit, tag: String, columns: Int = 2) {
+private fun SettingsTiles(entries: List<SettingsCategoryEntry>, selected: SettingsCategory?, onOpen: (SettingsCategory) -> Unit, tag: String, columns: Int = 2,
+    current: SettingsCategory? = null) {
     val fonts = orbitFonts()
     val look = orbitLook()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = (maxWidth - 12.dp * (columns - 1)) / columns < 240.dp
         OrbitTileGrid(entries.size, columns = columns) { i, cell ->
             val entry = entries[i]
-            OrbitSettingsTile(
-                icon = entry.icon,
-                fill = settingsCategoryTint(entry.category),
-                title = entry.title,
-                summary = entry.summary,
-                fonts = fonts,
-                look = look,
-                onClick = { onOpen(entry.category) },
-                modifier = cell.testTag(tag + entry.category.name),
-                selected = selected?.let { it == entry.category },
-                stacked = stacked,
-            )
+            androidx.compose.foundation.layout.Box(cell) {
+                OrbitSettingsTile(
+                    icon = entry.icon,
+                    fill = settingsCategoryTint(entry.category),
+                    title = entry.title,
+                    summary = entry.summary,
+                    fonts = fonts,
+                    look = look,
+                    onClick = { onOpen(entry.category) },
+                    modifier = Modifier.fillMaxWidth().testTag(tag + entry.category.name),
+                    selected = selected?.let { it == entry.category },
+                    stacked = stacked,
+                )
+                // The page of the mode Settings was opened from says so.
+                if (entry.category == current) com.cosmotune.ui.orbit.WatchBadge(SettingsText.THIS_MODE.text(), fonts, look.accent,
+                    Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(10.dp).testTag("settings:this-mode"))
+            }
         }
     }
 }
