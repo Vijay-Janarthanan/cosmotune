@@ -285,6 +285,8 @@ internal fun NowPlayingSongCard(
     buttonSize: Dp = 40.dp,
     /** The volume to drive; null is the host's own. For tests and hosts that bring their own. */
     volumeSource: SystemVolume? = null,
+    /** The phone's one live lyric line above the seek line, drawn in the card's ink; null for none. */
+    lyricLine: (@Composable (androidx.compose.ui.graphics.Color) -> Unit)? = null,
 ) {
     val (fill, ink) = coverFill(t.coverUrl, t.song.title)
     OrbitBiteCard(fill, modifier, bite = { NowPlayingPlayButton(t, look, 66.dp, HERO_BITE_RING) }) {
@@ -325,6 +327,10 @@ internal fun NowPlayingSongCard(
                     Spacer(Modifier.height(12.dp))
                     CardTitle(t, fonts, ink, fill, 26, maxLines = 2)
                     if (format) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 6.dp))
+                    if (lyricLine != null) {
+                        Spacer(Modifier.height(12.dp))
+                        lyricLine(ink)
+                    }
                     if (showLine) {
                         Spacer(Modifier.height(16.dp))
                         OrbitProgressLine(t::progress, ink, onSeek = t::seek)

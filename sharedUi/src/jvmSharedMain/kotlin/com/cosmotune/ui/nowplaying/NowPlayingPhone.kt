@@ -75,10 +75,12 @@ internal fun NowPlayingPhone(
 }
 
 /**
- * The media, [PHONE_GAP] under it the card, and [PHONE_CHIPS_GAP] under that the chips, as one block: the card and the chips are
- * measured first and the media gets the rest as [kind] says. A media that does not take all the room (the whole video, the record)
- * leaves some over; the block then stands a third of the way down it instead of the chips sinking to the foot, so the chips stay with
- * the card they belong to.
+ * The media at the top, the card and the chips anchored at the foot (the redesign's "picture at the top, controls at the bottom"):
+ * the card and the chips are measured first and placed at the bottom, so they stand in the same place whatever the media is; the
+ * media starts right under the top row and takes the room above the card. A video ([PhoneMedia.WHOLE] or [PhoneMedia.ROOM])
+ * runs the full width of the screen, past the page's side margins, and fills the room: Whole shows the video at its own shape in
+ * the middle with its glow round it (a widescreen video has glow above and below, a tall one either side), Fill cuts it to the room.
+ * The record keeps its square inside the margins, centred in the room.
  */
 @Composable
 private fun MediaOverCard(
@@ -100,14 +102,18 @@ private fun MediaOverCard(
         modifier = modifier,
     ) { measurables, constraints ->
         val width = constraints.maxWidth
+        val side = PHONE_SIDE.roundToPx()
         val cardPlaced = measurables[1].measure(Constraints(minWidth = width, maxWidth = width, maxHeight = constraints.maxHeight))
         val chipsPlaced = measurables[2].measure(Constraints(minWidth = width, maxWidth = width))
         val gap = PHONE_GAP.roundToPx()
         val chipsGap = PHONE_CHIPS_GAP.roundToPx()
         val room = (constraints.maxHeight - cardPlaced.height - gap - chipsGap - chipsPlaced.height).coerceAtLeast(0)
+        val bleed = kind != PhoneMedia.RECORD
+        val mediaWidth = if (bleed) width + 2 * side else width
         val wanted = when (kind) {
-            PhoneMedia.WHOLE -> (width / (if (aspect > 0f) aspect else com.cosmotune.design.VideoView.DEFAULT_ASPECT)).toInt()
-            PhoneMedia.ROOM -> room
+            // The whole video gets all the room too: it sits in the middle of it at its own shape, and the space above and below is
+            // the video's glow (a soft blur of its own frames over the cover's colour), so there is no empty band.
+            PhoneMedia.WHOLE, PhoneMedia.ROOM -> room
             PhoneMedia.RECORD -> (width * 0.9f).toInt()
         }
         val detailsGap = 8.dp.roundToPx()
@@ -115,11 +121,12 @@ private fun MediaOverCard(
             ?.takeIf { it.height > 0 && room - wanted >= it.height + detailsGap }
         val extra = details?.let { it.height + detailsGap } ?: 0
         val height = wanted.coerceIn(0, room - extra)
-        val mediaPlaced = measurables[0].measure(Constraints.fixed(width, height))
-        val top = (room - height - extra) / 3
-        val cardTop = top + height + gap + extra
+        val mediaPlaced = measurables[0].measure(Constraints.fixed(mediaWidth, height))
+        // Fill takes all the room from the top; the whole video and the record sit in the middle of the room they have.
+        val top = if (kind == PhoneMedia.ROOM) 0 else (room - height - extra) / 2
+        val cardTop = constraints.maxHeight - chipsPlaced.height - chipsGap - cardPlaced.height
         layout(width, constraints.maxHeight) {
-            mediaPlaced.place(0, top)
+            mediaPlaced.place(if (bleed) -side else 0, top)
             details?.placeRelative((width - details.width) / 2, top + height + detailsGap)
             cardPlaced.place(0, cardTop)
             chipsPlaced.place(0, cardTop + cardPlaced.height + chipsGap)

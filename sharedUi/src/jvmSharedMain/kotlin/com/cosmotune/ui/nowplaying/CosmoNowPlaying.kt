@@ -2,6 +2,7 @@ package com.cosmotune.ui.nowplaying
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
@@ -490,6 +491,9 @@ fun CosmoNowPlaying(
         NowPlayingSongCard(
             transport, orbitType, orbitInk, modifier = Modifier.fillMaxWidth(), showLine = wantVideo || panelOpen, buttonSize = 44.dp,
             buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton),
+            lyricLine = lyrics?.takeIf { lines -> !panelOpen && lines.any { it.timeMs > 0L && !it.isGap } }?.let { lines ->
+                { ink -> CurrentLyricLine(lines, lyricsPlayhead, orbitType, ink) { panels.panel = NowPlayingPanel.LYRICS } }
+            },
         )
         if (inlineLyrics && !panelOpen && !landscape && windowHeight >= 620.dp && !lyrics.isNullOrEmpty()) inlinePreview(Modifier.fillMaxWidth().height(128.dp))
         }
@@ -506,7 +510,8 @@ fun CosmoNowPlaying(
             },
             aspect = videoAspect,
             topRow = phoneTop,
-            media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, 26.dp, 300.dp, true) },
+            // A video runs edge to edge across the top (no rounding at the screen's sides); the record keeps its round frame.
+            media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, if (wantVideo) 0.dp else 26.dp, 300.dp, true) },
             card = phoneCard,
             chips = phoneChips,
             recordDetails = { RecordAudioDetails(song.videoId, orbitType, orbitInk) { sheets.pipeline = true } },
@@ -745,3 +750,32 @@ private fun Modifier.cinemaKey(enabled: Boolean, onCinema: () -> Unit): Modifier
  */
 internal fun nowPlayingVideoKeepsScreenOn(videoShowing: Boolean, isPlaying: Boolean, isLoading: Boolean): Boolean =
     videoShowing && (isPlaying || isLoading)
+
+/**
+ * The one line being sung, for the phone's song card (the full lyrics are the Lyrics tab, which a tap opens). Before the first
+ * line and in the gaps between lines it keeps the last sung line; it changes with a short cross-fade. Its clock is read in an
+ * effect a few times a second, never in composition, so the card does not recompose with the playhead.
+ */
+@Composable
+private fun CurrentLyricLine(
+    lines: List<LyricLine>,
+    playhead: com.cosmotune.music.ui.player.LyricPlayhead,
+    fonts: com.cosmotune.ui.orbit.OrbitFonts,
+    ink: androidx.compose.ui.graphics.Color,
+    onOpen: () -> Unit,
+) {
+    val timed = remember(lines) { lines.filter { !it.isGap }.sortedBy { it.timeMs } }
+    val current by androidx.compose.runtime.produceState(timed.firstOrNull()?.text.orEmpty(), timed, playhead) {
+        while (true) {
+            val at = playhead.positionMs
+            value = (timed.lastOrNull { it.timeMs <= at } ?: timed.firstOrNull())?.text.orEmpty()
+            delay(150)
+        }
+    }
+    androidx.compose.animation.Crossfade(current, label = "lyric line") { text ->
+        androidx.compose.material3.Text(
+            text, style = fonts.title, color = ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Open the lyrics", onClick = onOpen),
+        )
+    }
+}
