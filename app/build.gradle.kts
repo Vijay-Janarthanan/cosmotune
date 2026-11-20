@@ -185,6 +185,9 @@ android {
              * `benchmark` build type below before it ships.
              */
             isMinifyEnabled = true
+            // Resources nothing refers to are left out too: libraries' layouts, drawables and strings the app never
+            // shows. Resources looked up by name are kept by res/raw/manga_resources_keep.xml.
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -228,6 +231,9 @@ android {
             pickFirsts += setOf("META-INF/LICENSE.md", "META-INF/LICENSE.txt", "META-INF/NOTICE.md")
             // SMBJ's BouncyCastle and jspecify both ship this descriptor.
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            // BouncyCastle's tables for the retired Picnic signature scheme (1.2 MB): only its post-quantum Picnic
+            // engine reads them, and neither SMBJ nor the watch pairing uses post-quantum cryptography.
+            excludes += "org/bouncycastle/pqc/legacy/**"
         }
     }
     buildFeatures {

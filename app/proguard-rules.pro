@@ -25,7 +25,11 @@
 -keep class ai.onnxruntime.** { *; }
 -keep class com.hierynomus.** { *; }
 -keep class net.engio.mbassy.** { *; }
--keep class org.bouncycastle.** { *; }
+# BouncyCastle whole except its post-quantum half: SMBJ and the watch pairing
+# reach classic primitives (MD4, AES-CMAC/CCM/GCM, HMAC, RSA, X25519, ASN.1)
+# by direct reference, and nothing here asks for a post-quantum algorithm. Any
+# pqc class the kept provider code refers to directly is still kept.
+-keep class !org.bouncycastle.pqc.**, org.bouncycastle.** { *; }
 -keepclasseswithmembernames,includedescriptorclasses class * { native <methods>; }
 # The vendored FFmpeg extension's JNI calls back into this by name to grow
 # its output buffer (native/ffmpeg/ffmpeg_jni.cc, JNI_OnLoad).
