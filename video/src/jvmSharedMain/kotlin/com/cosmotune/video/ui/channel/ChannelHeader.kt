@@ -27,6 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.cosmotune.ui.orbit.OrbitBiteCard
+import com.cosmotune.ui.orbit.OrbitPlayButton
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
@@ -74,20 +76,21 @@ import com.cosmotune.ui.kit.KitButton
 import com.cosmotune.ui.kit.KitButtonKind
 
 /*
- * The head of a channel page (Orbit board B): one flat colour card in the colour of the channel's picture, with its banner as a
- * rounded strip at the top (nothing on it), the channel's disc, the mono line ("CHANNEL · @HANDLE · 1.2M SUBSCRIBERS"), the name in
- * the wide face, the first line of its description (which opens About) and its pills: Subscribe, Share, "Download the latest". Then
- * the tabs as chips. The card has no bite: a channel has no one thing to play. Every block takes the side margin it should stand
- * at ([margin]; the list or grid that holds it may pad the page already, see PageLine). And the skeleton that stands in its place.
+ * The head of a channel page (board frame 4): one colour card of about 200 dp in the colour of the channel's picture, its banner
+ * faded into the card behind the words, the channel's disc beside the mono line ("CHANNEL · @HANDLE · 340 VIDEOS"), the name and
+ * "1.2M subscribers · the first line of its description" (which opens About), then one row of round actions: Subscribe (filled),
+ * Latest (download the latest uploads) and Share. Play stands in the bite and plays the latest upload. Then the tabs as chips.
+ * Every block takes the side margin it should stand at ([margin]; the list or grid that holds it may pad the page already, see
+ * PageLine). And the skeleton that stands in its place.
  */
 
-/** The card's corner and the banner's inside it. */
+/** The card's corner. */
 private val CARD_SHAPE = RoundedCornerShape(34.dp)
-private val BANNER_SHAPE = RoundedCornerShape(24.dp)
 
 /**
- * The channel's colour card (see the file's comment). From 600 dp the disc (128 dp) stands at the start and the words beside it; on
- * a phone the disc (88 dp) is over the words. [preparing] disables the download while the uploads are being loaded for it.
+ * The channel's colour card (see the file's comment). The disc is 80 dp on a phone and 128 dp from 600 dp, always beside the
+ * words. [preparing] disables the download while the uploads are being loaded for it; [onPlayLatest] (null while there is no
+ * upload yet) is Play in the bite.
  */
 @Composable
 internal fun ChannelCard(
@@ -101,8 +104,10 @@ internal fun ChannelCard(
     onShare: () -> Unit,
     onDownload: () -> Unit,
     onAbout: (() -> Unit)?,
+    onPlayLatest: (() -> Unit)? = null,
 ) {
     val fonts = orbitFonts()
+    val look = orbitLook()
     val (fill, ink) = coverFill(channel.avatarUrl, channel.id)
     val handle = channel.handle?.takeIf { it.isNotBlank() }
     val subscribers = channel.subscriberCount?.let { stringResource(Res.string.video_subscribers, VideoText.compact(it)) }
@@ -110,32 +115,45 @@ internal fun ChannelCard(
         val quantity = count.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
         pluralStringResource(Res.plurals.video_count_videos, quantity, quantity)
     }
-    val label = listOfNotNull(stringResource(Res.string.video_channel_label), handle, subscribers, videos).joinToString(" · ").uppercase()
+    val label = listOfNotNull(stringResource(Res.string.video_channel_label), handle, videos).joinToString(" · ").uppercase()
     val description = channel.description?.lineSequence()?.firstOrNull { it.isNotBlank() }
     val latest = stringResource(Res.string.video_dl_latest)
-    Column(Modifier.fillMaxWidth().padding(horizontal = margin).clip(CARD_SHAPE).background(fill).padding(12.dp).testTag("video:channel:card")) {
+    val disc = if (wide) 128.dp else 80.dp
+    OrbitBiteCard(
+        fill, Modifier.fillMaxWidth().padding(horizontal = margin).testTag("video:channel:card"),
+        shape = com.cosmotune.ui.orbit.HeroBite,
+        bite = { if (onPlayLatest != null) OrbitPlayButton(false, onPlayLatest, look) },
+    ) {
         if (bannerUrl != null) {
             val stand = LocalThumbnailStandIn.current
-            Box(Modifier.fillMaxWidth().height(if (wide) 132.dp else 84.dp).clip(BANNER_SHAPE).background(ink.copy(alpha = 0.08f))) {
+            Box(Modifier.matchParentSize()) {
                 if (stand != null) stand(bannerUrl, Modifier.fillMaxSize())
                 else AsyncImage(model = bannerUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                // The banner melts into the card so the words stay on its colour.
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to fill.copy(alpha = 0.55f), 0.55f to fill.copy(alpha = 0.92f), 1f to fill)))
             }
         }
-        val words: @Composable ColumnScope.() -> Unit = {
-            Text(label, style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                channel.name, style = if (wide) fonts.greeting.copy(fontSize = 36.sp, lineHeight = 38.sp) else fonts.heroTitle.copy(fontSize = 26.sp, lineHeight = 28.sp),
-                color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp).semantics { heading() },
-            )
-            if (description != null) {
-                Text(
-                    description, style = fonts.body.copy(fontSize = 14.sp), color = ink.copy(alpha = 0.82f), maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 8.dp).clip(RoundedCornerShape(10.dp)).then(if (onAbout != null) Modifier.clickable(role = Role.Button, onClick = onAbout) else Modifier),
-                )
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ChannelAvatar(channel.avatarUrl, disc, name = channel.name)
+                Column(Modifier.weight(1f).padding(start = if (wide) 24.dp else 14.dp)) {
+                    Text(label, style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        channel.name, style = if (wide) fonts.greeting.copy(fontSize = 36.sp, lineHeight = 38.sp) else fonts.heroTitle.copy(fontSize = 24.sp, lineHeight = 26.sp),
+                        color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp).semantics { heading() },
+                    )
+                    val line = listOfNotNull(subscribers, description).joinToString(" · ")
+                    if (line.isNotEmpty()) {
+                        Text(
+                            line, style = fonts.body.copy(fontSize = 13.sp, lineHeight = 18.sp), color = ink.copy(alpha = 0.82f), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).then(if (onAbout != null) Modifier.clickable(role = Role.Button, onClick = onAbout) else Modifier),
+                        )
+                    }
+                }
             }
-            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // One row of round actions, clear of the bite: Subscribe is the filled one.
+            Row(Modifier.padding(top = 14.dp, end = 76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 SubscribePill(subscribed = subscribed, onClick = onSubscribe, ink = ink, fill = fill)
-                OrbitRoundButton(CosmoIcons.Share, stringResource(Res.string.video_share), ink, onShare, onInk = fill)
                 if (wide) {
                     WatchCardChip(latest, ink, fonts, onDownload, icon = CosmoIcons.Download, enabled = !preparing)
                 } else {
@@ -143,18 +161,7 @@ internal fun ChannelCard(
                         OrbitRoundButton(CosmoIcons.Download, latest, ink, { if (!preparing) onDownload() }, onInk = fill)
                     }
                 }
-            }
-        }
-        if (wide) {
-            Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 16.dp, top = 20.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                ChannelAvatar(channel.avatarUrl, 128.dp, name = channel.name)
-                Column(Modifier.weight(1f).padding(start = 28.dp), content = words)
-            }
-        } else {
-            Column(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 16.dp, bottom = 10.dp)) {
-                ChannelAvatar(channel.avatarUrl, 88.dp, name = channel.name)
-                Spacer(Modifier.height(16.dp))
-                words()
+                OrbitRoundButton(CosmoIcons.Share, stringResource(Res.string.video_share), ink, onShare, onInk = fill)
             }
         }
     }

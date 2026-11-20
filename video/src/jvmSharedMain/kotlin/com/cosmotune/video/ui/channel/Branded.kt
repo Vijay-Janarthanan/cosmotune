@@ -42,14 +42,14 @@ internal fun BrandedVideoCard(item: VideoItem, downloaded: Boolean, onClick: () 
 
 /** The wide page's card in its grid cell. */
 @Composable
-internal fun BrandedVideoCell(item: VideoItem, downloaded: Boolean, onClick: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier) {
+internal fun BrandedVideoCell(item: VideoItem, downloaded: Boolean, onClick: () -> Unit, onMore: () -> Unit, modifier: Modifier = Modifier, watchedFraction: Float? = null) {
     val branded = rememberBranded(item)
     VideoCardBody(
         item = branded.item,
         onClick = onClick,
         onMore = onMore,
         modifier = modifier,
-        watchedFraction = null,
+        watchedFraction = watchedFraction,
         title = branded.title,
         downloaded = downloaded,
     )
@@ -65,11 +65,13 @@ internal fun BrandedVideoRow(
     modifier: Modifier = Modifier,
     desktop: Boolean = false,
     trailing: (@Composable RowScope.() -> Unit)? = null,
+    watchedFraction: Float? = null,
 ) {
     val branded = rememberBranded(item)
     VideoRow(
         item = branded.item,
         onClick = onClick,
+        watchedFraction = watchedFraction,
         onMore = onMore,
         modifier = modifier,
         desktop = desktop,
