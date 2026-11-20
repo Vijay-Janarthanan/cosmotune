@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -98,7 +99,8 @@ private val HOME_WASH = Color(0xFF3C508C)
 internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
     val repository = actions.repository
     var chosen by rememberSaveable { mutableStateOf(HomeFilter.ALL) }
-    val filter = fixed ?: chosen
+    // Live TV is a tab of its own, not one of Home's filters.
+    val filter = fixed ?: chosen.takeIf { it != HomeFilter.LIVE } ?: HomeFilter.ALL
     val viewer by repository.activeProfile.collectAsState()
     // The rows of each tab stay for the process (and on the disk): coming back shows them at once while they refresh.
     val entry = remember(repository, filter, viewer) { watchHomeEntry(repository, filter, viewer) }
@@ -123,8 +125,8 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                 val chips: @Composable () -> Unit = {
                     if (fixed == null && frame.filterChips) {
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(HomeFilter.ALL to "All", HomeFilter.FILMS to "Films", HomeFilter.SERIES to "Series", HomeFilter.LIVE to "Live TV").forEach { (f, name) ->
-                                OrbitSelectChip(name, chosen == f, fonts, look, onClick = { chosen = f }, haptic = false)
+                            listOf(HomeFilter.ALL to "All", HomeFilter.FILMS to "Films", HomeFilter.SERIES to "Series").forEach { (f, name) ->
+                                OrbitSelectChip(name, filter == f, fonts, look, onClick = { chosen = f }, haptic = false)
                             }
                         }
                     }
@@ -155,20 +157,6 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                         Modifier.padding(horizontal = side).padding(top = 24.dp), action = "Open Plugins", onAction = { WatchNav.go(WatchTab.PLUGINS) })
                 }
                 data != null -> {
-                    data.featured?.let { featured ->
-                        item(key = "watch:featured") {
-                            WatchFeaturedCard(
-                                featured, frame.wide, fonts, look,
-                                inList = myList.any { it.key == featured.summary.key },
-                                onPlay = { actions.play(featured.summary) },
-                                onOpen = { actions.open(featured.summary) },
-                                onMyList = { actions.setInMyList(featured.summary, it) },
-                                watchTogether = actions.watchTogetherReady,
-                                onWatchTogether = { actions.watchTogether(featured.summary, null, null) },
-                                modifier = Modifier.padding(horizontal = side).padding(top = 22.dp),
-                            )
-                        }
-                    }
                     val going = live.filter {
                         when (filter) { HomeFilter.FILMS -> it.summary.type == TitleType.FILM; HomeFilter.SERIES -> it.summary.type == TitleType.SERIES; HomeFilter.LIVE -> false; else -> true }
                     }.ifEmpty { if (filter == HomeFilter.LIVE) emptyList() else data.continueWatching }
@@ -180,14 +168,33 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                             }
                         }
                     }
+                    data.featured?.let { featured ->
+                        item(key = "watch:featured") {
+                            WatchFeaturedCard(
+                                featured, frame.wide, fonts, look,
+                                inList = myList.any { it.key == featured.summary.key },
+                                onPlay = { actions.play(featured.summary) },
+                                onOpen = { actions.open(featured.summary) },
+                                onMyList = { actions.setInMyList(featured.summary, it) },
+                                watchTogether = actions.watchTogetherReady,
+                                onWatchTogether = { actions.watchTogether(featured.summary, null, null) },
+                                modifier = Modifier.padding(horizontal = side).padding(top = if (going.isEmpty()) 22.dp else 26.dp),
+                            )
+                        }
+                    }
                     if (data.liveNow.isNotEmpty()) item(key = "watch:live") {
                         Column {
-                            Section("Live now", null, fonts, look, side)
+                            Row(Modifier.fillMaxWidth().padding(end = side), verticalAlignment = Alignment.Bottom) {
+                                Section("Live now", null, fonts, look, side, Modifier.weight(1f))
+                                WatchCardChip("See all", look.ink, fonts, onClick = { WatchNav.go(WatchTab.LIVE) }, modifier = Modifier.padding(bottom = 6.dp))
+                            }
                             LiveNow(data.liveNow, frame.wide, fonts, look, actions, clock, Modifier.padding(horizontal = side))
                         }
                     }
+                    // How far each title in progress is, for the line under its poster in the rows.
+                    val watched = (live.ifEmpty { data.continueWatching }).associate { it.summary.key to it.progress.fraction }
                     data.rows.forEach { row ->
-                        if (row.items.isNotEmpty() || row.deferred) item(key = "watch:row:" + row.id) { HomeRowShelf(row, fonts, look, side, actions) }
+                        if (row.items.isNotEmpty() || row.deferred) item(key = "watch:row:" + row.id) { HomeRowShelf(row, fonts, look, side, actions, watched) }
                     }
                 }
             }
@@ -251,8 +258,9 @@ internal fun posterLine(summary: TitleSummary): String =
     }, summary.badge ?: summary.genres.firstOrNull()).joinToString(" · ")
 
 /**
- * The featured card (board section 1): the colour of its picture, the wide picture inside it at the end (above the text on the
- * phone), the mono line, the title, the overview, the badges, My list and Watch together; Play in the bite.
+ * The featured card (board frame 6): about 220 dp in the colour of its picture, the picture faded into the card at its end; the
+ * mono line, the title, the badges, then My list and Watch together as round actions. Play in the bite is its one main action;
+ * a tap on the card opens the title's page.
  */
 @Composable
 private fun WatchFeaturedCard(
@@ -270,41 +278,27 @@ private fun WatchFeaturedCard(
 ) {
     val s = featured.summary
     val (fill, ink) = coverFill(s.backdropUrl ?: s.posterUrl, s.key.value)
-    val text: @Composable (Modifier) -> Unit = { m ->
-        Column(m) {
-            OrbitLabel(summaryLine(s, "Featured"), fonts, ink.copy(alpha = 0.75f))
-            Text(s.name, style = fonts.heroTitle.copy(fontSize = if (wide) 34.sp else 28.sp, lineHeight = if (wide) 36.sp else 30.sp), color = ink,
-                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
-            s.overview?.let {
-                Text(it, style = fonts.body.copy(fontSize = 14.sp, lineHeight = 20.sp), color = ink.copy(alpha = 0.85f), maxLines = 3, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 10.dp))
-            }
-            if (featured.badges.isNotEmpty()) Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                featured.badges.forEach { WatchBadge(it, fonts, ink) }
-            }
-            // On the phone the chips stop short of Play's bite and wrap rather than scroll under it.
-            WatchCardChipRow(wide, biteRoom = 80.dp, Modifier.padding(top = 16.dp)) {
-                WatchCardChip(if (inList) "In my list" else "My list", ink, fonts, onClick = { onMyList(!inList) }, icon = if (inList) CosmoIcons.Check else CosmoIcons.Plus)
-                WatchCardChip("Watch together", ink, fonts, onClick = onWatchTogether, icon = CosmoIcons.Together, enabled = watchTogether)
-            }
-        }
-    }
     // Play sits in the bite, inside the card's bounds, so a D-pad's Right from the card would never find it: it is named.
     val cardFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
-    OrbitBiteCard(fill, modifier.fillMaxWidth().then(if (wide) Modifier.height(250.dp) else Modifier), onClick = onOpen,
+    OrbitBiteCard(fill, modifier.fillMaxWidth().height(if (wide) 250.dp else 220.dp), onClick = onOpen,
         cardModifier = Modifier.focusRequester(cardFocus).focusProperties { right = playFocus },
         bite = { OrbitPlayButton(false, onPlay, look, Modifier.focusRequester(playFocus).focusProperties { left = cardFocus }) }) {
-        if (wide) {
-            BoxWithConstraints(Modifier.fillMaxSize()) {
-                val pictureWidth = (maxWidth * 0.36f).coerceAtMost(340.dp)
-                WatchPicture(s.backdropUrl ?: s.posterUrl, s.key.value + "b", Modifier.align(Alignment.TopEnd).padding(top = 20.dp, end = 112.dp).size(pictureWidth, 210.dp), radius = 24.dp)
-                text(Modifier.padding(start = 26.dp, top = 30.dp, end = pictureWidth + 140.dp).widthIn(max = 470.dp))
-            }
-        } else {
-            Column(Modifier.fillMaxWidth()) {
-                WatchPicture(s.backdropUrl ?: s.posterUrl, s.key.value + "b", Modifier.padding(14.dp).fillMaxWidth().aspectRatio(16f / 9f), radius = 22.dp)
-                text(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 22.dp))
+        Box(Modifier.fillMaxSize()) {
+            WatchCardBanner(s.backdropUrl ?: s.posterUrl, s.key.value + "b", fill, share = if (wide) 0.5f else 0.62f)
+            Column(Modifier.fillMaxHeight().padding(start = if (wide) 26.dp else 20.dp, top = if (wide) 26.dp else 20.dp, end = 20.dp, bottom = 16.dp).widthIn(max = 520.dp)) {
+                OrbitLabel(summaryLine(s, "Featured"), fonts, ink.copy(alpha = 0.75f))
+                Text(s.name, style = fonts.heroTitle.copy(fontSize = if (wide) 34.sp else 28.sp, lineHeight = if (wide) 36.sp else 30.sp), color = ink,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp, end = if (wide) 0.dp else 40.dp))
+                if (featured.badges.isNotEmpty()) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    featured.badges.forEach { WatchBadge(it, fonts, ink) }
+                }
+                Spacer(Modifier.weight(1f))
+                WatchCardActions(listOf(
+                    WatchCardAction(if (inList) CosmoIcons.Check else CosmoIcons.Plus, "My list", on = inList,
+                        description = if (inList) "Remove from My list" else "Add to My list") { onMyList(!inList) },
+                    WatchCardAction(CosmoIcons.Together, "Together", enabled = watchTogether, description = "Watch together", onClick = onWatchTogether),
+                ), ink, fill, fonts)
             }
         }
     }
@@ -324,7 +318,7 @@ private fun ContinueCard(item: ContinueItem, wide: Boolean, fonts: OrbitFonts, l
 /** Live now: three across on a wide page, stacked on the phone; a tap plays the channel. */
 @Composable
 private fun LiveNow(items: List<LiveNowItem>, wide: Boolean, fonts: OrbitFonts, look: OrbitLook, actions: WatchActions, clock: () -> Long, modifier: Modifier) {
-    val shown = items.take(if (wide) 6 else 4)
+    val shown = items.take(if (wide) 6 else 3)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         shown.chunked(if (wide) 3 else 1).forEach { line ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -380,7 +374,7 @@ internal object WatchHomeMemory {
  * [HomeRow.deferred] row loads its first titles when it is scrolled to (placeholders meanwhile), and is not drawn if it has none.
  */
 @Composable
-private fun HomeRowShelf(row: HomeRow, fonts: OrbitFonts, look: OrbitLook, side: Dp, actions: WatchActions) {
+private fun HomeRowShelf(row: HomeRow, fonts: OrbitFonts, look: OrbitLook, side: Dp, actions: WatchActions, watched: Map<com.cosmotune.watch.model.WatchKey, Float> = emptyMap()) {
     val more = remember(row.id) { WatchHomeMemory.loaded(row.id) }
     if (row.deferred) LaunchedEffect(row.id) {
         if (more[0] == null) more[0] = runCatching { actions.repository.rowPage(row.id, 0) }.getOrDefault(emptyList())
@@ -414,6 +408,7 @@ private fun HomeRowShelf(row: HomeRow, fonts: OrbitFonts, look: OrbitLook, side:
                 WatchCard(
                     s.name, (if (row.id.contains(":regional10:") || row.id.contains(":today:")) "${index + 1} · " else "") + posterLine(s), if (row.wide) s.backdropUrl ?: s.posterUrl else s.posterUrl ?: s.backdropUrl, s.key.value, fonts, look,
                     onClick = { actions.open(s) }, width = if (row.wide) 250.dp else 142.dp, wide = row.wide, onPlay = { actions.play(s) },
+                    progress = watched[s.key]?.takeIf { it > 0f && it < 1f },
                 )
             }
         }
