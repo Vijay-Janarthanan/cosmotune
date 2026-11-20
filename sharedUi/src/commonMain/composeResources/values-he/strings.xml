@@ -500,4 +500,6 @@
     <string name="cosmo_theme_light">Light</string>
     <string name="cosmo_theme_dark">Dark</string>
     <string name="cosmo_theme_summary">Follow the system, or keep Cosmotune light or dark</string>
+    <string name="cosmo_keep_downloaded">להשאיר מורדת</string>
+    <string name="cosmo_keep_downloaded_line">שירים חדשים ב-Wi‑Fi · %1$d מתוך %2$d נשמרו</string>
 </resources>

@@ -499,4 +499,6 @@
     <string name="cosmo_theme_light">Light</string>
     <string name="cosmo_theme_dark">Dark</string>
     <string name="cosmo_theme_summary">Follow the system, or keep Cosmotune light or dark</string>
+    <string name="cosmo_keep_downloaded">Mantener descargada</string>
+    <string name="cosmo_keep_downloaded_line">Canciones nuevas por wifi · %1$d de %2$d guardadas</string>
 </resources>

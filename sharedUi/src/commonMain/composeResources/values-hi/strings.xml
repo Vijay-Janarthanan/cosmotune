@@ -499,4 +499,6 @@
     <string name="cosmo_theme_light">Light</string>
     <string name="cosmo_theme_dark">Dark</string>
     <string name="cosmo_theme_summary">Follow the system, or keep Cosmotune light or dark</string>
+    <string name="cosmo_keep_downloaded">डाउनलोड रखें</string>
+    <string name="cosmo_keep_downloaded_line">नए गाने Wi‑Fi पर · %2$d में से %1$d सहेजे गए</string>
 </resources>
