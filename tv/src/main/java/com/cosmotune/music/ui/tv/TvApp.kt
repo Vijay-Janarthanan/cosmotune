@@ -364,7 +364,7 @@ private fun TvMainShell(
     val liveSettings = com.cosmotune.ui.live.rememberLiveNowSettings()
     val live = remember(liveSettings, liveContext) {
         com.cosmotune.ui.live.LiveNowHost(
-            events = { com.cosmotune.music.watch.AndroidWatch.repository(liveContext).liveEvents() },
+            events = { interest -> com.cosmotune.music.watch.AndroidWatch.repository(liveContext).liveEvents(interest) },
             settings = liveSettings,
             play = { event, option ->
                 com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.LIVE)

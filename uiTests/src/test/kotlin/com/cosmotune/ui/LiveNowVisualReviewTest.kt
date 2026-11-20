@@ -153,7 +153,7 @@ class LiveNowVisualReviewTest {
     }
 
     private fun host(repository: WatchRepository, settings: LiveNowSettings = LiveNowSettings(LiveNowMemoryStore())) =
-        LiveNowHost(events = { repository.liveEvents() }, settings = settings, play = { _, _ -> }, clock = { evening + 20_000 })
+        LiveNowHost(events = { repository.liveEvents(it) }, settings = settings, play = { _, _ -> }, clock = { evening + 20_000 })
 
     private fun page(dark: Boolean, size: Size, content: @Composable () -> Unit) {
         val palette = CosmoPaletteState(com.cosmotune.theme.OnePalette.of(dark, false), dark)

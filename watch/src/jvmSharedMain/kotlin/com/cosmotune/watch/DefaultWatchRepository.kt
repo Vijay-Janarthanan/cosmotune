@@ -617,6 +617,8 @@ class DefaultWatchRepository(
 
     override fun liveEvents(): Flow<List<LiveEvent>> = liveEventsHub.flow()
 
+    override fun liveEvents(interest: com.cosmotune.watch.model.LiveInterest): Flow<List<LiveEvent>> = liveEventsHub.flow(interest)
+
     /** The events once, without polling (tests and a pull-to-refresh). */
     suspend fun liveEventsNow(): List<LiveEvent> = liveEventsHub.current()
 

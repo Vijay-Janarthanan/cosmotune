@@ -4,6 +4,7 @@ import com.cosmotune.watch.model.Channel
 import com.cosmotune.watch.model.EpgProgramme
 import com.cosmotune.watch.model.Episode
 import com.cosmotune.watch.model.LiveEvent
+import com.cosmotune.watch.model.LiveInterest
 import com.cosmotune.watch.model.MyListEntry
 import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.model.Stream
@@ -270,6 +271,9 @@ interface WatchRepository {
      * that is not set up or does not answer is left out, never fails the flow.
      */
     fun liveEvents(): Flow<List<LiveEvent>> = flowOf(emptyList())
+
+    /** [liveEvents] for what [interest] follows: the live channels are asked only when it can use them (see [LiveInterest]). */
+    fun liveEvents(interest: LiveInterest): Flow<List<LiveEvent>> = liveEvents()
 
     // Search
     suspend fun search(query: String): SearchResults

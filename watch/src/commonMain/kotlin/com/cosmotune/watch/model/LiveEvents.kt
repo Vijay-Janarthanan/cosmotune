@@ -75,3 +75,16 @@ data class LiveEvent(
 ) {
     val isLive: Boolean get() = status == LiveEventStatus.LIVE
 }
+
+/**
+ * What the one looking at "Live now" follows: [follows] says whether an event is one of theirs (its sport and teams), [shows]
+ * whether live shows are among the sports followed. The repository asks the YouTube live channels (DD's and the official
+ * channels' Live tabs) only for an interest that can use them: shows followed, or a followed match in play whose free streams
+ * are looked for. It polls quickly only while a followed event is live.
+ */
+class LiveInterest(val shows: Boolean = true, val follows: (LiveEvent) -> Boolean = { true }) {
+    companion object {
+        /** Every event, shows included: what the strip asked for before it said what it follows. */
+        val ALL = LiveInterest()
+    }
+}
