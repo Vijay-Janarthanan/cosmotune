@@ -116,7 +116,7 @@ class HomeContractTest {
         val src = SourceContract.code(SourceContract.read(desktopRoot))
         val at = src.indexOf("val homeWantsExplore =")
         assertTrue(at >= 0, "the extra loader exists")
-        val block = src.substring(at, src.indexOf("LaunchedEffect(exploreState)", at))
+        val block = src.substring(at, src.indexOf("LaunchedEffect(exploreCategories)", at))
         assertTrue("destination == DesktopDestination.LISTEN_NOW" in block && "destination == DesktopDestination.SEARCH" in block, "only on Listen now and on Search (its mood grid)")
         assertTrue("LaunchedEffect(exploreReloads) {" in block && "if (exploreReloads > 0 && homeWantsExplore) loadExplore()" in block, "Retry from either page reloads")
         assertTrue("val homeWantsExplore = destination == DesktopDestination.LISTEN_NOW || destination == DesktopDestination.SEARCH" in src, "on those two pages, whatever else")

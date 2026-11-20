@@ -2934,13 +2934,17 @@ fun CosmotuneDesktopApp() {
         if (exploreState !is UiState.Success) {
             exploreState = UiState.Loading
             // The moods of the last run, at once, while they are asked for again.
-            com.cosmotune.cache.MusicPages.savedExplore()?.let { saved -> if (exploreState is UiState.Loading) exploreState = UiState.Success(saved) }
+            com.cosmotune.cache.MusicPages.savedExplore()?.let { saved ->
+                val withCovers = com.cosmotune.cache.ExploreCovers.apply(saved)
+                if (exploreState is UiState.Loading) exploreState = UiState.Success(withCovers)
+            }
         }
         DesktopSearchClient.moodAndGenres().fold(
-            onSuccess = { sections ->
-                exploreState = if (sections.isEmpty()) {
+            onSuccess = { fetched ->
+                exploreState = if (fetched.isEmpty()) {
                     UiState.Error("Nothing to explore right now")
                 } else {
+                    val sections = com.cosmotune.cache.ExploreCovers.apply(fetched)
                     com.cosmotune.cache.MusicPages.saveExplore(sections)
                     UiState.Success(sections)
                 }
@@ -2968,36 +2972,18 @@ fun CosmotuneDesktopApp() {
         if (exploreReloads > 0 && homeWantsExplore) loadExplore()
     }
 
-    // Category buttons carry no artwork of their own, so a few are resolved at a time from the
-    // shelves they open.
-    LaunchedEffect(exploreState) {
+    // Category buttons carry no artwork of their own: each borrows the first cover of the shelves it opens. The covers are kept on
+    // the disk (ExploreCovers): each is asked once, a few at a time, and the whole set again in the background at most once a day.
+    // Keyed on the categories, not on exploreState, which every cover writes to: a cover landing must not restart the pass.
+    val exploreCategories = (exploreState as? UiState.Success)?.data?.flatMap { it.items }?.map(com.cosmotune.cache.ExploreCoverStore::key)
+    LaunchedEffect(exploreCategories) {
         val sections = (exploreState as? UiState.Success)?.data ?: return@LaunchedEffect
-        if (sections.all { section -> section.items.all { it.thumbnailUrl != null } }) return@LaunchedEffect
-        val limiter = Semaphore(4)
-        coroutineScope {
-            sections.flatMap(MoodGenreSection::items)
-                .filter { it.thumbnailUrl == null }
-                .forEach { item ->
-                    launch {
-                        val artwork = limiter.withPermit {
-                            DesktopSearchClient.moodGenreArtwork(item.browseId, item.params).getOrNull()
-                        } ?: return@launch
-                        val current = (exploreState as? UiState.Success)?.data ?: return@launch
-                        exploreState = UiState.Success(
-                            current.map { section ->
-                                section.copy(
-                                    items = section.items.map { entry ->
-                                        if (entry.browseId == item.browseId && entry.params == item.params) {
-                                            entry.copy(thumbnailUrl = artwork)
-                                        } else {
-                                            entry
-                                        }
-                                    },
-                                )
-                            },
-                        )
-                    }
-                }
+        com.cosmotune.cache.ExploreCovers.resolve(
+            sections,
+            fetch = { item -> DesktopSearchClient.moodGenreArtwork(item.browseId, item.params) },
+        ) { item, artwork ->
+            val current = (exploreState as? UiState.Success)?.data ?: return@resolve
+            exploreState = UiState.Success(com.cosmotune.cache.ExploreCoverStore.withCover(current, item, artwork))
         }
     }
 
