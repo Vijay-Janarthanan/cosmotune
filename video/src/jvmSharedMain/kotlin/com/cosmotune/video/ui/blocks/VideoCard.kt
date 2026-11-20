@@ -25,7 +25,7 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * The feed card (Orbit board B, "Video mode"): the kit's [OrbitVideoCard], the picture across the page's width less its margins, a
  * 16:9 rectangle with nothing on it and the play moon off its corner; under it the channel's disc, the title on two lines and the
- * meta line ("Channel · 12:04 · 2 days ago"). It stands in the page's 16 dp margin with 20 dp after it, so a list needs no padding of its own.
+ * meta line ("Channel · 12:04 · 2 days ago"). It stands in the page's 16 dp margin with 12 dp after it, so a list needs no padding of its own.
  *
  * A tap (or the moon) calls [onClick]; a hold, a right click and the screen reader's "More options" call [onMore] (the video sheet).
  * [watchedFraction] puts the watched line under the picture, [title] stands in for the item's (a DeArrow title), [downloaded] says
@@ -92,8 +92,8 @@ internal fun VideoCardBody(
 /** The badge stands clear of the play moon that hangs off the picture's corner. */
 private val CARD_BADGE_END = 40.dp
 
-/** The room after a card of a list. */
-private val CARD_AFTER = 20.dp
+/** The room after a card of a list (12 dp, so two to three cards show on a phone's screen). */
+private val CARD_AFTER = 12.dp
 
 /** The channel's disc beside a card's words (the board's 32 dp). */
 private val CARD_AVATAR = 32.dp

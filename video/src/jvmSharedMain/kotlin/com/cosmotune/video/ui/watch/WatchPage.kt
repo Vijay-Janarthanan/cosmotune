@@ -368,6 +368,7 @@ private val TOP_ROW = 56.dp
  * The phone's page (see [WatchPage]): the top row, the video in its frame, then the column. The description sheet and the comments
  * sheet open under the video, and Back closes them.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun WatchPagePhone(
     view: WatchView,
@@ -431,14 +432,18 @@ private fun WatchPagePhone(
                     )
                 }
                 watchBlocks(view = view, callbacks = callbacks, onOpenDescription = { descriptionOpen = true })
-                if (info != null && segments.size > 1) {
-                    item(key = "segments") { WatchSegmentRow(segments, chosen, onChoose, fonts, look, PHONE_SIDE) }
+                // Up next · Chapters · Comments as one row of tabs with Autoplay at its end; it stays under the video once the card
+                // has scrolled away, so the list starts sooner and the tabs stay in reach.
+                if (info != null && (segments.size > 1 || view.upNext != UpNextShow.NONE)) {
+                    stickyHeader(key = "segments") {
+                        WatchPhoneTabs(segments, chosen, onChoose, view.autoplay.takeIf { view.upNext != UpNextShow.NONE }, callbacks.onAutoplay, fonts, look)
+                    }
                 }
                 when (chosen) {
                     WideSegment.CHAPTERS -> itemsIndexed(view.chapters, key = { index, chapter -> "chapter:$index:${chapter.startMs}" }) { _, chapter ->
                         ChapterRow(chapter, callbacks.onSeek)
                     }
-                    else -> upNextSection(view, watched, downloaded, desktop = false, callbacks = callbacks)
+                    else -> upNextSection(view, watched, downloaded, desktop = false, callbacks = callbacks, header = false)
                 }
             }
         }
@@ -509,6 +514,7 @@ private fun LazyListScope.watchBlocks(
             onOpenChannel = callbacks.onOpenChannel,
             onSubscribe = callbacks.onSubscribe,
             modifier = Modifier.padding(top = 8.dp),
+            description = view.description?.text,
         )
     }
 }

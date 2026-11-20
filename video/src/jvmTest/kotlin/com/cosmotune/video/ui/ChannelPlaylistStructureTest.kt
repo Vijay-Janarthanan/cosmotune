@@ -230,18 +230,20 @@ class ChannelPlaylistStructureTest {
 
     // ---- The channel page --------------------------------------------------------------------------------------------------------
 
-    @Test fun theBannerIsARoundedStripInTheCardWithNothingOnIt() {
+    @Test fun theBannerIsFadedIntoTheCardBehindTheWords() {
         val header = code("channel/ChannelHeader")
-        assertTrue("BANNER_SHAPE = RoundedCornerShape(24.dp)" in header && "height(if (wide) 132.dp else 84.dp)" in header)
-        assertTrue(".drawWithContent {" !in header, "no fade drawn over the picture")
+        assertTrue("Box(Modifier.matchParentSize())" in header, "the banner fills the card behind the words")
+        assertTrue("Brush.verticalGradient(0f to fill.copy(alpha = 0.55f)" in header, "and melts into the card's colour")
     }
 
     @Test fun theHeadIsTheChannelsColourCardWithItsDisc() {
         val header = code("channel/ChannelHeader")
         assertTrue("coverFill(channel.avatarUrl, channel.id)" in header, "the card wears the colour of the channel's picture")
-        assertTrue("ChannelAvatar(channel.avatarUrl, 128.dp, name = channel.name)" in header && "ChannelAvatar(channel.avatarUrl, 88.dp, name = channel.name)" in header, "the disc: 88 dp, 128 wide")
+        assertTrue("val disc = if (wide) 128.dp else 80.dp" in header && "ChannelAvatar(channel.avatarUrl, disc, name = channel.name)" in header, "the disc beside the name: 80 dp, 128 wide")
         assertTrue("maxLines = 2" in header, "the name takes two lines")
-        assertTrue("listOfNotNull(stringResource(Res.string.video_channel_label), handle, subscribers, videos)" in header, "the mono line")
+        assertTrue("listOfNotNull(stringResource(Res.string.video_channel_label), handle, videos)" in header, "the mono line")
+        assertTrue("listOfNotNull(subscribers, description)" in header, "the subscribers and the description's first line under the name")
+        assertTrue("OrbitBiteCard(" in header && "if (onPlayLatest != null) OrbitPlayButton(false, onPlayLatest, look)" in header, "Play latest in the bite")
         assertTrue("channel.description?.lineSequence()" in header, "the first line of the description")
     }
 
@@ -271,7 +273,8 @@ class ChannelPlaylistStructureTest {
 
     @Test fun theTabsFeedCardsAndPlaylistRowsAndTheWidePageIsAGrid() {
         val page = code("channel/ChannelPage")
-        assertTrue("BrandedVideoCell(item, isDownloaded, onClick, onMore) else BrandedVideoRow(item, isDownloaded, onClick, onMore)" in page, "the phone's rows, the grid's cell from 600 dp (DESIGN_SYSTEM.md 6.2)")
+        assertTrue("if (wide) BrandedVideoCell(item, isDownloaded, onClick, onMore, watchedFraction = watched) else BrandedVideoRow(item, isDownloaded, onClick, onMore, watchedFraction = watched)" in page, "the phone's rows, the grid's cell from 600 dp (DESIGN_SYSTEM.md 6.2), each with its watched line")
+        assertTrue("val watched = rememberWatchedFraction(item)" in page, "every upload shows how far it was watched")
         assertTrue("val grid = wide || maxWidth >= GRID_MIN" in page && "private val GRID_MIN = 600.dp" in page, "the grid starts at 600 dp")
         assertTrue("PlaylistRow(item = playlist, onClick = { ui.onOpenPlaylist(playlist.id) }" in page, "playlists are playlist rows")
         assertTrue("VideoGrid(" in page && "VideoGridSpec.of(widthDp)" in page, "a grid when wide")

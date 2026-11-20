@@ -31,6 +31,8 @@ import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.player.VideoSurfaceProvider
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_collapse
+import com.cosmotune.video.resources.video_autoplay
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.cosmotune.video.resources.video_more
 import com.cosmotune.video.ui.player.PlayerLayout
 import com.cosmotune.video.ui.player.VideoPlayerBox
@@ -129,7 +131,37 @@ internal fun RowScope.WatchSegmentChips(segments: List<WideSegment>, chosen: Wid
     }
 }
 
-/** The row of segment chips standing on its own (the phone's, under the actions), in the page's margin. */
+/**
+ * The phone's tabs under the actions (board frame 2): the segment chips (Up next, Chapters, Comments) and, at the row's end, the
+ * mono "AUTO" with its switch while there is an Up next to follow ([autoplay] null hides it). It stands on the page's ground, as it
+ * sticks under the video.
+ */
+@Composable
+internal fun WatchPhoneTabs(
+    segments: List<WideSegment>,
+    chosen: WideSegment,
+    onChoose: (WideSegment) -> Unit,
+    autoplay: Boolean?,
+    onAutoplay: (Boolean) -> Unit,
+    fonts: OrbitFonts,
+    look: OrbitLook,
+) {
+    val label = stringResource(Res.string.video_autoplay)
+    Row(
+        Modifier.fillMaxWidth().background(look.ground).padding(top = 10.dp, bottom = 6.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        com.cosmotune.ui.orbit.OrbitChipRow(16.dp, Modifier.weight(1f)) { WatchSegmentChips(segments, chosen, onChoose, fonts, look) }
+        if (autoplay != null) {
+            Spacer(Modifier.width(8.dp))
+            OrbitLabel(label, fonts, look.dim, Modifier.clearAndSetSemantics { })
+            Spacer(Modifier.width(8.dp))
+            com.cosmotune.ui.orbit.OrbitSwitch(checked = autoplay, onChange = onAutoplay, look = look, label = label)
+        }
+    }
+}
+
+/** The row of segment chips standing on its own (in the page's margin). */
 @Composable
 internal fun WatchSegmentRow(segments: List<WideSegment>, chosen: WideSegment, onChoose: (WideSegment) -> Unit, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
     com.cosmotune.ui.orbit.OrbitChipRow(side, Modifier.padding(top = 14.dp, bottom = 4.dp)) {

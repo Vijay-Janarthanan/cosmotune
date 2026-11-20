@@ -52,6 +52,7 @@ import com.cosmotune.video.ui.blocks.rememberSubscribeToggle
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_shorts
 import com.cosmotune.video.select.ShortsFilter
+import com.cosmotune.video.ui.watch.rememberWatchedFraction
 import com.cosmotune.video.shorts.ShortsOrigin
 import com.cosmotune.video.ui.actions.ActionToastKind
 import com.cosmotune.video.ui.actions.VideoActionHandler
@@ -283,10 +284,14 @@ private fun PageHost(
 @Composable
 private fun HeaderParts(ui: ChannelUi, line: PageLine) {
     Column(Modifier.fillMaxWidth()) {
+        // Play in the card's bite plays the latest upload (the first of the Videos tab, else of the tab on show).
+        val uploads = ShortsFilter.filter(videosOf(ui.model.tab(ChannelSections.tabOf(ChannelSection.VIDEOS) ?: ChannelTab.VIDEOS).items), ui.hideShorts) { it }
+        val latest = uploads.firstOrNull()
         ChannelCard(
             channel = ui.page.channel, bannerUrl = ui.page.bannerUrl, subscribed = ui.subscribed, wide = ui.wide, margin = line.own,
             preparing = ui.preparing, onSubscribe = ui.onSubscribe, onShare = ui.onShare, onDownload = ui.onDownload,
             onAbout = if (ChannelSection.ABOUT in ui.sections) ({ ui.onSelect(ChannelSection.ABOUT) }) else null,
+            onPlayLatest = latest?.let { first -> { ui.actions.play(first, uploads) } },
         )
         ChannelTabChips(ui.sections, ui.section, ui.onSelect, line.fit(Modifier.padding(top = 16.dp, bottom = 8.dp)))
     }
@@ -329,7 +334,9 @@ private fun PageItems.uploadItems(ui: ChannelUi, line: PageLine) {
         val onClick = { ui.actions.play(item, videos) }
         val onMore = { ui.onMore(item, videos) }
         val isDownloaded = ui.downloaded.value.contains(item.id)
-        if (wide) BrandedVideoCell(item, isDownloaded, onClick, onMore) else BrandedVideoRow(item, isDownloaded, onClick, onMore)
+        // Every upload shows how far it was watched.
+        val watched = rememberWatchedFraction(item)
+        if (wide) BrandedVideoCell(item, isDownloaded, onClick, onMore, watchedFraction = watched) else BrandedVideoRow(item, isDownloaded, onClick, onMore, watchedFraction = watched)
     }
     pagedStatus("tab-$tab", paged)
 }

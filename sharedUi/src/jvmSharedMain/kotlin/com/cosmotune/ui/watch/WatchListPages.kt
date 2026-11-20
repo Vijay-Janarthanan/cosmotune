@@ -1,6 +1,12 @@
 package com.cosmotune.ui.watch
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.WatchCardChip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -171,35 +177,103 @@ private fun PosterShelf(title: String, items: List<TitleSummary>, actions: Watch
     }
 }
 
-/** My list: what you kept, newest first, as posters in a grid; a poster opens its page, the moon plays. */
+/** How My list is sorted. */
+private enum class MyListSort(val label: String) { ADDED("Recently added"), NAME("A to Z"), YEAR("Year") }
+
+/**
+ * My list (board frame 10): the heading with how many are saved and in progress, a row of tabs with counts (My list, Playlists,
+ * Downloads; the last two open their pages), the sort and Select, then the posters in a grid with how far each is watched. Select
+ * picks several to remove at once; removing says so in a toast with Undo instead of asking first.
+ */
 @Composable
 internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
     val list by actions.repository.myList.collectAsState()
+    val going by actions.repository.continueWatching.collectAsState()
+    val playlists by actions.repository.playlists.collectAsState()
+    val kept = actions.downloads?.items?.collectAsState()?.value.orEmpty()
     val side = frame.side
+    var sort by rememberSaveable { mutableStateOf(MyListSort.ADDED) }
+    var sortMenu by remember { mutableStateOf(false) }
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    val selected = remember { mutableStateListOf<String>() }
+    var removed by remember { mutableStateOf<List<TitleSummary>>(emptyList()) }
+    LaunchedEffect(removed) { if (removed.isNotEmpty()) { delay(4_000); removed = emptyList() } }
+    val watched = remember(going) { going.associate { it.summary.key to it.progress } }
+    val shown = remember(list, sort) {
+        when (sort) {
+            MyListSort.ADDED -> list.sortedByDescending { it.addedAtMs }
+            MyListSort.NAME -> list.sortedBy { it.summary.name.lowercase() }
+            MyListSort.YEAR -> list.sortedByDescending { it.summary.year ?: 0 }
+        }
+    }
     Box(Modifier.fillMaxSize()) {
         WatchWash(Color(0xFF1C4C49), look)
         LazyVerticalGrid(
             GridCells.Adaptive((if (frame.wide) 150.dp else 104.dp) * com.cosmotune.ui.orbit.LocalWatchCardScale.current), Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = side, end = side, top = frame.padding.calculateTopPadding(), bottom = frame.padding.calculateBottomPadding() + 40.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(22.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             frame.header?.let { header -> item(key = "list:header", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.padding(horizontal = 0.dp)) { header() } } }
             item(key = "list:heading", span = { GridItemSpan(maxLineSpan) }) {
-                OrbitPageHeading("My list", if (list.size == 1) "1 saved" else "${list.size} saved", fonts, look, Modifier.padding(start = 6.dp, top = if (frame.wide) 24.dp else 18.dp, bottom = 4.dp))
+                val inProgress = list.count { it.summary.key in watched }
+                val label = listOfNotNull(if (list.size == 1) "1 saved" else "${list.size} saved", inProgress.takeIf { it > 0 }?.let { "$it in progress" }).joinToString(" · ")
+                OrbitPageHeading("My list", label, fonts, look, Modifier.padding(start = 6.dp, top = if (frame.wide) 24.dp else 18.dp))
             }
-            item(key = "list:playlists", span = { GridItemSpan(maxLineSpan) }) {
-                com.cosmotune.ui.orbit.WatchCardChip("My Watch playlists", look.ink, fonts, onClick = { WatchNav.open(WatchRoute.Playlists()) })
+            item(key = "list:tabs", span = { GridItemSpan(maxLineSpan) }) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.cosmotune.ui.orbit.OrbitSelectChip("My list · ${list.size}", true, fonts, look, onClick = {}, haptic = false)
+                    com.cosmotune.ui.orbit.OrbitSelectChip("Playlists · ${playlists.size}", false, fonts, look, onClick = { WatchNav.open(WatchRoute.Playlists()) }, haptic = false)
+                    if (actions.downloads != null) com.cosmotune.ui.orbit.OrbitSelectChip("Downloads · ${kept.size}", false, fonts, look, onClick = { WatchNav.go(WatchTab.DOWNLOADS) }, haptic = false)
+                }
+            }
+            if (list.isNotEmpty()) item(key = "list:tools", span = { GridItemSpan(maxLineSpan) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (selecting) {
+                        WatchCardChip(if (selected.isEmpty()) "Remove" else "Remove ${selected.size}", look.ink, fonts, enabled = selected.isNotEmpty(), icon = CosmoIcons.Close, onClick = {
+                            val gone = list.filter { it.key.value in selected }.map { it.summary }
+                            gone.forEach { actions.setInMyList(it, false) }
+                            removed = gone; selected.clear(); selecting = false
+                        })
+                        Spacer(Modifier.weight(1f))
+                        WatchCardChip("Done", look.ink, fonts, onClick = { selected.clear(); selecting = false })
+                    } else {
+                        Box {
+                            WatchCardChip(sort.label, look.ink, fonts, onClick = { sortMenu = true }, icon = CosmoIcons.Sort)
+                            com.cosmotune.ui.orbit.OrbitMenu(sortMenu, { sortMenu = false }, fonts = fonts, look = look, header = "Sort", items =
+                                MyListSort.entries.map { s -> com.cosmotune.ui.orbit.OrbitMenuItem(s.label, selected = s == sort) { sort = s } })
+                        }
+                        Spacer(Modifier.weight(1f))
+                        WatchCardChip("Select", look.ink, fonts, onClick = { selecting = true }, icon = CosmoIcons.Check)
+                    }
+                }
             }
             if (list.isEmpty()) item(key = "list:empty", span = { GridItemSpan(maxLineSpan) }) {
                 WatchMessage("My list", "Nothing kept yet", "Use My list on a film or a series to keep it here, on every device you sign in on.", fonts, look,
                     action = "Browse films", onAction = { WatchNav.go(WatchTab.FILMS) })
             }
-            itemsIndexed(list, key = { _, e -> e.key.value }) { _, entry ->
+            itemsIndexed(shown, key = { _, e -> e.key.value }) { _, entry ->
                 val s = entry.summary
-                WatchCard(s.name, posterLine(s), s.posterUrl ?: s.backdropUrl, s.key.value, fonts, look, onClick = { actions.open(s) }, width = null,
-                    onPlay = { actions.play(s) })
+                val progress = watched[s.key]
+                val line = progress?.takeIf { !it.completed }?.let { leftText(it.remainingMs) } ?: posterLine(s)
+                val picked = entry.key.value in selected
+                Box {
+                    WatchCard(s.name, line, s.posterUrl ?: s.backdropUrl, s.key.value, fonts, look, width = null,
+                        onClick = { if (selecting) { if (picked) selected.remove(entry.key.value) else selected.add(entry.key.value) } else actions.open(s) },
+                        onPlay = if (selecting) null else ({ actions.play(s) }), progress = progress?.fraction?.takeIf { it > 0f && it < 1f })
+                    if (selecting) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(if (picked) look.accent else Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                        if (picked) androidx.compose.material3.Icon(CosmoIcons.Check, "Selected", tint = look.ground, modifier = Modifier.size(16.dp))
+                    }
+                }
             }
         }
+        // Until the shared Undo snackbar lands: the app's toast, with Undo putting the titles back.
+        if (removed.isNotEmpty()) com.cosmotune.ui.sheets.CosmoToast(
+            if (removed.size == 1) "Removed from My list" else "Removed ${removed.size} from My list",
+            Modifier.align(Alignment.BottomCenter).padding(bottom = frame.padding.calculateBottomPadding()),
+            actionLabel = "Undo", actionIcon = CosmoIcons.Replay,
+            onAction = { removed.forEach { actions.setInMyList(it, true) }; removed = emptyList() },
+        )
     }
 }
 
@@ -208,7 +282,8 @@ internal const val WATCH_DOWNLOAD_RULE = "Direct files only: MP4, MKV and WebM f
 
 /**
  * Downloads: the films and episodes kept on this device, newest first, with how far each has come; a finished one plays from
- * the file (no network), a stopped one starts again, and any can be removed with its file.
+ * the file (no network), a stopped one starts again, and any can be removed with its file. Where new downloads are saved is set
+ * in Watch settings.
  */
 @Composable
 internal fun WatchDownloadsPage(actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
@@ -217,10 +292,6 @@ internal fun WatchDownloadsPage(actions: WatchActions, fonts: OrbitFonts, look: 
     val list = downloads?.items?.collectAsState()?.value.orEmpty()
     val profile by actions.repository.activeProfile.collectAsState()
     val batches = downloads?.batches?.items?.collectAsState()?.value.orEmpty().filter { it.profileId == profile }
-    val destination = downloads?.destination?.collectAsState()?.value
-    val folderScope = androidx.compose.runtime.rememberCoroutineScope()
-    var folderMenu by remember { mutableStateOf(false) }
-    var folderError by remember { mutableStateOf<String?>(null) }
     Box(Modifier.fillMaxSize()) {
         WatchWash(Color(0xFF4E3C12), look)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = frame.padding) {
@@ -228,25 +299,6 @@ internal fun WatchDownloadsPage(actions: WatchActions, fonts: OrbitFonts, look: 
             item(key = "dl:heading") {
                 val done = list.count { it.status == com.cosmotune.watch.WatchDownload.Status.DONE }
                 OrbitPageHeading("Downloads", if (list.isEmpty()) "On this device" else "On this device · $done kept", fonts, look, Modifier.padding(start = side + 6.dp, end = side, top = if (frame.wide) 24.dp else 18.dp))
-            }
-            if (downloads != null && destination != null) item(key = "dl:destination") {
-                Column(Modifier.padding(horizontal = side + 6.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    androidx.compose.material3.Text("Save new downloads to", style = fonts.body, color = look.dim)
-                    Box {
-                        com.cosmotune.ui.orbit.WatchCardChip(destination.name.ifBlank { destination.path }, look.ink, fonts,
-                            onClick = { folderMenu = true }, icon = com.cosmotune.ui.components.CosmoIcons.Download)
-                        com.cosmotune.ui.orbit.OrbitMenu(folderMenu, { folderMenu = false }, fonts = fonts, look = look,
-                            items = downloads.destinations.map { folder ->
-                                com.cosmotune.ui.orbit.OrbitMenuItem(folder.path) {
-                                    folderError = runCatching { downloads.selectDestination(folder) }.exceptionOrNull()?.message
-                                }
-                            } + if (downloads.canChooseFolder) listOf(com.cosmotune.ui.orbit.OrbitMenuItem("Choose another folder…") {
-                                folderScope.launch { folderError = runCatching { downloads.browseDestination() }.exceptionOrNull()?.message }
-                            }) else emptyList())
-                    }
-                    androidx.compose.material3.Text(folderError ?: "Existing downloads stay in their original folder.",
-                        style = fonts.body.copy(fontSize = 12.sp), color = look.dim)
-                }
             }
             if (downloads != null) itemsIndexed(batches, key = { _, batch -> "batch:" + batch.id }) { _, batch ->
                 Column(Modifier.padding(horizontal = side + 6.dp)) { WatchBatchRow(batch, downloads, fonts, look) }

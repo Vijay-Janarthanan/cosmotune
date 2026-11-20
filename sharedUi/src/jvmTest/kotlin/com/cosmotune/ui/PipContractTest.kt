@@ -144,8 +144,11 @@ class PipContractTest {
         // Watch: leaving the player page (or the mode) while the film is in picture-in-picture does not stop it; its session
         // (closing stops it, "Back to app" brings the page back for it) is kept in the window.
         val page = flat(watchPage)
-        assertTrue("if ((!route.attached || returned) && !playback.roomHolds(key) && !pip.active) player.stop()" in page)
-        assertTrue(page.indexOf("val pip = com.cosmotune.ui.pip.rememberPip(") < page.indexOf("DisposableEffect(player, route)"), "asked for before the page's leaving reads it")
+        assertTrue("if (!keepsPlaying && (!route.attached || returned) && !playback.roomHolds(key) && !pip.active) player.stop()" in page)
+        assertTrue("WatchMini.keptInPip = pip.active" in page, "the small player and the mode's leaving hear that picture-in-picture kept it")
+        assertTrue(page.indexOf("val pip = com.cosmotune.ui.pip.rememberPip(") < page.indexOf("DisposableEffect(player, route, keepsPlaying)"), "asked for before the page's leaving reads it")
+        val mini = flat("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/WatchMiniPlayer.kt")
+        assertTrue("if (WatchMini.keptInPip || playback.roomHolds(target.key)) return" in mini, "leaving Watch stops the film unless picture-in-picture or the room keeps it")
         assertTrue("WatchNav.showPlaying(it, player.state.value.summary)" in page && "setMode(com.cosmotune.design.AppMode.WATCH)" in page)
         val watch = flat(watchPip)
         assertTrue("keep = { PipWish(" in watch && "onClosed = { player.stop() }" in watch && "ended = stopped," in watch)

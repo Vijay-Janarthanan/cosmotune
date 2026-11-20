@@ -81,13 +81,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import com.cosmotune.video.resources.video_show_more
+import com.cosmotune.video.resources.video_action_later
+import com.cosmotune.video.resources.video_action_song
+import com.cosmotune.video.resources.video_action_together
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
 /*
- * The blocks under the watch page's colour card (Orbit board B): the channel row (its disc, the name over the subscriber count, and
- * Subscribe), one sideways-scrolling row of action chips that never wraps, and the meta line with "…more". The title is the card's.
- * On the wide page the blocks take the side padding the page gives them, so they line up with the video.
+ * The blocks under the watch page's colour card (board frame 2): the channel row (its disc, the name over the subscriber count, and
+ * Subscribe), one row of actions that never wraps (on the phone each an icon in a disc with its short name under it, on a wide page
+ * chips), and the description folded to one line with More. The title is the card's. On the wide page the blocks take the side
+ * padding the page gives them, so they line up with the video.
  */
 
 private val TITLE_TOP = 12.dp
@@ -157,21 +163,26 @@ internal fun WatchMeta(
     onSubscribe: () -> Unit,
     modifier: Modifier = Modifier,
     channel: Boolean = true,
+    description: String? = null,
 ) {
     Column(modifier.fillMaxWidth()) {
         if (channel) WatchChannelRow(info, sidePadding, onOpenChannel, onSubscribe)
         WatchActionChips(info, wide, theatre, sidePadding, onChip)
-        WatchMetaLine(info, sidePadding, onOpenDescription)
+        WatchMetaLine(info, sidePadding, onOpenDescription, description)
     }
 }
 
-/** The meta line ("1.2M views · 3 days ago  …more"); one button that opens the description when [onOpen] is set. */
+/**
+ * The description folded to one line ("1.2M views · 3 days ago · its first line  More"): one button that opens the description
+ * (the half sheet on the phone) when [onOpen] is set. [description] is the description's text when it is known.
+ */
 @Composable
-private fun WatchMetaLine(info: WatchInfo, sidePadding: Dp, onOpen: (() -> Unit)?) {
+private fun WatchMetaLine(info: WatchInfo, sidePadding: Dp, onOpen: (() -> Unit)?, description: String?) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val more = stringResource(Res.string.video_show_more)
-    val line = MetaLine(info.item, rememberNowMs(), showChannel = false)
+    val first = description?.lineSequence()?.map { it.trim() }?.firstOrNull { it.isNotEmpty() }
+    val line = listOfNotNull(MetaLine(info.item, rememberNowMs(), showChannel = false).takeIf { it.isNotEmpty() }, first).joinToString(" · ")
     if (line.isEmpty() && onOpen == null) return
     val openLabel = stringResource(Res.string.video_description)
     val tap = if (onOpen != null) Modifier.clickable(onClickLabel = openLabel, role = Role.Button, onClick = onOpen) else Modifier
@@ -203,10 +214,18 @@ private fun WatchActionChips(info: WatchInfo, wide: Boolean, theatre: Boolean, s
         val target = if (rating == next) Rating.NONE else next
         scope.launch { if (account.rate(info.item.id, target).isSuccess) rating = target }
     }
+    // The phone draws each action as an icon in a disc with its short name under it; like and dislike stand apart there.
+    val stacked = !wide
     val chipItems: @Composable () -> Unit = {
         for (chip in chips) {
             when (chip) {
-                WatchChip.LIKES -> {
+                WatchChip.LIKES -> if (stacked) {
+                    val count = VideoText.compact(info.likes ?: 0)
+                    WatchActionChip(
+                        VideoIcons.ThumbUp, count, stringResource(Res.string.video_likes_cd, count),
+                        onClick = if (signedIn) ({ rate(Rating.LIKE) }) else null, on = rating == Rating.LIKE, stacked = true,
+                    )
+                } else {
                     val count = VideoText.compact(info.likes ?: 0)
                     val like: @Composable (Boolean) -> Unit = { segment ->
                         WatchActionChip(
@@ -230,32 +249,43 @@ private fun WatchActionChips(info: WatchInfo, wide: Boolean, theatre: Boolean, s
                         like(false)
                     }
                 }
-                WatchChip.DISLIKES -> if (WatchChip.LIKES !in chips) {
+                WatchChip.DISLIKES -> if (stacked || WatchChip.LIKES !in chips) {
                     val count = VideoText.compact(info.dislikes ?: 0)
                     WatchActionChip(
                         VideoIcons.ThumbDown, count, stringResource(Res.string.video_dislikes_cd, count),
-                        onClick = if (signedIn) ({ rate(Rating.DISLIKE) }) else null, on = rating == Rating.DISLIKE,
+                        onClick = if (signedIn) ({ rate(Rating.DISLIKE) }) else null, on = rating == Rating.DISLIKE, stacked = stacked,
                     )
                 }
-                WatchChip.SAVE -> WatchActionChip(VideoIcons.PlaylistAdd, stringResource(Res.string.video_save), null, onClick = { onChip(chip) })
+                WatchChip.SAVE -> WatchActionChip(VideoIcons.PlaylistAdd, stringResource(Res.string.video_save), null, onClick = { onChip(chip) }, stacked = stacked)
                 WatchChip.WATCH_LATER -> WatchActionChip(
                     icon = CosmoIcons.Clock,
-                    label = stringResource(if (info.inWatchLater) Res.string.video_in_watch_later else Res.string.video_watch_later),
-                    description = null,
+                    label = stringResource(
+                        when {
+                            stacked -> Res.string.video_action_later
+                            info.inWatchLater -> Res.string.video_in_watch_later
+                            else -> Res.string.video_watch_later
+                        },
+                    ),
+                    description = if (stacked) stringResource(if (info.inWatchLater) Res.string.video_in_watch_later else Res.string.video_watch_later) else null,
                     onClick = { onChip(chip) },
                     on = info.inWatchLater,
+                    stacked = stacked,
                 )
                 WatchChip.DOWNLOAD -> {
                     val done = info.downloadedLabel
-                    val label = if (done != null) {
+                    val full = if (done != null) {
                         stringResource(Res.string.video_dl_done, stringResource(Res.string.video_dl_done_cd), done)
                     } else {
                         stringResource(Res.string.video_download)
                     }
-                    WatchActionChip(if (done != null) CosmoIcons.Downloaded else CosmoIcons.Download, label, null, onClick = { onChip(chip) }, on = done != null)
+                    val label = if (stacked && done != null) done else full
+                    WatchActionChip(if (done != null) CosmoIcons.Downloaded else CosmoIcons.Download, label, if (stacked) full else null, onClick = { onChip(chip) }, on = done != null, stacked = stacked)
                 }
-                WatchChip.SHARE -> WatchActionChip(CosmoIcons.Share, stringResource(Res.string.video_share), null, onClick = { onChip(chip) })
-                WatchChip.PLAY_AS_SONG -> WatchActionChip(CosmoIcons.Waveform, stringResource(Res.string.video_play_as_song), null, onClick = { onChip(chip) })
+                WatchChip.SHARE -> WatchActionChip(CosmoIcons.Share, stringResource(Res.string.video_share), null, onClick = { onChip(chip) }, stacked = stacked)
+                WatchChip.PLAY_AS_SONG -> WatchActionChip(
+                    CosmoIcons.Waveform, stringResource(if (stacked) Res.string.video_action_song else Res.string.video_play_as_song),
+                    if (stacked) stringResource(Res.string.video_play_as_song) else null, onClick = { onChip(chip) }, stacked = stacked,
+                )
                 WatchChip.THEATRE -> WatchActionChip(null, stringResource(Res.string.video_theatre), null, onClick = { onChip(chip) }, on = theatre)
             }
         }
@@ -267,11 +297,16 @@ private fun WatchActionChips(info: WatchInfo, wide: Boolean, theatre: Boolean, s
     val scroll = rememberScrollState()
     Row(
         Modifier.fillMaxWidth().padding(vertical = ACTIONS_BOTTOM).wheelScrollsSideways(scroll).horizontalScroll(scroll).padding(horizontal = sidePadding),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (stacked) 2.dp else 8.dp),
+        verticalAlignment = if (stacked) Alignment.Top else Alignment.CenterVertically,
     ) {
-        VideoRoomChip(info.item, look.ink, fonts)
-        chipItems()
+        if (stacked) {
+            chipItems()
+            VideoRoomAction(info.item)
+        } else {
+            VideoRoomChip(info.item, look.ink, fonts)
+            chipItems()
+        }
     }
 }
 
@@ -306,12 +341,17 @@ internal fun WatchActionChip(
     modifier: Modifier = Modifier,
     on: Boolean = false,
     segment: Boolean = false,
+    stacked: Boolean = false,
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val ink = if (on) look.ground else look.ink
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    if (stacked) {
+        StackedAction(icon, label, description, onClick, on, interaction, pressed, modifier)
+        return
+    }
     val action = if (onClick != null) {
         Modifier
             .minimumInteractiveComponentSize()
@@ -389,4 +429,61 @@ internal fun WatchChannelRow(info: WatchInfo, sidePadding: Dp, onOpenChannel: ()
             SubscribePill(subscribed = info.subscribed, onClick = onSubscribe)
         }
     }
+}
+
+/** The width of one stacked action on the phone: seven fit across a 412 dp screen with the page's margins. */
+private val STACKED_WIDTH = 54.dp
+private val STACKED_DISC = 40.dp
+
+/**
+ * One action as the phone draws it (board frame 2, `.act`): the icon in a 40 dp disc of the page's ink at 8 % (solid ink when [on]),
+ * and its short [label] under it. A figure with no [onClick] (the counts while signed out) is read by its [description].
+ */
+@Composable
+private fun StackedAction(
+    icon: ImageVector?,
+    label: String,
+    description: String?,
+    onClick: (() -> Unit)?,
+    on: Boolean,
+    interaction: MutableInteractionSource,
+    pressed: Boolean,
+    modifier: Modifier,
+) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val action = if (onClick != null) {
+        Modifier
+            .cosmoFocusRing(interaction, 22.dp)
+            .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
+            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
+    } else {
+        Modifier.clearAndSetSemantics { if (description != null) contentDescription = description }
+    }
+    Column(
+        modifier.width(STACKED_WIDTH).then(action).graphicsLayer { alpha = if (pressed) CHIP_PRESSED_ALPHA else 1f }.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.size(STACKED_DISC).background(if (on) look.ink else look.chip, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+            if (icon != null) Icon(icon, contentDescription = null, tint = if (on) look.ground else look.ink, modifier = Modifier.size(ACTION_ICON))
+        }
+        Text(label, color = look.ink, style = fonts.body.copy(fontSize = 11.5.sp, lineHeight = 14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 5.dp))
+    }
+}
+
+/** "Together" as a stacked action on the phone: the video for everyone in the room (see [VideoRoomChip]); nothing without rooms. */
+@Composable
+private fun VideoRoomAction(item: VideoItem) {
+    val launcher = com.cosmotune.ui.room.LocalRoomLauncher.current ?: return
+    val track = rememberRoomItem(item) ?: return
+    val label = com.cosmotune.ui.room.roomPlayLabel(launcher.inRoom, launcher.canControl, video = true)
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val enabled = label != com.cosmotune.ui.room.RoomPlayLabel.HOST_ONLY
+    StackedAction(
+        CosmoIcons.Together, stringResource(Res.string.video_action_together), stringResource(Res.string.video_action_together),
+        onClick = if (enabled) ({ launcher.playInRoom(track) }) else null, on = false, interaction = interaction, pressed = pressed,
+        modifier = Modifier.testTag(com.cosmotune.ui.room.RoomEntryTags.PLAY_IN_ROOM),
+    )
 }

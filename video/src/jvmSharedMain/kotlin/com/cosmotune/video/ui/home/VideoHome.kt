@@ -63,6 +63,7 @@ import com.cosmotune.video.ui.blocks.videoSolidGround
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shorts.ShortsShelf
 import com.cosmotune.video.ui.shorts.openShort
+import com.cosmotune.video.ui.watch.rememberWatchedFractions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -76,7 +77,6 @@ import com.cosmotune.music.ui.components.PullToRefresh
 import com.cosmotune.ui.chrome.CosmoPullIndicator
 import com.cosmotune.video.ui.blocks.VideoPageHeading
 import com.cosmotune.video.ui.blocks.VideoSectionHeading
-import com.cosmotune.video.ui.blocks.VideoAction
 import com.cosmotune.video.nav.VideoTab
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -89,12 +89,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 
 /**
- * Video's Home (Orbit board B, "Video mode"): the heading ("FOR YOU" over "Video."), the chip row (All, Shorts, then the kiosks the
- * source offers; it stays at the top once the heading has gone on the phone, and stands beside the heading on a wide page), and then,
- * in All: the colour card "Up next for you" with play in its bite (the first video of the feed), "Continue watching" while some video
- * is part-watched, "From your subscriptions" as a row of cards, the Shorts as tall cards, and "More for you", the rest of the feed as
- * video cards (the picture with the play moon off its corner, the channel's disc and the meta line under it). A kiosk's chip shows
- * that kiosk's videos alone.
+ * Video's Home (board frame 1): the heading ("FOR YOU" over "Video."), the chip row (All, then the kiosks the source offers; it
+ * stays at the top once the heading has gone on the phone, and stands beside the heading on a wide page; Shorts has its own tab and
+ * shelf), and then, in All: "Continue watching" first while some video is part-watched, the slim colour card "Up next for you" with
+ * play in its bite (the first video of the feed), "From your subscriptions" as a row of cards, the Shorts as tall cards, and "More
+ * for you", the rest of the feed as video cards (the picture, the channel's disc and the meta line under it). Every card shows how
+ * far its video was watched. A kiosk's chip shows that kiosk's videos alone.
  *
  * All blends available account recommendations, subscriptions, diverse recent watch interests and source-topic candidates
  * ([HomePlanner.stream]); a topic chip shows that topic alone. Account and topic continuations load independently, keep useful
@@ -227,9 +227,7 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
         HomeChips(
             kiosks = model.kiosks,
             selectedId = if (all) null else model.selectedId,
-            showShorts = !hideShorts,
             onAll = { all = true },
-            onShorts = openShorts,
             onSelect = { kiosk ->
                 all = false
                 graph.settings.update { it.copy(homeKiosk = kiosk.id) }
@@ -261,11 +259,13 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
         )
     }
     val titleSubscriptions = stringResource(Res.string.video_home_from_subscriptions)
+    // Every video on Home shows how far it was watched: the shelf of the channels you follow and the feed under it as well.
+    val subscriptionWatched by rememberWatchedFractions(subscriptionRow)
     val subscriptionShelf: @Composable (Modifier) -> Unit = { modifier ->
         HomeShelf(
             title = titleSubscriptions, items = subscriptionRow, modifier = modifier,
             onOpen = { actions.play(it, subscriptionRow) }, onMore = { sheet = HomeSheet(it, subscriptionRow) },
-            downloaded = { it in downloaded },
+            watched = subscriptionWatched, downloaded = { it in downloaded },
             onSeeAll = { navigator.selectTab(VideoTab.SUBSCRIPTIONS) },
         )
     }
@@ -277,7 +277,6 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
                 title = shown.title,
                 onPlay = { actions.play(item, stream) },
                 onChannel = item.channelId?.let { id -> { navigator.push(VideoRoute.Channel(id)) } },
-                onWatchLater = { actions.handle(item, VideoAction.WatchLater, VideoSheetContext.DEFAULT, list = stream) },
                 modifier = modifier,
             )
         }
@@ -288,8 +287,10 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
             onOpen = { navigator.openShort(it, ShortsOrigin.Home, shorts) }, onSeeAll = openShorts,
         )
     }
+    val feedWatched by rememberWatchedFractions(rest)
     val feed = HomeFeed(
         items = rest,
+        watched = feedWatched,
         hasHero = hero != null,
         hasSubscriptions = subscriptionRow.isNotEmpty(),
         phase = phase,
@@ -360,6 +361,8 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
 @Immutable
 private class HomeFeed(
     val items: List<VideoItem>,
+    /** How far each video of [items] was watched, for the line under its picture. */
+    val watched: Map<String, Float>,
     val hasHero: Boolean,
     val hasSubscriptions: Boolean,
     val phase: KioskPhase,
@@ -417,8 +420,9 @@ private fun HomeFeedPhone(
                 CosmoEmptyState(message = errorText, actionLabel = retryText, onAction = onRetry)
             }
             KioskPhase.READY -> {
-                if (feed.hasHero) item(key = "hero", contentType = "hero") { blocks.hero(Modifier.padding(start = margin, end = margin, top = 10.dp, bottom = 4.dp)) }
+                // Continue watching first, the thing most people come back for; the colour card under it.
                 if (feed.hasContinue) item(key = "continue", contentType = "shelf") { blocks.continueShelf(Modifier) }
+                if (feed.hasHero) item(key = "hero", contentType = "hero") { blocks.hero(Modifier.padding(start = margin, end = margin, top = if (feed.hasContinue) 12.dp else 10.dp, bottom = 4.dp)) }
                 if (feed.hasSubscriptions) item(key = "subscriptions", contentType = "shelf") { blocks.subscriptions(Modifier) }
                 if (feed.hasShorts) item(key = "shorts", contentType = "shelf") { blocks.shorts(Modifier.padding(bottom = SHORTS_FEED_BOTTOM)) }
                 if (feed.hasHero && feed.items.isNotEmpty()) item(key = "more-heading", contentType = "title") { VideoSectionHeading(stringResource(Res.string.video_home_more_for_you)) }
@@ -428,6 +432,7 @@ private fun HomeFeedPhone(
                         item = rememberBranded(item),
                         onClick = { onOpen(item) },
                         onMore = { onMore(item) },
+                        watchedFraction = feed.watched[item.id],
                         downloaded = downloaded(item),
                         modifier = Modifier.padding(top = if (index == 0) FIRST_CARD_TOP else 0.dp),
                         onAvatarClick = if (item.channelId != null) ({ onChannel(item) }) else null,
@@ -492,10 +497,10 @@ private fun HomeFeedWide(
                     CosmoEmptyState(message = errorText, actionLabel = retryText, onAction = onRetry)
                 }
                 KioskPhase.READY -> {
-                    if (feed.hasHero) item(key = "hero", span = { GridItemSpan(maxLineSpan) }, contentType = "hero") { blocks.hero(Modifier) }
                     if (feed.hasContinue) item(key = "continue", span = { GridItemSpan(maxLineSpan) }, contentType = "shelf") {
                         blocks.continueShelf(Modifier.bleedBy(margin).padding(horizontal = inset))
                     }
+                    if (feed.hasHero) item(key = "hero", span = { GridItemSpan(maxLineSpan) }, contentType = "hero") { blocks.hero(Modifier) }
                     if (feed.hasSubscriptions) item(key = "subscriptions", span = { GridItemSpan(maxLineSpan) }, contentType = "shelf") {
                         blocks.subscriptions(Modifier.bleedBy(margin).padding(horizontal = inset))
                     }
@@ -505,7 +510,7 @@ private fun HomeFeedWide(
                     if (feed.hasHero && feed.items.isNotEmpty()) item(key = "more-heading", span = { GridItemSpan(maxLineSpan) }, contentType = "title") {
                         VideoSectionHeading(stringResource(Res.string.video_home_more_for_you), Modifier.bleedBy(margin).padding(horizontal = inset))
                     }
-                    items(count = feed.items.size, key = { "feed:${keys[it]}" }, contentType = { "card" }) { index -> WideCard(feed.items[index], onOpen, onMore, onChannel, downloaded) }
+                    items(count = feed.items.size, key = { "feed:${keys[it]}" }, contentType = { "card" }) { index -> WideCard(feed.items[index], feed.watched[feed.items[index].id], onOpen, onMore, onChannel, downloaded) }
                     if (feed.loadingMore) items(count = columns, key = { "more-$it" }, contentType = { "skeleton" }) { CardSkeleton() }
                     if (feed.exhausted) item(key = "end", span = { GridItemSpan(maxLineSpan) }, contentType = "status") { HomeNotice(stringResource(Res.string.video_home_exhausted)) }
                 }
@@ -524,14 +529,14 @@ private fun HomeFeedWide(
 
 /** One card of the grid: the feed card in its cell, DeArrow's title and picture. */
 @Composable
-private fun WideCard(item: VideoItem, onOpen: (VideoItem) -> Unit, onMore: (VideoItem) -> Unit, onChannel: (VideoItem) -> Unit, downloaded: (VideoItem) -> Boolean) {
+private fun WideCard(item: VideoItem, watched: Float?, onOpen: (VideoItem) -> Unit, onMore: (VideoItem) -> Unit, onChannel: (VideoItem) -> Unit, downloaded: (VideoItem) -> Boolean) {
     val shown = rememberBranded(item)
     VideoCardBody(
         item = shown,
         onClick = { onOpen(item) },
         onMore = { onMore(item) },
         modifier = Modifier,
-        watchedFraction = null,
+        watchedFraction = watched,
         title = shown.title,
         downloaded = downloaded(item),
         onAvatarClick = if (item.channelId != null) ({ onChannel(item) }) else null,

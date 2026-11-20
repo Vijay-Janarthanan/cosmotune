@@ -107,6 +107,15 @@ class HomeStructureTest {
         assertTrue("Res.string.video_home_from_subscriptions" in screen && "Res.string.video_home_more_for_you" in screen)
         assertTrue("stream.filter { it.id !in shown }" in screen, "the feed under them leaves the card's and the row's videos out")
         assertTrue("hasContinue = all && continueItems.isNotEmpty()" in screen, "Continue watching only while some video is part-watched")
+        // board frame 1: Continue watching stands first, the colour card under it, on the phone and on a wide page
+        val phone = screen.substringAfter("private fun HomeFeedPhone(").substringBefore("private fun HomeFeedWide(")
+        assertTrue(phone.indexOf("blocks.continueShelf(") in 0 until phone.indexOf("blocks.hero("), "the phone: Continue watching before the card")
+        val wideFeed = screen.substringAfter("private fun HomeFeedWide(")
+        assertTrue(wideFeed.indexOf("blocks.continueShelf(") in 0 until wideFeed.indexOf("blocks.hero("), "the wide page: Continue watching before the card")
+        // every video on Home shows how far it was watched
+        assertTrue("val feedWatched by rememberWatchedFractions(rest)" in screen && "watchedFraction = feed.watched[item.id]" in screen, "the feed's cards have the watched line")
+        assertTrue("watchedFraction = watched," in screen, "and the wide grid's cells")
+        assertTrue("watched = subscriptionWatched" in screen, "and the shelf of the channels you follow")
         assertFalse("HomeChannelsShelf" in screen || "video_home_channels" in screen, "the channels you follow as discs are the Subscriptions page's")
     }
 
@@ -128,19 +137,21 @@ class HomeStructureTest {
         assertTrue("force: Boolean = false" in screen && "feed.refresh(force = force)" in screen, "Automatic refresh respects the cache; explicit Refresh can fetch again")
     }
 
-    @Test fun theShortsChipAndShelfOpenThePagerAndHideWithTheSwitch() {
+    @Test fun theShortsShelfOpensThePagerAndHidesWithTheSwitchAndThereIsNoShortsChip() {
         assertTrue("val openShorts = { navigator.push(VideoRoute.Shorts(ShortsOrigin.Home)) }" in screen)
-        assertTrue("onShorts = openShorts" in screen && "onSeeAll = openShorts" in screen, "the chip and See all open the same route")
+        assertTrue("onSeeAll = openShorts" in screen, "the shelf's See all opens the pager")
         assertTrue("navigator.openShort(it, ShortsOrigin.Home, shorts)" in screen, "a card opens the pager at it with the shelf's Shorts")
-        assertTrue("showShorts = !hideShorts" in screen && "if (hideShorts) {\n            emptyList()" in screen, "the chip and the shelf go with Hide Shorts")
+        assertTrue("if (hideShorts) {\n            emptyList()" in screen, "the shelf goes with Hide Shorts")
         assertTrue("model.items.filterNot(ShortsFilter::isShort)" in screen, "the feed holds no Shorts: they stand in their shelf")
-        assertTrue("Res.string.video_shorts" in shelves && "if (showShorts) add(shortsLabel)" in shelves, "the Shorts chip stands after All, before the kiosks")
+        // board frame 1: Shorts has its tab and its shelf; the chip row is All and the kiosks
+        assertFalse("onShorts" in screen || "showShorts" in screen, "Home passes no Shorts chip")
+        assertFalse("Res.string.video_shorts" in shelves || "showShorts" in shelves, "the chip row has no Shorts chip")
     }
 
     @Test fun theChipRowIsAllShortsAndTheKiosksInPillChips() {
         val chips = shelves.substringAfter("internal fun HomeChips(").substringBefore("/** Lays the content out")
         assertTrue("Res.string.video_all" in chips && "VideoChips(" in chips, "All first, in the kit's chips (48 dp target, inverse neutral when chosen)")
-        assertTrue("index == 0 -> onAll()" in chips && "showShorts && index == 1 -> onShorts()" in chips, "All and Shorts are not kiosks")
+        assertTrue("index == 0 -> onAll()" in chips && "else -> kiosks?.getOrNull(index - lead)?.let(onSelect)" in chips, "All is not a kiosk; the rest are")
         assertTrue("trailing = if (kiosks == null)" in chips && "CosmoShimmer(" in chips, "placeholders while the kiosks are on the way")
         val row = VideoSourceContract.code(VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/blocks/VideoChips.kt"))
         assertTrue("OrbitSelectChip(label, selected = index == selected" in row && "OrbitChipRow(" in row, "one sideways row of Orbit's chips")
