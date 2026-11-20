@@ -16,6 +16,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
@@ -51,7 +56,8 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
     val state by repository.store.state.collectAsState()
     val list = rememberLazyListState()
     var more by remember { mutableStateOf(false) }
-    var chapterActions by remember { mutableStateOf<MangaChapter?>(null) }
+    // A hold on a chapter starts choosing several (Mihon's selection): mark read or unread, download, remove downloads.
+    var selection by remember(book.id) { mutableStateOf(emptySet<String>()) }
     val editions = book.editions()
     var edition by rememberSaveable(book.id) { mutableStateOf("") }
     var newestFirst by rememberSaveable(book.id) { mutableStateOf(false) }
@@ -74,9 +80,13 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
             }
             item(key = "series:card") { SeriesCard(scope, book, cover, saved, next, onRead) }
             item(key = "series:about") { SeriesAbout(scope, book) }
-            chapterItems(scope, book, listed, filters, next.chapter, onRead) { chapterActions = it }
+            chapterItems(scope, book, listed, filters, next.chapter, selection, onRead = { chapter ->
+                if (selection.isEmpty()) onRead(chapter) else selection = selection.toggle(chapter.id)
+            }) { chapter -> selection = selection.toggle(chapter.id) }
         }
+        if (selection.isNotEmpty()) SelectionBar(scope, book, listed, selection, { selection = it }, Modifier.align(Alignment.BottomCenter).padding(bottom = scope.bottom))
     }
+    MangaBackHandler(selection.isNotEmpty()) { selection = emptySet() }
     if (more) KitSheet(onDismiss = { more = false }, title = book.title) {
         ReadSheetRow(mangaText("Refresh chapters"), CosmoIcons.Replay, { more = false; onRefresh() })
         val website = book.parserData?.publicUrl?.takeIf { it.isNotBlank() } ?: book.url.takeIf { it.startsWith("http") }
@@ -89,22 +99,48 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
         })
         Spacer(Modifier.height(16.dp))
     }
-    chapterActions?.let { chapter ->
-        val read = chapter.id in state.readChapters
-        KitSheet(onDismiss = { chapterActions = null }, title = chapter.title) {
-            ReadSheetRow(mangaText(if (read) "Mark unread" else "Mark read"), CosmoIcons.Check, {
-                chapterActions = null; scope.action { repository.store.save(book); repository.store.markRead(chapter, !read) }
+}
+
+private fun Set<String>.toggle(id: String): Set<String> = if (id in this) this - id else this + id
+
+/**
+ * What can be done with the chosen chapters, along the foot of the page: how many, mark read (or unread when all are read), download
+ * the ones not on the device, remove the downloaded ones, mark the earlier chapters read (one chosen), choose all, and close.
+ */
+@Composable
+private fun SelectionBar(scope: MangaScope, book: MangaBook, listed: List<MangaChapter>, selection: Set<String>, onSelection: (Set<String>) -> Unit, modifier: Modifier) {
+    val repository = scope.repository
+    val state by repository.store.state.collectAsState()
+    val look = orbitLook()
+    val chosen = book.chapters.filter { it.id in selection }
+    val allRead = chosen.all { it.id in state.readChapters }
+    val toDownload = chosen.filter { it.sourceId != "local" && !state.downloads.containsKey(it.id) }
+    val downloaded = chosen.filter { state.downloads.containsKey(it.id) }
+    Column(modifier.fillMaxWidth().padding(horizontal = ReadMargin, vertical = 8.dp).clip(ReadShape.md).background(look.ground)
+        .border(1.dp, look.ink.copy(alpha = 0.10f), ReadShape.md).padding(horizontal = 12.dp, vertical = 10.dp).testTag("manga:selection")) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (chosen.size == 1) mangaText("1 chapter chosen") else "${chosen.size} " + mangaText("chapters chosen"), style = ReadType.rowTitle(), color = look.ink,
+                modifier = Modifier.weight(1f).padding(start = 6.dp))
+            if (selection.size < listed.size) ReadTextButton(mangaText("All"), { onSelection(listed.map { it.id }.toSet()) })
+            Spacer(Modifier.width(6.dp))
+            ReadIconButton(CosmoIcons.Close, "Stop choosing", { onSelection(emptySet()) })
+        }
+        ReadChipRow(Modifier.padding(top = 8.dp), inset = 0.dp) {
+            ReadPill(mangaText(if (allRead) "Mark unread" else "Mark read"), icon = CosmoIcons.Check, onClick = {
+                onSelection(emptySet()); scope.action { repository.store.save(book); chosen.forEach { repository.store.markRead(it, !allRead) } }
+            }, modifier = Modifier.testTag("manga:selection:read"))
+            if (toDownload.isNotEmpty() && !scope.transfer.active) ReadPill(mangaText("Download") + " · ${toDownload.size}", icon = CosmoIcons.Download, onClick = {
+                onSelection(emptySet()); mangaDownload(scope, book, toDownload)
+            }, modifier = Modifier.testTag("manga:selection:download"))
+            if (downloaded.isNotEmpty()) ReadPill(mangaText("Remove downloads") + " · ${downloaded.size}", icon = CosmoIcons.Close, onClick = {
+                onSelection(emptySet()); scope.action { downloaded.forEach { repository.removeDownload(it.id) } }
             })
-            val earlier = book.listedChapters(chapter.edition).takeWhile { it.id != chapter.id }.filter { it.id !in state.readChapters }
-            if (earlier.isNotEmpty()) ReadSheetRow(mangaText("Mark earlier chapters read"), CosmoIcons.List, {
-                chapterActions = null; scope.action { repository.store.save(book); earlier.forEach { repository.store.markRead(it, true) } }
-            })
-            when (mangaDownloadState(scope, chapter, state)) {
-                ReadDownload.AVAILABLE -> ReadSheetRow(mangaText("Download"), CosmoIcons.Download, { chapterActions = null; mangaDownload(scope, book, listOf(chapter)) })
-                ReadDownload.DONE -> ReadSheetRow(mangaText("Remove download"), CosmoIcons.Downloaded, { chapterActions = null; scope.action { repository.removeDownload(chapter.id) } })
-                else -> {}
+            chosen.singleOrNull()?.let { only ->
+                val earlier = book.listedChapters(only.edition).takeWhile { it.id != only.id }.filter { it.id !in state.readChapters }
+                if (earlier.isNotEmpty()) ReadPill(mangaText("Mark earlier read"), icon = CosmoIcons.List, onClick = {
+                    onSelection(emptySet()); scope.action { repository.store.save(book); earlier.forEach { repository.store.markRead(it, true) } }
+                })
             }
-            Spacer(Modifier.height(16.dp))
         }
     }
 }
@@ -165,7 +201,7 @@ private fun SeriesAbout(scope: MangaScope, book: MangaBook) {
 }
 
 private fun LazyListScope.chapterItems(scope: MangaScope, book: MangaBook, listed: List<MangaChapter>, filters: ChapterFilters, current: MangaChapter?,
-    onRead: (MangaChapter) -> Unit, onActions: (MangaChapter) -> Unit) {
+    selection: Set<String>, onRead: (MangaChapter) -> Unit, onSelect: (MangaChapter) -> Unit) {
     item(key = "chapters:controls") {
         val state by scope.repository.store.state.collectAsState()
         Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -187,7 +223,7 @@ private fun LazyListScope.chapterItems(scope: MangaScope, book: MangaBook, liste
             }
         }
     }
-    items(listed, key = { it.id }) { item ->
+    itemsIndexed(listed, key = { _, chapter -> chapter.id }) { index, item ->
         val state by scope.repository.store.state.collectAsState()
         val read = item.id in state.readChapters
         val fresh = item.id in state.newChapters
@@ -201,12 +237,15 @@ private fun LazyListScope.chapterItems(scope: MangaScope, book: MangaBook, liste
             fresh = fresh,
             download = mangaDownloadState(scope, item, state),
             onClick = { onRead(item) },
-            onLongClick = { onActions(item) },
+            onLongClick = { onSelect(item) },
             onDownload = {
                 if (state.downloads.containsKey(item.id)) scope.action { scope.repository.removeDownload(item.id) } else mangaDownload(scope, book, listOf(item))
             },
             next = isNext,
-            modifier = Modifier.padding(horizontal = ReadMargin, vertical = 4.dp).testTag("manga:chapter:${item.id}"),
+            number = chapterNumber(item, index + 1),
+            selected = if (selection.isEmpty()) null else item.id in selection,
+            longClickLabel = "Choose chapters",
+            modifier = Modifier.padding(horizontal = ReadMargin, vertical = 3.dp).testTag("manga:chapter:${item.id}"),
         )
     }
 }

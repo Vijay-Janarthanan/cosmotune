@@ -117,6 +117,12 @@ data class MangaLibraryState(
     val lastUpdateCompletedMs: Long = 0,
     val lastUpdateNewChapters: Int = 0,
     val lastUpdateFailures: Int = 0,
+    /** The reader's page brightness, 0.3 to 1 (a dimming over the pages, under the system's own). */
+    val readerBrightness: Float = 1f,
+    /** Keep the screen on while a chapter is open. */
+    val readerKeepScreenOn: Boolean = true,
+    /** Show "6 / 22" at the foot of the page while the reader's card is hidden. */
+    val readerPageNumber: Boolean = true,
 )
 
 @Serializable data class MangaCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())

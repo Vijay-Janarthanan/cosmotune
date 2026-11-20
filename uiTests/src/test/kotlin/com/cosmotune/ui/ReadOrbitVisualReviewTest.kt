@@ -160,7 +160,7 @@ class ReadOrbitVisualReviewTest {
             page(dark, size) { MangaApp(repository = repository, showNavigation = size === phone) }
             waitFor("Star Courier")
             capture("manga-library-$tag")
-            compose.onNodeWithTag("manga:hero").performClick()
+            compose.onNodeWithTag("manga:continue-row").performClick()
             waitFor("Salt and starlight")
             capture("manga-series-$tag")
             compose.onAllNodesWithContentDescription("Back").onFirst().performClick()

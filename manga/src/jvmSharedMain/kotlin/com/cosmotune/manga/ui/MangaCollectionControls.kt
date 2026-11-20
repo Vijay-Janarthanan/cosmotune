@@ -29,9 +29,9 @@ import kotlinx.coroutines.launch
     val state by repository.store.state.collectAsState()
     var manage by remember { mutableStateOf(false) }
     ReadChipRow(Modifier.padding(vertical = 4.dp).testTag("manga:collections")) {
-        ReadChip(mangaText("All"), selected == "", { onSelected("") })
-        state.collections.forEach { collection -> ReadChip(collection.name, selected == collection.id, { onSelected(collection.id) }) }
-        if (state.collections.isNotEmpty()) ReadChip(mangaText("Unassigned"), selected == "unassigned", { onSelected("unassigned") })
+        ReadChip(mangaText("All") + " ${state.books.size}", selected == "", { onSelected("") })
+        state.collections.forEach { collection -> ReadChip(collection.name + " ${state.collectionBooks(collection.id).size}", selected == collection.id, { onSelected(collection.id) }) }
+        if (state.collections.isNotEmpty()) ReadChip(mangaText("Unassigned") + " ${state.collectionBooks("unassigned").size}", selected == "unassigned", { onSelected("unassigned") })
         ReadChip(mangaText(if (state.collections.isEmpty()) "New collection" else "Edit"), false, { manage = true }, Modifier.testTag("manga:collection:manage"), icon = CosmoIcons.Plus)
     }
     if (manage) MangaCollectionManager(repository) { manage = false; if (selected !in listOf("", "unassigned") && state.collections.none { it.id == selected }) onSelected("") }

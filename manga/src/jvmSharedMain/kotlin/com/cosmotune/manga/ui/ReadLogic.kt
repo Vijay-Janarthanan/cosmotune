@@ -90,6 +90,13 @@ internal fun chapterName(chapter: MangaChapter): String = when {
     else -> "chapter ${chapter.number}"
 }
 
+/** What a chapter's tile says: its number ("99", "4.5"), else its place in the list ([fallback], from 1). */
+internal fun chapterNumber(chapter: MangaChapter, fallback: Int): String = when {
+    chapter.number <= 0f -> fallback.toString()
+    chapter.number % 1f == 0f -> chapter.number.toInt().toString()
+    else -> chapter.number.toString()
+}
+
 /** The line under a chapter's title: the reading position, else the upload date, the scanlator and the edition. */
 internal fun chapterSubtitle(chapter: MangaChapter, progress: MangaProgress?, read: Boolean, zone: ZoneId = ZoneId.systemDefault()): String {
     val position = progress?.takeIf { it.chapterId == chapter.id && !read && it.pageCount > 0 }?.let { "Page ${it.page + 1} of ${it.pageCount}" }
@@ -155,6 +162,33 @@ internal fun mangaLibraryLine(book: MangaBook, state: MangaLibraryState): String
     val fresh = book.chapters.count { it.id in state.newChapters }
     return if (unread == 0) "Caught up" else "$unread unread" + if (fresh > 0) " · $fresh new" else ""
 }
+
+/** What a library cover carries in its corner: the unread chapters and the chapters on this device. */
+internal data class MangaCoverCounts(val unread: Int, val downloaded: Int)
+
+internal fun mangaCoverCounts(book: MangaBook, state: MangaLibraryState): MangaCoverCounts = MangaCoverCounts(
+    unread = book.chapters.count { it.id !in state.readChapters },
+    downloaded = if (book.sourceId == "local") 0 else book.chapters.count { state.downloads.containsKey(it.id) },
+)
+
+/** The library in the order its options sheet chose: last read (the default), title, added, or the most unread first. */
+internal fun mangaLibraryOrder(books: List<MangaBook>, sort: String, state: MangaLibraryState): List<MangaBook> = when (sort) {
+    "title" -> books.sortedBy { it.title.lowercase() }
+    "added" -> books.sortedByDescending { it.addedAtMs }
+    "unread" -> books.sortedByDescending { book -> book.chapters.count { it.id !in state.readChapters } }
+    else -> books.sortedByDescending { state.progress[it.id]?.updatedAtMs ?: it.addedAtMs }
+}
+
+/** The Continue row's line: "Chapter 9 · Page 6 of 22" while a chapter is open, else "Next: Chapter 10". */
+internal fun mangaContinueLine(book: MangaBook, state: MangaLibraryState): String? {
+    val chapter = mangaContinue(book, state).chapter ?: return null
+    val name = chapterName(chapter).takeIf { it != "reading" }?.replaceFirstChar(Char::uppercase) ?: chapter.title
+    val progress = state.progress[book.id]?.takeIf { it.chapterId == chapter.id && !it.finished && it.pageCount > 0 }
+    return if (progress != null) "$name · Page ${progress.page + 1} of ${progress.pageCount}" else "Next: $name"
+}
+
+/** How many new chapters [days] hold in all, for the Updates tab's count and the mode switcher's line. */
+internal fun mangaNewCount(state: MangaLibraryState): Int = mangaUpdates(state).size
 
 /** What a tap on a page does: turn back, turn forward, or show and hide the reader's chrome. */
 internal enum class ReaderTap { PREVIOUS, NEXT, MENU }
