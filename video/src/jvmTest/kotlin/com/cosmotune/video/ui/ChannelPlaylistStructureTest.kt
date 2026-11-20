@@ -169,7 +169,8 @@ class ChannelPlaylistStructureTest {
                 assertTrue("role =" in argumentsOf(src, match.range.last), "$file: ${match.value} has no role")
             }
         }
-        assertTrue(seen >= 2, "found the clickables (found $seen)")
+        // The cards' own presses (the owner, the About line) are the shared header's now; the rest stay here.
+        assertTrue(seen >= 1, "found the clickables (found $seen)")
     }
 
     @Test fun everyLazyItemHasAKey() {
