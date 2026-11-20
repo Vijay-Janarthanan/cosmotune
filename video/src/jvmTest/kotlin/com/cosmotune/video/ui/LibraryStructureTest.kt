@@ -105,25 +105,29 @@ class LibraryStructureTest {
 
     // ---- Library (spec 5.8) -------------------------------------------------------------------------------------------------
 
-    @Test fun theLibraryHasItsHeadingTheTonalPlusTheShelfTheSevenRowsInOrderAndYourPlaylists() {
+    @Test fun theLibraryHasItsHeadingThePlusOneChipRowWithCountsThenRowsAndYourPlaylists() {
         val src = code("LibraryPage")
         assertTrue("LibraryHeader(" in src && "SharedRes.string.library" in src, "Library, the app's own translated word")
         assertTrue("VideoPageHeading(title, stringResource(Res.string.video_library_label), modifier, actions)" in code("LibraryParts"), "the heading is Orbit's page heading")
         assertTrue("OrbitAction(CosmoIcons.Plus, stringResource(Res.string.video_new_playlist)" in src, "the 40 dp Orbit round plus")
         assertTrue("NewPlaylistDialog(" in src && "createPlaylist(" in src, "the plus makes a playlist")
-        assertTrue("LibraryPlan.fractions(" in src && "VideoRoute.History" in src, "the Library tab's History shelf has the watched bars and opens the history")
-        val rows = Regex("""LibraryLink\(\s*([\w.]+),\s*Res\.string\.(\w+)""").findAll(src).map { it.groupValues[1] to it.groupValues[2] }.toList()
+        assertTrue("LibraryPlan.fractions(" in src && "VideoRoute.History" in src, "the Library tab's History rows have the watched bars and open the history")
+        // board frame 5: one chip row with counts, then History, Watch later and the playlists as rows
+        val chips = Regex("""LibraryLink\(\s*([\w.]+),\s*Res\.string\.(\w+)""").findAll(src).map { it.groupValues[1] to it.groupValues[2] }.toList()
         assertEquals(
             listOf(
-                "VideoIcons.History" to "video_history", "CosmoIcons.Clock" to "video_watch_later", "CosmoIcons.HeartFill" to "video_liked",
-                "CosmoIcons.Download" to "video_downloads", "VideoIcons.Subscriptions" to "video_channels",
-                "VideoIcons.Bookmark" to "video_saved_playlists", "CosmoIcons.Video" to "video_local_title", "VideoIcons.Upload" to "video_import_export",
+                "CosmoIcons.HeartFill" to "video_liked", "CosmoIcons.Download" to "video_downloads", "CosmoIcons.Video" to "video_local_title",
+                "VideoIcons.Subscriptions" to "video_channels", "VideoIcons.Bookmark" to "video_saved_playlists",
             ),
-            rows,
+            chips,
         )
-        for (route in listOf("History", "WatchLater", "Liked", "Downloads", "Channels", "SavedPlaylists", "LocalFiles", "Import")) {
-            assertTrue("VideoRoute.$route" in src, "a row pushes $route")
+        assertTrue("OrbitChipRow(" in src && "OrbitSelectChip(link.count?.takeIf { it > 0 }?.let { \"\$title · \$it\" } ?: title" in src, "the chips say their counts")
+        for (route in listOf("History", "WatchLater", "Liked", "Downloads", "Channels", "SavedPlaylists", "LocalFiles")) {
+            assertTrue("VideoRoute.$route" in src, "the page opens $route")
         }
+        assertTrue("LibraryVideoRow(" in src && "private const val ROWS_SHOWN = 3" in src, "History and Watch later as a few rows each")
+        assertFalse("LibraryShelf(" in src, "no shelves on the Library tab any more")
+        assertFalse("VideoRoute.Import" in src || "VideoRoute.Settings" in src, "Settings and Import and export are the drawer's")
         assertTrue("Res.string.video_your_playlists" in src && "VideoRoute.LocalPlaylist(" in src && "LibraryPlan.coverOf(" in src)
         assertTrue("OrbitSongRow(" in file("LibraryParts") && "icon = icon, height = 64.dp" in file("LibraryParts"), "Orbit rows: 64 dp, the icon in a disc")
     }

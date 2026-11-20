@@ -13,7 +13,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.nav.VideoRoute
@@ -21,9 +20,7 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_channels
 import com.cosmotune.video.resources.video_count_videos
 import com.cosmotune.video.resources.video_downloads
-import com.cosmotune.video.resources.video_drawer_settings
 import com.cosmotune.video.resources.video_history
-import com.cosmotune.video.resources.video_import_export
 import com.cosmotune.video.resources.video_liked
 import com.cosmotune.video.resources.video_local_title
 import com.cosmotune.video.resources.video_new_playlist
@@ -50,12 +47,20 @@ import com.cosmotune.music.sharedui.resources.library
 import com.cosmotune.music.sharedui.resources.Res as SharedRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.padding
+import com.cosmotune.music.sharedui.resources.show_all
+import com.cosmotune.ui.orbit.OrbitChipRow
+import com.cosmotune.ui.orbit.OrbitSelectChip
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.theme.CosmoSpacing
+import com.cosmotune.video.ui.watch.rememberWatchedFractions
 
 /**
- * The Library tab (DESIGN_SYSTEM.md 5.2, 4.9), top to bottom: the large title with the 40 dp tonal plus that makes a playlist; the account;
- * one hairline list group (History, Watch later, Liked videos, Downloads, Channels, Saved playlists, local videos with their counts, then Import
- * and export and Settings), each row opening its page; the shelves of History, Watch later and Liked videos when they hold something; then
- * "Your playlists", a row each with the first video's picture as its cover, opening the playlist. [contentPadding] and [wide] are the nav host's.
+ * The Library tab (board frame 5), top to bottom: the title with the plus that makes a playlist; the account; one row of chips with
+ * their counts (Liked, Downloads, Local videos, Channels, Saved playlists), each opening its page; then History, Watch later and the
+ * playlists as rows, the first two with Show all. Settings and Import and export are in the profile drawer, not here. [contentPadding]
+ * and [wide] are the nav host's.
  */
 @Composable
 fun LibraryPage(contentPadding: PaddingValues, wide: Boolean) {
@@ -78,25 +83,26 @@ fun LibraryPage(contentPadding: PaddingValues, wide: Boolean) {
     var newPlaylist by rememberSaveable { mutableStateOf(false) }
     var sheetFor by remember { mutableStateOf<VideoItem?>(null) }
 
+    // The pages the chip row opens, each with its count; History and Watch later have their own rows below.
     val links = listOf(
-        LibraryLink(VideoIcons.History, Res.string.video_history, count = null, route = VideoRoute.History),
-        LibraryLink(CosmoIcons.Clock, Res.string.video_watch_later, count = watchLater.size, route = VideoRoute.WatchLater),
         LibraryLink(CosmoIcons.HeartFill, Res.string.video_liked, count = liked.size, route = VideoRoute.Liked),
         LibraryLink(CosmoIcons.Download, Res.string.video_downloads, count = downloadCount, route = VideoRoute.Downloads),
+        LibraryLink(CosmoIcons.Video, Res.string.video_local_title, count = localCount, route = VideoRoute.LocalFiles),
         LibraryLink(VideoIcons.Subscriptions, Res.string.video_channels, count = subscriptions.size, route = VideoRoute.Channels),
         LibraryLink(VideoIcons.Bookmark, Res.string.video_saved_playlists, count = saved.size, route = VideoRoute.SavedPlaylists),
-        LibraryLink(CosmoIcons.Video, Res.string.video_local_title, count = localCount, route = VideoRoute.LocalFiles),
-        LibraryLink(VideoIcons.Upload, Res.string.video_import_export, count = null, route = VideoRoute.Import),
     )
 
     val account = graph.account
     val accountState by account.state.collectAsState()
     var accountSheet by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    // The Library tab's shelves: the newest of History, Watch later and Liked videos, each opening its page.
-    val recent = remember(history) { history.take(SHELF_MAX).map { it.item } }
-    val recentFractions = remember(history) { LibraryPlan.fractions(history.take(SHELF_MAX)) }
-    val shelfWidth = (if (wide) WIDE_CARD_DP else CARD_DP).dp
+    // The newest of History and Watch later as rows, each section opening its page.
+    val recent = remember(history) { history.take(ROWS_MAX).map { it.item } }
+    val recentFractions = remember(history) { LibraryPlan.fractions(history.take(ROWS_MAX)) }
+    val later = remember(watchLater) { watchLater.take(ROWS_MAX) }
+    val laterFractions by rememberWatchedFractions(later)
+    val fonts = orbitFonts()
+    val look = orbitLook()
 
     LibraryList(contentPadding, wide) { cell ->
         item(key = "heading") {
@@ -110,55 +116,32 @@ fun LibraryPage(contentPadding: PaddingValues, wide: Boolean) {
         if ((accountState as? com.cosmotune.video.account.AccountState.SignedIn)?.expired == true) {
             item(key = "account-expired") { com.cosmotune.video.ui.account.AccountExpiredNotice(cell) }
         }
-        items(links, key = { "link:" + it.route.encode() }) { link ->
-            LinkRow(link.icon, stringResource(link.title), link.count, onClick = { navigator.push(link.route) }, modifier = cell)
-        }
-        item(key = "link:settings") {
-            LinkRow(CosmoIcons.Settings, stringResource(Res.string.video_drawer_settings), count = null, onClick = { navigator.push(VideoRoute.Settings) }, modifier = cell, divided = false)
+        item(key = "links") {
+            OrbitChipRow(CosmoSpacing.margin, cell.padding(top = 8.dp)) {
+                links.forEach { link ->
+                    val title = stringResource(link.title)
+                    OrbitSelectChip(link.count?.takeIf { it > 0 }?.let { "$title · $it" } ?: title, false, fonts, look,
+                        onClick = { navigator.push(link.route) }, icon = link.icon, haptic = false)
+                }
+            }
         }
         if (recent.isNotEmpty()) {
-            item(key = "shelf-history") {
-                LibraryShelf(
-                    title = stringResource(Res.string.video_history),
-                    items = recent,
-                    onItemClick = { actions.play(it, recent) },
-                    onItemMore = { sheetFor = it },
-                    watched = { recentFractions[it] },
-                    downloaded = { it in downloadedIds },
-                    cardWidth = shelfWidth,
-                    modifier = cell,
-                    onShowAll = { navigator.push(VideoRoute.History) },
-                )
+            item(key = "history:header") {
+                VideoSectionHeading(stringResource(Res.string.video_history), cell, onSeeAll = { navigator.push(VideoRoute.History) }, seeAllLabel = stringResource(SharedRes.string.show_all))
+            }
+            items(recent.take(ROWS_SHOWN), key = { "history:" + it.id }) { item ->
+                LibraryVideoRow(item, onClick = { actions.play(item, recent) }, onMore = { sheetFor = item }, wide = wide, modifier = cell,
+                    watchedFraction = recentFractions[item.id], downloaded = item.id in downloadedIds)
             }
         }
-        if (watchLater.isNotEmpty()) {
-            item(key = "shelf-watch-later") {
-                LibraryShelf(
-                    title = stringResource(Res.string.video_watch_later),
-                    items = watchLater.take(SHELF_MAX),
-                    onItemClick = { actions.play(it, watchLater) },
-                    onItemMore = { sheetFor = it },
-                    watched = { null },
-                    downloaded = { it in downloadedIds },
-                    cardWidth = shelfWidth,
-                    modifier = cell,
-                    onShowAll = { navigator.push(VideoRoute.WatchLater) },
-                )
+        if (later.isNotEmpty()) {
+            item(key = "later:header") {
+                VideoSectionHeading(stringResource(Res.string.video_watch_later), cell, onSeeAll = { navigator.push(VideoRoute.WatchLater) },
+                    seeAllLabel = stringResource(SharedRes.string.show_all), subtitle = watchLater.size.toString())
             }
-        }
-        if (liked.isNotEmpty()) {
-            item(key = "shelf-liked") {
-                LibraryShelf(
-                    title = stringResource(Res.string.video_liked),
-                    items = liked.take(SHELF_MAX),
-                    onItemClick = { actions.play(it, liked) },
-                    onItemMore = { sheetFor = it },
-                    watched = { null },
-                    downloaded = { it in downloadedIds },
-                    cardWidth = shelfWidth,
-                    modifier = cell,
-                    onShowAll = { navigator.push(VideoRoute.Liked) },
-                )
+            items(later.take(ROWS_SHOWN), key = { "later:" + it.id }) { item ->
+                LibraryVideoRow(item, onClick = { actions.play(item, watchLater) }, onMore = { sheetFor = item }, wide = wide, modifier = cell,
+                    watchedFraction = laterFractions[item.id], downloaded = item.id in downloadedIds)
             }
         }
         if (playlists.isNotEmpty()) {
@@ -208,14 +191,12 @@ fun LibraryPage(contentPadding: PaddingValues, wide: Boolean) {
     }
 }
 
-/** How many videos a Library shelf holds. */
-private const val SHELF_MAX = 12
+/** How many videos of History and Watch later the page reads, and how many rows of each it shows. */
+private const val ROWS_MAX = 12
+private const val ROWS_SHOWN = 3
 
-/** One of the Library's rows: its icon, its name, its count (none for History and Import and export) and the page it opens. */
+/** One of the Library's chips: its icon, its name, its count and the page it opens. */
 @Immutable
 private data class LibraryLink(val icon: ImageVector, val title: StringResource, val count: Int?, val route: VideoRoute)
 
-/** The shelf card on the phone and on a wide page (DESIGN_SYSTEM.md 4.7: 280 wide). */
-private const val CARD_DP = VideoMetrics.SHELF_CARD_W_DP
-private const val WIDE_CARD_DP = VideoMetrics.GRID_MIN_CARD_DP
 
