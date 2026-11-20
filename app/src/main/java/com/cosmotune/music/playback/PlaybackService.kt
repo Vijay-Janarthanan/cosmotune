@@ -3,6 +3,8 @@ package com.cosmotune.music.playback
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
@@ -41,6 +43,7 @@ import androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -129,6 +132,12 @@ import com.cosmotune.music.data.innertube.PlaybackTracker
 import com.cosmotune.music.data.stats.ListeningRecorder
 import com.cosmotune.music.data.innertube.PlayerClient
 import com.cosmotune.music.data.innertube.StreamResolver
+import com.cosmotune.music.playback.recovery.NetworkOutage
+import com.cosmotune.music.playback.recovery.PlaybackFailureKind
+import com.cosmotune.music.playback.recovery.PlaybackFailures
+import com.cosmotune.music.playback.recovery.PlaybackProgressWatchdog
+import com.cosmotune.music.playback.recovery.PlaybackReconnectStatus
+import com.cosmotune.music.playback.recovery.QueueRecoveryRules
 import com.cosmotune.music.data.model.LikeStatus
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.isUnresolvedSpotify
@@ -704,6 +713,33 @@ class PlaybackService : MediaLibraryService() {
      */
     private var consecutiveErrorSkips = 0
 
+    /**
+     * The network outage the current track is waiting out, if any — see [waitForNetwork]. Shared
+     * with the desktop, so both apply the same schedule and the same one-skip rule.
+     */
+    private val networkOutage = NetworkOutage(now = SystemClock::elapsedRealtime)
+
+    /** The pending reconnect for [reconnectingMediaId]; cancelled when the network comes back early. */
+    private var reconnectJob: Job? = null
+    private var reconnectingMediaId: String? = null
+    private var reconnectPositionMs = 0L
+
+    /** Set by [skipPastUnplayable] so the transition it fires is not read as the listener moving on. */
+    private var serviceSkipping = false
+
+    /**
+     * Tracks skipped for failing since anything last played, so the skips stop rather than go
+     * round a repeat-all queue in which nothing can play. See [QueueRecoveryRules.mayMoveTo].
+     */
+    private val failedSinceAudible = mutableSetOf<String>()
+
+    /** Catches a track that says it is playing while its position stands still. */
+    private val progressWatchdog = PlaybackProgressWatchdog(now = SystemClock::elapsedRealtime)
+    private var watchdogJob: Job? = null
+
+    /** Tells a waiting reconnect that the network is back; see [onNetworkBack]. */
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
     private var scrobbleManager: ScrobbleManager? = null
     private var listenBrainzSong: Song? = null
 
@@ -960,6 +996,19 @@ class PlaybackService : MediaLibraryService() {
                 // say the queue is not simply unplayable end to end.
                 audibleMediaId = exoPlayer.currentMediaItem?.mediaId
                 consecutiveErrorSkips = 0
+                failedSinceAudible.clear()
+                // Audio again: whatever outage there was is over.
+                networkOutage.onPlaybackResumed()?.let { lasted ->
+                    TrackLog.i(
+                        "Cosmotune",
+                        "reconnected after ${lasted}ms; playing on from where it stopped",
+                        about = exoPlayer.currentMediaItem?.mediaId,
+                    )
+                }
+                endReconnect()
+                startProgressWatchdog()
+            } else {
+                stopProgressWatchdog()
             }
             if (isPlaying) registerCurrentPlay()
             // Nothing to read ahead for while paused, and a pause is often
@@ -1025,6 +1074,12 @@ class PlaybackService : MediaLibraryService() {
                 lastBluetoothPlayingAt = SystemClock.elapsedRealtime()
             }
             if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) bluetoothReconnect.cancel()
+            // Play or pause pressed: a reconnect waiting for the network is no longer wanted after a
+            // pause, and play after a give-up deserves a fresh outage rather than an instant refusal.
+            if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {
+                if (!playWhenReady) endReconnect()
+                networkOutage.reset()
+            }
             // Something started the phone's own player while a receiver is the
             // speaker — an internal path, since the session player's door
             // already sends a listener's play to the receiver. The phone goes
@@ -1103,6 +1158,7 @@ class PlaybackService : MediaLibraryService() {
                     reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT,
                 reason = reason,
             )
+            reshuffleIfRoundRestarted(exoPlayer, reason)
             // Prune consumed USER_QUEUE entries when playback enters CONTEXT,
             // keeping the timeline clean and ensuring REPEAT_MODE_ALL loops only CONTEXT items.
             QueueCoordinator.consumePlayedUserQueue(exoPlayer)
@@ -1372,6 +1428,7 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
+        registerNetworkCallback()
 
         if (com.cosmotune.music.data.innertube.Innertube.cookie == null) {
             // The active session of the account registry, and the channel it acts as, the way the application restores it. The
@@ -3599,7 +3656,16 @@ class PlaybackService : MediaLibraryService() {
         val becameCurrent = mediaItem?.mediaId
         if (becameCurrent == null || becameCurrent != retryingMediaId) {
             recoveries.clear()
+            // The same distinction for an outage: a reconnect's own seek, or the one skip the
+            // outage allowed, carries it on; anything else is the listener choosing another song,
+            // which gets a fresh outage of its own.
+            if (!serviceSkipping) {
+                endReconnect()
+                networkOutage.reset()
+                failedSinceAudible.clear()
+            }
         }
+        serviceSkipping = false
         retryingMediaId = null
 
         // Where the wait starts, for the log in onIsPlayingChanged — unless
@@ -3858,11 +3924,14 @@ class PlaybackService : MediaLibraryService() {
         val mediaId = item.mediaId
         val uri = item.localConfiguration?.uri
         val position = player.currentPosition.coerceAtLeast(0L)
-        val attempts = recoveries.getOrDefault(mediaId, 0) + 1
+        val failure = failureKindOf(error)
+        // Waiting for the network is not an attempt on the stream: the budget below is for streams
+        // that fail the same way every time, and a dead connection says nothing about the stream.
+        val attempts = recoveries.getOrDefault(mediaId, 0) + if (failure == PlaybackFailureKind.NETWORK) 0 else 1
         recoveries[mediaId] = attempts
         TrackLog.w(
             "Cosmotune",
-            "playback failed for $mediaId at ${position}ms (${error.errorCodeName}), attempt $attempts",
+            "playback failed for $mediaId at ${position}ms (${error.errorCodeName}, ${failure.name.lowercase()}), attempt $attempts",
             error,
             about = mediaId,
         )
@@ -3902,7 +3971,35 @@ class PlaybackService : MediaLibraryService() {
         // again. Rebuild it as an explicit YouTube request instead. This also
         // clears a DASH/HLS MIME left on an upgraded item, which otherwise makes
         // Media3 parse YouTube's WebM bytes as a manifest forever.
-        if (fallbackFailedAlternativeToYouTube(item, uri, position, error)) return
+        // A dropped connection is not a broken stream. It used to get the two quick retries below
+        // and then, for a track that had not started, a skip — which on a dead connection walked
+        // the queue several songs down in seconds. Now the track and its position are kept and
+        // retried on a backoff for up to two minutes, or at once when the network comes back.
+        // Ahead of the alternative-source fallback, which would otherwise give up on a lossless
+        // source for good because the connection under it dropped.
+        var networkGaveUp = false
+        if (failure == PlaybackFailureKind.NETWORK) {
+            when (val decision = networkOutage.onNetworkFailure()) {
+                is NetworkOutage.Decision.Retry -> {
+                    waitForNetwork(mediaId, position, decision)
+                    return
+                }
+                NetworkOutage.Decision.GiveUp -> {
+                    endReconnect()
+                    networkGaveUp = true
+                    TrackLog.w(
+                        "Cosmotune",
+                        "$mediaId is still without a network after ${networkOutage.elapsedMs()}ms; giving up the wait",
+                        about = mediaId,
+                    )
+                }
+            }
+        } else if (failure == PlaybackFailureKind.STALE_LINK) {
+            // Already forgotten by the data source that saw the status (see [ChunkedDataSource]);
+            // the retry below resolves a fresh link.
+            TrackLog.w("Cosmotune", "$mediaId's stream link has expired; resolving it again", about = mediaId)
+        }
+        if (!networkGaveUp && fallbackFailedAlternativeToYouTube(item, uri, position, error)) return
         // Giving up on the *retry*, not on everything below it.
         //
         // A track that has exhausted its attempts is not finished with.
@@ -3930,7 +4027,7 @@ class PlaybackService : MediaLibraryService() {
         // more full walks for an answer already in hand — and in the report they
         // were exactly that, at roughly seventeen youtubei requests each.
         val verdict = permanentReason(error)
-        val givingUp = verdict != null || attempts > MAX_RECOVERIES
+        val givingUp = verdict != null || attempts > MAX_RECOVERIES || networkGaveUp
         // A track that has never made a sound has *failed to start*, whatever
         // the error was, and the queue should move past it once the attempts are
         // spent — see [skipReason]. Read here rather than after the delay below,
@@ -4020,8 +4117,14 @@ class PlaybackService : MediaLibraryService() {
                 // the outside that is indistinguishable from a hung app — which
                 // is what the report describes and what "it was stuck on my
                 // phone too" means. Moving on is the only honest answer.
-                skipReason(verdict, error, neverStarted, attempts)?.let { reason ->
-                    withContext(Dispatchers.Main) { skipPastUnplayable(mediaId, reason) }
+                val reason = skipReason(verdict, error, neverStarted, attempts, networkGaveUp)
+                withContext(Dispatchers.Main) {
+                    when {
+                        reason != null -> skipPastUnplayable(mediaId, reason)
+                        // Two minutes without a network, and a song already given up for it:
+                        // stop here rather than retry or skip on into a queue nothing can play.
+                        networkGaveUp -> stopOnFailure(mediaId, "no connection after ${networkOutage.elapsedMs()}ms")
+                    }
                 }
                 return@launch
             }
@@ -4275,9 +4378,16 @@ class PlaybackService : MediaLibraryService() {
         error: PlaybackException,
         neverStarted: Boolean,
         attempts: Int,
+        networkGaveUp: Boolean = false,
     ): String? {
         if (verdict != null) return verdict
         if (!neverStarted) return null
+        // One song per outage. The next one failing for the same dead connection is the
+        // connection, and the queue stays where it is.
+        if (networkGaveUp && !networkOutage.claimSkip()) {
+            TrackLog.w("Cosmotune", "the connection is still gone after one skip; not skipping again")
+            return null
+        }
         if (consecutiveErrorSkips >= MAX_CONSECUTIVE_SKIPS) {
             TrackLog.w(
                 "Cosmotune",
@@ -4312,18 +4422,233 @@ class PlaybackService : MediaLibraryService() {
     private fun skipPastUnplayable(mediaId: String, reason: String) {
         val exoPlayer = player ?: return
         if (exoPlayer.currentMediaItem?.mediaId != mediaId) return
-        if (!exoPlayer.hasNextMediaItem()) {
-            TrackLog.w("Cosmotune", "$reason — and nothing after it in the queue", about = mediaId)
+        failedSinceAudible += mediaId
+        // Respects repeat: with repeat off the last track has no next and the queue stops there;
+        // with repeat-all the next is the first track, unless the skips have already been all the
+        // way round (or the queue is this one track), when going on would loop forever.
+        val nextId = exoPlayer.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET && exoPlayer.hasNextMediaItem() }
+            ?.let { exoPlayer.getMediaItemAt(it).mediaId }
+        if (!QueueRecoveryRules.mayMoveTo(nextId, failedSinceAudible)) {
+            stopOnFailure(
+                mediaId,
+                if (nextId == null) "$reason — and nothing after it in the queue" else "$reason — and every track left has failed too",
+            )
             return
         }
         TrackLog.w("Cosmotune", "$reason — skipping to the next track", about = mediaId)
         // In a party the song is sat out rather than reloaded; this device rejoins on the next one.
         partySync?.onUnplayable(mediaId)
+        serviceSkipping = true
         exoPlayer.seekToNextMediaItem()
         // No play() here: an error does not clear playWhenReady, so prepare()
         // resumes exactly as far as the listener had asked for. Calling play()
         // would un-pause a queue they had paused.
         exoPlayer.prepare()
+    }
+
+    /**
+     * The end of the line for a failure: the error stays on the player, the queue stays where it
+     * is, and playback pauses so nothing — not the network coming back, not Media3's own retry —
+     * starts the same failing track again on a loop. Play starts it over with a fresh outage.
+     *
+     * Not in a party, where a pause here would pause the room for everyone.
+     */
+    private fun stopOnFailure(mediaId: String, reason: String) {
+        endReconnect()
+        val exoPlayer = player ?: return
+        if (exoPlayer.currentMediaItem?.mediaId != mediaId) return
+        if (ListenTogether.state.value.inParty) {
+            TrackLog.w("Cosmotune", "$reason; leaving it to the room", about = mediaId)
+            return
+        }
+        TrackLog.w("Cosmotune", "$reason; stopping here", about = mediaId)
+        exoPlayer.pause()
+    }
+
+    /**
+     * Sorts [error] for [recoverFrom]. The decision is [PlaybackFailures]', shared with the desktop;
+     * this only reads what Media3 knows. Only stream reads can be network failures — a decoder, a
+     * parser or the audio output failing is the same failure with or without a connection — and a
+     * local file never is.
+     */
+    private fun failureKindOf(error: PlaybackException): PlaybackFailureKind {
+        val ioError = error.errorCode == PlaybackException.ERROR_CODE_UNSPECIFIED ||
+            error.errorCode in IO_ERROR_CODES
+        val scheme = player?.currentMediaItem?.localConfiguration?.uri?.scheme
+        if (!ioError || scheme == "file" || scheme == "content") return PlaybackFailureKind.OTHER
+        var status: Int? = null
+        var cause: Throwable? = error
+        var depth = 0
+        while (cause != null && depth++ < PERMANENT_CAUSE_DEPTH) {
+            if (cause is HttpDataSource.InvalidResponseCodeException) {
+                status = cause.responseCode
+                break
+            }
+            cause = cause.cause?.takeIf { it !== cause }
+        }
+        return PlaybackFailures.classify(
+            error = error,
+            httpStatus = status,
+            networkCode = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            offline = AudioCache.isOffline(),
+        )
+    }
+
+    /**
+     * Keeps [mediaId] and [position] and tries again after the outage's next wait, saying
+     * "Reconnecting…" on the player meanwhile. [onNetworkBack] cuts the wait short.
+     */
+    private fun waitForNetwork(mediaId: String, position: Long, decision: NetworkOutage.Decision.Retry) {
+        reconnectingMediaId = mediaId
+        reconnectPositionMs = position
+        PlaybackReconnectStatus.begin(mediaId)
+        TrackLog.w(
+            "Cosmotune",
+            "$mediaId lost the network at ${position}ms; reconnect ${decision.attempt} in ${decision.delayMs}ms " +
+                "(${networkOutage.elapsedMs()}ms into the outage)",
+            about = mediaId,
+        )
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch(TrackLog.about(mediaId)) {
+            delay(decision.delayMs)
+            reconnectNow(mediaId)
+        }
+    }
+
+    /** The system has a network again: a waiting reconnect goes now rather than at the end of its wait. */
+    private fun onNetworkBack() {
+        val mediaId = reconnectingMediaId ?: return
+        if (!networkOutage.onNetworkAvailable()) return
+        TrackLog.i("Cosmotune", "the network is back; reconnecting $mediaId now", about = mediaId)
+        reconnectJob?.cancel()
+        reconnectNow(mediaId)
+    }
+
+    private fun reconnectNow(mediaId: String) {
+        reconnectJob = null
+        val exoPlayer = player ?: return
+        if (reconnectingMediaId != mediaId) return
+        if (exoPlayer.currentMediaItem?.mediaId != mediaId) {
+            endReconnect()
+            return
+        }
+        // Recovered by some other way in the meantime (a listener's play, a queue edit).
+        if (exoPlayer.playbackState != Player.STATE_IDLE) return
+        TrackLog.d("Cosmotune", "reconnecting $mediaId at ${reconnectPositionMs}ms")
+        // Claimed before the seek, as in [recoverFrom], so its transition is not read as the
+        // listener choosing the track again.
+        retryingMediaId = mediaId
+        exoPlayer.seekTo(exoPlayer.currentMediaItemIndex, reconnectPositionMs)
+        exoPlayer.prepare()
+    }
+
+    /** No reconnect pending any more; the player stops saying "Reconnecting…". */
+    private fun endReconnect() {
+        reconnectJob?.cancel()
+        reconnectJob = null
+        reconnectingMediaId = null
+        PlaybackReconnectStatus.end()
+    }
+
+    private fun registerNetworkCallback() {
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            // A binder thread; the reconnect belongs on the player's.
+            override fun onAvailable(network: Network) {
+                scope.launch { onNetworkBack() }
+            }
+        }
+        runCatching { getSystemService(ConnectivityManager::class.java).registerDefaultNetworkCallback(callback) }
+            .onSuccess { networkCallback = callback }
+            .onFailure { TrackLog.w("Cosmotune", "no network callback; reconnects wait out their backoff ($it)") }
+    }
+
+    private fun unregisterNetworkCallback() {
+        val callback = networkCallback ?: return
+        networkCallback = null
+        runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(callback) }
+    }
+
+    /** Samples the playing track for [progressWatchdog] for as long as it plays. */
+    private fun startProgressWatchdog() {
+        if (watchdogJob?.isActive == true) return
+        watchdogJob = scope.launch {
+            while (isActive) {
+                delay(PlaybackProgressWatchdog.SAMPLE_EVERY_MS)
+                val exoPlayer = player ?: continue
+                // A blend has two players moving at once and its own stall guard; a receiver or the
+                // watch as the speaker leaves the local position meaningless.
+                val watched = crossfade?.isTransitioning() != true && !castPlayback.active
+                val verdict = progressWatchdog.sample(
+                    songId = exoPlayer.currentMediaItem?.mediaId,
+                    playing = watched && exoPlayer.isPlaying,
+                    buffering = exoPlayer.playbackState == Player.STATE_BUFFERING,
+                    positionMs = exoPlayer.currentPosition,
+                )
+                when (verdict) {
+                    is PlaybackProgressWatchdog.Verdict.Recover -> recoverStall(exoPlayer, verdict)
+                    PlaybackProgressWatchdog.Verdict.GaveUp -> TrackLog.w(
+                        "Cosmotune",
+                        "${exoPlayer.currentMediaItem?.mediaId} stalled again after " +
+                            "${PlaybackProgressWatchdog.MAX_RECOVERIES_PER_SONG} recoveries; leaving it",
+                        about = exoPlayer.currentMediaItem?.mediaId,
+                    )
+                    PlaybackProgressWatchdog.Verdict.Fine -> Unit
+                }
+            }
+        }
+    }
+
+    private fun stopProgressWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = null
+    }
+
+    /**
+     * A track that says it is playing but has not moved: no error will ever arrive for it, so it is
+     * re-prepared where it stands, on a freshly resolved link. stop() is what makes prepare() do
+     * anything to a player that believes it is ready, and it keeps playWhenReady.
+     */
+    private fun recoverStall(exoPlayer: ExoPlayer, verdict: PlaybackProgressWatchdog.Verdict.Recover) {
+        val item = exoPlayer.currentMediaItem ?: return
+        val mediaId = item.mediaId
+        val position = exoPlayer.currentPosition.coerceAtLeast(0L)
+        TrackLog.w(
+            "Cosmotune",
+            "$mediaId is playing but has not moved from ${position}ms for ${verdict.stalledMs}ms; " +
+                "re-preparing it (stall recovery ${verdict.attempt} of ${PlaybackProgressWatchdog.MAX_RECOVERIES_PER_SONG})",
+            about = mediaId,
+        )
+        val videoId = item.localConfiguration?.uri?.getQueryParameter("v") ?: mediaId
+        StreamChoice.forget(videoId)
+        StreamResolver.forgetResolved(videoId)
+        retryingMediaId = mediaId
+        exoPlayer.stop()
+        exoPlayer.seekTo(exoPlayer.currentMediaItemIndex, position)
+        exoPlayer.prepare()
+    }
+
+    /**
+     * Repeat-all starting a shuffled queue over deals it a new order, or every round replays the
+     * same "shuffled" sequence. An automatic advance that lands on the first track can only be the
+     * wrap. A bounded album or playlist deals each round from its own window ([QueueWindow]) and
+     * is left to it.
+     */
+    private fun reshuffleIfRoundRestarted(exoPlayer: ExoPlayer, reason: Int) {
+        if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) return
+        if (boundedContextWindow != null || ListenTogether.state.value.inParty) return
+        val count = exoPlayer.mediaItemCount
+        val wrapped = QueueRecoveryRules.reshuffleOnWrap(
+            shuffle = QueueShuffle.enabled.value,
+            repeatAll = exoPlayer.repeatMode == Player.REPEAT_MODE_ALL,
+            // An automatic advance onto the first item came from the last.
+            fromIndex = if (exoPlayer.currentMediaItemIndex == 0) count - 1 else exoPlayer.currentMediaItemIndex - 1,
+            toIndex = exoPlayer.currentMediaItemIndex,
+            queueSize = count,
+        )
+        if (wrapped && QueueShuffle.reshuffleRound(exoPlayer)) {
+            TrackLog.d("Cosmotune", "repeat-all started over; dealt a new shuffle order")
+        }
     }
 
     /**
@@ -7497,6 +7822,9 @@ class PlaybackService : MediaLibraryService() {
 
 
     override fun onDestroy() {
+        unregisterNetworkCallback()
+        endReconnect()
+        stopProgressWatchdog()
         podioChapterMedia.close()
         player?.let { podioPositions.trySend(PodioPosition(it.currentMediaItem?.mediaId, it.currentPosition, false, durationMs = it.duration)) }
         podioPositions.close()
@@ -9335,6 +9663,9 @@ class PlaybackService : MediaLibraryService() {
          * one; nothing nests deeper. See [permanentReason].
          */
         const val PERMANENT_CAUSE_DEPTH = 8
+
+        /** Media3's input/output error codes: the only failures a lost connection can cause. */
+        val IO_ERROR_CODES = 2000..2999
 
         /**
          * The pause before a retry. Media3 refuses to remove a cache entry a

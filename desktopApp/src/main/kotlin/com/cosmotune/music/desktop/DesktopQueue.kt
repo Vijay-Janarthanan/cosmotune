@@ -199,6 +199,22 @@ internal data class DesktopQueue(
     }
 
     /**
+     * A repeat-all round that has just started over from [wrappedFrom] (the queue as it was on its
+     * last track): with shuffle on, the round after the first track gets a fresh order, as on the
+     * phone ([com.cosmotune.music.playback.recovery.QueueRecoveryRules.reshuffleOnWrap]). Otherwise
+     * every round replays the same "shuffled" sequence.
+     */
+    fun newRound(wrappedFrom: DesktopQueue, shuffle: Boolean): DesktopQueue =
+        if (com.cosmotune.music.playback.recovery.QueueRecoveryRules.reshuffleOnWrap(
+                shuffle = shuffle,
+                repeatAll = true,
+                fromIndex = wrappedFrom.index,
+                toIndex = index,
+                queueSize = wrappedFrom.songs.size,
+            )
+        ) shuffledAhead() else this
+
+    /**
      * Puts the upcoming tracks back in [originalOrder], by queue key.
      *
      * Worked out against a map of the positions each key holds rather than by searching the queue

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -202,6 +203,7 @@ fun CosmoNowPlaying(
         delay(NEXT_CANVAS_PREFETCH_DELAY_MS)
         PlayerPlatform.host.prefetchCanvas(upNext)
     }
+    val reconnecting by com.cosmotune.music.playback.recovery.PlaybackReconnectStatus.reconnecting.collectAsState()
     val scrub = rememberPlayerScrub(song.videoId, position, durationMs)
     val controlsLocked = rememberControlsLocked()
     val skipHaptics = rememberHaptics()
@@ -213,7 +215,8 @@ fun CosmoNowPlaying(
         onNext = { if (controlsLocked) onBlockedControl() else { skipHaptics.play(Haptic.SkipNext); onNext() } },
         onToggleShuffle = onToggleShuffle, onCycleRepeat = onCycleRepeat, onToggleLike = onToggleLike, onSeekFraction = onSeekFraction,
         onOpenArtist = { onOpenArtist(song.artistId, song.artist) },
-        isLoading = isLoading,
+        // Waiting for the network is loading too, whichever host is playing.
+        isLoading = isLoading || reconnecting == song.videoId,
         live = rememberLivePlayhead(position, isPlaying),
     )
     val inParty = rememberInParty()

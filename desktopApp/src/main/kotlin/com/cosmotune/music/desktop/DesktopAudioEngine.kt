@@ -6,7 +6,12 @@ import com.cosmotune.music.data.settings.MixBlend
 import com.cosmotune.music.data.settings.SmartAnalysis
 import com.cosmotune.music.data.settings.TrackAnalysisState
 import com.cosmotune.music.data.settings.TransitionWindow
+import com.cosmotune.music.data.innertube.StreamResolver
 import com.cosmotune.music.playback.EqCurve
+import com.cosmotune.music.playback.recovery.NetworkOutage
+import com.cosmotune.music.playback.recovery.PlaybackFailureKind
+import com.cosmotune.music.playback.recovery.PlaybackProgressWatchdog
+import com.cosmotune.music.playback.recovery.PlaybackReconnectStatus
 import com.cosmotune.music.playback.TransitionFilter
 import com.cosmotune.music.playback.smart.CrossfadeMode
 import com.cosmotune.music.playback.smart.TransitionPlan
@@ -27,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
@@ -191,6 +197,22 @@ class DesktopPlaybackEngine(
     private val awaitingArm = java.util.concurrent.atomic.AtomicReference<Song?>(null)
     private var retryingSongId: String? = null
 
+    /**
+     * The network outage a song is waiting out, shared in shape with the phone (see [NetworkOutage]).
+     * Touched from the audio thread, the resolve coroutines and the UI, so always under [outageLock].
+     */
+    private val outage = NetworkOutage(now = { System.nanoTime() / 1_000_000L })
+    private val outageLock = Any()
+
+    /** Whether an outage is open, read on the audio thread for every published position. */
+    @Volatile private var outageOpen = false
+    @Volatile private var reconnectJob: Job? = null
+
+    /** Set around the [onEnded] an outage's one skip makes, so the [load] it causes keeps the outage. */
+    @Volatile private var outageSkip = false
+
+    private val progressWatchdog = PlaybackProgressWatchdog(now = { System.nanoTime() / 1_000_000L })
+
     /** Owned by the audio thread once handed over; never touched from outside. */
     private class Track(
         val song: Song,
@@ -260,6 +282,9 @@ class DesktopPlaybackEngine(
 
     fun load(song: Song, playWhenReady: Boolean = true, startAtMs: Long = 0L) {
         retryingSongId = null
+        // A song asked for by the listener (or the queue moving on by itself) is a fresh start,
+        // unless it is the one skip a lost connection allowed: that keeps the outage it came from.
+        if (!outageSkip) resetOutage()
         loadInternal(
             song,
             playWhenReady,
@@ -284,6 +309,11 @@ class DesktopPlaybackEngine(
         /** Why the first attempt failed, when this call is the retry. */
         priorFailure: Throwable? = null,
         recoverHandoff: Boolean = false,
+        /**
+         * Set when the song is being picked up where it stopped - a reconnect or a stall
+         * recovery - so the player keeps showing that position and length while it loads.
+         */
+        resumeDurationMs: Long? = null,
     ) {
         resolveJob?.cancel()
         nextResolveJob?.cancel()
@@ -292,7 +322,8 @@ class DesktopPlaybackEngine(
         searchingBetterFor = null
         incomingSearchingFor = null
         _state.value = DesktopPlaybackState(song = song, volume = volume, isLoading = true,
-            positionMs = if (recoverHandoff) startAtMs else 0)
+            positionMs = if (recoverHandoff || resumeDurationMs != null) startAtMs else 0,
+            durationMs = resumeDurationMs ?: 0L)
         resolveJob = scope.launch {
             // Only when the file is really there: a download record can outlive the file it names,
             // and handing the decoder a path that is not there fails as "could not open stream"
@@ -318,6 +349,11 @@ class DesktopPlaybackEngine(
                     )
                 },
                 onFailure = { failure ->
+                    // No source could even be asked: offline, that is the network, not the song.
+                    if (DesktopStreamFailures.classify(failure) == PlaybackFailureKind.NETWORK) {
+                        waitOutNetwork(song, failure, startAtMs, playWhenReady, resumeDurationMs ?: 0L)
+                        return@fold
+                    }
                     val reported = priorFailure ?: failure
                     // The reason is on screen as an error and was nowhere else: a song that will not play left no trace.
                     DesktopTrackLog.log("could not play '${song.title}': ${reported.message ?: reported.javaClass.simpleName}")
@@ -330,6 +366,163 @@ class DesktopPlaybackEngine(
                 },
             )
         }
+    }
+
+    /**
+     * The playing [track]'s stream stopped short, on the audio thread. A network failure keeps the
+     * song and its position and waits for the connection ([waitOutNetwork]); an expired link is
+     * resolved again; anything else is left to end the song as it always did.
+     *
+     * @return false when the caller should finish the track as before.
+     */
+    private fun streamFailed(track: Track): Boolean {
+        val failure = track.decoder.readFailure
+        val kind = DesktopStreamFailures.classify(failure)
+        DesktopTrackLog.log("'${track.song.title}' stopped short at ${_state.value.positionMs}ms (${kind.name.lowercase()}): ${failure?.message}")
+        if (kind == PlaybackFailureKind.OTHER) return false
+        val visible = _state.value
+        val positionMs = visible.positionMs
+        val playWhenReady = !paused
+        // Torn down as a stall restart is: nothing of this deck or the next one survives the wait.
+        nextSong = null
+        awaitingArm.set(null)
+        clearUpcomingDeck()
+        current?.decoder?.close()
+        current = null
+        sink.flush()
+        framesWritten = sink.framesPlayed()
+        if (kind == PlaybackFailureKind.STALE_LINK) {
+            retryAfterFailure(track.song, playWhenReady, track.stream, failure ?: DesktopStreamException("link expired"), positionMs, recoverHandoff = false)
+        } else {
+            waitOutNetwork(track.song, failure, positionMs, playWhenReady, visible.durationMs)
+        }
+        return true
+    }
+
+    /**
+     * Keeps [song] at [positionMs] while the network is gone: the player says "Reconnecting…" and
+     * the song is loaded again on the outage's backoff (1, 2, 4, 8 s, then every 10 s) or as soon
+     * as the system has a network again. After two minutes the outage gives up: the first song it
+     * gives up on that had been playing ends as it used to, moving the queue on once; anything
+     * after that in the same outage stops with an error, and play starts it over.
+     */
+    private fun waitOutNetwork(song: Song, failure: Throwable?, positionMs: Long, playWhenReady: Boolean, durationMs: Long) {
+        val (decision, elapsedMs) = synchronized(outageLock) {
+            outageOpen = true
+            outage.onNetworkFailure() to outage.elapsedMs()
+        }
+        when (decision) {
+            is NetworkOutage.Decision.Retry -> {
+                DesktopTrackLog.log(
+                    "'${song.title}' lost the network at ${positionMs}ms; reconnect ${decision.attempt} in ${decision.delayMs}ms " +
+                        "(${elapsedMs}ms into the outage): ${failure?.message}",
+                )
+                _state.value = DesktopPlaybackState(song = song, volume = volume, isLoading = true,
+                    positionMs = positionMs, durationMs = durationMs)
+                PlaybackReconnectStatus.begin(song.videoId)
+                reconnectJob?.cancel()
+                reconnectJob = scope.launch {
+                    waitForNetwork(decision.delayMs)
+                    if (_state.value.song?.videoId != song.videoId || !_state.value.isLoading) return@launch
+                    DesktopTrackLog.log("reconnecting '${song.title}' at ${positionMs}ms")
+                    loadInternal(song, playWhenReady, excludedSourceId = refusedSources[song.videoId],
+                        startAtMs = positionMs, resumeDurationMs = durationMs)
+                }
+            }
+            NetworkOutage.Decision.GiveUp -> {
+                PlaybackReconnectStatus.end()
+                val skip = positionMs > 0 && synchronized(outageLock) { outage.claimSkip() }
+                DesktopTrackLog.log(
+                    "'${song.title}' is still without a network after ${elapsedMs}ms; " +
+                        if (skip) "moving on once" else "stopping here",
+                )
+                if (skip) {
+                    _state.update { it.copy(isLoading = false) }
+                    outageSkip = true
+                    try { onEnded() } finally { outageSkip = false }
+                } else {
+                    paused = true
+                    _state.value = DesktopPlaybackState(song = song, volume = volume, positionMs = positionMs,
+                        durationMs = durationMs, error = "No connection")
+                }
+            }
+        }
+    }
+
+    /** Waits [delayMs], or less if the operating system's network comes back meanwhile. */
+    private suspend fun waitForNetwork(delayMs: Long) {
+        val until = System.nanoTime() + delayMs * 1_000_000L
+        var wasUsable = DesktopNetwork.usable()
+        while (true) {
+            val left = (until - System.nanoTime()) / 1_000_000L
+            if (left <= 0) return
+            delay(minOf(left, NETWORK_POLL_MS))
+            val usable = DesktopNetwork.usable()
+            if (usable && !wasUsable && synchronized(outageLock) { outage.onNetworkAvailable() }) {
+                DesktopTrackLog.log("the network is back; reconnecting now")
+                return
+            }
+            wasUsable = usable
+        }
+    }
+
+    /** Audio is moving again after a failure: the outage is over. */
+    private fun onAudible(song: Song) {
+        val lasted = synchronized(outageLock) {
+            outageOpen = false
+            outage.onPlaybackResumed()
+        }
+        PlaybackReconnectStatus.end()
+        lasted?.let { DesktopTrackLog.log("reconnected '${song.title}' after ${it}ms; playing on from where it stopped") }
+    }
+
+    private fun resetOutage() {
+        reconnectJob?.cancel()
+        reconnectJob = null
+        synchronized(outageLock) {
+            outageOpen = false
+            outage.reset()
+        }
+        PlaybackReconnectStatus.end()
+    }
+
+    /**
+     * Samples the playing song for [progressWatchdog]: shown as playing, not loading, not blending,
+     * and its position has not moved for twelve seconds means a stall nothing reported.
+     */
+    private val watchdogJob = scope.launch {
+        while (isActive) {
+            delay(PlaybackProgressWatchdog.SAMPLE_EVERY_MS)
+            val shown = _state.value
+            val verdict = progressWatchdog.sample(
+                songId = shown.song?.videoId,
+                playing = shown.isPlaying && !paused && current != null && !blendActive && shown.error == null,
+                buffering = shown.isLoading || shown.awaitingAudio,
+                positionMs = shown.positionMs,
+            )
+            when (verdict) {
+                is PlaybackProgressWatchdog.Verdict.Recover -> shown.song?.let { recoverStall(it, shown, verdict) }
+                PlaybackProgressWatchdog.Verdict.GaveUp -> DesktopTrackLog.log(
+                    "'${shown.song?.title}' stalled again after ${PlaybackProgressWatchdog.MAX_RECOVERIES_PER_SONG} recoveries; leaving it",
+                )
+                PlaybackProgressWatchdog.Verdict.Fine -> Unit
+            }
+        }
+    }
+
+    /** Re-opens a stalled song where it stands, on a freshly resolved link. */
+    private fun recoverStall(song: Song, shown: DesktopPlaybackState, verdict: PlaybackProgressWatchdog.Verdict.Recover) {
+        DesktopTrackLog.log(
+            "'${song.title}' is playing but has not moved from ${shown.positionMs}ms for ${verdict.stalledMs}ms; " +
+                "re-preparing it (stall recovery ${verdict.attempt} of ${PlaybackProgressWatchdog.MAX_RECOVERIES_PER_SONG})",
+        )
+        StreamResolver.forgetResolved(song.videoId)
+        retryingSongId = null
+        val stalled = current
+        loadInternal(song, playWhenReady = true, excludedSourceId = refusedSources[song.videoId],
+            startAtMs = shown.positionMs, resumeDurationMs = shown.durationMs)
+        // The audio thread may be parked waiting on the stuck decoder; let it go so it reads the flush.
+        stalled?.decoder?.interruptWait()
     }
 
     /** Opens a decoder on [stream], off the audio thread. */
@@ -349,6 +542,8 @@ class DesktopPlaybackEngine(
             // it did, with no callback on its thread.
             val meter = com.cosmotune.audio.AcousticAlignment.Envelope().takeIf { com.cosmotune.audio.AcousticAlignment.applyToUpgrades }
             val decoder = DesktopAudioDecoder(meter?.let { m -> { samples, count, from, rate, channels -> m.add(samples, count, from, rate, channels) } })
+            // A dropped connection must read as a failure, not as the end of the song; see [streamFailed].
+            decoder.failOnEarlyEnd = true
             decoder.open(
                 url = stream.url,
                 headers = stream.headers,
@@ -379,6 +574,26 @@ class DesktopPlaybackEngine(
         song: Song, playWhenReady: Boolean, stream: DesktopStream, failure: Throwable,
         startAtMs: Long, recoverHandoff: Boolean,
     ) {
+        // A source that could not be opened for want of a connection is not a source to strike off.
+        when (DesktopStreamFailures.classify(failure)) {
+            PlaybackFailureKind.NETWORK -> {
+                waitOutNetwork(song, failure, startAtMs, playWhenReady, _state.value.durationMs)
+                return
+            }
+            PlaybackFailureKind.STALE_LINK -> {
+                // An expired link: forget it and resolve again from the same source, once.
+                StreamResolver.onPlaybackRefused(stream.url, (failure as? DesktopStreamException)?.httpStatus ?: 403)
+                StreamResolver.forgetResolved(song.videoId)
+                if (retryingSongId != song.videoId) {
+                    retryingSongId = song.videoId
+                    DesktopTrackLog.log("the link for '${song.title}' has expired; resolving it again")
+                    loadInternal(song, playWhenReady, startAtMs = startAtMs, priorFailure = failure,
+                        recoverHandoff = recoverHandoff, resumeDurationMs = _state.value.durationMs.takeIf { startAtMs > 0 })
+                    return
+                }
+            }
+            PlaybackFailureKind.OTHER -> Unit
+        }
         if (retryingSongId != song.videoId) {
             retryingSongId = song.videoId
             DesktopTrackLog.log("could not decode '${song.title}' from ${DesktopMusicSources.sourceNameFor(stream)}: ${failure.message}")
@@ -575,11 +790,28 @@ class DesktopPlaybackEngine(
             return
         }
         paused = false
+        // Stopped on a failure (the network gone for two minutes, a song nobody could serve): play
+        // tries the song again where it stopped, with a fresh outage, rather than doing nothing.
+        val stopped = _state.value
+        if (current == null && stopped.error != null && resolveJob?.isActive != true && reconnectJob?.isActive != true) {
+            stopped.song?.let { song ->
+                resetOutage()
+                retryingSongId = null
+                loadInternal(song, playWhenReady = true, excludedSourceId = refusedSources[song.videoId],
+                    startAtMs = stopped.positionMs, resumeDurationMs = stopped.durationMs)
+                return
+            }
+        }
         _state.update { it.copy(isPlaying = true) }
     }
 
     fun pause() {
         paused = true
+        // A reconnect the listener has paused is no longer wanted; play picks the song up again.
+        if (reconnectJob?.isActive == true) {
+            resetOutage()
+            _state.update { it.copy(isPlaying = false, isLoading = false, error = "Connection lost") }
+        }
         _state.update { it.copy(isPlaying = false) }
     }
 
@@ -813,6 +1045,8 @@ class DesktopPlaybackEngine(
     }
 
     fun release() {
+        reconnectJob?.cancel()
+        PlaybackReconnectStatus.end()
         analyzer.release()
         running.set(false)
         resolveJob?.cancel()
@@ -981,7 +1215,8 @@ class DesktopPlaybackEngine(
         val block = try {
             readCurrent(track, MIX_DECODE_POLL_MS.takeIf { guarding })
         } catch (_: DesktopDecodePending) {
-            if (mixWatchdog.outgoingStalled(System.nanoTime())) recoverOutgoing(track, "decoder stopped supplying audio")
+            // Outside a blend this is a wait let go on purpose (see [recoverStall]), not a stall.
+            if (guarding && mixWatchdog.outgoingStalled(System.nanoTime())) recoverOutgoing(track, "decoder stopped supplying audio")
             return
         }
         val count = currentReadCount
@@ -993,6 +1228,9 @@ class DesktopPlaybackEngine(
                 recoverOutgoing(track, "decoder failed during handoff")
                 return
             }
+            // The stream stopped short of the end. A dropped connection used to end the song right
+            // there and move the queue on; now it waits for the network and picks up where it was.
+            if (track.decoder.readFailed && (earlyEnd || duration == null) && streamFailed(track)) return
             if (fadeRemaining > 0 && upcoming != null) {
                 val channels = sink.format.channels.coerceAtLeast(1)
                 val wanted = MIX_END_PADDING_FRAMES * channels
@@ -1897,6 +2135,7 @@ class DesktopPlaybackEngine(
         val status = analysisStatus(track)
         // Published when the clock moves *or* when Automix's answer does.
         val moved = _state.value.positionMs / 250 != positionMs / 250
+        if (moved && outageOpen) onAudible(track.song)
         if (!moved && _state.value.smartAnalysis == status) return
         _state.update {
             it.copy(
@@ -2296,6 +2535,9 @@ class DesktopPlaybackEngine(
 
         private const val MIX_END_PADDING_FRAMES = 2_048
         private const val MIX_DECODE_POLL_MS = 20L
+
+        /** How often a waiting reconnect asks the operating system whether the network is back. */
+        private const val NETWORK_POLL_MS = 1_000L
         private const val MIX_END_TOLERANCE_US = 2_000_000L
         private const val DEFAULT_TEMPO_OUTPUT_SAMPLES = 4_096
         private const val TEMPO_STEP_PER_BEAT = 0.0075

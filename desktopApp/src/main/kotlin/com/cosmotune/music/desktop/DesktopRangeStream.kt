@@ -24,6 +24,13 @@ internal class DesktopRangeStream(
     /** Where [window] starts in the file; -1 when nothing is held. */
     private var windowStart = -1L
 
+    /**
+     * Why the last window could not be fetched, or null when it was. A failed fetch ends the read
+     * exactly as the end of the file does, so the decoder asks this to tell the two apart.
+     */
+    @Volatile var failure: java.io.IOException? = null
+        private set
+
     /** Where the next read will come from. */
     fun position(): Long = position
 
@@ -66,14 +73,24 @@ internal class DesktopRangeStream(
 
         val response = runCatching {
             client.send(request.GET().build(), HttpResponse.BodyHandlers.ofByteArray())
-        }.getOrNull() ?: return false
+        }.getOrElse { thrown ->
+            if (thrown is InterruptedException) Thread.currentThread().interrupt()
+            failure = DesktopStreamException(
+                "range request failed: ${thrown.message ?: thrown.javaClass.simpleName}",
+                network = com.cosmotune.music.playback.recovery.PlaybackFailures.isNetworkException(thrown),
+                cause = thrown,
+            )
+            return false
+        }
         if (response.statusCode() !in 200..299) {
+            failure = DesktopStreamException("range request answered ${response.statusCode()}", httpStatus = response.statusCode())
             // A URL cleared before playback has been refused mid-track: tell the resolver, as the
             // phone's ChunkedDataSource does, so it forgets it and benches the client that minted it.
             StreamResolver.onPlaybackRefused(url, response.statusCode())
             return false
         }
 
+        failure = null
         val body = response.body()
         // A server that honoured the range says where the bytes came from and how many there are in
         // total.

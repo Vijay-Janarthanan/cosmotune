@@ -52,6 +52,8 @@ internal class DesktopDecodeAhead(
     private var queuedSamples = 0
     private var ended = false
     private var failed = false
+    private var failure: Throwable? = null
+    private var interrupted = false
     private var closed = false
     private var pendingSeekUs: Long? = null
     /** Bumped by every seek, so a block decoded before it is never played after it. */
@@ -66,6 +68,9 @@ internal class DesktopDecodeAhead(
     val hasBufferedAudio: Boolean get() = lock.withLock { queue.isNotEmpty() }
     val readFailed: Boolean get() = lock.withLock { failed }
 
+    /** What the decoder threw when [readFailed]; null for a failure it did not explain. */
+    val readFailure: Throwable? get() = lock.withLock { failure }
+
     private val worker = Thread(::decodeLoop, name).apply {
         isDaemon = true
         // Above the UI, below the audio thread itself.
@@ -79,6 +84,10 @@ internal class DesktopDecodeAhead(
             val waitedFrom = System.nanoTime()
             var remainingNanos = waitMs?.let(TimeUnit.MILLISECONDS::toNanos)
             while (queue.isEmpty() && !ended && !closed) {
+                if (interrupted) {
+                    interrupted = false
+                    throw DesktopDecodePending()
+                }
                 val remaining = remainingNanos
                 if (remaining == null) ready.await()
                 else {
@@ -103,6 +112,17 @@ internal class DesktopDecodeAhead(
         block
     }
 
+    /**
+     * Lets an unbounded [readSamples] wait go, as [DesktopDecodePending], so the audio thread can
+     * act on a command — a stall recovery — while the decoder is still stuck in a read.
+     */
+    fun interruptWait() {
+        lock.withLock {
+            interrupted = true
+            ready.signalAll()
+        }
+    }
+
     /** Moves to [micros]; whatever was decoded ahead of the old position is thrown away. */
     fun seek(micros: Long): Boolean {
         lock.withLock {
@@ -111,6 +131,7 @@ internal class DesktopDecodeAhead(
             queuedSamples = 0
             ended = false
             failed = false
+            failure = null
             started = false
             pendingSeekUs = micros
             wake.signal()
@@ -149,12 +170,14 @@ internal class DesktopDecodeAhead(
                 }
 
                 var decodeFailed = false
+                var thrown: Throwable? = null
                 val decoded = try {
                     source.readSamples()?.copyOf(source.sampleCount)
                 } catch (failure: Exception) {
                     if (failure is InterruptedException) throw failure
                     DesktopTrackLog.log("decode-ahead: decoder failed, ending the track: ${failure.message}")
                     decodeFailed = true
+                    thrown = failure
                     null
                 }
                 lock.withLock {
@@ -169,6 +192,7 @@ internal class DesktopDecodeAhead(
                     if (decoded == null) {
                         ended = true
                         failed = decodeFailed
+                        failure = thrown
                     } else if (decoded.isNotEmpty()) {
                         queue.addLast(decoded)
                         queuedSamples += decoded.size
