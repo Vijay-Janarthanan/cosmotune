@@ -76,6 +76,11 @@ object LyricsRepository {
         onSourceResult: ((LyricsSource, Result?) -> Unit)? = null,
         /** Lets callers turn a cancelled race loser back into "not fetched". */
         onSourceCancelled: ((LyricsSource) -> Unit)? = null,
+        /**
+         * Told, before [onSourceResult]'s null, when a provider failed rather than answered: a miss that may have been the
+         * network, so [LyricsStore] does not keep "no lyrics" for it.
+         */
+        onSourceFailed: ((LyricsSource) -> Unit)? = null,
     ): Result? = coroutineScope {
         val sequence = (order + LyricsSource.offered)
             .distinct()
@@ -100,6 +105,7 @@ object LyricsRepository {
                     onSourceCancelled?.invoke(source)
                     throw cancelled
                 } catch (_: Exception) {
+                    onSourceFailed?.invoke(source)
                     onSourceResult?.invoke(source, null)
                     null
                 }

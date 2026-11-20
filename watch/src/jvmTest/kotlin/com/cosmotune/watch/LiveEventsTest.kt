@@ -11,6 +11,7 @@ import com.cosmotune.watch.live.SportsDbScores
 import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.LiveEventKind
 import com.cosmotune.watch.model.LiveEventStatus
+import com.cosmotune.watch.model.LiveInterest
 import com.cosmotune.watch.model.LiveTeam
 import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.plugins.youtube.PrasarBharatiPlugin
@@ -188,6 +189,32 @@ class LiveEventsTest {
         val aarti = events.single()
         assertEquals("Live", aarti.statusText, "the channel is named by its watch options, not again here")
         assertEquals(setOf("DD National", "DD News"), aarti.watchOptions.mapNotNull { it.channel?.name }.toSet())
+    }
+
+    @Test fun theLiveChannelsAreAskedOnlyWhenWhatIsFollowedCanUseThem() = runBlocking<Unit> {
+        val dd = PrasarBharatiPlugin({ null })
+        val ddSports = dd.channelOf(dd.official(PrasarBharatiPlugin.DD_SPORTS)!!)
+        val match = event("India v Australia", LiveEventStatus.LIVE, listOf("in"), teams = listOf(LiveTeam("India", "IND"), LiveTeam("Australia", "AUS")), kind = LiveEventKind.CRICKET)
+        val special = LiveChannelNow(dd.channelOf(dd.official("DDNational")!!), "DD", false, listOf(video("natLive0001", "LIVE: Republic Day Parade 2026", "x", live = true)), emptyList())
+        val carrier = LiveChannelNow(ddSports, "DD", false, listOf(video("ddsLive0001", "LIVE - India vs Australia | 2nd T20I | DD Sports", "x", live = true)), emptyList())
+        var asked = 0
+        val hub = LiveEventsHub({ listOf(Fixed(listOf(match))) }, { asked++; listOf(special, carrier) }, { india }, { now })
+        val footballOnly = LiveInterest(shows = false) { it.kind == LiveEventKind.FOOTBALL }
+
+        val quiet = hub.current(footballOnly)
+        assertEquals(0, asked, "no shows followed and no followed match in play: YouTube is not asked")
+        assertTrue(quiet.none { it.kind == LiveEventKind.SHOW })
+        assertEquals(10 * 60_000L, hub.pollAfter(quiet, footballOnly), "nothing followed is live: the slow poll")
+
+        val cricketOnly = LiveInterest(shows = false) { it.kind == LiveEventKind.CRICKET }
+        val carried = hub.current(cricketOnly)
+        assertEquals(1, asked, "a followed match in play: asked, for the free streams that carry it")
+        assertEquals("DD Sports", carried.first { it.title == "India v Australia" }.watchOptions.single().label)
+        assertEquals(60_000L, hub.pollAfter(carried, cricketOnly), "a followed event is live: the quick poll")
+
+        val all = hub.current(LiveInterest.ALL)
+        assertEquals(2, asked, "shows followed: asked")
+        assertTrue(all.any { it.kind == LiveEventKind.SHOW && it.title == "Republic Day Parade 2026" })
     }
 
     @Test fun carriesNeedsBothSides() {

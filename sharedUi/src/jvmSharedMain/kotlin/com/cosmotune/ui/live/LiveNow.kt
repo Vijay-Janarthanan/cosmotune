@@ -78,6 +78,7 @@ import com.cosmotune.ui.watch.WatchRoute
 import com.cosmotune.ui.watch.asSummary
 import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.LiveEventKind
+import com.cosmotune.watch.model.LiveInterest
 import com.cosmotune.watch.model.Stream
 import com.cosmotune.watch.model.StreamProtocol
 import com.cosmotune.watch.model.StreamSource
@@ -87,6 +88,7 @@ import com.cosmotune.watch.model.TitleType
 import com.cosmotune.watch.model.WatchOption
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /*
  * "Live now" (Canvas repo, design/cosmotune/live-strip/board.html): the Live pill in every mode, the panel it opens (a panel from
@@ -95,16 +97,19 @@ import kotlinx.coroutines.flow.Flow
  */
 
 /**
- * What a host hands "Live now": the events ([events], collected only while the pill is drawn), the person's choices, how a free
- * stream plays ([play]: Watch's player; null hides Watch) and, when the platform can, how a due reminder is told ([notify]: the
- * desktop's tray; false or null shows it in the app instead).
+ * What a host hands "Live now": the events for what the person follows ([events], collected only while the pill is drawn and the
+ * window is on screen: [shown] and the lifecycle), the person's choices, how a free stream plays ([play]: Watch's player; null
+ * hides Watch) and, when the platform can, how a due reminder is told ([notify]: the desktop's tray; false or null shows it in
+ * the app instead). [shown] is the host's own word on whether its window is up (the desktop's, put away in the tray); a minimised
+ * window or an app in the background is read from the lifecycle.
  */
 class LiveNowHost(
-    val events: () -> Flow<List<LiveEvent>>,
+    val events: (LiveInterest) -> Flow<List<LiveEvent>>,
     val settings: LiveNowSettings,
     val play: ((LiveEvent, WatchOption) -> Unit)?,
     val notify: ((title: String, text: String) -> Boolean)? = null,
     val clock: () -> Long = System::currentTimeMillis,
+    val shown: Flow<Boolean> = flowOf(true),
 )
 
 /** The host's "Live now", or null where there is none (nothing is drawn). */
@@ -135,10 +140,37 @@ fun liveRoute(event: LiveEvent, option: WatchOption): WatchRoute.Play {
     return WatchRoute.Play(option.target, summary, stream = chartStream)
 }
 
-/** The events as they come, an empty list until the first answer. */
+/**
+ * The events as they come, an empty list until the first answer. Collected only while the window is on screen (the host's
+ * [LiveNowHost.shown] and the lifecycle: not in the tray, minimised or in the background), so the repository's polling, and its
+ * YouTube live-channel lookups, stop with nobody to see them; the last answer stays shown and the polling picks up at once on
+ * return. The repository is told what is followed ([liveInterest]), so it asks only for what the pill can show.
+ */
 @Composable
-private fun collectEvents(host: LiveNowHost): State<List<LiveEvent>> =
-    produceState(emptyList(), host) { runCatching { host.events().collect { value = it } } }
+private fun collectEvents(host: LiveNowHost): State<List<LiveEvent>> {
+    val sports by host.settings.sports.collectAsState()
+    val teams by host.settings.teams.collectAsState()
+    val interest = remember(sports, teams) { liveInterest(sports, teams) }
+    val foreground = com.cosmotune.music.ui.rememberIsForeground()
+    val shown by host.shown.collectAsState(true)
+    val onScreen = foreground && shown
+    val state = remember(host) { mutableStateOf(emptyList<LiveEvent>()) }
+    LaunchedEffect(host, interest, onScreen) {
+        if (!onScreen) return@LaunchedEffect
+        try {
+            host.events(interest).collect { state.value = it }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Throwable) {
+            // A repository that fails leaves the last answer; the pill draws nothing until there is one.
+        }
+    }
+    return state
+}
+
+/** What the person follows, as the repository needs it: their sports and teams, and whether live shows are among them. */
+internal fun liveInterest(sports: Set<LiveEventKind>, teams: List<String>): LiveInterest =
+    LiveInterest(shows = LiveEventKind.SHOW in sports) { it.followedBy(sports, teams) }
 
 /** The followed events, split, for [kind] (null: every kind). */
 @Composable

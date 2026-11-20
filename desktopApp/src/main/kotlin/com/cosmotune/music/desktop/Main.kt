@@ -110,6 +110,8 @@ private fun runDesktop() {
     LyricsTranslation.cacheDir = DesktopMediaCache.directory.toFile()
     // The last content of every main page, shown at once on the next start while the page refreshes (PageCache).
     com.cosmotune.cache.PageCache.configure(DesktopMediaCache.directory.resolveSibling("pages").toFile())
+    // Each song's lyrics, kept between plays (LyricsStore).
+    com.cosmotune.music.data.lyrics.LyricsStore.configure(DesktopMediaCache.directory.resolveSibling("lyrics").toFile())
     // A song video candidate's preview frames (a WebP sheet) are opened with Skia, to tell a still poster from a video.
     com.opencanvas.core.stream.PreviewFrames.decoder = { bytes ->
         runCatching {

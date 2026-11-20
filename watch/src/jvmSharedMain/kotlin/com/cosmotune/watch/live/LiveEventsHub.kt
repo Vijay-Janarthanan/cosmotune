@@ -7,6 +7,7 @@ import com.cosmotune.watch.model.Channel
 import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.LiveEventKind
 import com.cosmotune.watch.model.LiveEventStatus
+import com.cosmotune.watch.model.LiveInterest
 import com.cosmotune.watch.model.LiveTeam
 import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.model.WatchKey
@@ -35,8 +36,9 @@ data class LiveChannelNow(val channel: Channel, val badge: String, val allDay: B
  * shows of [liveChannels] (a DD or official YouTube live special), and for each match in play the free streams that carry it
  * (a live video on DD Sports or another of [liveChannels] whose title names both sides). Kept for the window the strip shows
  * (live; upcoming in the next 24 hours; started within the last 16 hours and finished), ranked live, upcoming, finished, the
- * viewer's country and language first. Polled about every minute while something is live, every ten minutes otherwise, and
- * only while collected; each source also keeps its own answer for its polite interval.
+ * viewer's country and language first. Polled about every minute while something followed is live, every ten minutes otherwise,
+ * and only while collected; each source also keeps its own answer for its polite interval. The live channels (YouTube browse
+ * requests, four at a time) are asked only for a [LiveInterest] that can use them: shows followed, or a followed match in play.
  */
 class LiveEventsHub(
     private val sources: () -> List<ScoreSource>,
@@ -52,25 +54,40 @@ class LiveEventsHub(
     private val lock = Mutex()
     @Volatile private var last: Pair<WatchPlace, List<LiveEvent>>? = null
 
-    /** The events at once (the last answer when there is one), then after every poll while collected. */
-    fun flow(): Flow<List<LiveEvent>> = channelFlow {
+    /**
+     * The events at once (the last answer when there is one), then after every poll while collected: about every minute while an
+     * event [interest] follows is live, every ten minutes otherwise.
+     */
+    fun flow(interest: LiveInterest = LiveInterest.ALL): Flow<List<LiveEvent>> = channelFlow {
         last?.takeIf { it.first == place() }?.let { send(it.second) }
         while (true) {
-            val list = current()
+            val list = current(interest)
             send(list)
-            delay(if (list.any { it.isLive }) livePollMs else idlePollMs)
+            delay(pollAfter(list, interest))
         }
     }.distinctUntilChanged()
 
-    /** Asks every source now (each keeps its own cache) and ranks the answer. Never throws. */
-    suspend fun current(): List<LiveEvent> = lock.withLock {
+    /** How long to wait before the next poll: quickly only while something [interest] follows is in play. */
+    internal fun pollAfter(list: List<LiveEvent>, interest: LiveInterest): Long =
+        if (list.any { it.isLive && interest.follows(it) }) livePollMs else idlePollMs
+
+    /**
+     * Asks every source now (each keeps its own cache) and ranks the answer. Never throws. The live channels are asked only when
+     * [interest] can use them: with the scores when it follows shows, after them when a followed match is in play (for the free
+     * streams that carry it), and not at all otherwise.
+     */
+    suspend fun current(interest: LiveInterest = LiveInterest.ALL): List<LiveEvent> = lock.withLock {
         val t = now()
         val viewer = place()
         val (matches, channels, featured) = coroutineScope {
             val m = sources().map { s -> async { runCatching { withTimeoutOrNull(timeoutMs) { s.events(t) } }.getOrNull().orEmpty() } }
-            val c = async { runCatching { withTimeoutOrNull(timeoutMs) { liveChannels() } }.getOrNull().orEmpty() }
+            val askChannels: suspend () -> List<LiveChannelNow> = { runCatching { withTimeoutOrNull(timeoutMs) { liveChannels() } }.getOrNull().orEmpty() }
+            val early = if (interest.shows) async { askChannels() } else null
             val f = async { withTimeoutOrNull(timeoutMs) { spotlight(viewer, t) }.orEmpty() }
-            Triple(m.awaitAll().flatten(), c.await(), f.await())
+            val found = m.awaitAll().flatten()
+            val c = early?.await()
+                ?: if (found.any { it.status == LiveEventStatus.LIVE && interest.follows(it) }) askChannels() else emptyList()
+            Triple(found, c, f.await())
         }
         val used = mutableSetOf<String>()
         val withOptions = dedupe(matches).filter { inWindow(it, t) }.map { e ->

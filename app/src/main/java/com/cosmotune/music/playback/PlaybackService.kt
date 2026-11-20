@@ -107,7 +107,8 @@ import com.cosmotune.music.data.innertube.InnertubeParser
 import com.cosmotune.music.data.YtMusicRepository
 import com.cosmotune.music.data.lyrics.EmbeddedLyrics
 import com.cosmotune.music.data.lyrics.LyricLine
-import com.cosmotune.music.data.lyrics.LyricsRepository
+import com.cosmotune.music.data.lyrics.LyricsStore
+import com.cosmotune.music.data.model.durationMillis
 import com.cosmotune.music.data.model.NOTIFICATION_ART_PX
 import com.cosmotune.music.data.model.PlaybackSourceType
 import com.cosmotune.music.data.model.SearchFilter
@@ -7949,8 +7950,6 @@ class PlaybackService : MediaLibraryService() {
             return
         }
 
-        val trackDurationMs = (player?.duration ?: 0L).takeIf { it > 0 } ?: 0L
-
         serviceLyricsJob?.cancel()
         serviceLyricsJob = scope.launch(Dispatchers.IO) {
             val localUri = currentSong.localUri
@@ -7959,18 +7958,26 @@ class PlaybackService : MediaLibraryService() {
                 lines = EmbeddedLyrics.forUri(this@PlaybackService, localUri)
             }
             if (lines == null) {
-                val found = LyricsRepository.lyrics(
-                    videoId = currentSong.videoId,
-                    title = currentSong.title,
-                    artist = currentSong.artist,
-                    durationMs = trackDurationMs,
-                    album = currentSong.albumName,
-                    sources = AppSettings.lyricsSources.value,
-                    order = AppSettings.lyricsSourceOrder.value,
-                    prioritizeSyllableSync = AppSettings.prioritizeSyllableSync.value,
+                // The player screen asks for the same song as soon as the length is known; asking with the same length lets
+                // the two share one lookup (LyricsStore) instead of each fetching the song. The length lands a beat after
+                // the track; the listing's length stands in when the player never reports one.
+                val trackDurationMs = withContext(Dispatchers.Main) { awaitTrackDuration(currentSong.videoId) }
+                    .takeIf { it > 0L } ?: currentSong.durationMillis()
+                val found = LyricsStore.lyrics(
+                    LyricsStore.Request(
+                        videoId = currentSong.videoId,
+                        title = currentSong.title,
+                        artist = currentSong.artist,
+                        durationMs = trackDurationMs,
+                        album = currentSong.albumName,
+                        sources = AppSettings.lyricsSources.value,
+                        order = AppSettings.lyricsSourceOrder.value,
+                        prioritizeSyllableSync = AppSettings.prioritizeSyllableSync.value,
+                    ),
                 )
                 lines = found?.lines
             }
+            withContext(Dispatchers.Main) { prefetchNextLyrics() }
             withContext(Dispatchers.Main) {
                 serviceLyrics = lines
                 if (player?.isPlaying == true) {
@@ -7978,6 +7985,43 @@ class PlaybackService : MediaLibraryService() {
                 }
             }
         }
+    }
+
+    /** The playing track's length once the player knows it (up to a few seconds after it starts), or 0. Main thread. */
+    private suspend fun awaitTrackDuration(videoId: String): Long {
+        repeat(LYRICS_DURATION_POLLS) {
+            val p = player ?: return 0L
+            if (p.currentMediaItem?.toSong()?.videoId != videoId) return 0L
+            p.duration.takeIf { it > 0L && it != C.TIME_UNSET }?.let { return it }
+            delay(LYRICS_DURATION_POLL_MS)
+        }
+        return 0L
+    }
+
+    /**
+     * Looks the next song in the queue up ahead (LyricsStore keeps the answer), so its lyrics are there the moment it starts.
+     * Only a song from the network with a known length: a local file's own words need no lookup. Main thread.
+     */
+    private fun prefetchNextLyrics() {
+        if (!AppSettings.syncedLyrics.value) return
+        val p = player ?: return
+        val index = p.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET } ?: return
+        val next = runCatching { p.getMediaItemAt(index) }.getOrNull() ?: return
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(next.mediaId)) return
+        val song = next.toSong()
+        if (song.localUri != null) return
+        LyricsStore.prefetch(
+            LyricsStore.Request(
+                videoId = song.videoId,
+                title = song.title,
+                artist = song.artist,
+                durationMs = song.durationMillis(),
+                album = song.albumName,
+                sources = AppSettings.lyricsSources.value,
+                order = AppSettings.lyricsSourceOrder.value,
+                prioritizeSyllableSync = AppSettings.prioritizeSyllableSync.value,
+            ),
+        )
     }
 
     private fun startLyricsTicker() {
@@ -9372,6 +9416,9 @@ class PlaybackService : MediaLibraryService() {
             .build()
 
     private companion object {
+        /** How long the lyrics wait for the player to know the track's length: 40 polls of 125 ms, five seconds. */
+        const val LYRICS_DURATION_POLLS = 40
+        const val LYRICS_DURATION_POLL_MS = 125L
         const val MEDIA_ROOT_ID = "root"
         const val MEDIA_RECENTS_ID = "recents"
         const val MEDIA_QUICK_PICKS_ID = "quick_picks"

@@ -27,6 +27,7 @@ import com.cosmotune.music.data.spotify.SpotifyTrack
 import com.cosmotune.music.data.lyrics.EmbeddedLyrics
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.data.lyrics.LyricsRepository
+import com.cosmotune.music.data.lyrics.LyricsStore
 import com.cosmotune.music.data.lyrics.LyricsSource
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.data.innertube.Innertube
@@ -484,9 +485,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 lyricsFor = null
                 return@launch
             }
-            val found = LyricsRepository.lyrics(
-                videoId, title, artist, durationMs, album, sources,
-                AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+            // One lookup per song for this screen and the playback service together, kept between plays: LyricsStore.
+            val found = LyricsStore.lyrics(
+                LyricsStore.Request(
+                    videoId, title, artist, durationMs, album, sources,
+                    AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+                ),
                 onSourceStarted = { source -> providerStarted(generation, source) },
                 onSourceResult = { source, result ->
                     providerFinished(generation, source, result)
@@ -1680,7 +1684,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (_explore.value !is UiState.Success) _explore.value = UiState.Loading
         viewModelScope.launch {
             // The moods of the last run, at once, while they are asked for again.
-            if (_explore.value is UiState.Loading) MusicPages.savedExplore()?.let { saved -> if (_explore.value is UiState.Loading) _explore.value = UiState.Success(saved) }
+            if (_explore.value is UiState.Loading) MusicPages.savedExplore()?.let { saved ->
+                val withCovers = com.cosmotune.cache.ExploreCovers.apply(saved)
+                if (_explore.value is UiState.Loading) _explore.value = UiState.Success(withCovers)
+            }
             fetchExplore(startup)
         }
     }
@@ -1703,7 +1710,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (sections.isEmpty()) {
                     UiState.Error(text(R.string.nothing_to_explore))
                 } else {
-                    UiState.Success(sections)
+                    UiState.Success(com.cosmotune.cache.ExploreCovers.apply(sections))
                 }
             },
             onFailure = { UiState.Error(it.friendly()) },
@@ -1715,32 +1722,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         (state as? UiState.Success)?.data?.let { sections -> MusicPages.saveExplore(sections); loadMoodGenreArtwork(sections) }
     }
 
+    private var moodGenreArtworkJob: Job? = null
+
     /**
-     * Category buttons do not carry thumbnails themselves. Resolve a small
-     * number at a time from the shelves they open, so the grid gains real art
-     * without saturating the browse client or delaying the category list.
+     * Category buttons do not carry thumbnails themselves; each borrows the first cover of the shelves it opens. The covers are
+     * kept on the disk ([com.cosmotune.cache.ExploreCovers]): each is asked once, a few at a time, and the whole set again in
+     * the background at most once a day, so a start shows the kept covers at once and asks for none of them.
      */
     private fun loadMoodGenreArtwork(sections: List<MoodGenreSection>) {
-        viewModelScope.launch {
-            val limiter = Semaphore(4)
-            coroutineScope {
-                sections.flatMap(MoodGenreSection::items).forEach { item ->
-                    launch {
-                        val artwork = limiter.withPermit {
-                            YtMusicRepository.moodGenreArtwork(item.browseId, item.params).getOrNull()
-                        } ?: return@launch
-                        val current = (_explore.value as? UiState.Success)?.data ?: return@launch
-                        _explore.value = UiState.Success(current.map { section ->
-                            section.copy(items = section.items.map { currentItem ->
-                                if (currentItem.browseId == item.browseId && currentItem.params == item.params) {
-                                    currentItem.copy(thumbnailUrl = artwork)
-                                } else {
-                                    currentItem
-                                }
-                            })
-                        })
-                    }
-                }
+        moodGenreArtworkJob?.cancel()
+        moodGenreArtworkJob = viewModelScope.launch {
+            com.cosmotune.cache.ExploreCovers.resolve(
+                sections,
+                fetch = { item -> YtMusicRepository.moodGenreArtwork(item.browseId, item.params) },
+            ) { item, artwork ->
+                val current = (_explore.value as? UiState.Success)?.data ?: return@resolve
+                _explore.value = UiState.Success(com.cosmotune.cache.ExploreCoverStore.withCover(current, item, artwork))
             }
         }
     }

@@ -136,10 +136,12 @@ private fun DesktopLiveNowPill() {
     val look = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings
     val host = androidx.compose.runtime.remember(settings, look) {
         com.cosmotune.ui.live.LiveNowHost(
-            events = { DesktopWatch.repository.liveEvents() },
+            events = { interest -> DesktopWatch.repository.liveEvents(interest) },
             settings = settings,
             play = com.cosmotune.ui.live.watchModePlay(look),
             notify = { title, text -> com.cosmotune.music.desktop.DesktopAwtTray.notify(title, text) },
+            // Put away in the tray the window still composes: the pill stops asking until it is back.
+            shown = com.cosmotune.music.desktop.DesktopWindowVisibility.visible,
         )
     }
     androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.live.LocalLiveNow provides host) {

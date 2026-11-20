@@ -76,15 +76,18 @@ internal object LyricsTag {
 
         val found = try {
             withTimeoutOrNull(LOOKUP_MS) {
-                LyricsRepository.lyrics(
-                    videoId = track.videoId,
-                    title = track.title,
-                    artist = track.artist,
-                    durationMs = durationMs,
-                    album = track.albumName,
-                    sources = sources,
-                    order = AppSettings.lyricsSourceOrder.value,
-                    prioritizeSyllableSync = AppSettings.prioritizeSyllableSync.value,
+                // The lyrics the player already found (and kept) for this song, when it was played.
+                com.cosmotune.music.data.lyrics.LyricsStore.lyrics(
+                    com.cosmotune.music.data.lyrics.LyricsStore.Request(
+                        videoId = track.videoId,
+                        title = track.title,
+                        artist = track.artist,
+                        durationMs = durationMs,
+                        album = track.albumName,
+                        sources = sources,
+                        order = AppSettings.lyricsSourceOrder.value,
+                        prioritizeSyllableSync = AppSettings.prioritizeSyllableSync.value,
+                    ),
                 )
             }
         } catch (e: CancellationException) {

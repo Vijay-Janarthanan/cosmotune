@@ -114,7 +114,7 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     val live = remember(shell, liveSettings, liveContext) {
         shell?.let {
             com.cosmotune.ui.live.LiveNowHost(
-                events = { com.cosmotune.music.watch.AndroidWatch.repository(liveContext).liveEvents() },
+                events = { interest -> com.cosmotune.music.watch.AndroidWatch.repository(liveContext).liveEvents(interest) },
                 settings = liveSettings,
                 play = com.cosmotune.ui.live.watchModePlay(it.settings),
             )

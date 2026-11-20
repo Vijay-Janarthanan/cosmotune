@@ -2001,6 +2001,8 @@ fun CosmotuneDesktopApp() {
         }
         lyricsLoading = true
         val found = DesktopLyricsClient.lookup(current, length, only = lyricsOnly)
+        // The next song's lyrics are looked up ahead and kept, so they are there the moment it starts.
+        if (lyricsOnly == null) liveQueue.upcoming.firstOrNull()?.let(DesktopLyricsClient::prefetch)
         found.fold(
             // Moved by their saved automatic offset, if any (Extras: lyrics auto offset).
             onSuccess = { lyrics = it.copy(lines = com.cosmotune.lyrics.autosync.LyricsAutoOffset.applied(current.videoId, it.lines)) },
@@ -2937,13 +2939,17 @@ fun CosmotuneDesktopApp() {
         if (exploreState !is UiState.Success) {
             exploreState = UiState.Loading
             // The moods of the last run, at once, while they are asked for again.
-            com.cosmotune.cache.MusicPages.savedExplore()?.let { saved -> if (exploreState is UiState.Loading) exploreState = UiState.Success(saved) }
+            com.cosmotune.cache.MusicPages.savedExplore()?.let { saved ->
+                val withCovers = com.cosmotune.cache.ExploreCovers.apply(saved)
+                if (exploreState is UiState.Loading) exploreState = UiState.Success(withCovers)
+            }
         }
         DesktopSearchClient.moodAndGenres().fold(
-            onSuccess = { sections ->
-                exploreState = if (sections.isEmpty()) {
+            onSuccess = { fetched ->
+                exploreState = if (fetched.isEmpty()) {
                     UiState.Error("Nothing to explore right now")
                 } else {
+                    val sections = com.cosmotune.cache.ExploreCovers.apply(fetched)
                     com.cosmotune.cache.MusicPages.saveExplore(sections)
                     UiState.Success(sections)
                 }
@@ -2971,36 +2977,18 @@ fun CosmotuneDesktopApp() {
         if (exploreReloads > 0 && homeWantsExplore) loadExplore()
     }
 
-    // Category buttons carry no artwork of their own, so a few are resolved at a time from the
-    // shelves they open.
-    LaunchedEffect(exploreState) {
+    // Category buttons carry no artwork of their own: each borrows the first cover of the shelves it opens. The covers are kept on
+    // the disk (ExploreCovers): each is asked once, a few at a time, and the whole set again in the background at most once a day.
+    // Keyed on the categories, not on exploreState, which every cover writes to: a cover landing must not restart the pass.
+    val exploreCategories = (exploreState as? UiState.Success)?.data?.flatMap { it.items }?.map(com.cosmotune.cache.ExploreCoverStore::key)
+    LaunchedEffect(exploreCategories) {
         val sections = (exploreState as? UiState.Success)?.data ?: return@LaunchedEffect
-        if (sections.all { section -> section.items.all { it.thumbnailUrl != null } }) return@LaunchedEffect
-        val limiter = Semaphore(4)
-        coroutineScope {
-            sections.flatMap(MoodGenreSection::items)
-                .filter { it.thumbnailUrl == null }
-                .forEach { item ->
-                    launch {
-                        val artwork = limiter.withPermit {
-                            DesktopSearchClient.moodGenreArtwork(item.browseId, item.params).getOrNull()
-                        } ?: return@launch
-                        val current = (exploreState as? UiState.Success)?.data ?: return@launch
-                        exploreState = UiState.Success(
-                            current.map { section ->
-                                section.copy(
-                                    items = section.items.map { entry ->
-                                        if (entry.browseId == item.browseId && entry.params == item.params) {
-                                            entry.copy(thumbnailUrl = artwork)
-                                        } else {
-                                            entry
-                                        }
-                                    },
-                                )
-                            },
-                        )
-                    }
-                }
+        com.cosmotune.cache.ExploreCovers.resolve(
+            sections,
+            fetch = { item -> DesktopSearchClient.moodGenreArtwork(item.browseId, item.params) },
+        ) { item, artwork ->
+            val current = (exploreState as? UiState.Success)?.data ?: return@resolve
+            exploreState = UiState.Success(com.cosmotune.cache.ExploreCoverStore.withCover(current, item, artwork))
         }
     }
 
@@ -6607,7 +6595,7 @@ private fun DesktopSettingsScreen(
                 }
             }
             DesktopSettingsSection.READ -> {
-                DesktopModeLink(AppMode.MANGA, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_READ.text(), com.cosmotune.ui.settings.SettingsText.OPEN_READ_SUMMARY.text())
+                DesktopModeLink(AppMode.READ, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_READ.text(), com.cosmotune.ui.settings.SettingsText.OPEN_READ_SUMMARY.text())
             }
             DesktopSettingsSection.PODIO -> {
                 DesktopModeLink(AppMode.PODIO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_PODIO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_PODIO_SUMMARY.text())

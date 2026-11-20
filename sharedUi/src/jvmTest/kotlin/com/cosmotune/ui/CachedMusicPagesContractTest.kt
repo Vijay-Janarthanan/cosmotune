@@ -52,4 +52,14 @@ class CachedMusicPagesContractTest {
         assertTrue("com.cosmotune.cache.MusicPages.savedLibrary(libraryFor)" in desktop)
         assertTrue("if (homeRefreshFailed && destination == DesktopDestination.LISTEN_NOW" in desktop)
     }
+
+    @Test fun exploreCoversAreKeptAndAskedForOnceNotAtEveryStart() {
+        for ((where, src) in listOf("phone" to viewModel, "desktop" to desktop)) {
+            assertTrue("com.cosmotune.cache.ExploreCovers.apply(" in src, "$where: the kept covers are on the saved page and the fresh one")
+            assertTrue("com.cosmotune.cache.ExploreCovers.resolve(" in src, "$where: covers are asked through the store, which keeps them")
+        }
+        assertTrue("moodGenreArtworkJob?.cancel()" in SourceContract.functionBody(viewModel, "loadMoodGenreArtwork"), "one pass at a time on the phone")
+        assertTrue("LaunchedEffect(exploreCategories)" in desktop && "LaunchedEffect(exploreState)" !in desktop,
+            "the desktop's pass is keyed on the categories, not on the state every cover writes to")
+    }
 }

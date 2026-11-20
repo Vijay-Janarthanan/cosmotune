@@ -272,22 +272,25 @@ object YtMusicRepository {
         InnertubeParser.parseMoodAndGenres(Innertube.browse("FEmusic_moods_and_genres"))
     }
 
-    /**
-     * The playlist shelves behind one mood/genre category. This result also
-     * supplies its tile artwork, so caching it avoids a second request when a
-     * user taps a category whose cover has already appeared.
-     */
+    /** The playlist shelves behind one mood/genre category, kept for the run once a category has been opened. */
     suspend fun moodGenreShelves(browseId: String, params: String?): Result<List<HomeShelf>> {
         val key = "$browseId:${params.orEmpty()}"
         moodGenreShelfCache[key]?.let { return Result.success(it) }
-        return call("mood-genre:$browseId") {
-            InnertubeParser.parseHome(Innertube.browse(browseId, params))
-        }.also { result -> result.getOrNull()?.let { moodGenreShelfCache.putIfAbsent(key, it) } }
+        return fetchMoodGenreShelves(browseId, params)
+            .also { result -> result.getOrNull()?.let { moodGenreShelfCache.putIfAbsent(key, it) } }
     }
 
-    /** A category card borrows the first real cover from the playlists it opens. */
+    private suspend fun fetchMoodGenreShelves(browseId: String, params: String?): Result<List<HomeShelf>> = call("mood-genre:$browseId") {
+        InnertubeParser.parseHome(Innertube.browse(browseId, params))
+    }
+
+    /**
+     * A category card borrows the first real cover from the playlists it opens. Only the address is wanted, so the shelves it
+     * comes from are not kept (a category already opened answers from its kept shelves); the address itself is kept on the disk
+     * by [com.cosmotune.cache.ExploreCovers].
+     */
     suspend fun moodGenreArtwork(browseId: String, params: String?): Result<String?> =
-        moodGenreShelves(browseId, params).map { shelves ->
+        (moodGenreShelfCache["$browseId:${params.orEmpty()}"]?.let { Result.success(it) } ?: fetchMoodGenreShelves(browseId, params)).map { shelves ->
             shelves.asSequence().flatMap { it.items.asSequence() }
                 .mapNotNull(ShelfItem::thumbnailUrl)
                 .firstOrNull()

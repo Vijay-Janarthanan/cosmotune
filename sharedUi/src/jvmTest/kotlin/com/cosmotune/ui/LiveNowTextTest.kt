@@ -125,4 +125,28 @@ class LiveNowTextTest {
         assertTrue("LocalLiveNowInPage provides" in read("app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt"), "the phone puts it under each page's bar")
         assertTrue("TvLiveChip(" in read("tv/src/main/java/com/cosmotune/music/ui/tv/TvApp.kt"), "the TV's chips row")
     }
+
+    @Test fun theRepositoryIsToldWhatIsFollowed() {
+        val cricketOnly = com.cosmotune.ui.live.liveInterest(setOf(LiveEventKind.CRICKET), listOf("India"))
+        assertFalse(cricketOnly.shows, "shows not followed: the live channels are not needed for shows")
+        val match = events.first { it.kind == LiveEventKind.CRICKET && it.isLive }
+        assertTrue(cricketOnly.follows(match), "India's match is followed")
+        assertFalse(cricketOnly.follows(events.first { it.kind == LiveEventKind.FOOTBALL }), "football is not")
+        assertTrue(com.cosmotune.ui.live.liveInterest(setOf(LiveEventKind.SHOW), emptyList()).shows)
+    }
+
+    @Test fun nothingIsAskedWhileTheWindowIsAway() {
+        val root = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "settings.gradle.kts").isFile }
+        fun read(path: String) = File(root, path).readText().replace(Regex("""\s+"""), " ")
+        val live = read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/live/LiveNow.kt")
+        assertTrue("val onScreen = foreground && shown" in live, "on screen: the lifecycle and the host's own word")
+        assertTrue("LaunchedEffect(host, interest, onScreen) { if (!onScreen) return@LaunchedEffect" in live, "collected only while on screen")
+        assertTrue("host.events(interest).collect" in live, "for what is followed")
+        assertTrue("shown = com.cosmotune.music.desktop.DesktopWindowVisibility.visible" in read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopChrome.kt"),
+            "the desktop's window in the tray stops the asking")
+        for (host in listOf("app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt", "desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopChrome.kt",
+            "tv/src/main/java/com/cosmotune/music/ui/tv/TvApp.kt")) {
+            assertTrue(Regex("""events = \{ interest -> [^}]*liveEvents\(interest\) }""").containsMatchIn(read(host)), "$host passes what is followed")
+        }
+    }
 }

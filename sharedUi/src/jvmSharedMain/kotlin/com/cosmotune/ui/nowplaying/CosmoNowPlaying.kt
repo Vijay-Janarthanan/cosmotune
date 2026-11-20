@@ -286,9 +286,10 @@ fun CosmoNowPlaying(
     val colors = shell?.coverColors ?: LocalCosmoColors.current
     // Dark status icons in the light theme; light over Cinema's black.
     StatusBarIcons(dark = shell != null && !colors.dark && !cinemaShown)
-    // The lyrics keep the screen on while they show, and so does Cinema, and so does the song's video while it shows and plays.
+    // The lyrics keep the screen on while they show, and so does Cinema, and so does the song's video while it shows and play is
+    // wanted: a video that stalls to buffer (play pressed, frames not moving yet) keeps the screen on too.
     KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||
-        (wantVideo && rendered && isPlaying))
+        nowPlayingVideoKeepsScreenOn(videoShowing = wantVideo && rendered, isPlaying = isPlaying, isLoading = isLoading))
 
     // ---- the Orbit pieces: the look of the colours above, the screen button's menu, the more menu ------------------------
     val orbitType = orbitFonts()
@@ -736,3 +737,11 @@ private fun Modifier.cinemaKey(enabled: Boolean, onCinema: () -> Unit): Modifier
         if (enabled && event.type == KeyEventType.KeyDown && event.key == Key.F && !event.isCtrlPressed && !event.isMetaPressed && !event.isAltPressed) { onCinema(); true } else false
     }
 }
+
+/**
+ * Whether the song's video keeps the screen on: while it shows ([videoShowing]) and play is wanted, which is while it plays
+ * ([isPlaying]) and while it waits to play ([isLoading]: buffering after play was pressed, or a party waiting to start). A
+ * paused video lets the screen sleep.
+ */
+internal fun nowPlayingVideoKeepsScreenOn(videoShowing: Boolean, isPlaying: Boolean, isLoading: Boolean): Boolean =
+    videoShowing && (isPlaying || isLoading)
