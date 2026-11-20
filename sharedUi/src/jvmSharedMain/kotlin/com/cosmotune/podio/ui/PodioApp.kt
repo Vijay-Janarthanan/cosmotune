@@ -87,9 +87,16 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     onDownloadEpisode: ((PodioItem) -> Unit)? = null, downloadedEpisodes: List<PodioItem> = emptyList(),
     onRemoveDownload: (suspend (PodioItem) -> Boolean)? = null,
     episodeDownloadStatus: Map<String, String> = emptyMap(), episodeDownloadsRunning: Set<String> = emptySet(),
-    onImportOpmlFile: (suspend () -> String?)? = null, onExportOpmlFile: (suspend (String) -> Boolean)? = null,
-    onShareOpmlFile: (suspend (String) -> Unit)? = null,
-    remoteGlobeControls: Boolean = false) {
+    /** The native file dialog for "Import from another app" (OPML), where the host has one; export and share are in Settings › Podio. */
+    onImportOpmlFile: (suspend () -> String?)? = null,
+    remoteGlobeControls: Boolean = false,
+    /**
+     * Plays an episode followed by what is queued after it, so the player goes on by itself; null where the host plays one item at
+     * a time ([onPlay]), and the queue then waits for the page.
+     */
+    onPlayQueue: ((PodioItem, Long, List<PodioItem>) -> Unit)? = null,
+    /** Replaces what follows the playing episode in the player when the queue changes. */
+    onUpcoming: ((List<PodioItem>) -> Unit)? = null) {
     val catalogue = remember(directory) { directory ?: PodioDefaults.catalogue }
     // The app's own catalogue keeps its pages for the process and on the disk; one a host or a test hands in keeps its own.
     val pages = remember(catalogue) { com.cosmotune.cache.PageCache.of(catalogue, persistent = directory == null) }
@@ -98,9 +105,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     // Feeds, saves and imports set the page's state on the UI thread (see rememberUiCoroutineScope), not on the worker that answers.
     val scope = rememberUiCoroutineScope()
     val clipboard = LocalClipboardManager.current
-    val host = PodioHost(onPlay, onDownloadEpisode, onRemoveDownload, onImportOpmlFile, onExportOpmlFile, onShareOpmlFile, remoteGlobeControls) {
-        clipboard.setText(AnnotatedString(it))
-    }
+    val host = PodioHost(onPlay, onDownloadEpisode, onRemoveDownload, onImportOpmlFile, remoteGlobeControls,
+        copyText = { clipboard.setText(AnnotatedString(it)) }, onPlayQueue = onPlayQueue, onUpcoming = onUpcoming)
     val query = rememberSaveable { mutableStateOf("") }
     val language = rememberSaveable { mutableStateOf("") }
     val country = rememberSaveable { mutableStateOf("") }
@@ -113,6 +119,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         PodioModel(catalogue, library, scope, host, query, language, country, genre, searching, searchShows, satellite, globeFull, pages)
     }
     m.host = host
+    val queued by m.queue.state.collectAsUiState()
 
     // The section: the dock's or the rail's tab here, the sidebar's row on the desktop.
     var localSection by rememberSaveable { mutableStateOf(PodioSection.RADIO) }
@@ -136,7 +143,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     LaunchedEffect(m.searching) { if (m.searching) { delay(50); runCatching { searchFocus.requestFocus() } } }
 
     // A change of section (from the tabs, or the desktop sidebar) leaves an open feed and a search, and starts the new section clean.
-    LaunchedEffect(section) { m.browse(); m.query = ""; m.genre = ""; m.searching = false; m.globeFull = false }
+    LaunchedEffect(section) { m.browse(); m.query = ""; m.genre = ""; m.searching = false; m.globeFull = false; m.queueOpen = false }
     val stationsWanted = if (m.searching) !m.searchShows else section == PodioSection.RADIO || section == PodioSection.GLOBE
     val showsWanted = if (m.searching) m.searchShows else section == PodioSection.PODCASTS
     LaunchedEffect(stationsWanted, showsWanted, m.searching, m.language, m.country, m.genre, m.request) {
@@ -152,6 +159,24 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
 
     val live = playback.id?.startsWith("podio:radio:") == true
     val podio = playback.id?.startsWith("podio:") == true
+    val episodeOn = playback.id?.startsWith("podio:episode:") == true
+    // The episode playing with its show, as the queue keeps it (also after a restart), for its chapters and its show's speed.
+    val playingEntry = queued.current?.takeIf { it.id == playback.id }?.let { InboxEpisode(it.episode, it.show) }
+    // What follows the playing episode goes to the player whenever the queue (or Keep going's list) changes.
+    val upcomingKey = queued.entries.map { it.id } to (if (queued.keepGoing) m.inbox.map { it.episode.id } + saved.seenEpisodes.size else emptyList<Any>())
+    LaunchedEffect(upcomingKey, queued.keepGoing, episodeOn) {
+        val replace = host.onUpcoming
+        if (episodeOn && replace != null) replace(m.upcoming(queued))
+    }
+    // A show's own speed ("Use for this show") once its episode is on.
+    LaunchedEffect(playback.id, playingEntry?.show?.id) {
+        val speed = m.speedFor(playingEntry?.show?.id) ?: return@LaunchedEffect
+        delay(400)
+        if (kotlin.math.abs(playback.rate - speed) > 0.01f) onSpeed(speed)
+    }
+    LaunchedEffect(m.undo) { if (m.undo != null) { delay(6_000); m.undo = null } }
+    LaunchedEffect(m.notice) { if (m.notice != null) { delay(5_000); m.notice = null } }
+    fun openQueue() { m.playerSheet = false; m.queueOpen = true }
     val playingStation = if (live) (m.radio + saved.stations + listOfNotNull(m.selected)).firstOrNull { it.item().id == playback.id } else null
     // What the station is playing now, from its own stream; asked again every half minute while it plays.
     var song by remember(playback.id) { mutableStateOf<String?>(null) }
@@ -165,7 +190,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     val onAir = OnAir(playingStation, song,
         onPrevious = sequence.getOrNull(sequenceIndex - 1)?.takeIf { sequenceIndex > 0 }?.let { { m.playStation(it) } },
         onNext = sequence.getOrNull(sequenceIndex + 1)?.takeIf { sequenceIndex >= 0 }?.let { { m.playStation(it) } },
-        onOpen = { setDetail(true) })
+        onOpen = { setDetail(true) }, nextName = sequence.getOrNull(sequenceIndex + 1)?.takeIf { sequenceIndex >= 0 }?.name)
     val timer = PodioTimer(sleepTimerMinutes, sleepAfterEpisode, onSleepTimer, onSleepAfterEpisode)
 
     // Back: the open layer first, then the section's first tab; the host leaves the mode after that.
@@ -173,6 +198,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     PlayerBackHandler(enabled = m.globeFull) { m.globeFull = false }
     PlayerBackHandler(enabled = m.searching) { closeSearch() }
     PlayerBackHandler(enabled = m.requestedFeed != null) { m.browse() }
+    PlayerBackHandler(enabled = m.queueOpen) { m.queueOpen = false }
     PlayerBackHandler(enabled = detailOpen && playingStation != null) { setDetail(false) }
 
     val palette = LocalCosmoColors.current.palette
@@ -192,7 +218,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         val env = PodioEnv(saved, playback, downloadedEpisodes, episodeDownloadStatus, episodeDownloadsRunning, bottom,
             // The rail carries the account (or the way back to Music) on a tablet; the page's head does elsewhere.
             onMusic.takeIf { compact || !showNavigation },
-            ::chooseSection, wide = !compact, onToggle = onToggle, head = head, onSeek = onSeek)
+            ::chooseSection, wide = !compact, onToggle = onToggle, head = head, onSeek = onSeek, queue = queued)
         // The player bar along the foot of the wide layouts: an episode anywhere; a station where no page shows its card.
         val stationCardShown = live && (detailOpen && playingStation != null ||
             (section == PodioSection.RADIO || section == PodioSection.GLOBE) && !m.searching && m.requestedFeed == null)
@@ -203,12 +229,13 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             when {
                 detailOpen && station != null -> {
                     val here = remember(m.radio, station.id) { PodioPlaces.group(m.radio).firstOrNull { place -> place.stations.any { it.id == station.id } }?.stations.orEmpty().filter { it.id != station.id } }
-                    RadioDetail(station, m, env, song, here, volume, onVolume, onPrevious = onAir.onPrevious, onNext = onAir.onNext, onBack = { setDetail(false) }, timer = timer)
+                    RadioDetail(station, m, env, song, here, volume, onVolume, onPrevious = onAir.onPrevious, onNext = onAir.onNext, onBack = { setDetail(false) }, timer = timer, nextName = onAir.nextName)
                 }
+                m.queueOpen -> PodioQueuePage(m, env) { m.queueOpen = false }
                 m.requestedFeed != null -> ShowPage(m, env)
                 m.globeFull && compact -> RadioFullScreen(m, env, onAir, globeView, pageHeight, onToggle)
                 m.searching -> SearchContent(m, env, searchFocus, ::closeSearch)
-                section == PodioSection.RADIO -> RadioPage(m, env, onAir, ::openSearch) { chooseSection(PodioSection.GLOBE) }
+                section == PodioSection.RADIO -> RadioPage(m, env, onAir, ::openSearch, timer) { chooseSection(PodioSection.GLOBE) }
                 section == PodioSection.GLOBE -> GlobePage(m, env, onAir, globeView)
                 section == PodioSection.PODCASTS -> PodcastsPage(m, env, ::openSearch)
                 section == PodioSection.FOLLOWING -> FollowingPage(m, env) { inboxRequest++ }
@@ -225,14 +252,17 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                 else -> false
             }
             val notice = m.notice
+            val undo = m.undo
             val error = m.error?.takeIf { !pageShowsError }
             if (error != null) PodioBanner(error, "Dismiss", { m.error = null }, danger = true, look, fonts, modifier = place)
+            else if (undo != null) PodioBanner(undo.message, "Undo", { m.undo = null; undo.undo() }, danger = false, look, fonts, modifier = place.testTag("podio:undo"))
             else if (notice != null) PodioBanner(notice, "Dismiss", { m.notice = null }, danger = false, look, fonts, modifier = place)
         }
 
         if (!showNavigation) Column(Modifier.fillMaxSize().padding(padding)) {
             Box(Modifier.weight(1f).fillMaxWidth()) { content(); banner(Modifier.align(Alignment.BottomCenter)) }
-            if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live })
+            if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live },
+                queued = queued.entries.size, onQueue = ::openQueue)
         } else if (!compact) Row(Modifier.fillMaxSize().padding(padding).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))) {
             KitNavRail(RAIL_TABS, section.ordinal, { chooseSection(PodioSection.entries[it]) }, Modifier.fillMaxHeight().windowInsetsPadding(WindowInsets.statusBars), header = {
                 KitModeSwitcher(collapsed = true)
@@ -245,7 +275,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                     CompositionLocalProvider(LocalModeProfileAction provides null) { content() }
                     banner(Modifier.align(Alignment.BottomCenter))
                 }
-                if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live })
+                if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live },
+                    queued = queued.entries.size, onQueue = ::openQueue)
             }
         } else Box(Modifier.fillMaxSize().padding(padding)) {
             CompositionLocalProvider(LocalPodioModeSwitcher provides true) { content() }
@@ -259,13 +290,16 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                     onPlayPause = onToggle, onNext = {}, onExpand = { if (live) setDetail(true) else m.playerSheet = true },
                     controlsLocked = false, onBlockedControl = {}, hazeState = null, onHeightChanged = { dockPx = it },
                     modifier = Modifier.fillMaxWidth(), mode = if (LocalCosmoShell.current == null) AppMode.MUSIC else AppMode.PODIO,
-                    miniPlayer = if (podio) ({ PodioMiniPlayer(playback, playingStation, song, nowArt ?: playingStation?.artwork, onToggle,
-                        onOpen = { if (live) setDetail(true) else m.playerSheet = true }) }) else null,
+                    miniPlayer = if (podio) ({ PodioMiniPlayer(playback, playingStation, song, nowArt ?: playingStation?.artwork ?: playingEntry?.show?.artwork, onToggle,
+                        onOpen = { if (live) setDetail(true) else m.playerSheet = true }, onSeek = onSeek, queued = queued.entries.size, onQueue = ::openQueue) }) else null,
                 )
             }
         }
-        if (m.playerSheet && podio && !live) EpisodePlayerSheet(playback, nowArt, onToggle, onSeek, onSpeed, timer,
-            roomItem = m.lastPlayed?.takeIf { it.id == playback.id }?.roomItem()) { m.playerSheet = false }
+        if (m.playerSheet && podio && !live) EpisodePlayerSheet(playback, nowArt ?: playingEntry?.item()?.artwork, onToggle, onSeek, onSpeed, timer,
+            roomItem = (m.lastPlayed?.takeIf { it.id == playback.id } ?: playingEntry?.item())?.roomItem(),
+            episode = playingEntry?.episode, show = playingEntry?.show?.title.orEmpty(), catalogue = catalogue,
+            queued = queued.entries.size, onQueue = ::openQueue,
+            showSpeed = m.speedFor(playingEntry?.show?.id), onShowSpeed = playingEntry?.let { entry -> { speed: Float? -> m.setShowSpeed(entry.show.id, speed) } }) { m.playerSheet = false }
         m.episodeSheet?.let { entry -> EpisodeSheet(m, env, entry) { m.episodeSheet = null } }
     }
     }

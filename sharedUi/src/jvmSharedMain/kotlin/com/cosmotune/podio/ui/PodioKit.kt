@@ -39,6 +39,7 @@ import com.cosmotune.ui.orbit.OrbitLogoDisc
 import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.orbit.OrbitMenu
 import com.cosmotune.ui.orbit.OrbitMenuItem
+import com.cosmotune.ui.orbit.OrbitPlayButton
 import com.cosmotune.ui.orbit.OrbitRing
 import com.cosmotune.ui.orbit.OrbitRoundButton
 import com.cosmotune.ui.orbit.OrbitSongRow
@@ -114,27 +115,75 @@ internal fun LazyListScope.stationGrid(key: String, stations: List<RadioStation>
 internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
 
 /**
- * An episode as the song row (board section C, "show page = the album page"): the cover as a disc with how much is [heard] as its
- * faint orbit, the title, "date · length · 18 min left" under it, and the download and details buttons at the end. The one that is
- * on ([now]) is the peach row, its orbit moving with [progress]. A tap plays it (or resumes); a hold or [onMore] opens its sheet.
+ * An episode as a row (board frame 2): the cover as a disc with how much is [heard] as its faint orbit, the title, "date · length ·
+ * 18 min left" under it with the peach dot in front when it is [fresh], and one button at the end: play and pause for the one that
+ * is on ([now], the peach row, its orbit moving with [progress]), else the download (a ring while it runs, a filled mark once done).
+ * A tap plays it (or resumes); a hold (or a right click) opens its sheet ([onMore]). [end] replaces the button (Downloads' remove).
  */
 @Composable internal fun EpisodeRow(title: String, meta: String, artUrl: String?, heard: Float, now: Boolean, playing: Boolean, progress: (() -> Float?)?,
     download: DownloadMark, onPlay: () -> Unit, onDownload: () -> Unit, onMore: (() -> Unit)?, fonts: OrbitFonts, look: OrbitLook,
-    modifier: Modifier = Modifier, moreLabel: String = "Episode details") {
+    modifier: Modifier = Modifier, fresh: Boolean = false, onToggle: (() -> Unit)? = null, end: (@Composable RowScope.() -> Unit)? = null) {
     val art = artUrl?.takeIf(String::isNotBlank)
-    OrbitSongRow(title, meta, art, fonts, look, onPlay, modifier.fillMaxWidth(), now = now, playing = playing, progress = progress, onLongClick = onMore, endPadding = 6.dp,
+    OrbitSongRow(title, meta, art, fonts, look, onPlay, modifier.fillMaxWidth(), now = now, playing = playing, progress = progress, onLongClick = onMore, endPadding = 8.dp,
+        height = 60.dp,
         discContent = if (now) null else ({ OrbitHeardDisc(art, 44.dp, heard, look) }),
+        subtitleLeading = if (fresh && !now) ({ Box(Modifier.size(7.dp).clip(CircleShape).background(look.accent).semantics { contentDescription = "New" }) }) else null,
         trailing = {
-            when (download) {
-                DownloadMark.NONE -> {}
-                DownloadMark.AVAILABLE -> OrbitRoundButton(CosmoIcons.Download, "Download episode", look.ink, onDownload, size = 36.dp)
-                DownloadMark.RUNNING -> OrbitRoundButton(CosmoIcons.Close, "Cancel episode download", look.ink, onDownload, size = 36.dp)
-                DownloadMark.DONE -> Box(Modifier.size(36.dp).semantics { contentDescription = "Episode downloaded"; disabled() }, contentAlignment = Alignment.Center) {
-                    Icon(CosmoIcons.Downloaded, null, tint = look.dim, modifier = Modifier.size(18.dp))
-                }
+            when {
+                end != null -> end()
+                now && onToggle != null -> OrbitPlayButton(playing, onToggle, look, size = 38.dp)
+                else -> EpisodeDownloadButton(download, onDownload, look)
             }
-            if (onMore != null) { Spacer(Modifier.width(4.dp)); OrbitRoundButton(CosmoIcons.MoreVertical, moreLabel, look.ink, onMore, size = 36.dp) }
         })
+}
+
+/** The download at an episode row's end: start, a ring while it runs (a tap cancels), or the filled mark once it is on the device. */
+@Composable internal fun EpisodeDownloadButton(download: DownloadMark, onDownload: () -> Unit, look: OrbitLook) {
+    when (download) {
+        DownloadMark.NONE -> Spacer(Modifier.width(8.dp))
+        DownloadMark.AVAILABLE -> OrbitRoundButton(CosmoIcons.Download, "Download episode", look.ink, onDownload, size = 36.dp)
+        DownloadMark.RUNNING -> Box(Modifier.size(36.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "Cancel episode download", onClick = onDownload),
+            contentAlignment = Alignment.Center) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp).semantics { contentDescription = "Downloading, tap to cancel" }, color = look.accent, strokeWidth = 2.dp)
+        }
+        DownloadMark.DONE -> Box(Modifier.size(36.dp).semantics { contentDescription = "Episode downloaded"; disabled() }, contentAlignment = Alignment.Center) {
+            Icon(CosmoIcons.Downloaded, null, tint = look.accent, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+/**
+ * A row that does something when it is swiped and springs back: right ([onStart], "Play next" on an episode, "Seen" in Following)
+ * or left ([onEnd], "Remove" in the queue). What the swipe will do shows in the strip the row leaves.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable internal fun PodioSwipe(modifier: Modifier = Modifier, startLabel: String? = null, onStart: (() -> Unit)? = null, endLabel: String? = null,
+    onEnd: (() -> Unit)? = null, content: @Composable () -> Unit) {
+    if (onStart == null && onEnd == null) { Box(modifier) { content() }; return }
+    val look = orbitLook()
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    val start by rememberUpdatedState(onStart)
+    val finish by rememberUpdatedState(onEnd)
+    val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> start?.invoke()
+                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> finish?.invoke()
+                else -> {}
+            }
+            false
+        },
+        positionalThreshold = { distance -> distance * 0.35f },
+    )
+    androidx.compose.material3.SwipeToDismissBox(state = state, modifier = modifier, enableDismissFromStartToEnd = onStart != null, enableDismissFromEndToStart = onEnd != null,
+        backgroundContent = {
+            val toEnd = state.dismissDirection == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd
+            val label = if (toEnd) startLabel else endLabel
+            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(22.dp)).background(look.accent.copy(alpha = 0.18f)).padding(horizontal = 20.dp),
+                contentAlignment = if (toEnd) Alignment.CenterStart else Alignment.CenterEnd) {
+                if (label != null) androidx.compose.material3.Text(label, style = fonts.chip, color = look.ink)
+            }
+        }) { content() }
 }
 
 /**

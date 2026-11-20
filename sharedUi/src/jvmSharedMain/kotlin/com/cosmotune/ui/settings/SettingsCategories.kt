@@ -28,6 +28,7 @@ enum class SettingsCategory {
     APPEARANCE,
     VIDEO,
     READ,
+    MANGA,
     PODIO,
     LISTENING,
     INTEGRATIONS,

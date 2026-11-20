@@ -19,6 +19,7 @@ import androidx.media3.common.PlaybackParameters
 import com.cosmotune.music.playback.rememberMediaController
 import com.cosmotune.music.playback.rememberPlayerState
 import com.cosmotune.music.playback.playSongs
+import com.cosmotune.music.playback.toMediaItem
 import com.cosmotune.podio.ui.PodioApp
 import com.cosmotune.podio.ui.PodioPlayback
 import java.io.File
@@ -56,9 +57,15 @@ import java.io.File
         pendingLegacyDownload?.let { song -> if (granted) Downloads.enqueue(context, song, "Podio") else android.widget.Toast.makeText(context, "Storage permission is needed to export this episode.", android.widget.Toast.LENGTH_SHORT).show() }
         pendingLegacyDownload = null
     }
+    // The background refresh of followed shows runs while it is on and something is followed (Settings > Podio).
+    val podioSaved by remember(context) { PodioLibrary(PodioRefreshWorker.libraryFile(context)).state }.collectAsState()
+    val refreshWanted = podioSaved.refreshInBackground && podioSaved.shows.isNotEmpty()
+    LaunchedEffect(refreshWanted) { runCatching { PodioRefreshWorker.schedule(context, refreshWanted) } }
     val sleepMinutes by com.cosmotune.music.playback.SleepTimer.minutes.collectAsState()
     val sleepAfterEpisode by com.cosmotune.music.playback.SleepTimer.afterTrack.collectAsState()
     var pending by remember { mutableStateOf<Pair<PodioItem, Long>?>(null) }
+    // What the queue puts after the episode that starts ([pending]); handed to the player once it plays.
+    var pendingUpcoming by remember { mutableStateOf<List<PodioItem>>(emptyList()) }
     var failed by remember { mutableStateOf(false) }
     LaunchedEffect(controller, pending) {
         val selected = pending ?: return@LaunchedEffect
@@ -66,6 +73,7 @@ import java.io.File
         try {
             player.playSongs(listOf(selected.first.song()), 0)
             if (selected.second > 0) player.seekTo(selected.second)
+            replaceUpcomingEpisodes(player, pendingUpcoming)
             pending = null
         } catch(e: kotlinx.coroutines.CancellationException) { throw e }
         catch (_: Exception) { failed = true; pending = null }
@@ -76,14 +84,20 @@ import java.io.File
     // The page draws under the status bar (its bars pad themselves, the full-screen globe runs edge to edge) and the dock keeps
     // above the navigation bar; only the side insets (a landscape cut-out) are taken here.
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).imePadding()) {
-    PodioApp(File(context.filesDir, "podio/library.json"),
+    PodioApp(PodioRefreshWorker.libraryFile(context),
         PodioPlayback(current?.id ?: state.song?.videoId, current?.title ?: state.song?.title.orEmpty(),
             current?.author ?: state.song?.artist.orEmpty(), state.isPlaying, pending != null || state.isLoading,
             state.position.positionMs, state.durationMs, if (failed) "Playback failed" else state.error, rate = controller?.playbackParameters?.speed ?: 1f),
         onPlay = { item, position ->
             com.cosmotune.music.data.NerdStats.recordSource(item.id, podioSourceName(item.id))
-            failed = false; pending = item to position
+            failed = false; pendingUpcoming = emptyList(); pending = item to position
         },
+        // The queue goes into the player after the episode, so it plays on with the screen off or after leaving Podio.
+        onPlayQueue = { item, position, upcoming ->
+            com.cosmotune.music.data.NerdStats.recordSource(item.id, podioSourceName(item.id))
+            failed = false; pendingUpcoming = upcoming; pending = item to position
+        },
+        onUpcoming = { upcoming -> if (pending == null) controller?.let { replaceUpcomingEpisodes(it, upcoming) } else pendingUpcoming = upcoming },
         onToggle = { controller?.let { if (it.isPlaying) it.pause() else it.play() } },
         onSeek = { controller?.seekTo(it) }, onSpeed = { controller?.playbackParameters = PlaybackParameters(it) }, onMusic = onMusic,
         sleepTimerMinutes = sleepMinutes, sleepAfterEpisode = sleepAfterEpisode,
@@ -112,22 +126,24 @@ import java.io.File
         episodeDownloadsRunning = activeDownloads.filterValues { it !is DownloadState.Failed }.keys,
         onImportOpmlFile = { chooseFile(false)?.let { uri -> withContext(Dispatchers.IO) {
             requireNotNull(context.contentResolver.openInputStream(uri)).use(PodioOpml::read)
-        } } },
-        onExportOpmlFile = { text ->
-            val uri = chooseFile(true)
-            if (uri == null) false else withContext(Dispatchers.IO) {
-                requireNotNull(context.contentResolver.openOutputStream(uri, "wt")).bufferedWriter(Charsets.UTF_8).use { it.write(text) }; true
-            }
-        },
-        onShareOpmlFile = { text ->
-            val file = withContext(Dispatchers.IO) { File(context.cacheDir, "shared/Cosmotune-podcasts.opml").apply { parentFile?.mkdirs(); writeText(text, Charsets.UTF_8) } }
-            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type = "text/x-opml"; putExtra(Intent.EXTRA_STREAM, uri); clipData = android.content.ClipData.newRawUri("Podcast subscriptions", uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }, "Share podcast subscriptions"))
-        })
+        } } })
     // The pages scroll under the status bar: its ground keeps the clock readable and the titles from running under it.
     com.cosmotune.ui.orbit.OrbitStatusBarScrim(Modifier.align(androidx.compose.ui.Alignment.TopCenter))
     }
+}
+
+/**
+ * Puts [upcoming] after the episode the player is on, in place of whatever followed it, so Podio's queue plays on by itself. Nothing
+ * changes while something other than an episode plays, or when the player already holds the same episodes in the same order.
+ */
+private fun replaceUpcomingEpisodes(player: androidx.media3.session.MediaController, upcoming: List<PodioItem>) {
+    val current = player.currentMediaItem?.mediaId ?: return
+    if (!current.startsWith("podio:episode:")) return
+    val index = player.currentMediaItemIndex
+    val count = player.mediaItemCount
+    val existing = (index + 1 until count).map { player.getMediaItemAt(it).mediaId }
+    val wanted = upcoming.map { it.id }.filter { it != current }
+    if (existing == wanted) return
+    if (count > index + 1) player.removeMediaItems(index + 1, count)
+    if (wanted.isNotEmpty()) player.addMediaItems(upcoming.filter { it.id != current }.map { it.song().toMediaItem() })
 }

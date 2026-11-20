@@ -31,11 +31,14 @@ import org.apache.pdfbox.text.PDFTextStripper
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+/** The desktop's book page is a native view the window's taps do not cross; its tools keep their button. */
+internal actual val readingCenterTap: Boolean = false
+
 @Composable actual fun ReadingDocumentView(document: ReadingDocument, locator: ReadingLocator,
     preferences: ReadingPreferences, searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit,
-    onError: (String) -> Unit, modifier: Modifier) {
+    onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit) {
     when (document) {
-        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier)
+        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier, onCenterTap)
         is ReadingDocument.Epub -> DesktopReadingEpub(document, locator, preferences, searchQuery, onLocatorChanged, onError, modifier)
     }
 }

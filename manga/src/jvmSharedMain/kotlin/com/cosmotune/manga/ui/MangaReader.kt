@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.ChromeReaderMode
+import androidx.compose.material.icons.rounded.ScreenLockRotation
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.ZoomOut
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,7 +69,10 @@ import kotlinx.coroutines.launch
  * zoom. Music keeps playing.
  */
 @Composable
-internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, book: MangaBook?, hasNext: Boolean, onBack: () -> Unit, onNext: () -> Unit) {
+internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, book: MangaBook?, hasNext: Boolean, onBack: () -> Unit, onNext: () -> Unit,
+    onChapter: (MangaChapter) -> Unit = {}) {
+    val reading by repository.store.state.collectAsState()
+    ReaderKeepScreenOn(reading.readerKeepScreenOn)
     key(chapter.id) {
         MangaBackHandler(true, onBack)
         var pages by remember { mutableStateOf(emptyList<MangaPage>()) }
@@ -77,6 +82,9 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
         var loading by remember { mutableStateOf(true) }
         var controls by rememberSaveable { mutableStateOf(false) }
         var settings by remember { mutableStateOf(false) }
+        var readerSettings by remember { mutableStateOf(false) }
+        var chapters by remember { mutableStateOf(false) }
+        val rotation = rememberReaderRotation()
         val saved = remember { repository.store.state.value.progress[chapter.bookId]?.takeIf { it.chapterId == chapter.id } }
         var mode by rememberSaveable { mutableStateOf(saved?.mode ?: repository.store.state.value.readerMode) }
         val library by repository.store.state.collectAsState()
@@ -110,7 +118,11 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
         }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             when {
-                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White.copy(alpha = 0.7f)) }
+                // The chapter's name shows at once while its pages come, with the way back in the corner.
+                loading -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    CircularProgressIndicator(color = Color.White.copy(alpha = 0.7f))
+                    Text(readerLabel(chapter, 0, 0).substringBefore(" · "), style = ReadType.meta(), color = Color.White.copy(alpha = 0.7f), modifier = Modifier.padding(top = 14.dp))
+                }
                 // The problem stands on a card of the page's own ground, so it reads in both palettes over the black.
                 error != null -> Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 72.dp, start = 16.dp, end = 16.dp).widthIn(max = 560.dp)
                     .clip(ReadShape.md).background(orbitLook().ground).padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -120,7 +132,8 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
                     if (chapter.sourceId != "local") MangaVerificationControls(repository, chapter.sourceId, verificationAddress)
                 }
                 else -> ReaderPages(repository, chapter, book, pages, saved?.page ?: 0, saved?.pageOffsetPx ?: 0, mode, fit, zoom, { current = it }, ::zoomBy, focus,
-                    controls, hasNext, { controls = !controls }, { controls = false }, { settings = true }, onBack, onNext)
+                    controls, hasNext, { controls = !controls }, { controls = false }, ReaderActions({ settings = true }, { readerSettings = true }, { chapters = true }, rotation),
+                    onBack, onNext)
             }
             // While the chapter loads or fails there are no pages to tap, so the way back stays in the corner.
             if (loading || error != null) WatchRoundButton(CosmoIcons.ChevronLeft, mangaText("Back"), orbitLook(), onBack, ink = Color.White,
@@ -149,14 +162,50 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
                 color = orbitLook().dim, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             Spacer(Modifier.height(16.dp))
         }
+        if (readerSettings) KitSheet(onDismiss = { readerSettings = false; runCatching { focus.requestFocus() } }) {
+            ReadSheetHeader(mangaText("Reader settings"), onDone = { readerSettings = false; runCatching { focus.requestFocus() } })
+            fun change(block: (MangaLibraryState) -> MangaLibraryState) = scope.launch {
+                try { repository.store.update(block) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { error = failure.message ?: "Reader setting could not be saved" }
+            }
+            ReadSheetSection(mangaText("Brightness") + " · ${(library.readerBrightness * 100).roundToInt()}%") {
+                ReadSlider(library.readerBrightness, { value -> change { it.copy(readerBrightness = value.coerceIn(0.3f, 1f)) } }, 0.3f..1f, 6, "Brightness",
+                    Modifier.testTag("manga:reader:brightness"))
+            }
+            com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Keep screen on while reading"), library.readerKeepScreenOn, { on -> change { it.copy(readerKeepScreenOn = on) } },
+                Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+            com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Page number at the foot"), library.readerPageNumber, { on -> change { it.copy(readerPageNumber = on) } },
+                Modifier.padding(horizontal = 20.dp, vertical = 4.dp), detail = mangaText("While the reader's card is hidden"))
+            Spacer(Modifier.height(16.dp))
+        }
+        if (chapters && book != null) KitSheet(onDismiss = { chapters = false; runCatching { focus.requestFocus() } }) {
+            ReadSheetHeader(book.title, onDone = { chapters = false }, doneLabel = "Close")
+            val listed = book.listedChapters(chapter.edition)
+            val list = rememberLazyListState(initialFirstVisibleItemIndex = listed.indexOfFirst { it.id == chapter.id }.coerceAtLeast(0))
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 520.dp).testTag("manga:reader:chapters"), state = list) {
+                itemsIndexed(listed, key = { _, item -> item.id }) { index, item ->
+                    val read = item.id in library.readChapters
+                    ReadChapterRow(item.title, if (item.id == chapter.id) mangaText("Reading now") else chapterSubtitle(item, library.progress[item.bookId], read),
+                        read = read, fresh = item.id in library.newChapters, download = ReadDownload.NONE,
+                        onClick = { chapters = false; if (item.id != chapter.id) onChapter(item) }, onLongClick = {}, onDownload = {},
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp), next = item.id == chapter.id, number = chapterNumber(item, index + 1))
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }
+
+/** What the reader's card opens: the reading mode, the reader's settings, the chapters, and the orientation lock where there is one. */
+internal class ReaderActions(val mode: () -> Unit, val settings: () -> Unit, val chapters: () -> Unit, val rotation: ReaderRotation?)
 
 @OptIn(ExperimentalFoundationApi::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
 private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChapter, book: MangaBook?, pages: List<MangaPage>, initialPage: Int, initialOffset: Int,
     mode: MangaReaderMode, fit: MangaReaderFit, zoom: MutableMap<String, Float>, onCurrent: (String) -> Unit, zoomBy: (Float) -> Unit, focus: FocusRequester,
-    controls: Boolean, hasNext: Boolean, toggleControls: () -> Unit, hideControls: () -> Unit, openSettings: () -> Unit, onBack: () -> Unit, onNext: () -> Unit) {
+    controls: Boolean, hasNext: Boolean, toggleControls: () -> Unit, hideControls: () -> Unit, actions: ReaderActions, onBack: () -> Unit, onNext: () -> Unit) {
+    val library by repository.store.state.collectAsState()
     val initial = initialPage.coerceIn(pages.indices)
     val pager = rememberPagerState(initialPage = initial) { pages.size }
     val scroll = rememberLazyListState(initialFirstVisibleItemIndex = initial)
@@ -292,7 +341,15 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
         }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    // Brightness is a dimming over the pages (the system's own stays as it is); it never takes a tap.
+    if (library.readerBrightness < 1f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = (1f - library.readerBrightness).coerceIn(0f, 0.7f))))
+    // With the card hidden, a faint "6 / 22" at the foot says where the reader is (Mihon's page number).
+    if (!controls && library.readerPageNumber && pages.size > 1) Text("${page + 1} / ${pages.size}", style = ReadType.caption(), color = Color.White.copy(alpha = 0.55f),
+        modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 6.dp).testTag("manga:reader:page"))
     val (fill, ink) = coverFill(book?.colourUrl(), book?.id ?: chapter.bookId)
+    BoxWithConstraints(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+    // Zoom buttons only where there is no pinch to do it (a wide window with a mouse); a phone gets the orientation lock instead.
+    val pointer = maxWidth >= 840.dp
     Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().widthIn(max = 620.dp).windowInsetsPadding(WindowInsets.navigationBars).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (progressError) ReadInlineBanner(mangaText("Reading progress could not be saved."), Modifier.background(orbitLook().ground, ReadShape.md),
@@ -309,11 +366,19 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
             OrbitReaderButton(if (finished) Icons.AutoMirrored.Rounded.ArrowForward else Icons.Rounded.SkipNext,
                 mangaText(if (!finished) "Next" else if (hasNext) "Next chapter" else "Finish"), ink, fill, ::advance)
             Spacer(Modifier.weight(1f))
-            OrbitReaderButton(Icons.Rounded.ZoomOut, mangaText("Zoom out"), ink, fill, { zoomBy(0.8f) })
-            OrbitReaderButton(Icons.Rounded.ZoomIn, mangaText("Zoom in"), ink, fill, { zoomBy(1.25f) })
-            OrbitReaderButton(Icons.Rounded.Tune, mangaText("Reading mode"), ink, fill, openSettings, Modifier.testTag("manga:reader:settings"))
-            OrbitReaderButton(CosmoIcons.List, mangaText("Chapters"), ink, fill, onBack)
+            OrbitReaderButton(CosmoIcons.List, mangaText("Chapters"), ink, fill, actions.chapters, Modifier.testTag("manga:reader:chapters-button"))
+            OrbitReaderButton(Icons.Rounded.ChromeReaderMode, mangaText("Reading mode"), ink, fill, actions.mode, Modifier.testTag("manga:reader:mode"))
+            if (pointer) {
+                OrbitReaderButton(Icons.Rounded.ZoomOut, mangaText("Zoom out"), ink, fill, { zoomBy(0.8f) })
+                OrbitReaderButton(Icons.Rounded.ZoomIn, mangaText("Zoom in"), ink, fill, { zoomBy(1.25f) })
+            }
+            actions.rotation?.let { rotation ->
+                OrbitReaderButton(Icons.Rounded.ScreenLockRotation, mangaText(if (rotation.locked) "Let the screen turn" else "Hold this orientation"), ink, fill, rotation.toggle,
+                    Modifier.testTag("manga:reader:rotate"), on = rotation.locked)
+            }
+            OrbitReaderButton(Icons.Rounded.Tune, mangaText("Reader settings"), ink, fill, actions.settings, Modifier.testTag("manga:reader:settings"))
         }
+    }
     }
 }
 

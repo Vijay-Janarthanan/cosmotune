@@ -54,7 +54,11 @@ internal fun updateReportLine(report: MangaUpdateReport, running: Boolean): Stri
     else "$found in ${report.updatedSeries} series" + if (report.failures.isEmpty()) "" else " · ${report.failures.size} unavailable"
 }
 
-/** Updates (slot 3, after Mihon's): the new chapters of the library's series by day; pull down or the refresh action checks again. */
+/**
+ * Updates (board frame 12, after Mihon's): the count of new chapters, then the new chapters of the library's series by day, each day
+ * with its count and "Mark all read". While a check runs its progress and Stop lead the page, and quiet rows shaped like the
+ * chapters hold the place where new ones land. Pull down or the refresh action checks again.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MangaUpdatesPage(scope: MangaScope) {
@@ -70,30 +74,42 @@ internal fun MangaUpdatesPage(scope: MangaScope) {
             LazyColumn(Modifier.fillMaxSize().testTag("manga:updates"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
                 item(key = "heading") {
                     ReadPageHead(mangaText("Updates"), if (count == 1) mangaText("1 new chapter") else "$count " + mangaText("new chapters")) {
-                        if (online) {
-                            if (check.running) ReadIconButton(CosmoIcons.Close, mangaText("Stop"), { check.job?.cancel() })
-                            else ReadIconButton(CosmoIcons.Replay, mangaText("Check for updates"), { check.start(scope) }, Modifier.testTag("manga:updates:check"))
-                        }
+                        if (online && !check.running) ReadIconButton(CosmoIcons.Replay, mangaText("Check for updates"), { check.start(scope) }, Modifier.testTag("manga:updates:check"))
                         MangaRootActions(scope)
                     }
                 }
                 item(key = "status") {
                     val report = check.report
-                    val lines = listOfNotNull(
-                        state.lastUpdateCompletedMs.takeIf { it > 0 }?.let { "Library last updated " + agoLabel(it) },
-                        report?.let { updateReportLine(it, check.running) },
-                        if (state.lastUpdateAttemptMs > state.lastUpdateCompletedMs && !check.running && report == null) "The last check did not finish; check again to retry." else null,
-                    )
-                    if (lines.isNotEmpty()) Column(Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 4.dp)) {
-                        lines.forEach { Text(it, style = ReadType.meta(), color = Color(palette.textSecondary)) }
+                    if (check.running) Row(Modifier.fillMaxWidth().padding(start = ReadMargin + 4.dp, end = ReadMargin, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(report?.let { "Checking ${it.checked} of ${it.total} series" } ?: mangaText("Checking your series"), style = ReadType.rowTitle(),
+                            color = Color(palette.textPrimary), modifier = Modifier.weight(1f).testTag("manga:updates:progress"))
+                        ReadTextButton(mangaText("Stop"), { check.job?.cancel() })
+                    } else {
+                        val lines = listOfNotNull(
+                            state.lastUpdateCompletedMs.takeIf { it > 0 }?.let { "Library last updated " + agoLabel(it) },
+                            report?.let { updateReportLine(it, false) },
+                            if (state.lastUpdateAttemptMs > state.lastUpdateCompletedMs && report == null) "The last check did not finish; check again to retry." else null,
+                        )
+                        if (lines.isNotEmpty()) Column(Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 4.dp)) {
+                            lines.forEach { Text(it, style = ReadType.meta(), color = Color(palette.textSecondary)) }
+                        }
                     }
                 }
-                if (days.isEmpty()) item(key = "empty") {
+                // Where new chapters will land while the check runs: rows shaped like them, not status text.
+                if (check.running) item(key = "placeholders") { ReadSkeletonRows(3, Modifier.testTag("manga:updates:placeholders")) }
+                if (days.isEmpty() && !check.running) item(key = "empty") {
                     if (online) ReadEmpty(mangaText("No new chapters"), mangaText("Pull down, or use Check for updates, to look for new chapters of your series."))
                     else ReadEmpty(mangaText("Nothing to check yet"), mangaText("Updates appear for the series you add to your library from online sources."))
                 }
                 days.forEach { day ->
-                    item(key = "day:${day.label}") { ReadOverline(day.label) }
+                    item(key = "day:${day.label}") {
+                        Row(Modifier.fillMaxWidth().padding(end = ReadMargin - 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            ReadOverline(mangaText(day.label) + " · ${day.entries.size} " + mangaText("new"), Modifier.weight(1f))
+                            ReadTextButton(mangaText("Mark all read"), {
+                                scope.action { day.entries.forEach { entry -> scope.repository.store.markRead(entry.chapter, true) } }
+                            }, Modifier.padding(top = 16.dp).testTag("manga:updates:read:${day.label}"))
+                        }
+                    }
                     items(day.entries, key = { "update:${it.chapter.id}" }) { entry -> MangaUpdateRow(scope, entry) }
                 }
             }

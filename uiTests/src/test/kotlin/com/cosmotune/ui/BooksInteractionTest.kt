@@ -89,14 +89,14 @@ class BooksInteractionTest {
         compose.onNodeWithText("Save something for later").assertExists()
     }
 
-    @Test fun largeTextKeepsLibrarySearchAndShelvesUsable() {
+    @Test fun largeTextKeepsLibraryTilesAndShelvesUsable() {
         library(fontScale = 2f)
         compose.onNode(hasText("Library") and isSelectable()).performClick()
-        compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("books:library-search"))).performTextInput("Ravi")
-        compose.onNodeWithText("Field notes", substring = false).assertExists()
-        compose.onNodeWithText("The illustrated atlas", substring = false).assertDoesNotExist()
-        compose.onNodeWithTag("books:shelf:Downloaded").performScrollTo().performClick()
-        compose.onNodeWithText("Field notes", substring = false).assertExists()
+        // The library's search is the heading's; the quick tiles choose a shelf.
+        compose.onNodeWithTag("books:tile:Downloaded").performScrollTo().performClick()
+        compose.onNodeWithText("Field notes", substring = false).performScrollTo().assertExists()
+        compose.onNodeWithTag("books:layout").performScrollTo().performClick()
+        compose.onNodeWithText("Field notes", substring = false).performScrollTo().assertExists()
         compose.onNodeWithTag("books:import").assertExists()
     }
 }

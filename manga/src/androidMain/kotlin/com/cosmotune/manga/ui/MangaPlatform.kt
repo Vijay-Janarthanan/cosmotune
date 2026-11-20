@@ -21,6 +21,31 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@Composable internal actual fun ReaderKeepScreenOn(enabled: Boolean) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(view, enabled) {
+        view.keepScreenOn = enabled
+        onDispose { view.keepScreenOn = false }
+    }
+}
+
+@Composable internal actual fun rememberReaderRotation(): ReaderRotation? {
+    val activity = LocalContext.current.findActivity() ?: return null
+    val locked = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    // Leaving the reader gives the screen back to the system's rotation.
+    androidx.compose.runtime.DisposableEffect(activity) { onDispose { activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED } }
+    return ReaderRotation(locked.value) {
+        locked.value = !locked.value
+        activity.requestedOrientation = if (locked.value) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+}
+
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 @Composable internal actual fun rememberMangaRepository(): Result<MangaRepository> {
     val context = LocalContext.current.applicationContext
     return remember(context) { runCatching {

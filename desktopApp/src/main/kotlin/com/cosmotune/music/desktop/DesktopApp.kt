@@ -4332,17 +4332,35 @@ fun CosmotuneDesktopApp() {
                 if (com.cosmotune.video.host.desktopMangaShown()) return@DesktopFrame com.cosmotune.video.host.DesktopMangaPage(contentPadding)
                 if (com.cosmotune.video.host.desktopWatchShown()) return@DesktopFrame com.cosmotune.video.host.DesktopWatchPage(contentPadding)
                 if (com.cosmotune.video.host.desktopPodioShown()) {
+                    // An episode as the desktop player takes it: from its downloaded file when there is one.
+                    fun podioSong(item: com.cosmotune.podio.PodioItem): Song =
+                        com.cosmotune.podio.PodioDownloads.withOfflinePath(item.song(), downloads.firstOrNull { it.videoId == item.id })
                     return@DesktopFrame com.cosmotune.podio.ui.PodioApp(
                         storage = com.cosmotune.podio.PodioLibrary.desktopFile(),
                         playback = com.cosmotune.podio.ui.PodioPlayback(playback.song?.videoId, playback.song?.title.orEmpty(), playback.song?.artist.orEmpty(),
                             playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playback.error, rate = playbackEngine.playbackRate),
                         onPlay = { item, position ->
                             if (!partyTrackChangeBlocked()) {
-                                val requested = item.song()
-                                val offline = downloads.firstOrNull { it.videoId == item.id }
-                                liveQueue = DesktopQueue(listOf(com.cosmotune.podio.PodioDownloads.withOfflinePath(requested, offline)), index = 0)
+                                liveQueue = DesktopQueue(listOf(podioSong(item)), index = 0)
                                 preShuffleOrder = emptyList()
                                 playCurrent(startAtMs = position)
+                            }
+                        },
+                        // Podio's queue follows the episode in the player's own queue, so it plays on after leaving Podio.
+                        onPlayQueue = { item, position, upcoming ->
+                            if (!partyTrackChangeBlocked()) {
+                                liveQueue = DesktopQueue(listOf(podioSong(item)) + upcoming.filter { it.id != item.id }.map(::podioSong), index = 0)
+                                preShuffleOrder = emptyList()
+                                playCurrent(startAtMs = position)
+                            }
+                        },
+                        onUpcoming = { upcoming ->
+                            val queue = liveQueue
+                            val current = queue.current
+                            if (current != null && current.videoId.startsWith("podio:episode:")) {
+                                val wanted = upcoming.filter { it.id != current.videoId }
+                                if (queue.songs.drop(queue.index + 1).map { it.videoId } != wanted.map { it.id })
+                                    liveQueue = queue.copy(songs = queue.songs.take(queue.index + 1) + wanted.map(::podioSong))
                             }
                         },
                         onToggle = ::togglePlayPauseFromUser,
@@ -4380,10 +4398,6 @@ fun CosmotuneDesktopApp() {
                             com.cosmotune.desktop.chooseCosmotuneFile("", false, "Import podcast subscriptions")?.let { file ->
                                 withContext(Dispatchers.IO) { file.inputStream().use(com.cosmotune.podio.PodioOpml::read) }
                             }
-                        },
-                        onExportOpmlFile = { text ->
-                            val selected = com.cosmotune.desktop.chooseCosmotuneFile("Cosmotune-podcasts.opml", true, "Export podcast subscriptions")
-                            if (selected == null) false else withContext(Dispatchers.IO) { selected.writeText(text, Charsets.UTF_8); true }
                         },
                     )
                 }
@@ -5586,6 +5600,7 @@ private enum class DesktopSettingsSection(val category: com.cosmotune.ui.setting
     VIDEO(com.cosmotune.ui.settings.SettingsCategory.VIDEO),
     LIVE_NOW(com.cosmotune.ui.settings.SettingsCategory.VIDEO),
     READ(com.cosmotune.ui.settings.SettingsCategory.READ),
+    MANGA(com.cosmotune.ui.settings.SettingsCategory.MANGA),
     PODIO(com.cosmotune.ui.settings.SettingsCategory.PODIO),
     LISTENING(com.cosmotune.ui.settings.SettingsCategory.LISTENING),
     LISTEN_TOGETHER(com.cosmotune.ui.settings.SettingsCategory.INTEGRATIONS),
@@ -6651,9 +6666,32 @@ private fun DesktopSettingsScreen(
             }
             DesktopSettingsSection.READ -> {
                 DesktopModeLink(AppMode.READ, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_READ.text(), com.cosmotune.ui.settings.SettingsText.OPEN_READ_SUMMARY.text())
+                SettingsGroup("Reader and libraries") {
+                    if (settingsRowVisible("Reader look", "font typeface text size margins brightness opds connected libraries")) com.cosmotune.reading.ui.ReadSettingsSection()
+                }
+            }
+            DesktopSettingsSection.MANGA -> {
+                DesktopModeLink(AppMode.MANGA, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_MANGA.text(), com.cosmotune.ui.settings.SettingsText.OPEN_MANGA_SUMMARY.text())
+                SettingsGroup("Reader, storage and sources") {
+                    if (settingsRowVisible("Manga settings", "reader storage cache komga extensions parser backup updates verification")) com.cosmotune.manga.ui.MangaSettingsSection()
+                }
             }
             DesktopSettingsSection.PODIO -> {
                 DesktopModeLink(AppMode.PODIO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_PODIO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_PODIO_SUMMARY.text())
+                SettingsGroup("Episodes and subscriptions") {
+                    if (settingsRowVisible("Podcast settings", "episodes new episodes refresh auto download skip silence speed opml import export")) com.cosmotune.podio.ui.PodioSettingsSection(
+                        com.cosmotune.podio.PodioLibrary.desktopFile(),
+                        onImportOpmlFile = {
+                            com.cosmotune.desktop.chooseCosmotuneFile("", false, "Import podcast subscriptions")?.let { file ->
+                                withContext(Dispatchers.IO) { file.inputStream().use(com.cosmotune.podio.PodioOpml::read) }
+                            }
+                        },
+                        onExportOpmlFile = { text ->
+                            val selected = com.cosmotune.desktop.chooseCosmotuneFile("Cosmotune-podcasts.opml", true, "Export podcast subscriptions")
+                            if (selected == null) false else withContext(Dispatchers.IO) { selected.writeText(text, Charsets.UTF_8); true }
+                        },
+                    )
+                }
             }
             DesktopSettingsSection.SERVICES -> {
                 // A second way to the integrations page, from the category its services belong to.
@@ -6802,7 +6840,8 @@ private fun DesktopSettingsScreen(
                                         .verticalScroll(rememberScrollState())
                                         .padding(bottom = 28.dp + LocalDesktopBottomInset.current),
                                 ) {
-                                    com.cosmotune.ui.settings.SettingsHub(entries = hubEntries, onOpen = openCategory, accountCard = { settingsAccountCard(false) })
+                                    com.cosmotune.ui.settings.SettingsHub(entries = hubEntries, onOpen = openCategory, accountCard = { settingsAccountCard(false) },
+                                        current = com.cosmotune.ui.settings.settingsCategoryOf(com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value))
                                 }
                             }
                             else -> CompositionLocalProvider(

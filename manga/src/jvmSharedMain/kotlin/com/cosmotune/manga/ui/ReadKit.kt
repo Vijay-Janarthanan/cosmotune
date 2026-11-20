@@ -328,8 +328,10 @@ internal fun ReadSection(title: String, modifier: Modifier = Modifier, subtitle:
 internal enum class ReadDownload { NONE, AVAILABLE, RUNNING, DONE }
 
 /**
- * A chapter as an Orbit row (board D): the mark of a new (the accent dot) or a read chapter (a check), the title (dim once read),
- * the [meta] line and the download at the end. The [next] chapter is the peach row. Tap opens it; a hold opens its actions.
+ * A chapter as a row (board frame 11): the chapter's [number] as a small tile where a disc would be (peach for the [next] chapter,
+ * the peach row), the title (dim once read) over the [meta] line with the peach dot in front while it is unread or [fresh], and the
+ * download at the end (a ring while it runs, the filled mark once done). Tap opens it; a hold is [onLongClick] (Series: select).
+ * With [selected] not null the row is choosing: the tile becomes the check and a tap toggles it.
  */
 @Composable
 internal fun ReadChapterRow(
@@ -343,22 +345,31 @@ internal fun ReadChapterRow(
     onDownload: () -> Unit,
     modifier: Modifier = Modifier,
     next: Boolean = false,
+    number: String? = null,
+    selected: Boolean? = null,
+    longClickLabel: String = "Chapter actions",
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    // The row's own press (a tap reads, a hold opens the chapter's actions) is a plain combined click, clipped to the row.
+    // The row's own press (a tap reads, a hold selects or opens the chapter's actions) is a plain combined click, clipped to the row.
     OrbitSongRow(
         title = title, subtitle = meta, cover = null, fonts = fonts, look = look, onClick = null,
         modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
-            .combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick, onLongClickLabel = mangaText("Chapter actions"))
-            .contextClick(onLongClick),
-        now = next, height = 62.dp, discSize = 16.dp, gap = 6.dp, endPadding = 8.dp,
+            .combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick, onLongClickLabel = mangaText(longClickLabel))
+            .contextClick(onLongClick)
+            .then(if (selected != null) Modifier.semantics { this.selected = selected } else Modifier),
+        now = next, height = 60.dp, discSize = 34.dp, gap = 10.dp, endPadding = 8.dp,
         titleContent = {
             Text(title, style = fonts.title, color = when { next -> look.accent; read -> look.dim; else -> look.ink }, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
+        subtitleLeading = if (!read || fresh) ({ Box(Modifier.size(7.dp).clip(CircleShape).background(look.accent).semantics { contentDescription = if (fresh) "New" else "Unread" }) }) else null,
         discContent = {
             when {
-                fresh -> Box(Modifier.size(8.dp).clip(CircleShape).background(look.accent).semantics { contentDescription = "New" })
+                selected != null -> com.cosmotune.ui.orbit.OrbitCheckMark(selected, look)
+                number != null -> Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(if (next) look.accent else look.chip), contentAlignment = Alignment.Center) {
+                    Text(number, style = fonts.label.copy(fontSize = if (number.length > 3) 10.sp else 12.sp), maxLines = 1,
+                        color = if (next) androidx.compose.ui.graphics.Color(0xFF2A100A) else if (read) look.dim else look.ink)
+                }
                 read -> Icon(CosmoIcons.Check, contentDescription = "Read", tint = look.dim, modifier = Modifier.size(15.dp))
                 else -> Box(Modifier.size(6.dp).clip(CircleShape).background(look.ink.copy(alpha = 0.22f)))
             }
@@ -374,10 +385,10 @@ internal fun ReadDownloadButton(download: ReadDownload, onDownload: () -> Unit) 
     when (download) {
         ReadDownload.NONE -> Spacer(Modifier.width(8.dp))
         ReadDownload.RUNNING -> Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(Modifier.size(18.dp).semantics { contentDescription = "Downloading" }, color = look.dim, strokeWidth = 2.dp)
+            CircularProgressIndicator(Modifier.size(20.dp).semantics { contentDescription = "Downloading" }, color = look.accent, strokeWidth = 2.dp)
         }
         ReadDownload.AVAILABLE -> OrbitRoundButton(CosmoIcons.Download, mangaText("Download"), look.ink, onDownload, size = 36.dp)
-        ReadDownload.DONE -> OrbitRoundButton(CosmoIcons.Downloaded, mangaText("Remove download"), look.ink, onDownload, size = 36.dp)
+        ReadDownload.DONE -> OrbitRoundButton(CosmoIcons.Downloaded, mangaText("Remove download"), look.ink, onDownload, size = 36.dp, on = true, onInk = look.ground)
     }
 }
 

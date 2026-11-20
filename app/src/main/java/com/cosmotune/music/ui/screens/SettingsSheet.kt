@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Podcasts
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -232,6 +233,8 @@ fun SettingsScreen(
     onCloudDeleteAccount: () -> Unit = {},
     /** False while a page Settings opened stands over it, so back closes that page and not one of these. */
     handleBack: Boolean = true,
+    /** The mode Settings was opened from (its page is tagged "This mode" on the settings home); null from Music. */
+    openedFrom: AppMode? = null,
 ) {
     val context = LocalContext.current
 
@@ -475,7 +478,9 @@ fun SettingsScreen(
             .padding(contentPadding),
     ) {
         if (onHub) {
-            SettingsHubTitle(stringResource(R.string.settings))
+            val shellMode = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsStateWithLifecycle()?.value
+            val thisMode = com.cosmotune.ui.settings.settingsCategoryOf(openedFrom ?: shellMode)
+            SettingsHubTitle(stringResource(R.string.settings), label = thisMode?.let { "Opened from " + it.title() }.orEmpty())
             com.cosmotune.ui.settings.SettingsSearchPill(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
@@ -486,6 +491,7 @@ fun SettingsScreen(
                 SettingsHub(
                     entries = hubEntries,
                     onOpen = { selectedCategory = it },
+                    current = thisMode,
                     // Who is signed in comes first, as a card of its own. It opens the Account page, which holds the account and its
                     // services and cloud sync (turn on, sign in with Google): the hub shows no Account tile while this card stands in for
                     // it, so opening the services page straight away left cloud sync with no way in.
@@ -1649,7 +1655,7 @@ fun SettingsScreen(
             }
         }
 
-        // ---- Video, Manga & Read, Podio: the modes keep their own settings; their pages here lead to them ----
+        // ---- Video, Podio, Read and Manga: each mode's page leads into it and holds its settings ----
         SearchableSettingsGroup(search, category = SettingsCategory.VIDEO) {
             val openVideoTitle = SettingsText.OPEN_VIDEO.text()
             val openVideoSummary = SettingsText.OPEN_VIDEO_SUMMARY.text()
@@ -1666,15 +1672,40 @@ fun SettingsScreen(
         SearchableSettingsGroup(search, category = SettingsCategory.READ) {
             val openReadTitle = SettingsText.OPEN_READ.text()
             val openReadSummary = SettingsText.OPEN_READ_SUMMARY.text()
-            row(openReadTitle, "manga", "books", "reader", "komga", "epub", summary = openReadSummary) {
+            row(openReadTitle, "books", "epub", "pdf", summary = openReadSummary) {
                 ModeLinkRow(AppMode.READ, Icons.AutoMirrored.Rounded.MenuBook, openReadTitle, openReadSummary)
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.READ, header = "Reader and libraries") {
+            row("Reader look", "font", "typeface", "text size", "margins", "brightness", "keep screen on", "opds", "connected libraries",
+                summary = "Page colour, typeface, size, brightness, connected libraries") {
+                com.cosmotune.reading.ui.ReadSettingsSection()
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.MANGA) {
+            val openMangaTitle = SettingsText.OPEN_MANGA.text()
+            val openMangaSummary = SettingsText.OPEN_MANGA_SUMMARY.text()
+            row(openMangaTitle, "manga", "comics", "series", summary = openMangaSummary) {
+                ModeLinkRow(AppMode.MANGA, Icons.Rounded.AutoStories, openMangaTitle, openMangaSummary)
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.MANGA, header = "Reader, storage and sources") {
+            row("Manga settings", "reader", "storage", "cache", "komga", "extensions", "parser", "backup", "updates", "verification",
+                summary = "Reader defaults, page storage, Komga, extensions, parser updates, backup") {
+                com.cosmotune.manga.ui.MangaSettingsSection()
             }
         }
         SearchableSettingsGroup(search, category = SettingsCategory.PODIO) {
             val openPodioTitle = SettingsText.OPEN_PODIO.text()
             val openPodioSummary = SettingsText.OPEN_PODIO_SUMMARY.text()
-            row(openPodioTitle, "podcasts", "radio", "episodes", summary = openPodioSummary) {
+            row(openPodioTitle, "podcasts", "radio", summary = openPodioSummary) {
                 ModeLinkRow(AppMode.PODIO, Icons.Rounded.Podcasts, openPodioTitle, openPodioSummary)
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.PODIO, header = "Episodes and subscriptions") {
+            row("Podcast settings", "episodes", "new episodes", "refresh", "auto download", "skip silence", "speed", "opml", "import", "export",
+                summary = "New episodes, each show's playback, OPML") {
+                com.cosmotune.podio.PhonePodioSettings()
             }
         }
 

@@ -45,7 +45,8 @@ class MangaSourceManagementInteractionTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("manga:sources:list").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("manga:sources:list").performScrollToNode(hasTestTag("manga:sources:query"))
         compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("manga:sources:query"))).performTextInput("MANGA Plus")
-        compose.onNodeWithTag("manga:sources:language").performScrollTo().performTextInput("en")
+        // The language is chosen with its chip (the free-text field next to them is gone).
+        compose.onAllNodes(hasText("English") and isSelectable()).onFirst().performScrollTo().performClick()
         compose.onNodeWithTag("manga:sources:list").performScrollToNode(hasTestTag("manga:source:${source.id}"))
         compose.onNodeWithTag("manga:source:${source.id}").assertContentDescriptionEquals("MANGA Plus English (en)").assertIsToggleable().performClick()
         compose.waitUntil(10_000) { repository.store.state.value.sources.any { it.id == source.id && it.enabled } }

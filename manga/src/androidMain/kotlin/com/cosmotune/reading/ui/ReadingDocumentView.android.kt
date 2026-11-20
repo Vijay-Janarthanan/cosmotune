@@ -27,19 +27,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.serialization.json.*
 
+internal actual val readingCenterTap: Boolean = true
+
 @Composable actual fun ReadingDocumentView(document: ReadingDocument, locator: ReadingLocator,
     preferences: ReadingPreferences, searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit,
-    onError: (String) -> Unit, modifier: Modifier) {
+    onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit) {
     when (document) {
-        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier)
-        is ReadingDocument.Epub -> AndroidReadingEpub(document, locator, preferences, searchQuery, onLocatorChanged, onError, modifier)
+        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier, onCenterTap)
+        is ReadingDocument.Epub -> AndroidReadingEpub(document, locator, preferences, searchQuery, onLocatorChanged, onError, modifier, onCenterTap)
     }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable private fun AndroidReadingEpub(document: ReadingDocument.Epub, locator: ReadingLocator,
     preferences: ReadingPreferences, searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit,
-    onError: (String) -> Unit, modifier: Modifier) {
+    onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit) {
+    val latestTap by rememberUpdatedState(onCenterTap)
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
     val content = remember(document) { ReadingEpubContent(document, "https://cosmotune-publication.invalid/") }
@@ -70,6 +73,15 @@ import kotlinx.serialization.json.*
                 displayZoomControls = false
             }
             isVerticalScrollBarEnabled = true
+            // A single tap on the middle third shows or hides the reader's tools; the page still scrolls, selects and follows links.
+            val taps = android.view.GestureDetector(context, object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onSingleTapConfirmed(event: android.view.MotionEvent): Boolean {
+                    if (event.x > width / 3f && event.x < width * 2f / 3f) latestTap()
+                    return false
+                }
+            })
+            @SuppressLint("ClickableViewAccessibility")
+            setOnTouchListener { _, event -> taps.onTouchEvent(event); false }
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse {
                     val href = request?.url?.toString()?.let(content::href)

@@ -89,12 +89,15 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     val look = orbitLook()
     val (fill, ink) = coverFill(null, book.id)
     MangaBackHandler(true, onBack)
+    ReaderKeepScreenOn(preferences.keepScreenOn)
     Box(Modifier.fillMaxSize().background(look.ground).testTag("books:reader")) {
         Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.windowInsetsPadding(WindowInsets.statusBars), onDismiss = { error = null }) }
             ReadingDocumentView(document, locator, preferences, search, onLocatorChanged = ::saveLocation,
-                onError = { error = it }, modifier = Modifier.weight(1f).fillMaxWidth().testTag("books:document"))
+                onError = { error = it }, modifier = Modifier.weight(1f).fillMaxWidth().testTag("books:document"), onCenterTap = { tools = !tools })
         }
+        // Brightness is a dimming over the page (the system's own stays as it is); it never takes a tap.
+        if (preferences.brightness < 1f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = (1f - preferences.brightness).coerceIn(0f, 0.7f))))
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().widthIn(max = 620.dp).windowInsetsPadding(WindowInsets.navigationBars).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (searching) Column(Modifier.fillMaxWidth().clip(ReadShape.md).background(look.ground).padding(vertical = 6.dp)) {
@@ -102,8 +105,12 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 Text(if (epub != null) "Matches are highlighted in this chapter." else "Find matching pages on desktop and Android 15+. Earlier Android versions support EPUB search.",
                     style = ReadType.caption(), color = look.dim, modifier = Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 4.dp))
             }
-            if (!tools) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OrbitReaderButton(CosmoIcons.MoreVertical, "Show reading tools", ink, fill, { tools = true }, Modifier.background(fill, CircleShape).testTag("books:show-tools"))
+            // A tap on the middle of the page shows the tools where the page can tell (the phone); the desktop keeps the button.
+            if (!tools) Row(Modifier.fillMaxWidth(), horizontalArrangement = if (readingCenterTap) Arrangement.Center else Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically) {
+                if (readingCenterTap) Text(bookReaderLabel(epub, section, locator).uppercase(), style = orbitFonts().label, color = look.dim.copy(alpha = 0.7f), maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("books:page-line"))
+                else OrbitReaderButton(CosmoIcons.MoreVertical, "Show reading tools", ink, fill, { tools = true }, Modifier.background(fill, CircleShape).testTag("books:show-tools"))
             } else OrbitReaderCard(
                 label = bookReaderLabel(epub, section, locator),
                 progress = { if (epub != null && epub.spine.size > 1) section / (epub.spine.size - 1f) else locator.progression.toFloat().coerceIn(0f, 1f) },
@@ -175,57 +182,59 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
 
 private fun List<ReadingNavigation>.flatNavigation(): List<ReadingNavigation> = flatMap { listOf(it) + it.children.flatNavigation() }
 
-/** The typography sheet (Kavita's book settings): page theme, typeface, size, line spacing, margins, and scroll or pages. */
+/**
+ * The appearance sheet (board frame 9): page colour, typeface, size, line spacing, margins, pages or scroll, then brightness and
+ * keeping the screen on. The same choices are Settings › Read's defaults.
+ */
 @Composable
 private fun ReaderAppearance(preferences: ReadingPreferences, reflowable: Boolean, onChange: (ReadingPreferences) -> Unit, onDismiss: () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
     KitSheet(onDismiss = onDismiss) {
-        ReadSheetHeader("Reading appearance", onDone = onDismiss)
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
-            item {
-                ReadSheetSection("Page theme") {
-                    ReadChipRow(inset = 0.dp) {
-                        ReadingTheme.entries.forEach { theme -> ReadChip(theme.name.lowercase().replaceFirstChar(Char::uppercase), preferences.theme == theme, { onChange(preferences.copy(theme = theme)) }) }
-                    }
-                }
+        ReadSheetHeader("Appearance", onDone = onDismiss)
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) { item { ReadingAppearanceChoices(preferences, reflowable, onChange) } }
+    }
+}
+
+/** Page colour, typeface, size, spacing, margins, layout, brightness and keep screen on, one section each. */
+@Composable
+internal fun ReadingAppearanceChoices(preferences: ReadingPreferences, reflowable: Boolean, onChange: (ReadingPreferences) -> Unit) {
+    val palette = LocalCosmoColors.current.palette
+    Column(Modifier.fillMaxWidth()) {
+        ReadSheetSection("Page theme") {
+            ReadChipRow(inset = 0.dp) {
+                ReadingTheme.entries.forEach { theme -> ReadChip(theme.name.lowercase().replaceFirstChar(Char::uppercase), preferences.theme == theme, { onChange(preferences.copy(theme = theme)) }) }
             }
-            if (reflowable) {
-                item {
-                    ReadSheetSection("Typeface") {
-                        ReadChipRow(inset = 0.dp) {
-                            listOf("serif" to "Serif", "sans-serif" to "Sans serif", "monospace" to "Monospace").forEach { (value, label) -> ReadChip(label, preferences.fontFamily == value, { onChange(preferences.copy(fontFamily = value)) }) }
-                        }
-                    }
-                }
-                item {
-                    ReadSheetSection("Text size · ${(preferences.fontScale * 100).toInt()}%") {
-                        ReadSlider(preferences.fontScale, { onChange(preferences.copy(fontScale = it)) }, .75f..2.5f, 6, "Text size", Modifier.testTag("books:font-size"))
-                    }
-                }
-                item {
-                    ReadSheetSection("Line spacing · ${"%.1f".format(preferences.lineHeight)}") {
-                        ReadSlider(preferences.lineHeight, { onChange(preferences.copy(lineHeight = it)) }, 1.1f..2.2f, 10, "Line spacing")
-                    }
-                }
-                item {
-                    ReadSheetSection("Margins · ${preferences.marginDp}") {
-                        ReadSlider(preferences.marginDp.toFloat(), { onChange(preferences.copy(marginDp = it.toInt())) }, 8f..64f, 6, "Margins")
-                    }
-                }
-                item {
-                    ReadSheetSection("Reading direction") {
-                        ReadChipRow(inset = 0.dp) {
-                            ReadChip("Scroll", preferences.scrollMode, { onChange(preferences.copy(scrollMode = true)) })
-                            ReadChip("Pages", !preferences.scrollMode, { onChange(preferences.copy(scrollMode = false)) })
-                        }
-                    }
-                }
-            } else item {
-                Text("PDFs keep the publisher's layout. Use the page and zoom controls of the document.", style = ReadType.body(), color = Color(palette.textSecondary),
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-            }
-            item { Spacer(Modifier.height(16.dp)) }
         }
+        if (reflowable) {
+            ReadSheetSection("Typeface") {
+                ReadChipRow(inset = 0.dp) {
+                    listOf("serif" to "Serif", "sans-serif" to "Sans serif", "monospace" to "Monospace").forEach { (value, label) -> ReadChip(label, preferences.fontFamily == value, { onChange(preferences.copy(fontFamily = value)) }) }
+                }
+            }
+            ReadSheetSection("Text size · ${(preferences.fontScale * 100).toInt()}%") {
+                ReadSlider(preferences.fontScale, { onChange(preferences.copy(fontScale = it)) }, .75f..2.5f, 6, "Text size", Modifier.testTag("books:font-size"))
+            }
+            ReadSheetSection("Line spacing · ${"%.1f".format(preferences.lineHeight)}") {
+                ReadSlider(preferences.lineHeight, { onChange(preferences.copy(lineHeight = it)) }, 1.1f..2.2f, 10, "Line spacing")
+            }
+            ReadSheetSection("Margins · ${preferences.marginDp}") {
+                ReadSlider(preferences.marginDp.toFloat(), { onChange(preferences.copy(marginDp = it.toInt())) }, 8f..64f, 6, "Margins")
+            }
+            ReadSheetSection("Layout") {
+                ReadChipRow(inset = 0.dp) {
+                    ReadChip("Pages", !preferences.scrollMode, { onChange(preferences.copy(scrollMode = false)) })
+                    ReadChip("Scroll", preferences.scrollMode, { onChange(preferences.copy(scrollMode = true)) })
+                }
+            }
+        } else {
+            Text("PDFs keep the publisher's layout. Use the page and zoom controls of the document.", style = ReadType.body(), color = Color(palette.textSecondary),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+        }
+        ReadSheetSection("Brightness · ${(preferences.brightness * 100).toInt()}%") {
+            ReadSlider(preferences.brightness, { onChange(preferences.copy(brightness = it.coerceIn(0.3f, 1f))) }, 0.3f..1f, 6, "Brightness", Modifier.testTag("books:brightness"))
+        }
+        com.cosmotune.ui.orbit.OrbitSwitchRow("Keep screen on while reading", preferences.keepScreenOn, { onChange(preferences.copy(keepScreenOn = it)) },
+            Modifier.padding(horizontal = 20.dp, vertical = 6.dp), switchModifier = Modifier.testTag("books:keep-screen-on"))
+        Spacer(Modifier.height(16.dp))
     }
 }
 

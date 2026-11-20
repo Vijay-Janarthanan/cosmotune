@@ -467,7 +467,19 @@ private class AnonymousSpotifyCookies : CookieJar {
 
 @Serializable data class PodioSaved(val stations: List<RadioStation> = emptyList(), val shows: List<PodcastShow> = emptyList(),
     val progress: Map<String, Long> = emptyMap(), val completedEpisodes: Set<String> = emptySet(), val inboxEpisodesPerShow: Int = 12,
-    val skipSilenceByShow: Map<String, Boolean> = emptyMap())
+    val skipSilenceByShow: Map<String, Boolean> = emptyMap(),
+    /** Episodes (their player ids) put away from Following's New list with "Seen" or "Mark all seen". */
+    val seenEpisodes: Set<String> = emptySet(),
+    /** The speed chosen with "Use for this show", by show id; the others play at 1×. */
+    val speedByShow: Map<String, Float> = emptyMap(),
+    /** The episode ids each followed show had at the last refresh, so the next one can tell what is new ([PodioRefresh]). */
+    val knownEpisodes: Map<String, List<String>> = emptyMap(),
+    /** When followed shows were last refreshed (in the background or from Following), epoch milliseconds; 0 for never. */
+    val lastRefreshMs: Long = 0,
+    /** Refresh followed shows in the background and say when there are new episodes. */
+    val refreshInBackground: Boolean = true,
+    /** Download new episodes of followed shows as the background refresh finds them. Off unless chosen. */
+    val autoDownloadNew: Boolean = false)
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {
@@ -498,12 +510,19 @@ class PodioLibrary(private val file: File) {
     private val json = Json { ignoreUnknownKeys = true }
     private val store = sharedStore(file)
     val state = store.state
+
+    /** Podio's queue, kept beside this library. */
+    fun queue(): PodioQueue = PodioQueue.besides(file)
     fun update(change: (PodioSaved) -> PodioSaved) = synchronized(store.lock) {
         val next = change(state.value).let {
             val progress = it.progress.entries.toList().takeLast(1000).associate { e -> e.toPair() }
             val shows = it.shows.take(500)
+            val followed = shows.map(PodcastShow::id).toSet()
             it.copy(stations = it.stations.take(500), shows = shows, progress = progress, completedEpisodes = it.completedEpisodes.intersect(progress.keys),
-                skipSilenceByShow = it.skipSilenceByShow.filterKeys(shows.map(PodcastShow::id).toSet()::contains))
+                skipSilenceByShow = it.skipSilenceByShow.filterKeys(followed::contains),
+                speedByShow = it.speedByShow.filterKeys(followed::contains).filterValues { speed -> speed in 0.5f..3f },
+                knownEpisodes = it.knownEpisodes.filterKeys(followed::contains).mapValues { (_, ids) -> ids.take(PodioRefresh.KNOWN_PER_SHOW) },
+                seenEpisodes = it.seenEpisodes.toList().takeLast(2000).toSet())
         }
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, file.name + ".tmp")

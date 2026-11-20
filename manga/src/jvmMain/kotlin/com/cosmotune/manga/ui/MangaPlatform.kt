@@ -19,6 +19,8 @@ import javax.swing.JFileChooser
 import com.cosmotune.manga.data.MangaFolderImport
 import com.cosmotune.manga.data.MangaImageImport
 
+@Composable internal actual fun ReaderKeepScreenOn(enabled: Boolean) = Unit
+@Composable internal actual fun rememberReaderRotation(): ReaderRotation? = null
 @Composable internal actual fun rememberMangaRepository(): Result<MangaRepository> = remember { runCatching {
     DesktopMangaLibrary.repository
 } }

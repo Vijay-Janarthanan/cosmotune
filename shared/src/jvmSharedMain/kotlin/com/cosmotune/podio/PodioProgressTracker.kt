@@ -2,6 +2,8 @@ package com.cosmotune.podio
 
 /** Kept by the playback owner so dismissing Podio does not stop recording episode positions. */
 class PodioProgressTracker(private val library: PodioLibrary,
+    /** Podio's queue, told when the player moves on to a queued episode by itself, so the queue is right after a restart too. */
+    private val queue: PodioQueue? = runCatching { library.queue() }.getOrNull(),
     private val clockMs: () -> Long = { System.nanoTime() / 1_000_000 }) : AutoCloseable {
     private data class Position(val id: String, val positionMs: Long, val playing: Boolean, val durationMs: Long)
     private var previous: Position? = null
@@ -14,6 +16,7 @@ class PodioProgressTracker(private val library: PodioLibrary,
             ?.let { Position(it, positionMs.coerceAtLeast(0), playing, knownDuration) }
         val old = previous
         if (old != null && old.id != next?.id) persist(old)
+        if (next != null && next.id != old?.id) runCatching { queue?.started(next.id) }
         // A decoder reset while the same episode is loading must not replace its saved position.
         if (loading && id == old?.id) return
         previous = next

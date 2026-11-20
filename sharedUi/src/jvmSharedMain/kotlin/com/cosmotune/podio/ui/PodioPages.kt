@@ -1,26 +1,22 @@
 package com.cosmotune.podio.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.FileDownload
-import androidx.compose.material.icons.outlined.FileUpload
-import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Podcasts
-import androidx.compose.material.icons.outlined.RssFeed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,71 +43,105 @@ internal fun episodeLine(episode: PodcastEpisode, item: PodioItem, env: PodioEnv
 }
 
 /** How much of an episode has been heard, 0..1, for the faint orbit round its disc. */
-private fun heardFraction(env: PodioEnv, id: String, durationMs: Long): Float =
+internal fun heardFraction(env: PodioEnv, id: String, durationMs: Long): Float =
     PodioFormat.progressFraction(id in env.saved.completedEpisodes, env.saved.progress[id] ?: 0, durationMs)
 
-@Composable private fun EpisodeItemRow(m: PodioModel, env: PodioEnv, entry: InboxEpisode, withShow: Boolean, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+/** What a swipe to the right does on an episode row: line it up to play next (a show, the home), or put it away as seen (Following). */
+internal enum class EpisodeSwipe { PLAY_NEXT, SEEN, NONE }
+
+@Composable internal fun EpisodeItemRow(m: PodioModel, env: PodioEnv, entry: InboxEpisode, withShow: Boolean, fonts: OrbitFonts, look: OrbitLook,
+    modifier: Modifier = Modifier, fresh: Boolean = false, swipe: EpisodeSwipe = EpisodeSwipe.PLAY_NEXT) {
     val item = entry.item()
     val now = env.playback.id == item.id
-    EpisodeRow(entry.episode.title, episodeLine(entry.episode, item, env, withShow), item.artwork, heardFraction(env, item.id, entry.episode.durationSeconds * 1000),
-        now = now, playing = now && env.playback.playing, progress = if (now) ({ env.playedFraction() }) else null,
-        download = m.downloadMark(item, env.downloaded, env.downloadsRunning),
-        onPlay = { if (now) env.onToggle() else m.playEpisode(entry) }, onDownload = { m.host.onDownloadEpisode?.invoke(item) }, onMore = { m.episodeSheet = entry },
-        fonts = fonts, look = look, modifier = modifier)
+    PodioSwipe(modifier.testTag("podio:episode:${entry.episode.id}"),
+        startLabel = if (swipe == EpisodeSwipe.SEEN) "Seen" else "Play next",
+        onStart = when { now -> null; swipe == EpisodeSwipe.SEEN -> ({ m.markSeen(listOf(item.id)) }); swipe == EpisodeSwipe.PLAY_NEXT -> ({ m.playNext(entry) }); else -> null }) {
+        EpisodeRow(entry.episode.title, episodeLine(entry.episode, item, env, withShow), item.artwork, heardFraction(env, item.id, entry.episode.durationSeconds * 1000),
+            now = now, playing = now && env.playback.playing, progress = if (now) ({ env.playedFraction() }) else null,
+            download = m.downloadMark(item, env.downloaded, env.downloadsRunning),
+            onPlay = { if (now) env.onToggle() else m.playEpisode(entry) }, onDownload = { m.host.onDownloadEpisode?.invoke(item) }, onMore = { m.episodeSheet = entry },
+            fonts = fonts, look = look, fresh = fresh, onToggle = env.onToggle)
+    }
 }
 
 /** The started and not finished episodes of [entries] (what "Continue listening" lists), and the rest. */
 private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<InboxEpisode>, List<InboxEpisode>> =
     entries.partition { heardFraction(env, it.item().id, it.episode.durationSeconds * 1000) > 0f }
 
-/** A followed show as a record: its cover as a disc, the title and the publisher; a tap opens it. */
-@Composable private fun ShowRecord(show: PodcastShow, m: PodioModel, fonts: OrbitFonts, look: OrbitLook, size: Dp = 140.dp) {
-    OrbitRecord(show.title.ifBlank { "Podcast" }, show.author, show.artwork.takeIf(String::isNotBlank), fonts, look, onClick = { m.open(show) }, onPlay = null, size = size)
+/** The new episodes of the followed shows: in Following's list and neither heard, started nor seen. */
+internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.inbox.filter { env.isNew(it.item().id) }
+
+/** A followed show as a record: its cover as a disc, the title and the publisher; a tap opens it. [count] new episodes in peach. */
+@Composable private fun ShowRecord(show: PodcastShow, m: PodioModel, fonts: OrbitFonts, look: OrbitLook, size: Dp = 96.dp, count: Int = 0, subtitle: String = show.author,
+    onClick: () -> Unit = { m.open(show) }) {
+    Box {
+        OrbitRecord(show.title.ifBlank { "Podcast" }, subtitle, show.artwork.takeIf(String::isNotBlank), fonts, look, onClick = onClick, onPlay = null, size = size)
+        if (count > 0) PodioCount(count, look, fonts, Modifier.align(Alignment.TopEnd))
+    }
+}
+
+/** A count in peach on a cover's corner (new episodes of a show). */
+@Composable internal fun PodioCount(count: Int, look: OrbitLook, fonts: OrbitFonts, modifier: Modifier = Modifier) {
+    Text(if (count > 99) "99+" else count.toString(), style = fonts.label.copy(fontSize = 11.sp), color = if (look.dark) androidx.compose.ui.graphics.Color(0xFF2A100A) else look.ground,
+        maxLines = 1, modifier = modifier.clip(CircleShape).background(look.accent).padding(horizontal = 7.dp, vertical = 2.dp))
 }
 
 // ---- Podcasts ----------------------------------------------------------------------------------------------------------------
 
 /**
- * The podcasts home (board section C): the heading with Search and Add by address, the region and language chips, what you were
- * listening to as rows, your shows as records, then the regional chart by genre as ranked rows (two columns when wide).
+ * The podcasts home (board frame 1): the heading with Search and Add by address; the episode you are in the middle of as the one
+ * colour card; New episodes with their count and All ›; your shows as small discs; then Discover with its own chips (genres,
+ * region, language) over the chart as ranked rows (two columns when wide, ten and Show all).
  */
 @Composable internal fun PodcastsPage(m: PodioModel, env: PodioEnv, onSearch: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val list = rememberLazyListState()
+    var allChart by remember { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize().testTag("podio:podcasts")) {
         val wide = maxWidth >= 840.dp
         val side = orbitPageSide(maxWidth)
-        val started = splitStarted(m.inbox, env).first.take(if (wide) 4 else 3)
+        val started = splitStarted(m.inbox, env).first
+        val fresh = newEpisodes(m, env)
         val ranked = m.language.isBlank() && m.query.isBlank()
+        val label = PodioFormat.episodeMeta(env.saved.shows.size.takeIf { it > 0 }?.let { if (it == 1) "1 show" else "$it shows" }.orEmpty(),
+            fresh.size.takeIf { it > 0 }?.let { if (it == 1) "1 new episode" else "$it new episodes" }.orEmpty()).ifBlank { m.showsTitle.ifBlank { "Top charts" } }
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = env.bottom + 16.dp)) {
             item(key = "head") {
-                PodioHead("Podcasts", m.showsTitle.ifBlank { "Top charts" }, fonts, look, side, env.onMusic) {
+                PodioHead("Podcasts", label, fonts, look, side, env.onMusic) {
                     OrbitPageButton(CosmoIcons.Search, "Search", onSearch)
                     OrbitPageButton(CosmoIcons.Plus, "Add by RSS address", { m.addFeed = true })
                 }
             }
-            item(key = "filters") { OrbitChipRow(side, Modifier.padding(top = 18.dp)) { FilterChips(m, fonts, look) } }
-            if (started.isNotEmpty()) {
-                item(key = "continue-title") { OrbitPageSection("Continue listening", Modifier.padding(horizontal = side + 4.dp).padding(top = 28.dp, bottom = 12.dp), subtitle = "Pick up where you stopped") }
-                items(started, key = { "c-" + it.episode.id }) { EpisodeItemRow(m, env, it, withShow = true, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 8.dp)) }
+            started.firstOrNull()?.let { entry -> item(key = "continue") { ContinueCard(m, env, entry, Modifier.padding(horizontal = side).padding(top = 20.dp)) } }
+            if (fresh.isNotEmpty()) {
+                item(key = "new-title") {
+                    OrbitPageSection("New episodes", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp),
+                        subtitle = fresh.size.toString(), action = "All ›", onAction = { env.chooseSection(PodioSection.FOLLOWING) })
+                }
+                items(fresh.take(if (wide) 4 else 3), key = { "n-" + it.episode.id }) {
+                    EpisodeItemRow(m, env, it, withShow = true, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 6.dp), fresh = true)
+                }
             }
             if (env.saved.shows.isNotEmpty()) item(key = "yours") {
                 Column {
-                    OrbitPageSection("Your shows", Modifier.padding(horizontal = side + 4.dp).padding(top = 28.dp, bottom = 14.dp),
-                        subtitle = "${env.saved.shows.size} followed", action = "All", onAction = { env.chooseSection(PodioSection.FOLLOWING) })
-                    OrbitShelfRow(side + 4.dp, 18.dp) { items(env.saved.shows, key = { "show-" + it.id }) { show -> ShowRecord(show, m, fonts, look, if (wide) 150.dp else 128.dp) } }
+                    OrbitPageSection("Your shows", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 12.dp),
+                        subtitle = "${env.saved.shows.size} followed", action = "All ›", onAction = { env.chooseSection(PodioSection.FOLLOWING) })
+                    OrbitShelfRow(side + 4.dp, 16.dp) { items(env.saved.shows, key = { "show-" + it.id }) { show ->
+                        ShowRecord(show, m, fonts, look, if (wide) 112.dp else 88.dp, count = fresh.count { it.show.id == show.id }, subtitle = "")
+                    } }
                 }
             }
-            item(key = "genres") {
-                OrbitChipRow(side, Modifier.padding(top = 30.dp)) {
-                    OrbitSelectChip("Popular", m.genre.isBlank(), fonts, look, { m.browse(); m.genre = "" }, haptic = false)
-                    PODCAST_GENRES.forEach { (id, name) -> OrbitSelectChip(name, m.genre == id, fonts, look, { m.browse(); m.genre = id }, haptic = false) }
+            item(key = "discover") {
+                Column {
+                    OrbitPageSection("Discover", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp),
+                        subtitle = if (m.showsTitle.isNotBlank() && m.shows.isNotEmpty()) m.showsTitle else if (ranked) "Top charts" else "")
+                    OrbitChipRow(side) {
+                        OrbitSelectChip("Top shows", m.genre.isBlank(), fonts, look, { m.browse(); m.genre = "" }, haptic = false)
+                        PODCAST_GENRES.forEach { (id, name) -> OrbitSelectChip(name, m.genre == id, fonts, look, { m.browse(); m.genre = id }, haptic = false) }
+                    }
+                    OrbitChipRow(side, Modifier.padding(top = 8.dp, bottom = 6.dp)) { FilterChips(m, fonts, look) }
                 }
-            }
-            if (m.showsTitle.isNotBlank() && m.shows.isNotEmpty()) item(key = "title") {
-                OrbitPageSection(m.showsTitle, Modifier.padding(horizontal = side + 4.dp).padding(top = 22.dp, bottom = 8.dp),
-                    subtitle = if (ranked) "Top charts" else "${m.shows.size} shows")
             }
             when {
                 m.directoryLoading && m.shows.isEmpty() -> item(key = "loading") { PodioSkeletonRows(6, look, side, Modifier.testTag("podio:loading")) }
@@ -124,17 +154,19 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                 }
                 else -> {
                     val columns = if (wide) 2 else 1
-                    val rows = m.shows.withIndex().chunked(columns)
+                    val shown = if (allChart) m.shows else m.shows.take(10)
+                    val rows = shown.withIndex().chunked(columns)
                     items(rows.size, key = { "chart-" + rows[it].first().value.id }) { index ->
                         Row(Modifier.fillMaxWidth().padding(horizontal = side).padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             rows[index].forEach { (rank, show) ->
                                 val open = { m.open(show) }
                                 if (ranked) OrbitRankedRow(rank + 1, show.title.ifBlank { "Podcast" }, show.author, show.artwork.takeIf(String::isNotBlank), fonts, look, open, Modifier.weight(1f))
-                                else OrbitSongRow(show.title.ifBlank { "Podcast" }, show.author, show.artwork.takeIf(String::isNotBlank), fonts, look, open, Modifier.weight(1f).padding(vertical = 4.dp))
+                                else OrbitSongRow(show.title.ifBlank { "Podcast" }, show.author, show.artwork.takeIf(String::isNotBlank), fonts, look, open, Modifier.weight(1f).padding(vertical = 4.dp), height = 60.dp)
                             }
                             if (rows[index].size < columns) Spacer(Modifier.weight(1f))
                         }
                     }
+                    if (m.shows.size > 10) item(key = "chart-all") { OrbitShowAll(allChart, m.shows.size, fonts, look, { allChart = !allChart }, Modifier.padding(horizontal = side)) }
                 }
             }
             item(key = "credit") { PodioCredit("Discovery: Apple Podcasts, fyyd and YouTube Music · Audio: publisher feeds or public YouTube episodes", fonts, look, side) }
@@ -142,13 +174,41 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
     }
 }
 
+/** The episode you were in the middle of, as the home's one colour card: its disc and how far you are, the show, play in the bite. */
+@Composable private fun ContinueCard(m: PodioModel, env: PodioEnv, entry: InboxEpisode, modifier: Modifier) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val item = entry.item()
+    val art = item.artwork.takeIf(String::isNotBlank)
+    val (fill, ink) = coverFill(art, entry.episode.title)
+    val now = env.playback.id == item.id
+    val left = PodioFormat.remaining(env.saved.progress[item.id] ?: 0, entry.episode.durationSeconds * 1000)
+    OrbitBiteCard(fill, modifier.fillMaxWidth().testTag("podio:continue"), onClick = { m.episodeSheet = entry }, bite = {
+        OrbitPlayButton(now && env.playback.playing, { if (now) env.onToggle() else m.playEpisode(entry) }, look)
+    }) {
+        Row(Modifier.fillMaxWidth().padding(start = 18.dp, top = 18.dp, end = 84.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+                Disc(art, 70.dp)
+                OrbitRing(80.dp, ink.copy(alpha = 0.8f), progress = { heardFraction(env, item.id, entry.episode.durationSeconds * 1000) }, spinning = false, stroke = 1.5.dp, moon = 3.dp)
+            }
+            Column(Modifier.weight(1f)) {
+                OrbitLabel(PodioFormat.episodeMeta("Continue", left), fonts, ink.copy(alpha = 0.75f))
+                Text(entry.episode.title, style = fonts.heroTitle.copy(fontSize = 20.sp, lineHeight = 23.sp), color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 6.dp))
+                Text(entry.show.title.ifBlank { entry.episode.show }, style = fonts.body, color = ink.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+    }
+}
+
 // ---- A show ----------------------------------------------------------------------------------------------------------------
 
 /**
- * A show (board section C: the show page is the album page): the colour card in the show's cover colour with the cover as a disc,
- * "PODCAST · 212 EPISODES", the title and the publisher, Follow and Refresh, and play in the bite (the latest episode, or play and
- * pause while one of the show's episodes is loaded). Then All, Unplayed and Downloaded, and the episodes as rows with their length,
- * date and how much is heard, the playing one in peach. Older episodes load on demand at the end.
+ * A show (board frame 2): the compact colour card (the cover beside the title, "PODCAST · 48 EPISODES", the publisher, Follow,
+ * Download and More, play in the bite), then "Episodes · 48 · 6 new" with All, Unplayed and Downloaded and the order, and the
+ * episodes as rows with one button each, so several show on opening. Older episodes load on demand at the end.
  */
 @Composable internal fun ShowPage(m: PodioModel, env: PodioEnv) {
     val fonts = orbitFonts()
@@ -158,31 +218,36 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
     val requested = m.requestedFeed
     val show = feed?.show ?: requested
     var filter by remember(requested?.id) { mutableIntStateOf(0) }
+    var oldestFirst by remember(requested?.id) { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize().testTag("podio:show")) {
         val side = orbitPageSide(maxWidth)
+        val episodes = feed?.episodes.orEmpty()
+        val unplayed = episodes.filter { !env.isPlayed(it.item().id, it.durationSeconds * 1000) }
+        val inboxIds = remember(m.inbox) { m.inbox.map { it.episode.id }.toSet() }
+        val following = show != null && env.saved.shows.any { it.id == show.id }
+        val fresh = unplayed.filter { following && it.id in inboxIds && env.isNew(it.item().id) }
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = env.bottom + 16.dp)) {
             item(key = "back") { PodioBackHead("Podcast", m::browse, fonts, look, side) }
             if (show != null) item(key = "card") {
-                val following = env.saved.shows.any { it.id == show.id }
-                val episodes = feed?.episodes.orEmpty()
                 val loaded = episodes.firstOrNull { it.item().id == env.playback.id }
-                val latest = episodes.firstOrNull()
-                OrbitReleaseCard(
-                    cover = show.artwork.takeIf(String::isNotBlank),
-                    label = PodioFormat.episodeMeta("Podcast", episodeCount(episodes.size), show.source),
+                val latest = unplayed.firstOrNull() ?: episodes.firstOrNull()
+                OrbitCoverTitleCard(
+                    cover = show.artwork.takeIf(String::isNotBlank), colourUrl = show.artwork.takeIf(String::isNotBlank), key = show.id,
+                    label = PodioFormat.episodeMeta("Podcast", episodeCount(episodes.size)),
                     title = show.title.ifBlank { "Podcast" },
-                    credit = show.author.ifBlank { null },
-                    onCredit = null,
-                    playing = loaded != null && env.playback.playing,
-                    onPlay = when { loaded != null -> env.onToggle; latest != null -> ({ m.playEpisode(InboxEpisode(latest, show)) }); else -> null },
-                    modifier = Modifier.padding(horizontal = side).padding(top = 14.dp).fillMaxWidth(),
-                    below = { colors ->
-                        val line = if (loaded != null) "Playing: ${loaded.title}" else latest?.let { "Latest: ${it.title}" }
-                        if (line != null) Text(line, style = fonts.body, color = colors.ink.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-                    },
+                    line = when { loaded != null -> "Playing: ${loaded.title}"; else -> show.author.ifBlank { null } },
+                    onContinue = when { loaded != null -> env.onToggle; latest != null -> ({ m.playEpisode(InboxEpisode(latest, show)) }); else -> null },
+                    modifier = Modifier.padding(horizontal = side).padding(top = 14.dp).fillMaxWidth().testTag("podio:show-card"),
                 ) { colors ->
-                    if (feed != null) OrbitCardChip(if (following) "Following" else "Follow", colors, { m.toggleFollow(feed.show) }, icon = if (following) CosmoIcons.Check else CosmoIcons.Plus, solid = !following)
-                    OrbitCardButton(CosmoIcons.Replay, "Refresh", colors, { m.open(show) })
+                    if (feed != null) OrbitCardChip(if (following) "Following" else "Follow", colors, { m.toggleFollow(feed.show) },
+                        icon = if (following) CosmoIcons.Check else CosmoIcons.Plus, solid = !following)
+                    val toDownload = fresh.firstOrNull { m.downloadMark(it.item(), env.downloaded, env.downloadsRunning) == DownloadMark.AVAILABLE }
+                    if (toDownload != null) OrbitCardButton(CosmoIcons.Download, "Download the newest episode", colors, { m.host.onDownloadEpisode?.invoke(toDownload.item()) })
+                    Box {
+                        OrbitCardButton(CosmoIcons.MoreVertical, "More", colors, { more = true })
+                        ShowMenu(m, env, show, feed, more, { more = false })
+                    }
                 }
             }
             if (feed == null) {
@@ -197,26 +262,36 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                 return@LazyColumn
             }
             item(key = "episodes-title") {
-                OrbitPageSection("Episodes", Modifier.padding(horizontal = side + 4.dp).padding(top = 28.dp, bottom = 12.dp), subtitle = episodeCount(feed.episodes.size))
+                OrbitPageSection("Episodes", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp),
+                    subtitle = PodioFormat.episodeMeta(feed.episodes.size.toString(), if (fresh.isEmpty()) "" else "${fresh.size} new"))
             }
             item(key = "episode-filters") {
-                OrbitChipRow(side, Modifier.padding(bottom = 12.dp)) {
-                    listOf("All", "Unplayed", "Downloaded").forEachIndexed { index, name -> OrbitSelectChip(name, filter == index, fonts, look, { filter = index }, haptic = false) }
+                OrbitChipRow(side, Modifier.padding(bottom = 10.dp)) {
+                    OrbitSelectChip("All", filter == 0, fonts, look, { filter = 0 }, haptic = false)
+                    OrbitSelectChip("Unplayed" + if (unplayed.isEmpty()) "" else " ${unplayed.size}", filter == 1, fonts, look, { filter = 1 }, haptic = false)
+                    OrbitSelectChip("Downloaded", filter == 2, fonts, look, { filter = 2 }, haptic = false)
+                    Spacer(Modifier.width(4.dp))
+                    OrbitSelectChip(if (oldestFirst) "Oldest first" else "Newest first", false, fonts, look, { oldestFirst = !oldestFirst }, icon = CosmoIcons.Sort, haptic = false,
+                        modifier = Modifier.testTag("podio:show:order"))
                 }
             }
             val shown = feed.episodes.filter { episode ->
                 val id = episode.item().id
                 when (filter) {
-                    1 -> id !in env.saved.completedEpisodes && !PodioPlaybackPolicy.isFinished(env.saved.progress[id] ?: 0, episode.durationSeconds * 1000)
+                    1 -> !env.isPlayed(id, episode.durationSeconds * 1000)
                     2 -> env.downloaded.any { it.id == id }
                     else -> true
                 }
-            }
+            }.let { if (oldestFirst) it.reversed() else it }
             if (shown.isEmpty()) item(key = "filtered-none") {
                 Text(if (filter == 2) "No downloaded episodes of this show." else "Every episode here has been played.", style = fonts.body, color = look.dim,
                     modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 16.dp))
             }
-            items(shown, key = { it.id }) { episode -> EpisodeItemRow(m, env, InboxEpisode(episode, feed.show), withShow = false, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 8.dp)) }
+            val freshIds = fresh.map { it.id }.toSet()
+            items(shown, key = { it.id }) { episode ->
+                EpisodeItemRow(m, env, InboxEpisode(episode, feed.show), withShow = false, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 6.dp),
+                    fresh = episode.id in freshIds)
+            }
             if (feed.nextPage != null) item(key = "older") {
                 Column(Modifier.fillMaxWidth().padding(horizontal = side).padding(top = 8.dp)) {
                     m.archiveError?.let { Text(it, color = look.accent, style = fonts.body, modifier = Modifier.padding(horizontal = 4.dp)) }
@@ -231,130 +306,124 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
     }
 }
 
+/** The show's More menu: refresh, and (for a followed show) its own playback choices, which used to sit at the foot of Following. */
+@Composable private fun ShowMenu(m: PodioModel, env: PodioEnv, show: PodcastShow, feed: PodcastFeed?, open: Boolean, onDismiss: () -> Unit) {
+    val following = env.saved.shows.any { it.id == show.id }
+    val skip = env.saved.skipSilenceByShow[show.id]
+    val unplayedNew = feed?.episodes.orEmpty().map { it.item().id }.filter { env.isNew(it) }
+    OrbitMenu(open, onDismiss, listOfNotNull(
+        OrbitMenuItem("Refresh", icon = CosmoIcons.Replay) { m.open(show) },
+        OrbitMenuItem("Mark every episode seen", enabled = unplayedNew.isNotEmpty()) { m.markSeen(unplayedNew) }.takeIf { following },
+        OrbitMenuItem("Skip silence", detail = when (skip) { true -> "On for this show"; false -> "Off for this show"; null -> "App default" }, selected = skip == true) {
+            m.setShowSkipSilence(setOf(show.id), if (skip == true) false else true)
+        }.takeIf { following },
+        OrbitMenuItem("Copy feed address") { m.host.copyText(show.feed); m.notice = "Copied the feed address." },
+    ), orbitFonts(), orbitLook(), header = show.title.ifBlank { "Podcast" })
+}
+
 // ---- Following ---------------------------------------------------------------------------------------------------------------
 
 /**
- * Following (board section C): what was started and not finished first, then the newest episodes of every followed show, your shows
- * as records, your stations as discs, and the subscription tools (add by address, OPML import, paste, export and share).
+ * Following (board frame 5): "14 SHOWS · CHECKED 8 MIN AGO" and Refresh; New and Shows as two segments with their counts. New is
+ * the inbox: the shows with new episodes as discs with peach counts (a tap shows only that show's), then the new episodes by day
+ * with "Mark all seen", a swipe to the right putting one away. Shows is every followed show as a grid of covers with its count.
  */
 @Composable internal fun FollowingPage(m: PodioModel, env: PodioEnv, onRefresh: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val list = rememberLazyListState()
-    var allNew by remember { mutableStateOf(false) }
+    var segment by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
+    var only by remember { mutableStateOf<String?>(null) }
+    var byName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize().testTag("podio:following")) {
-        val wide = maxWidth >= 840.dp
         val side = orbitPageSide(maxWidth)
+        val (columns, cell) = stationCells(maxWidth, side, maxWidth >= 840.dp)
         val shows = env.saved.shows
-        val stations = env.saved.stations
-        val (started, fresh) = splitStarted(m.inbox, env)
-        val label = PodioFormat.episodeMeta(if (shows.isEmpty()) "" else "${shows.size} ${if (shows.size == 1) "show" else "shows"}",
-            if (stations.isEmpty()) "" else "${stations.size} ${if (stations.size == 1) "station" else "stations"}").ifBlank { "Shows and stations" }
+        val fresh = newEpisodes(m, env)
+        val counts = fresh.groupingBy { it.show.id }.eachCount()
+        val checked = env.saved.lastRefreshMs.takeIf { it > 0 }?.let { "Checked " + PodioFormat.ago(it) }.orEmpty()
+        val label = PodioFormat.episodeMeta(if (shows.isEmpty()) "" else "${shows.size} ${if (shows.size == 1) "show" else "shows"}", checked).ifBlank { "Shows you follow" }
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = env.bottom + 16.dp)) {
             item(key = "head") {
                 PodioHead("Following", label, fonts, look, side, env.onMusic) {
                     if (shows.isNotEmpty()) OrbitPageButton(CosmoIcons.Replay, "Refresh episodes", { if (!m.inboxLoading) onRefresh() })
                 }
             }
-            if (shows.isEmpty() && stations.isEmpty()) item(key = "empty") {
-                PodioMessage("Following", "Nothing followed yet", "Follow a podcast to see its new episodes here, or save a station with its heart.", fonts, look, side,
-                    "Browse podcasts") { env.chooseSection(PodioSection.PODCASTS) }
-            }
-            if (shows.isNotEmpty()) {
-                when {
-                    m.inboxLoading && m.inbox.isEmpty() -> item(key = "loading") { PodioSkeletonRows(4, look, side, Modifier.testTag("podio:loading")) }
-                    m.inboxError != null && m.inbox.isEmpty() -> item(key = "error") {
-                        PodioMessage("New episodes", "Couldn't refresh your shows", m.inboxError.orEmpty(), fonts, look, side, "Retry", onRefresh)
-                    }
-                    else -> {
-                        if (m.inboxError != null) item(key = "banner") { PodioBanner(m.inboxError.orEmpty(), "Retry", onRefresh, danger = true, look, fonts) }
-                        if (started.isNotEmpty()) {
-                            item(key = "continue") { OrbitPageSection("Continue listening", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 12.dp), subtitle = "Pick up where you stopped") }
-                            items(started, key = { "c-" + it.episode.id }) { EpisodeItemRow(m, env, it, withShow = true, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 8.dp)) }
-                        }
-                        item(key = "new") {
-                            OrbitPageSection("New episodes", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 12.dp),
-                                subtitle = "From ${shows.size} followed ${if (shows.size == 1) "show" else "shows"}")
-                        }
-                        if (fresh.isEmpty() && !m.inboxLoading) item(key = "none") {
-                            Text("Nothing new from your shows.", style = fonts.body, color = look.dim, modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 8.dp))
-                        }
-                        val visible = if (allNew) fresh else fresh.take(8)
-                        items(visible, key = { "n-" + it.episode.id }) { EpisodeItemRow(m, env, it, withShow = true, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 8.dp)) }
-                        if (fresh.size > 8) item(key = "all-new") { OrbitShowAll(allNew, fresh.size, fonts, look, { allNew = !allNew }, Modifier.padding(horizontal = side)) }
+            if (shows.isEmpty()) {
+                item(key = "empty") {
+                    PodioMessage("Following", "Nothing followed yet", "Follow a podcast to see its new episodes here, or bring your shows from another podcast app.",
+                        fonts, look, side, "Browse podcasts") { env.chooseSection(PodioSection.PODCASTS) }
+                }
+                item(key = "import") {
+                    OrbitChipRow(side, Modifier.padding(top = 12.dp)) {
+                        OrbitSelectChip("Import from another app", false, fonts, look, { if (!m.pickingFile) m.importOpml { } }, icon = Icons.Outlined.FileDownload, haptic = false,
+                            modifier = Modifier.testTag("podio:import-opml"))
                     }
                 }
-                item(key = "shows") {
-                    Column {
-                        OrbitPageSection("Your shows", Modifier.padding(horizontal = side + 4.dp).padding(top = 28.dp, bottom = 14.dp), subtitle = "${shows.size} followed")
-                        OrbitShelfRow(side + 4.dp, 18.dp) { items(shows, key = { "show-" + it.id }) { show -> ShowRecord(show, m, fonts, look, if (wide) 150.dp else 128.dp) } }
+                return@LazyColumn
+            }
+            item(key = "segments") {
+                OrbitChipRow(side, Modifier.padding(top = 16.dp)) {
+                    OrbitSelectChip("New" + if (fresh.isEmpty()) "" else " ${fresh.size}", segment == 0, fonts, look, { segment = 0 }, haptic = false, modifier = Modifier.testTag("podio:following:new"))
+                    OrbitSelectChip("Shows ${shows.size}", segment == 1, fonts, look, { segment = 1 }, haptic = false, modifier = Modifier.testTag("podio:following:shows"))
+                }
+            }
+            if (segment == 1) {
+                item(key = "order") {
+                    OrbitChipRow(side, Modifier.padding(top = 10.dp)) {
+                        OrbitSelectChip("Latest", !byName, fonts, look, { byName = false }, haptic = false)
+                        OrbitSelectChip("Name", byName, fonts, look, { byName = true }, haptic = false)
+                    }
+                }
+                val ordered = if (byName) shows.sortedBy { it.title.lowercase() } else shows.sortedByDescending { show ->
+                    m.inbox.firstOrNull { it.show.id == show.id }?.let { PodioFormat.publishedAt(it.episode.published) } ?: Long.MIN_VALUE
+                }
+                val rows = ordered.chunked(columns)
+                items(rows.size, key = { "shows-" + rows[it].first().id }) { index ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = side).padding(top = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        rows[index].forEach { show -> ShowRecord(show, m, fonts, look, cell, count = counts[show.id] ?: 0) }
+                        repeat(columns - rows[index].size) { Spacer(Modifier.width(cell)) }
+                    }
+                }
+                return@LazyColumn
+            }
+            when {
+                m.inboxLoading && m.inbox.isEmpty() -> item(key = "loading") { PodioSkeletonRows(4, look, side, Modifier.testTag("podio:loading")) }
+                m.inboxError != null && m.inbox.isEmpty() -> item(key = "error") {
+                    PodioMessage("New episodes", "Couldn't refresh your shows", m.inboxError.orEmpty(), fonts, look, side, "Retry", onRefresh)
+                }
+                else -> {
+                    if (m.inboxError != null) item(key = "banner") { PodioBanner(m.inboxError.orEmpty(), "Retry", onRefresh, danger = true, look, fonts) }
+                    if (counts.isNotEmpty()) item(key = "with-new") {
+                        OrbitShelfRow(side + 4.dp, 14.dp) {
+                            items(shows.filter { it.id in counts }, key = { "nshow-" + it.id }) { show ->
+                                val chosen = only == show.id
+                                Box(Modifier.padding(top = 14.dp)) {
+                                    ShowRecord(show, m, fonts, look, 64.dp, count = counts[show.id] ?: 0, subtitle = "", onClick = { only = if (chosen) null else show.id })
+                                    if (chosen) OrbitRing(72.dp, look.accent, progress = null, spinning = false, modifier = Modifier.offset((-4).dp, (-4).dp), stroke = 2.dp, moon = 0.dp)
+                                }
+                            }
+                        }
+                    }
+                    val shown = fresh.filter { only == null || it.show.id == only }
+                    if (shown.isEmpty() && !m.inboxLoading) item(key = "none") {
+                        Text("Nothing new from your shows. New episodes appear here as the refresh finds them.", style = fonts.body, color = look.dim,
+                            modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 16.dp))
+                    }
+                    PodioFormat.byDay(shown) { PodioFormat.publishedAt(it.episode.published) }.forEach { (day, entries) ->
+                        item(key = "day-$day") {
+                            Row(Modifier.fillMaxWidth().padding(start = side + 4.dp, end = side, top = 20.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                OrbitLabel("$day · ${entries.size} new", fonts, look.dim, Modifier.weight(1f))
+                                PodioTextAction("Mark all seen", look, fonts, { m.markSeen(entries.map { it.item().id }) })
+                            }
+                        }
+                        items(entries, key = { "n-" + it.episode.id }) {
+                            EpisodeItemRow(m, env, it, withShow = true, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 6.dp), fresh = true, swipe = EpisodeSwipe.SEEN)
+                        }
                     }
                 }
             }
-            if (stations.isNotEmpty()) item(key = "stations") {
-                Column {
-                    OrbitPageSection("Your stations", Modifier.padding(horizontal = side + 4.dp).padding(top = 28.dp, bottom = 12.dp), subtitle = "${stations.size} saved")
-                    OrbitShelfRow(side, 8.dp) { items(stations, key = { "fav-" + it.id }) { station -> StationTile(station, env, m, fonts, look, if (wide) 104.dp else 88.dp) } }
-                }
-            }
-            item(key = "tools") { SubscriptionTools(m, env, fonts, look, side) }
         }
-    }
-}
-
-/** The subscription tools as chips: add by address, import (file or paste), export and share. */
-@Composable private fun SubscriptionTools(m: PodioModel, env: PodioEnv, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
-    val hasShows = env.saved.shows.isNotEmpty()
-    var editingPlayback by remember { mutableStateOf(false) }
-    Column {
-        OrbitPageSection("Subscriptions", Modifier.padding(horizontal = side + 4.dp).padding(top = 30.dp, bottom = 12.dp),
-            subtitle = if (hasShows) "OPML keeps your follows and listening positions" else "Bring your shows from another podcast app")
-        if (hasShows) {
-            Text("Latest episodes per show in Following", style = fonts.body, color = look.dim,
-                modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 8.dp))
-            OrbitChipRow(side) {
-                for (limit in listOf(6, 12, 24)) OrbitSelectChip("$limit episodes", env.saved.inboxEpisodesPerShow == limit,
-                    fonts, look, { m.setInboxEpisodeLimit(limit) }, haptic = false)
-            }
-        }
-        OrbitChipRow(side) {
-            if (hasShows) OrbitSelectChip("Podcast playback", false, fonts, look, { editingPlayback = true }, haptic = false)
-            OrbitSelectChip("Add by RSS address", false, fonts, look, { m.addFeed = true }, icon = Icons.Outlined.Link, haptic = false)
-            OrbitSelectChip("Import OPML", false, fonts, look, { if (!m.pickingFile) m.importOpml { } }, icon = Icons.Outlined.FileDownload, haptic = false)
-            if (m.host.onImportOpmlFile != null) OrbitSelectChip("Paste OPML", false, fonts, look, { m.pasteOpml() }, icon = Icons.Outlined.ContentPaste, haptic = false)
-            OrbitSelectChip("Export OPML", false, fonts, look, { if (hasShows && !m.pickingFile) m.exportOpml() }, Modifier.alpha(if (hasShows) 1f else 0.45f),
-                icon = Icons.Outlined.FileUpload, haptic = false)
-            if (m.host.onShareOpmlFile != null) OrbitSelectChip("Share OPML", false, fonts, look, { if (hasShows) m.shareOpml() }, Modifier.alpha(if (hasShows) 1f else 0.45f),
-                icon = Icons.Outlined.RssFeed, haptic = false)
-        }
-    }
-    if (editingPlayback) {
-        var selected by remember { mutableStateOf(emptySet<String>()) }
-        var choice by remember { mutableStateOf<Boolean?>(true) }
-        com.cosmotune.ui.sheets.CosmoAlertDialog(
-            onDismissRequest = { editingPlayback = false }, title = "Podcast playback", scroll = false,
-            content = {
-                Column {
-                    OrbitChipRow(0.dp) {
-                        OrbitSelectChip("Skip silence", choice == true, fonts, look, { choice = true }, haptic = false)
-                        OrbitSelectChip("Keep silence", choice == false, fonts, look, { choice = false }, haptic = false)
-                        OrbitSelectChip("App default", choice == null, fonts, look, { choice = null }, haptic = false)
-                    }
-                    LazyColumn(Modifier.heightIn(max = 380.dp)) {
-                        items(env.saved.shows, key = { it.id }) { show ->
-                            OrbitSwitchRow(show.title, show.id in selected, { checked ->
-                                selected = if (checked) selected + show.id else selected - show.id
-                            }, detail = when (env.saved.skipSilenceByShow[show.id]) {
-                                true -> "Skip silence"; false -> "Keep silence"; null -> "App default"
-                            })
-                        }
-                    }
-                }
-            },
-            confirmLabel = "Apply", confirmEnabled = selected.isNotEmpty(), onConfirm = {
-                m.setShowSkipSilence(selected, choice); editingPlayback = false
-            }, dismissLabel = "Cancel", onDismiss = { editingPlayback = false },
-        )
     }
 }
 
@@ -371,25 +440,26 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
             if (env.downloaded.isEmpty()) item(key = "empty") {
                 PodioMessage("Downloads", "No downloads", "Download an episode to listen here without a connection.", fonts, look, side, "Browse podcasts") { env.chooseSection(PodioSection.PODCASTS) }
             } else item(key = "title") {
-                OrbitPageSection("Downloaded episodes", Modifier.padding(horizontal = side + 4.dp).padding(top = 26.dp, bottom = 12.dp), subtitle = "Play without a connection")
+                OrbitPageSection("Downloaded episodes", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp), subtitle = "Play without a connection")
             }
-            items(env.downloaded, key = { it.id }) { episode -> DownloadedRow(m, env, episode, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 8.dp)) }
+            items(env.downloaded, key = { it.id }) { episode -> DownloadedRow(m, env, episode, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 6.dp)) }
         }
     }
 }
 
-/** A downloaded episode: it plays from the saved file with the same identity and resume position. */
+/** A downloaded episode: it plays from the saved file with the same identity and resume position; the cross at its end removes it. */
 @Composable private fun DownloadedRow(m: PodioModel, env: PodioEnv, episode: PodioItem, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
     val resume = env.saved.progress[episode.id] ?: 0
     val completed = episode.id in env.saved.completedEpisodes
     val state = PodioFormat.heard(completed, resume, episode.durationSeconds * 1000).ifBlank { "Downloaded" }
     val now = env.playback.id == episode.id
+    val remove = m.host.onRemoveDownload?.let { { m.downloadToRemove = episode } }
     EpisodeRow(episode.title, PodioFormat.episodeMeta(episode.author, PodioFormat.duration(episode.durationSeconds), state), episode.artwork,
         heardFraction(env, episode.id, episode.durationSeconds * 1000), now = now, playing = now && env.playback.playing,
         progress = if (now) ({ env.playedFraction() }) else null, download = DownloadMark.NONE,
-        onPlay = { if (now) env.onToggle() else m.play(episode) }, onDownload = {},
-        onMore = if (m.host.onRemoveDownload != null) ({ m.downloadToRemove = episode }) else null,
-        fonts = fonts, look = look, modifier = modifier, moreLabel = "Remove downloaded episode")
+        onPlay = { if (now) env.onToggle() else m.play(episode) }, onDownload = {}, onMore = remove,
+        fonts = fonts, look = look, modifier = modifier, onToggle = env.onToggle,
+        end = if (remove != null && !now) ({ OrbitRoundButton(CosmoIcons.Close, "Remove downloaded episode", look.ink, remove, size = 36.dp) }) else null)
 }
 
 // ---- Search ----------------------------------------------------------------------------------------------------------------
@@ -413,8 +483,8 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
             OrbitChipRow(side, Modifier.padding(top = 14.dp)) {
                 OrbitSelectChip("Stations", stations, fonts, look, { m.browse(); m.searchShows = false }, icon = CosmoIcons.Radio, haptic = false)
                 OrbitSelectChip("Shows", !stations, fonts, look, { m.browse(); m.searchShows = true }, icon = Icons.Outlined.Podcasts, haptic = false)
-                FilterChips(m, fonts, look)
             }
+            OrbitChipRow(side, Modifier.padding(top = 8.dp)) { FilterChips(m, fonts, look) }
             LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = env.bottom + 16.dp)) {
                 if (stations) {
                     if (!m.directoryLoading) item(key = "count") {
@@ -429,7 +499,7 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                         else -> items(m.radio.take(400), key = { it.id }) { station ->
                             val current = env.playback.id == station.item().id
                             StationRow(station, env.saved.stations.any { it.id == station.id }, current, current && env.playback.playing, { m.playStation(station) },
-                                { m.toggleFavourite(station) }, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 8.dp))
+                                { m.toggleFavourite(station) }, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 6.dp))
                         }
                     }
                     item(key = "credit") { PodioCredit("Stations: Radio Browser · Imagery: NASA GIBS", fonts, look, side) }
@@ -447,7 +517,7 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                         }
                         else -> items(m.shows, key = { it.id }) { show ->
                             OrbitSongRow(show.title.ifBlank { "Podcast" }, show.author, show.artwork.takeIf(String::isNotBlank), fonts, look, { m.open(show) },
-                                Modifier.fillMaxWidth().padding(horizontal = side).padding(bottom = 8.dp))
+                                Modifier.fillMaxWidth().padding(horizontal = side).padding(bottom = 6.dp), height = 60.dp)
                         }
                     }
                 }
@@ -460,7 +530,8 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
 
 /**
  * An episode's page as a sheet: the colour card in its cover's colour with the cover as a disc, "EPISODE · 12 OCT · 48 MIN", the
- * title and the show, play (or resume) in the bite; then Download and the room as chips, and the show notes as text.
+ * title and the show, play (or resume) in the bite; then one row of actions (download, play next, add to the queue, mark played,
+ * the room) and Notes, Chapters and Transcript as tabs in the sheet itself.
  */
 @Composable internal fun EpisodeSheet(m: PodioModel, env: PodioEnv, entry: InboxEpisode, onDismiss: () -> Unit) {
     val fonts = orbitFonts()
@@ -469,13 +540,14 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
     val episode = entry.episode
     val progress = env.saved.progress[item.id] ?: 0
     val completed = item.id in env.saved.completedEpisodes
+    val played = env.isPlayed(item.id, episode.durationSeconds * 1000)
     val resumable = PodioFormat.progressFraction(completed, progress, episode.durationSeconds * 1000) > 0f
     val now = env.playback.id == item.id
-    val notes = remember(episode.id) { PodioFormat.plainText(episode.description) }
+    val queued = env.queue.entries.any { it.id == item.id }
     val art = item.artwork.takeIf(String::isNotBlank)
     val (fill, ink) = coverFill(art, episode.title)
     KitSheet(onDismiss) {
-        Column(Modifier.fillMaxWidth().heightIn(max = 680.dp).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp)
+        Column(Modifier.fillMaxWidth().heightIn(max = 720.dp).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp)
             .testTag("podio:episode-sheet"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             OrbitBiteCard(fill, Modifier.fillMaxWidth(), bite = {
                 OrbitPlayButton(now && env.playback.playing, { if (now) env.onToggle() else { m.playEpisode(entry); onDismiss() } }, look)
@@ -483,9 +555,9 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                 Column(Modifier.fillMaxWidth().padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 22.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         val heard = heardFraction(env, item.id, episode.durationSeconds * 1000)
-                        Box(Modifier.size(108.dp), contentAlignment = Alignment.Center) {
-                            Disc(art, 96.dp)
-                            if (heard > 0f) OrbitRing(108.dp, ink.copy(alpha = 0.8f), progress = { heard }, spinning = false, stroke = 1.5.dp, moon = 3.dp)
+                        Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) {
+                            Disc(art, 84.dp)
+                            if (heard > 0f) OrbitRing(96.dp, ink.copy(alpha = 0.8f), progress = { heard }, spinning = false, stroke = 1.5.dp, moon = 3.dp)
                         }
                         Column(Modifier.weight(1f)) {
                             OrbitLabel(PodioFormat.episodeMeta("Episode", PodioFormat.date(episode.published), PodioFormat.duration(episode.durationSeconds)), fonts, ink.copy(alpha = 0.75f))
@@ -495,7 +567,7 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                     }
                     Text(episode.title, style = fonts.heroTitle.copy(fontSize = 22.sp, lineHeight = 26.sp), color = ink, maxLines = 4, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 16.dp, end = 70.dp))
-                    val state = when { now -> "Playing now"; resumable -> PodioFormat.episodeMeta("Resume", PodioFormat.remaining(progress, episode.durationSeconds * 1000)); completed -> "Played"; else -> "" }
+                    val state = when { now -> "Playing now"; resumable -> PodioFormat.episodeMeta("Resume", PodioFormat.remaining(progress, episode.durationSeconds * 1000)); played -> "Played"; else -> "" }
                     if (state.isNotBlank()) Text(state, style = fonts.body, color = ink.copy(alpha = 0.8f), modifier = Modifier.padding(top = 6.dp, end = 70.dp))
                 }
             }
@@ -510,16 +582,18 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                     } else Text("Downloaded", style = fonts.body, color = look.dim)
                     DownloadMark.NONE -> {}
                 }
+                if (!now) OrbitSelectChip("Play next", false, fonts, look, { m.playNext(entry); onDismiss() }, icon = CosmoIcons.Queue, haptic = false,
+                    modifier = Modifier.testTag("podio:episode:play-next"))
+                if (!now && !queued) OrbitSelectChip("Add to queue", false, fonts, look, { m.addToQueue(entry); onDismiss() }, icon = CosmoIcons.Plus, haptic = false,
+                    modifier = Modifier.testTag("podio:episode:queue"))
+                OrbitSelectChip(if (played) "Mark unplayed" else "Mark played", false, fonts, look, { m.markPlayed(item, episode.durationSeconds * 1000, !played) },
+                    icon = CosmoIcons.Check, haptic = false)
                 // The episode for everyone in the room, each device fetching it itself; hidden where rooms are not offered.
                 RoomPlayButton(remember(item.id) { item.roomItem() })
             }
-            PodcastExtrasControls(episode, m.catalogue) { position ->
-                if (now) env.onSeek(position) else m.playEpisodeAt(entry, position)
-            }
-            if (notes.isNotBlank()) {
-                OrbitLabel("Show notes", fonts, look.dim, Modifier.padding(top = 6.dp))
-                Text(notes, style = fonts.body.copy(fontSize = 14.sp, lineHeight = 21.sp), color = look.ink)
-            }
+            EpisodeExtras(episode, m.catalogue, positionMs = if (now) env.playback.positionMs else null,
+                onSeek = { position -> if (now) env.onSeek(position) else m.playEpisodeAt(entry, position) },
+                start = ExtrasTab.NOTES, listHeight = 360.dp)
         }
     }
 }
