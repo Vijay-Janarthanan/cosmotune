@@ -318,6 +318,13 @@
     <string name="cosmo_settings_cat_read_summary">Reader look, connected libraries</string>
     <string name="cosmo_settings_cat_podio">Podio</string>
     <string name="cosmo_settings_cat_podio_summary">Speed, skip silence, new episodes, OPML</string>
+    <string name="cosmo_settings_cat_manga">Manga</string>
+    <string name="cosmo_settings_cat_manga_summary">Reader, storage, sources, updates, backup</string>
+    <string name="cosmo_settings_group_modes">Modes</string>
+    <string name="cosmo_settings_group_general">General</string>
+    <string name="cosmo_settings_this_mode">This mode</string>
+    <string name="cosmo_settings_open_manga">Open Manga</string>
+    <string name="cosmo_settings_open_manga_summary">Your series, Updates, Browse and History</string>
     <string name="cosmo_settings_cat_listening">Listening tools &amp; recommendations</string>
     <string name="cosmo_settings_cat_listening_summary">Replay, genres and what Autoplay learns from you</string>
     <string name="cosmo_settings_cat_integrations">Integrations</string>
