@@ -587,4 +587,7 @@
     <string name="video_subscriptions_label">Your channels</string>
     <string name="video_library_label">Yours</string>
     <string name="video_settings_label">Video mode</string>
+    <string name="video_action_later">Later</string>
+    <string name="video_action_song">Song</string>
+    <string name="video_action_together">Together</string>
 </resources>

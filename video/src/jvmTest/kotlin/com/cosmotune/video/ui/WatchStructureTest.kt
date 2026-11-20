@@ -328,7 +328,9 @@ class WatchStructureTest {
         assertTrue("UpNextShow.LOADING -> items(SKELETON_ROWS" in upNext && "UpNextSkeletonRow(desktop)" in upNext, "a skeleton of rows")
         assertTrue("Res.string.video_up_next_empty" in upNext && "Res.string.video_up_next_error" in upNext && "Res.string.video_retry" in upNext, "the note and Try again")
         assertTrue("onRetry = callbacks.onRetryRelated" in upNext)
-        assertTrue("upNextSection(view, watched, downloaded, desktop = false, callbacks = callbacks)" in flat(file("WatchPage")), "the phone's column")
+        assertTrue("upNextSection(view, watched, downloaded, desktop = false, callbacks = callbacks, header = false)" in flat(file("WatchPage")), "the phone's column (its tab row carries Up next and Autoplay)")
+        assertTrue("WatchPhoneTabs(segments, chosen, onChoose, view.autoplay.takeIf { view.upNext != UpNextShow.NONE }, callbacks.onAutoplay, fonts, look)" in flat(file("WatchPage")), "the phone's tabs with Autoplay at their end")
+        assertTrue("stickyHeader(key = \"segments\")" in flat(file("WatchPage")), "the tabs stay under the video")
         assertTrue("upNextSection(view, watched, downloaded, desktop = true, callbacks = callbacks)" in flat(file("WatchPageWide")), "the wide side column")
         assertTrue("onRetryRelated = { playback.retryRelated() }" in flat(file("WatchPage")), "Try again goes through the playback")
     }

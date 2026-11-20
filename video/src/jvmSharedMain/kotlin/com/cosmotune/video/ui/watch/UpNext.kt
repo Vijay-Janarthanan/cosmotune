@@ -84,9 +84,11 @@ internal fun LazyListScope.upNextSection(
     downloaded: State<Set<String>>,
     desktop: Boolean,
     callbacks: WatchCallbacks,
+    header: Boolean = true,
 ) {
     if (view.upNext == UpNextShow.NONE) return
-    item(key = "upnext") { UpNextHeader(view.autoplay, callbacks.onAutoplay) }
+    // The phone's tab row carries "Up next" and Autoplay itself ([WatchPhoneTabs]); the wide page has the heading.
+    if (header) item(key = "upnext") { UpNextHeader(view.autoplay, callbacks.onAutoplay) }
     when (view.upNext) {
         UpNextShow.LIST -> upNextRows(view.related, watched, downloaded, desktop, onPlay = callbacks.onPlay, onMore = callbacks.onMore)
         UpNextShow.LOADING -> items(SKELETON_ROWS, key = { "upnext-skeleton:$it" }) { UpNextSkeletonRow(desktop) }
@@ -196,6 +198,16 @@ internal fun UpNextRow(item: VideoItem, watchedFraction: Float?, downloaded: Boo
         title = title,
         downloaded = downloaded,
     )
+}
+
+/** How far [item] was watched, from the history (null when it has no bar); for a list that draws its rows one by one. */
+@Composable
+internal fun rememberWatchedFraction(item: VideoItem): Float? {
+    val history = LocalVideoGraph.current.library.history.collectAsState()
+    val fraction by remember(item.id, history) {
+        derivedStateOf { history.value.firstOrNull { it.item.id == item.id }?.let { it.item.watchedFraction(it.positionMs, it.durationMs) } }
+    }
+    return fraction
 }
 
 /**
