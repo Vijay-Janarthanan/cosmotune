@@ -112,4 +112,10 @@ class SettingsHubContractTest {
         assertTrue(gap.contains("dividerPlaced"), "the gap is what parts two tiles")
         assertTrue(blocks.contains("header.uppercase()"), "a group's header is an overline in capitals")
     }
+
+    @Test fun theReadPageOpensReadModeNotManga() {
+        assertTrue(Regex("""ModeLinkRow\(AppMode\.READ\b[^)]*openReadTitle""").containsMatchIn(sheet), "the phone's Read page opens Read mode")
+        assertTrue(Regex("""DesktopModeLink\(AppMode\.READ\b[^\n]*OPEN_READ\b""").containsMatchIn(desktop), "the desktop's Read page opens Read mode")
+        assertFalse(Regex("""AppMode\.MANGA[^\n]*(openReadTitle|OPEN_READ\b)""").containsMatchIn(sheet + desktop), "no Read link opens Manga")
+    }
 }

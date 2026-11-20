@@ -1667,7 +1667,7 @@ fun SettingsScreen(
             val openReadTitle = SettingsText.OPEN_READ.text()
             val openReadSummary = SettingsText.OPEN_READ_SUMMARY.text()
             row(openReadTitle, "manga", "books", "reader", "komga", "epub", summary = openReadSummary) {
-                ModeLinkRow(AppMode.MANGA, Icons.AutoMirrored.Rounded.MenuBook, openReadTitle, openReadSummary)
+                ModeLinkRow(AppMode.READ, Icons.AutoMirrored.Rounded.MenuBook, openReadTitle, openReadSummary)
             }
         }
         SearchableSettingsGroup(search, category = SettingsCategory.PODIO) {

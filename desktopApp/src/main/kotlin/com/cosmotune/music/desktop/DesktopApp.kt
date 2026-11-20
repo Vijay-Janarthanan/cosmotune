@@ -6604,7 +6604,7 @@ private fun DesktopSettingsScreen(
                 }
             }
             DesktopSettingsSection.READ -> {
-                DesktopModeLink(AppMode.MANGA, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_READ.text(), com.cosmotune.ui.settings.SettingsText.OPEN_READ_SUMMARY.text())
+                DesktopModeLink(AppMode.READ, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_READ.text(), com.cosmotune.ui.settings.SettingsText.OPEN_READ_SUMMARY.text())
             }
             DesktopSettingsSection.PODIO -> {
                 DesktopModeLink(AppMode.PODIO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_PODIO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_PODIO_SUMMARY.text())
