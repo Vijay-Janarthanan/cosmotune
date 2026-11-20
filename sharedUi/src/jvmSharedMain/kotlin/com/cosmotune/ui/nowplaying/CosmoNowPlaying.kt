@@ -283,8 +283,9 @@ fun CosmoNowPlaying(
     val colors = shell?.coverColors ?: LocalCosmoColors.current
     // Dark status icons in the light theme; light over Cinema's black.
     StatusBarIcons(dark = shell != null && !colors.dark && !cinemaShown)
-    // The lyrics keep the screen on while they show, and so does Cinema.
-    KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown)
+    // The lyrics keep the screen on while they show, and so does Cinema, and so does the song's video while it shows and plays.
+    KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||
+        (wantVideo && rendered && isPlaying))
 
     // ---- the Orbit pieces: the look of the colours above, the screen button's menu, the more menu ------------------------
     val orbitType = orbitFonts()

@@ -145,7 +145,8 @@ class NowPlayingPanelsContractTest {
             assertTrue(call.contains("hazeState = hazeState"), "$sheet takes the player's haze state")
         }
         assertTrue(src.contains("currentSource = lyricsSource") && src.contains("states = lyricsProviderStates") && src.contains("onSelect = onSelectLyricsProvider"))
-        assertTrue(src.contains("KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown)"))
+        assertTrue(src.contains("KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||"))
+        assertTrue(src.contains("(wantVideo && rendered && isPlaying))"), "the song's video keeps the screen on while it plays")
         assertTrue(src.contains("flags.providers = true") || src.contains("sheets.providers = true"), "the lyrics status opens the provider sheet")
         for (page in listOf("NowPlayingPhone.kt", "NowPlayingWide.kt")) {
             assertTrue(code(nowPlaying(page)).contains("Box(modifier.fillMaxSize().hazeSource(hazeState))"), "$page: the page is what the sheets blur")

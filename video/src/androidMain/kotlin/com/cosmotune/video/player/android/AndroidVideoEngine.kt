@@ -491,8 +491,16 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
 
     // ---- VideoSurfaceProvider -------------------------------------------------------------------------------------------------
 
+    /** Whether a picture of this player is playing (or buffering to play) video, not paused, ended or audio only: the screen stays on. */
+    @Composable
+    private fun KeepScreenAwakeWhilePlaying() {
+        val awake by remember { snapshotValues.map { it.playing && !it.audioOnly }.distinctUntilChanged() }.collectAsState(false)
+        KeepScreenAwake(awake)
+    }
+
     @Composable
     override fun Surface(modifier: Modifier, scale: VideoScale) {
+        KeepScreenAwakeWhilePlaying()
         val player = surfacePlayer
         val smooth by smoothing.route.collectAsState()
         if (smooth && player != null) {
@@ -513,6 +521,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     /** The picture of a local file under the person's aspect choice: `ContentFrame` with a [ContentScale] that follows [AspectMath]. */
     @Composable
     override fun Surface(modifier: Modifier, aspect: VideoAspect) {
+        KeepScreenAwakeWhilePlaying()
         val player = surfacePlayer
         val smooth by smoothing.route.collectAsState()
         if (smooth && player != null) {
