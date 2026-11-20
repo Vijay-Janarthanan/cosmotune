@@ -274,6 +274,8 @@ weights to the native installers. See `web/docs/automix.md` for storage and vali
 
 Reviewed revisions and attribution are recorded in `docs/UPSTREAM_SNAPSHOT_2026-11-16.json` and the associated implementation records. LastWave Native, AETHER, Lokal, Kotatsu-Redo and the podcast reference projects supplied reviewed behavior and compatible integration work under their recorded licenses. The Manga runtime dependency is Kotatsu-Redo `a90648aebdf61c47b9eed4bec351332306aeff6a`; signed parser publications include its source revision and license. Existing notices and dependency licenses remain applicable.
 
+Playback recovery (`shared/.../playback/recovery/`) follows reviewed behavior from two GPL-3.0 projects, written again for Cosmotune rather than copied: Metrolist (waiting out a lost network on a 1 s to 10 s backoff for up to two minutes; the 12-second progress watchdog) and LastWave Native `c3594b90a6` (stopping at the end of the queue when the last song fails; a new shuffle order for every repeat-all round).
+
 Euthopiar has no repository license at the reviewed revision: Cosmotune's Watch batch, layout and add-on behavior is independently implemented, without importing its source. The macOS MediaPlayer bridge is also original; unlicensed LastWave Desktop bridge source was not copied. AETHER Constellations and ContinuousLine modes are excluded by product choice.
 
 ## Read document engines and catalogues

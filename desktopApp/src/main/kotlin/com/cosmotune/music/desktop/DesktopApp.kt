@@ -1434,7 +1434,7 @@ fun CosmotuneDesktopApp() {
                 playCurrent()
             }
             repeatMode == DesktopRepeatMode.ALL && liveQueue.songs.isNotEmpty() -> {
-                liveQueue = liveQueue.copy(index = 0)
+                liveQueue = liveQueue.copy(index = 0).newRound(wrappedFrom = liveQueue, shuffle = shuffle)
                 playCurrent()
             }
             DesktopAutoplay.enabled(DesktopListenTogether.state.value, autoplay) ->
@@ -1624,7 +1624,10 @@ fun CosmotuneDesktopApp() {
                     // The queue moves with the audio. Only the selection used to, which left the
                     // queue on the track that had just finished — so Next "advanced" onto the song
                     // already playing, and every later skip landed one behind.
-                    liveQueue = liveQueue.afterHandoffTo(song.videoId)
+                    liveQueue = liveQueue.afterHandoffTo(song.videoId).let { handed ->
+                        // A blend that wrapped repeat-all round deals the new round a fresh order too.
+                        if (repeatMode == DesktopRepeatMode.ALL && !liveQueue.hasNext && handed.index == 0) handed.newRound(wrappedFrom = liveQueue, shuffle = shuffle) else handed
+                    }
                     saveQueue()
                     selectedSong = song
                     history = (listOf(song) + history.filterNot { it.videoId == song.videoId }).take(50)

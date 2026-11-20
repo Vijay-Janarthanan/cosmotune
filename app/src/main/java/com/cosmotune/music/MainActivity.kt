@@ -893,7 +893,9 @@ private fun CosmotuneApp(
     // Folded into the buffering flag every play button already answers to, since
     // to a listener the two are the same fact: it is coming, wait.
     val awaitingPartyStart by ListenTogether.awaitingStart.collectAsStateWithLifecycle()
-    val playPauseBusy = player.isLoading || awaitingPartyStart
+    // Waiting for the network after a dropped connection is the same fact again: it is coming.
+    val reconnecting by com.cosmotune.music.playback.recovery.PlaybackReconnectStatus.reconnecting.collectAsStateWithLifecycle()
+    val playPauseBusy = player.isLoading || awaitingPartyStart || (reconnecting != null && reconnecting == player.song?.videoId)
     // Listening in a party whose host has taken the controls. Read once here
     // and handed to every surface, so the player, the mini player and the glass
     // bar can never disagree about whether this device may drive the music.

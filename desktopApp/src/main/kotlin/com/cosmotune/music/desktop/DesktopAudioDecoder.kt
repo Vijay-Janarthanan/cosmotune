@@ -96,6 +96,16 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
     /** Set once the container is exhausted, so the drain runs exactly once. */
     private var drained = false
 
+    /** The error the container's read stopped on, when it was not the end of the file. */
+    private var readError: Int? = null
+
+    /**
+     * Whether a stream that stops early throws [DesktopStreamException] from [readSamples] instead
+     * of ending as though finished. The player turns it on to reconnect; the analysers, which only
+     * read what they can get, leave it off.
+     */
+    var failOnEarlyEnd = false
+
     /** Live only while this decoder reads through windowed HTTP; see [open]. */
     private var rangeSource: DesktopRangeStream? = null
     private var avio: DesktopAvio.Input? = null
@@ -169,7 +179,19 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
             else -> null
         }
         val status = avformat_open_input(opened, if (windowed) null as String? else url, inputFormat, options)
-        check(status >= 0) { "could not open stream (${describe(status)})" }
+        if (status < 0) {
+            // Typed, so the player can tell a connection that is down, or a link that has expired,
+            // from a stream nothing can read.
+            val described = describe(status)
+            val fetched = rangeSource?.failure as? DesktopStreamException
+            val parsed = DesktopStreamFailures.fromFfmpeg(described)
+            throw DesktopStreamException(
+                "could not open stream ($described)",
+                httpStatus = fetched?.httpStatus ?: parsed.httpStatus,
+                network = fetched?.network ?: parsed.network,
+                cause = fetched,
+            )
+        }
         format = opened
         check(avformat_find_stream_info(opened, null as AVDictionary?) >= 0) { "no stream info" }
 
@@ -294,6 +316,23 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
         return context
     }
 
+    /**
+     * Why the stream ended early, or null when it simply ended. A windowed read's own account comes
+     * first: FFmpeg was only told "end of file" or "I/O error" by the callback that fetched it.
+     */
+    private fun endFailure(): DesktopStreamException? {
+        rangeSource?.failure?.let { return it as? DesktopStreamException ?: DesktopStreamException(it.message ?: "read failed", cause = it) }
+        avio?.failure?.let { thrown ->
+            return DesktopStreamException(
+                "stream read failed: ${thrown.message ?: thrown.javaClass.simpleName}",
+                network = com.cosmotune.music.playback.recovery.PlaybackFailures.isNetworkException(thrown),
+                cause = thrown,
+            )
+        }
+        val status = readError ?: return null
+        return DesktopStreamFailures.fromFfmpeg(describe(status))
+    }
+
     /** FFmpeg's own words for an AVERROR, so a failure says what it was. */
     private fun describe(status: Int): String {
         val text = ByteArray(256)
@@ -346,7 +385,10 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
 
     /** The next block as interleaved floats, or null at the end of the stream. */
     override fun readSamples(): FloatArray? {
-        val block = read() ?: return null
+        val block = read() ?: run {
+            if (failOnEarlyEnd) endFailure()?.let { throw it }
+            return null
+        }
         val count = block.size / 4
         if (samples.size < count) samples = FloatArray(count)
         for (index in 0 until count) {
@@ -372,6 +414,9 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
         if (drained) return false
         val read = av_read_frame(container, pkt)
         if (read < 0) {
+            // Drained either way, so what was already decoded still plays; the error is raised once
+            // it has (see [readSamples]).
+            if (read != AVERROR_EOF) readError = read
             avcodec_send_packet(context, null as AVPacket?)
             drained = true
             return true
@@ -454,6 +499,7 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
         if (av_seek_frame(container, streamIndex, target, AVSEEK_FLAG_BACKWARD) < 0) return false
         avcodec_flush_buffers(context)
         drained = false
+        readError = null
         positionUs = micros
         trimBeforeUs = micros.takeIf { it > 0 }
         return true

@@ -545,6 +545,27 @@ object QueueShuffle {
         return true
     }
 
+    /**
+     * A new round of a shuffled repeat-all queue: the context tracks after the one now playing are
+     * dealt a fresh order, so the round is not the last one again. The same sections as [shuffle]
+     * (the listener's own queue first, AutoPlay last), and nothing about the order to restore when
+     * shuffle goes off is touched — that is still the canonical one.
+     */
+    internal fun reshuffleRound(player: Player): Boolean {
+        if (!_enabled.value) return false
+        val items = player.queueItems()
+        val currentIndex = player.currentMediaItemIndex
+        val from = if (isNextItemImminent(player)) currentIndex + 2 else currentIndex + 1
+        if (currentIndex !in items.indices || from >= items.size) return false
+        val upcoming = items.drop(from)
+        val contextIndices = upcoming.indices.filter { upcoming[it].queueTier == QueueTier.CONTEXT }
+        if (contextIndices.size < 2) return false
+        val order = upcoming.indices.filter { upcoming[it].queueTier == QueueTier.USER_QUEUE } +
+            shuffledSection(contextIndices) +
+            upcoming.indices.filter { upcoming[it].queueTier == QueueTier.AUTOPLAY }
+        return reorder(player, from, order.toIntArray())
+    }
+
     private fun Player.queueItems(): List<MediaItem> =
         List(mediaItemCount) { getMediaItemAt(it) }
 }

@@ -869,6 +869,14 @@ object StreamResolver {
         recent.remove(videoId)
     }
 
+    /**
+     * Drops the link held for [videoId], so the next play resolves a fresh one. For a stream that
+     * stalled without an error, where no response code ever named the link as the problem.
+     */
+    fun forgetResolved(videoId: String) {
+        recent.remove(videoId)
+    }
+
     // ---- Failsafe -----------------------------------------------------------
 
     /**

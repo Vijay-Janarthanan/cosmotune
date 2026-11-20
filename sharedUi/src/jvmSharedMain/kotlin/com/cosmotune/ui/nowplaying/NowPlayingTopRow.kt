@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -56,8 +57,13 @@ internal fun NowPlayingTopRow(
     var moreOpen by androidx.compose.runtime.remember { mutableStateOf(false) }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         OrbitRoundButton(CosmoIcons.ChevronDown, "Close the player", look.ink, dismiss)
+        // While a dropped connection is being waited out, the row says so instead of where the
+        // music comes from; the play button spins meanwhile (see CosmoNowPlaying).
+        val reconnecting by com.cosmotune.music.playback.recovery.PlaybackReconnectStatus.reconnecting
+            .collectAsState()
         Text(
-            "FROM · ${source.uppercase()}", style = fonts.label, color = look.ink.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            if (reconnecting != null) com.cosmotune.music.playback.recovery.PlaybackReconnectStatus.LABEL
+            else "FROM · ${source.uppercase()}", style = fonts.label, color = look.ink.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onOpenOrigin).padding(vertical = 10.dp, horizontal = 4.dp),
         )
         if (chips) {
