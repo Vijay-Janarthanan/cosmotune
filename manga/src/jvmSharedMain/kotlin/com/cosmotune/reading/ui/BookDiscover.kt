@@ -351,7 +351,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
 }
 
 @Composable
-private fun BookConnections(repository: ReadingRepository, onDismiss: () -> Unit, onError: (String?) -> Unit) {
+internal fun BookConnections(repository: ReadingRepository, onDismiss: () -> Unit, onError: (String?) -> Unit) {
     val state by repository.state.collectAsUiState()
     val scope = rememberUiCoroutineScope()
     var name by remember { mutableStateOf("") }

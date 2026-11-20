@@ -7,7 +7,9 @@ import com.cosmotune.cache.SLOW_FRESH_MS
 import com.cosmotune.ui.states.collectOnPage
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -77,16 +79,25 @@ fun ReadApp(
     if (repository != null) return ReadContent(repository, remember(repository) { PageCache.of(repository, persistent = false) },
         contentPadding, onMusic.takeIf { showLeave }, onReaderVisibility, showNavigation, showAccount)
     var retry by remember { mutableIntStateOf(0) }
-    val manga = key(retry) { rememberMangaRepository() }
-    val books = remember(manga, retry) { runCatching {
-        val ready = manga.getOrThrow()
-        ReadingRepository(File(ready.store.root.parentFile, "reading"), protection = ready.store.protection)
-    } }
+    val books = key(retry) { rememberReadingRepository() }
     val ready = books.getOrNull()
     if (ready == null) Column(Modifier.fillMaxSize().padding(contentPadding)) {
         ReadPageHead("Read", "Storage")
         ReadError(books.exceptionOrNull()?.message ?: "Check storage access and try again.", onRetry = { retry++ }, title = "Your reading library could not be opened")
     } else ReadContent(ready, PageCache.shared, contentPadding, onMusic.takeIf { showLeave }, onReaderVisibility, showNavigation, showAccount)
+}
+
+/** The reading library beside Manga's storage: one for the process (Read itself and Settings › Read share it). */
+internal object ReadingLibrary {
+    private var instance: ReadingRepository? = null
+    @Synchronized fun of(manga: com.cosmotune.manga.data.MangaRepository): ReadingRepository = instance ?: ReadingRepository(
+        File(manga.store.root.parentFile, "reading"), protection = manga.store.protection).also { instance = it }
+}
+
+@Composable
+internal fun rememberReadingRepository(): Result<ReadingRepository> {
+    val manga = rememberMangaRepository()
+    return remember(manga) { runCatching { ReadingLibrary.of(manga.getOrThrow()) } }
 }
 
 /** Where Read is: its tab and what is pushed over it. */
@@ -234,8 +245,13 @@ internal fun ReadingState.bookLabel(book: ReadingBook): String = listOfNotNull(
 private fun BookCard(scope: ReadScope, book: ReadingBook, width: Dp? = null) {
     val state by scope.repository.state.collectAsUiState()
     val fraction = state.fraction(book).takeIf { book.id !in state.finished }
-    ReadCoverCard(book.title, state.bookLine(book), book.coverPath?.let(::File), onClick = { scope.navigation.book = book }, width = width, key = book.id,
-        progress = fraction, onContinue = if (fraction != null) ({ scope.open(book) }) else null)
+    Box {
+        ReadCoverCard(book.title, book.authors.firstOrNull(), book.coverPath?.let(::File), onClick = { scope.navigation.book = book }, width = width, key = book.id,
+            progress = fraction, onContinue = if (fraction != null) ({ scope.open(book) }) else null)
+        val badge = if (book.id in state.finished) "Finished" else fraction?.let { "${(it * 100).toInt()} %" }
+        if (badge != null) Text(badge, style = orbitFonts().label.copy(fontSize = 11.sp), color = orbitLook().ground, maxLines = 1,
+            modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(ReadShape.sm).background(orbitLook().ink.copy(alpha = 0.82f)).padding(horizontal = 6.dp, vertical = 2.dp))
+    }
 }
 
 @Composable
@@ -243,28 +259,34 @@ internal fun PublicationCard(scope: ReadScope, publication: ReadingPublication, 
     ReadCoverCard(publication.title, publication.authors.firstOrNull(), publication.coverUrl, onClick = { scope.navigation.publication = publication }, width = width, key = publication.id)
 }
 
+/** The order of Read's library: the latest read or added first, the title, or when it was added. */
+internal enum class BookOrder(val label: String) { RECENT("Last read"), TITLE("Title"), ADDED("Added") }
+
+internal fun List<ReadingBook>.ordered(order: BookOrder, state: ReadingState): List<ReadingBook> = when (order) {
+    BookOrder.RECENT -> this
+    BookOrder.TITLE -> sortedBy { it.title.lowercase() }
+    BookOrder.ADDED -> sortedByDescending { it.addedAtMs }
+}
+
 /**
- * Library (board D): the book being read as the colour card with Continue in its bite, the other books in progress as covers,
- * today's trending books on Open Library, then the search pill and the shelves as chips over the grid. Import is the heading's
- * action.
+ * Library (board frame 7): the book you are reading as the one colour card; quick tiles with counts (Bookmarks, Downloaded, Saved
+ * for later, Finished); then Your books with the shelves as chips with their counts, the order and the list view, over the grid of
+ * covers, each with its progress. Import and Search are the heading's actions; Trending lives in Browse.
  */
 @Composable
 private fun BookLibrary(scope: ReadScope) {
     val state by scope.repository.state.collectAsUiState()
     val grid = rememberLazyGridState()
     var shelf by rememberSaveable { mutableStateOf(BookShelf.ALL) }
-    var query by rememberSaveable { mutableStateOf("") }
-    val books = state.shelf(shelf, query)
-    val saved = if (shelf == BookShelf.SAVED) state.saved.filter { query.isBlank() || (it.title + " " + it.authors.joinToString(" ")).contains(query.trim(), true) } else emptyList()
+    var order by rememberSaveable { mutableStateOf(BookOrder.RECENT) }
+    var rows by rememberSaveable { mutableStateOf(false) }
+    val books = state.shelf(shelf, "").ordered(order, state)
+    val saved = if (shelf == BookShelf.SAVED) state.saved else emptyList()
     val reading = state.books.filter { it.id in state.progress && it.id !in state.finished }.sortedByDescending { state.progress[it.id]?.updatedAtMs ?: 0L }
-    val front = shelf == BookShelf.ALL && query.isBlank()
-    val hero = reading.firstOrNull()?.takeIf { front }
-    // Today's trending books as they were last loaded, at once, refreshed in the background (taken on the UI thread).
-    val trendingEntry = remember(scope.pages, scope.repository) { readTrending(scope.pages, scope.repository) }
-    val trending = trendingEntry.collectOnPage().value.data?.publications.orEmpty().take(15)
-    LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().testTag("books:library"), state = grid,
+    val hero = reading.firstOrNull()
+    LazyVerticalGrid(if (rows) GridCells.Fixed(1) else GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().testTag("books:library"), state = grid,
         contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
-        horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(if (rows) 6.dp else 18.dp)) {
         item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {
             val count = state.books.size
             ReadPageHead("Library", if (count == 1) "1 book · ${reading.size} reading" else "$count books · ${reading.size} reading", Modifier.readBleed()) {
@@ -273,28 +295,20 @@ private fun BookLibrary(scope: ReadScope) {
             }
         }
         if (hero != null) item(key = "hero:${hero.id}", span = { GridItemSpan(maxLineSpan) }) { BookHero(scope, hero, state) }
-        if (front && reading.size > 1) item(key = "continue", span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.readBleed()) {
-                ReadSection("Continue")
-                LazyRow(contentPadding = PaddingValues(horizontal = ReadMargin), horizontalArrangement = Arrangement.spacedBy(ReadGutter)) {
-                    items(reading.drop(1).take(12), key = { "continue:${it.id}" }) { book -> BookCard(scope, book, width = 112.dp) }
-                }
-            }
+        if (state.books.isNotEmpty() || state.saved.isNotEmpty()) item(key = "tiles", span = { GridItemSpan(maxLineSpan) }) {
+            BookTiles(state, Modifier.padding(top = 4.dp), onBookmarks = { scope.navigation.select(BookTabs.BOOKMARKS) }, onShelf = { shelf = it })
         }
-        if (front && trending.isNotEmpty()) item(key = "trending", span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.readBleed()) {
-                ReadSection("Trending on Open Library", onSeeAll = { scope.navigation.select(BookTabs.BROWSE) })
-                LazyRow(contentPadding = PaddingValues(horizontal = ReadMargin), horizontalArrangement = Arrangement.spacedBy(ReadGutter)) {
-                    items(trending, key = { "trending:${it.id}" }) { publication -> PublicationCard(scope, publication, width = 112.dp) }
-                }
-            }
-        }
-        item(key = "search", span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
             Column(Modifier.readBleed(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReadSection("Your books", subtitle = shelf.label)
-                ReadSearchField(query, { query = it }, "Search your books", Modifier.testTag("books:library-search"))
+                ReadSection("Your books", subtitle = shelf.label + " · " + order.label)
                 ReadChipRow(Modifier.padding(vertical = 4.dp)) {
-                    BookShelf.entries.forEach { item -> ReadChip(item.label, shelf == item, { shelf = item }, Modifier.testTag("books:shelf:${item.label}")) }
+                    listOf(BookShelf.ALL, BookShelf.READING, BookShelf.UNREAD, BookShelf.FINISHED).forEach { item ->
+                        ReadChip(item.label + " ${state.shelf(item, "").size}", shelf == item, { shelf = item }, Modifier.testTag("books:shelf:${item.label}"))
+                    }
+                    ReadChip(BookShelf.SAVED.label + " ${state.saved.size}", shelf == BookShelf.SAVED, { shelf = BookShelf.SAVED }, Modifier.testTag("books:shelf:${BookShelf.SAVED.label}"))
+                    ReadPill(order.label, icon = CosmoIcons.Sort, onClick = { order = BookOrder.entries[(order.ordinal + 1) % BookOrder.entries.size] },
+                        modifier = Modifier.testTag("books:order"))
+                    ReadIconButton(if (rows) CosmoIcons.Grid else CosmoIcons.List, if (rows) "Show as a grid" else "Show as a list", { rows = !rows }, Modifier.testTag("books:layout"))
                 }
             }
         }
@@ -302,22 +316,64 @@ private fun BookLibrary(scope: ReadScope) {
             if (saved.isEmpty()) item(key = "saved:empty", span = { GridItemSpan(maxLineSpan) }) {
                 ReadEmpty("Save something for later", "Books you save from Browse appear here. Import an EPUB or PDF to read your own copy.", Modifier.readBleed())
             }
-            items(saved, key = { "saved:${it.id}" }) { publication -> PublicationCard(scope, publication) }
+            items(saved, key = { "saved:${it.id}" }) { publication ->
+                if (rows) ReadCoverRow(publication.title, publication.authors.joinToString(" · "), publication.coverUrl, onClick = { scope.navigation.publication = publication },
+                    key = publication.id)
+                else PublicationCard(scope, publication)
+            }
         } else {
             if (books.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                 ReadEmpty(
-                    if (query.isNotBlank()) "No matching books" else when (shelf) {
+                    when (shelf) {
                         BookShelf.READING -> "Start your next chapter"; BookShelf.FINISHED -> "A shelf of stories completed"; BookShelf.UNREAD -> "Everything here is started"
                         else -> "Your next read starts here"
                     },
-                    if (query.isNotBlank()) "Try a title or author in your library." else "Import an EPUB or PDF, or find books from public libraries and public-domain catalogues.",
+                    "Import an EPUB or PDF, or find books from public libraries and public-domain catalogues.",
                     Modifier.readBleed(),
-                    actionLabel = if (query.isBlank() && state.books.isEmpty()) "Import books" else null, onAction = scope.importBooks,
+                    actionLabel = if (state.books.isEmpty()) "Import books" else null, onAction = scope.importBooks,
                 )
             }
-            items(books, key = { it.id }) { book -> BookCard(scope, book) }
+            items(books, key = { it.id }) { book -> if (rows) BookRow(scope, book) else BookCard(scope, book) }
         }
     }
+}
+
+/**
+ * The library's quick tiles in two columns, each with its count: Bookmarks (opens the tab), Downloaded, Saved for later and
+ * Finished (each chooses its shelf).
+ */
+@Composable
+private fun BookTiles(state: ReadingState, modifier: Modifier, onBookmarks: () -> Unit, onShelf: (BookShelf) -> Unit) {
+    val tiles: List<Triple<String, Int, () -> Unit>> = listOf(
+        Triple("Bookmarks", state.bookmarks.size, onBookmarks),
+        Triple("Downloaded", state.books.size, { onShelf(BookShelf.DOWNLOADED) }),
+        Triple("Saved for later", state.saved.size, { onShelf(BookShelf.SAVED) }),
+        Triple("Finished", state.finished.count { id -> state.books.any { it.id == id } }, { onShelf(BookShelf.FINISHED) }),
+    )
+    val look = orbitLook()
+    val fonts = orbitFonts()
+    Column(modifier.fillMaxWidth().testTag("books:tiles"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        tiles.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEach { (label, count, open) ->
+                    Row(Modifier.weight(1f).heightIn(min = 56.dp).clip(ReadShape.md).background(look.row)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = open).padding(horizontal = 16.dp, vertical = 10.dp)
+                        .testTag("books:tile:$label"), verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, style = ReadType.rowTitle(), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(count.toString(), style = fonts.label, color = look.dim)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A book of the library as a row (the list view): its cover, the title, "Author · 35 %". */
+@Composable
+private fun BookRow(scope: ReadScope, book: ReadingBook) {
+    val state by scope.repository.state.collectAsUiState()
+    ReadCoverRow(book.title, state.bookLine(book), book.coverPath?.let(::File), onClick = { scope.navigation.book = book }, key = book.id,
+        modifier = Modifier.testTag("books:row:${book.id}"))
 }
 
 /** The book being read: its colour card, "Chapter 4 · 35 %", and Continue in the bite. */
@@ -330,8 +386,8 @@ private fun BookHero(scope: ReadScope, book: ReadingBook, state: ReadingState) {
         modifier = Modifier.padding(top = 4.dp).testTag("books:hero"),
         below = { colors -> OrbitProgressLine({ fraction }, colors.ink, Modifier.padding(top = 10.dp, end = 8.dp), moon = 4.dp) },
         chips = { colors ->
-            OrbitCardChip("Details", colors, onClick = { scope.navigation.book = book }, icon = CosmoIcons.List)
-            if (state.bookmarks.any { it.bookId == book.id }) OrbitCardChip("Bookmarks", colors, onClick = { scope.navigation.select(BookTabs.BOOKMARKS) }, icon = Icons.Outlined.BookmarkBorder)
+            val marks = state.bookmarks.count { it.bookId == book.id }
+            if (marks > 0) OrbitCardChip("Bookmarks $marks", colors, onClick = { scope.navigation.book = book }, icon = Icons.Outlined.BookmarkBorder)
         },
     )
 }
@@ -393,6 +449,7 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
     val fraction = state.fraction(book)
     val finished = book.id in state.finished
     var remove by remember { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
     val (fill, _) = coverFill(null, book.id)
     Box(Modifier.fillMaxSize()) {
         OrbitPageWash(fill)
@@ -400,33 +457,43 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
             item(key = "head") { ReadBackHead("Book", onBack = { scope.navigation.book = null }) }
             item(key = "card") {
                 OrbitCoverTitleCard(
-                    cover = cover, colourUrl = null, key = book.id, label = state.bookLabel(book) + " · on this device", title = book.title,
+                    cover = cover, colourUrl = null, key = book.id, label = state.bookLabel(book).removePrefix("Book · ") + " · on this device", title = book.title,
                     line = book.authors.joinToString(" · ").ifBlank { null },
                     onContinue = { scope.open(book) },
                     modifier = Modifier.padding(horizontal = ReadMargin).padding(top = 4.dp).testTag("books:read:${book.id}"),
                     below = { colors -> if (fraction != null && !finished) OrbitProgressLine({ fraction }, colors.ink, Modifier.padding(top = 10.dp, end = 8.dp), moon = 4.dp) },
                     chips = { colors ->
                         OrbitCardChip(if (finished) "Mark unfinished" else "Mark finished", colors, onClick = { scope.action { scope.repository.markFinished(book.id, !finished) } }, icon = CosmoIcons.Check)
-                        OrbitCardChip("Remove", colors, onClick = { remove = true }, icon = CosmoIcons.Close)
+                        Box {
+                            com.cosmotune.ui.orbit.OrbitCardButton(CosmoIcons.MoreVertical, "More", colors, { more = true }, Modifier.testTag("books:book:more"))
+                            com.cosmotune.ui.orbit.OrbitMenu(more, { more = false }, listOf(
+                                com.cosmotune.ui.orbit.OrbitMenuItem("Remove from this device", icon = CosmoIcons.Close) { remove = true },
+                            ), orbitFonts(), look, header = book.title)
+                        }
                     },
                 )
             }
             if (book.description.isNotBlank()) item(key = "about") {
-                Text(org.jsoup.Jsoup.parse(book.description).text(), style = ReadType.body(), color = look.dim,
-                    maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 14.dp))
+                var open by rememberSaveable(book.id) { mutableStateOf(false) }
+                Text(remember(book.description) { org.jsoup.Jsoup.parse(book.description).text() }, style = ReadType.body(), color = look.dim,
+                    maxLines = if (open) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().clickable(onClickLabel = if (open) "Show less" else "Show more") { open = !open }
+                        .padding(horizontal = ReadMargin + 4.dp, vertical = 14.dp))
             }
             val marks = state.bookmarks.filter { it.bookId == book.id }
             if (marks.isNotEmpty()) {
-                item(key = "marks:header") { ReadSection("Bookmarks") }
+                item(key = "marks:header") { ReadSection("Bookmarks", subtitle = marks.size.toString()) }
                 items(marks, key = { "mark:${it.id}" }) { mark -> BookmarkRow(scope, book, mark, nested = false) }
             }
             item(key = "facts") {
                 ReadSection("Details")
-                listOfNotNull("Format" to book.format.name, book.language.takeIf { it.isNotBlank() }?.let { "Language" to it }, book.sourceUrl?.let { "Source" to it }).forEach { (name, value) ->
-                    Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin, vertical = 4.dp).heightIn(min = 52.dp).clip(ReadShape.md)
-                        .background(look.row).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(name, style = ReadType.rowTitle(), color = look.ink, modifier = Modifier.weight(1f))
-                        Text(value, style = ReadType.meta(), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.4f))
+                // A flat list of two columns: the name in the dim ink, the value beside it.
+                Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin + 4.dp).testTag("books:facts"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    bookFacts(book).forEach { (name, value) ->
+                        Row(Modifier.fillMaxWidth()) {
+                            Text(name, style = ReadType.meta(), color = look.dim, modifier = Modifier.width(110.dp))
+                            Text(value, style = ReadType.body(), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -442,6 +509,14 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
         onDismiss = { remove = false },
     )
 }
+
+/** A book's details as its page lists them: the format, the language, when it was added and where it came from. */
+internal fun bookFacts(book: ReadingBook, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Pair<String, String>> = listOfNotNull(
+    "Format" to book.format.name,
+    book.language.takeIf { it.isNotBlank() }?.let { "Language" to it },
+    "Added" to java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH).format(java.time.Instant.ofEpochMilli(book.addedAtMs).atZone(zone)),
+    "Source" to (book.sourceUrl ?: "On this device"),
+)
 
 /** Search (the heading's 🔍): the books in the library that match, then Open Library's results. */
 @Composable

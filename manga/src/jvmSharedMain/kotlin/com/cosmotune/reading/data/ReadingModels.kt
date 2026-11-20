@@ -15,7 +15,11 @@ import kotlinx.serialization.Serializable
     val createdAtMs: Long = System.currentTimeMillis())
 @Serializable data class ReadingPreferences(val fontScale: Float = 1f, val lineHeight: Float = 1.5f,
     val theme: ReadingTheme = ReadingTheme.SYSTEM, val scrollMode: Boolean = true,
-    val fontFamily: String = "serif", val marginDp: Int = 24)
+    val fontFamily: String = "serif", val marginDp: Int = 24,
+    /** The page's brightness, 0.3 to 1: a dimming over the page, under the system's own. */
+    val brightness: Float = 1f,
+    /** Keep the screen on while a book is open. */
+    val keepScreenOn: Boolean = false)
 @Serializable data class ReadingOpdsSource(val id: String, val name: String, val url: String,
     val username: String = "", val password: String = "", val allowInsecureHttp: Boolean = false)
 @Serializable data class ReadingCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())

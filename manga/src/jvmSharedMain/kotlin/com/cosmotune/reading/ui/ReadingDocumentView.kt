@@ -17,6 +17,8 @@ import androidx.compose.material.icons.rounded.ZoomOut
 import com.cosmotune.reading.data.*
 import java.io.File
 import java.io.InputStream
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -31,7 +33,12 @@ import kotlinx.coroutines.withContext
     onLocatorChanged: (ReadingLocator) -> Unit,
     onError: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** A tap on the middle third of the page (the reader's tools), where the platform's page can tell; see [readingCenterTap]. */
+    onCenterTap: () -> Unit = {},
 )
+
+/** Whether a tap on the middle of the page reaches [ReadingDocumentView]'s onCenterTap; where it does not, the tools keep their button. */
+internal expect val readingCenterTap: Boolean
 
 @Composable expect fun rememberReadingImport(onPicked: (String, () -> InputStream) -> Unit): () -> Unit
 
@@ -48,7 +55,7 @@ internal expect fun supportsReadingPdfSearch(): Boolean
 @OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun ReadingPdfView(document: ReadingDocument.Pdf, locator: ReadingLocator,
     searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit, onError: (String) -> Unit,
-    modifier: Modifier) {
+    modifier: Modifier, onCenterTap: () -> Unit = {}) {
     var engine by remember(document.file) { mutableStateOf<ReadingPdfEngine?>(null) }
     var failure by remember(document.file) { mutableStateOf<String?>(null) }
     var zoom by remember(document.file) { mutableStateOf(1f) }
@@ -126,7 +133,9 @@ internal expect fun supportsReadingPdfSearch(): Boolean
                 failure != null -> Text(failure!!, Modifier.padding(24.dp))
                 image != null -> Box(Modifier.fillMaxSize().verticalScroll(vertical).horizontalScroll(horizontal), contentAlignment = Alignment.TopCenter) {
                     Image(image!!, "Page ${page + 1} of ${document.book.title}",
-                        Modifier.width(viewportWidth * zoom).aspectRatio(image!!.width.toFloat() / image!!.height), contentScale = ContentScale.FillBounds)
+                        Modifier.width(viewportWidth * zoom).aspectRatio(image!!.width.toFloat() / image!!.height)
+                            .pointerInput(Unit) { detectTapGestures { at -> if (at.x > size.width / 3f && at.x < size.width * 2f / 3f) onCenterTap() } },
+                        contentScale = ContentScale.FillBounds)
                 }
                 else -> CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
