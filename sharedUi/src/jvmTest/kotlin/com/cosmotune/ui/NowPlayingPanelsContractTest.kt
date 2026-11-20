@@ -146,11 +146,24 @@ class NowPlayingPanelsContractTest {
         }
         assertTrue(src.contains("currentSource = lyricsSource") && src.contains("states = lyricsProviderStates") && src.contains("onSelect = onSelectLyricsProvider"))
         assertTrue(src.contains("KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||"))
-        assertTrue(src.contains("(wantVideo && rendered && isPlaying))"), "the song's video keeps the screen on while it plays")
+        assertTrue(src.contains("nowPlayingVideoKeepsScreenOn(videoShowing = wantVideo && rendered, isPlaying = isPlaying, isLoading = isLoading))"),
+            "the song's video keeps the screen on while it shows and play is wanted")
+        assertFalse(src.contains("(wantVideo && rendered && isPlaying))"), "not only while its frames advance")
         assertTrue(src.contains("flags.providers = true") || src.contains("sheets.providers = true"), "the lyrics status opens the provider sheet")
         for (page in listOf("NowPlayingPhone.kt", "NowPlayingWide.kt")) {
             assertTrue(code(nowPlaying(page)).contains("Box(modifier.fillMaxSize().hazeSource(hazeState))"), "$page: the page is what the sheets blur")
         }
+    }
+
+    @Test fun theSongsVideoKeepsTheScreenOnWhilePlayIsWantedNotOnlyWhileFramesMove() {
+        val keepsOn = { shows: Boolean, playing: Boolean, loading: Boolean ->
+            com.cosmotune.ui.nowplaying.nowPlayingVideoKeepsScreenOn(videoShowing = shows, isPlaying = playing, isLoading = loading)
+        }
+        assertTrue(keepsOn(true, true, false), "playing")
+        assertTrue(keepsOn(true, false, true), "play pressed and the video buffering")
+        assertFalse(keepsOn(true, false, false), "paused")
+        assertFalse(keepsOn(false, true, false), "the video is not showing")
+        assertFalse(keepsOn(false, false, true), "nothing shows while it buffers")
     }
 
     // ---- the phone ------------------------------------------------------------------------------------------------------
