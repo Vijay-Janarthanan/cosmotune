@@ -85,20 +85,20 @@ On macOS:
 
 ```bash
 # Builds the disk image (.dmg) installer
-./gradlew :desktopApp:packageDmg
+./gradlew :desktopApp:packageReleaseDmg
 
 # Standalone Cosmotune.app bundle
-./gradlew :desktopApp:createDistributable
-# Output is at: desktopApp/build/compose/binaries/main/app/Cosmotune.app
+./gradlew :desktopApp:createReleaseDistributable
+# Output is at: desktopApp/build/compose/binaries/main-release/app/Cosmotune.app
 ```
 
 On Linux — `binutils` and `file` must be installed for the AppImage:
 
 ```bash
 # The AppImage is wrapped around the app image jpackage produces.
-bash ./gradlew :desktopApp:createDistributable
+bash ./gradlew :desktopApp:createReleaseDistributable
 desktopApp/packaging/appimage.sh \
-  desktopApp/build/compose/binaries/main/app/Cosmotune \
+  desktopApp/build/compose/binaries/main-release/app/Cosmotune \
   dist/Cosmotune-linux-x86_64.AppImage
 ```
 
@@ -106,11 +106,11 @@ On Windows — [WiX Toolset 3](https://github.com/wixtoolset/wix3/releases) must
 be on `PATH`, which is what jpackage builds both the `.exe` and the `.msi` with:
 
 ```bat
-gradlew.bat :desktopApp:packageExe
-gradlew.bat :desktopApp:packageMsi
+gradlew.bat :desktopApp:packageReleaseExe
+gradlew.bat :desktopApp:packageReleaseMsi
 
 REM The portable build is the app image, zipped.
-gradlew.bat :desktopApp:createDistributable
+gradlew.bat :desktopApp:createReleaseDistributable
 ```
 
 Pass `-Pcosmotune.version=1.2.3` to stamp a version other than the one in

@@ -651,8 +651,11 @@ compose.desktop {
             jvmArgs("-Dcosmotune.google.client.id=$googleDesktopClientId", "-Dcosmotune.google.client.secret=$googleDesktopClientSecret")
         }
 
+        // The release packages (packageReleaseMsi, packageReleaseExe, packageReleaseDmg, createReleaseDistributable) are shrunk:
+        // unused AndroidX code, the bulk of it unused Material icons, is left out. Nothing is renamed or optimised, and every
+        // other library is kept whole; packaging/proguard-rules.pro says why.
         buildTypes.release.proguard {
-            isEnabled.set(false)
+            isEnabled.set(true)
             obfuscate.set(false)
             optimize.set(false)
             configurationFiles.from(project.file("packaging/proguard-rules.pro"))
@@ -754,6 +757,33 @@ compose.desktop {
         }
     }
 
+}
+
+// ProGuard writes the stack map frames of every class it reads anew, and its preverifier gets the largest composables wrong:
+// DesktopAppKt.CosmotuneDesktopApp then fails verification at start ("Inconsistent stackmap frames"), with ProGuard 7.7 and 7.9
+// alike. Only AndroidX is shrunk (packaging/proguard-rules.pro keeps every other class whole), so every jar without AndroidX
+// classes is put back exactly as it was built, frames included; the shrunk AndroidX jars are the only ones ProGuard writes.
+tasks.matching { it.name == "proguardReleaseJars" }.configureEach {
+    val jarsConfig = layout.buildDirectory.file("compose/tmp/$name/jars-config.pro")
+    doLast {
+        // -injars 'C:\\path\\to.jar' on Windows, -injars '/path/to.jar' elsewhere.
+        fun path(line: String) = File(line.substringAfter('\'').substringBeforeLast('\'').replace("\\\\", "\\"))
+        val lines = jarsConfig.get().asFile.readLines()
+        val inputs = lines.filter { it.startsWith("-injars ") }.map(::path)
+        val outputs = lines.filter { it.startsWith("-outjars ") }.map(::path)
+        check(inputs.isNotEmpty() && inputs.size == outputs.size) { "unexpected ProGuard jar list in ${jarsConfig.get().asFile}" }
+        var restored = 0
+        inputs.zip(outputs).forEach { (input, output) ->
+            val shrunk = ZipFile(input).use { zip ->
+                zip.entries().asSequence().any { it.name.startsWith("androidx/") && it.name.endsWith(".class") }
+            }
+            if (!shrunk) {
+                input.copyTo(output, overwrite = true)
+                restored++
+            }
+        }
+        logger.lifecycle("proguard: ${inputs.size - restored} AndroidX jars shrunk, $restored jars kept as built")
+    }
 }
 
 // The Windows installers use packaging/windows/main.wxs (jpackage's own, plus closing a running Cosmotune before its files are

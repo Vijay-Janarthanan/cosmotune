@@ -89,7 +89,7 @@ jobs:
           GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.GOOGLE_DESKTOP_CLIENT_ID || secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET || vars.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: |
-          ./gradlew :desktopApp:createDistributable \
+          ./gradlew :desktopApp:createReleaseDistributable \
             -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Upload Linux test diagnostics
@@ -103,7 +103,7 @@ jobs:
 
       - name: The analyser and models are in the jar
         run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/lib/app/desktopApp*.jar)
+          jar=$(ls desktopApp/build/compose/binaries/main-release/app/Cosmotune/lib/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'native/libcosmotune_analysis.so'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
           modeljar=$(ls "$(dirname "$jar")"/shared-jvm*.jar)
@@ -112,7 +112,7 @@ jobs:
       - name: Build the AppImage
         run: |
           desktopApp/packaging/appimage.sh \
-            desktopApp/build/compose/binaries/main/app/Cosmotune \
+            desktopApp/build/compose/binaries/main-release/app/Cosmotune \
             dist/Cosmotune-${{ steps.version.outputs.value }}-linux-x86_64.AppImage \
             "$PWD/appimagetool.AppImage"
 
@@ -182,18 +182,18 @@ jobs:
           GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.GOOGLE_DESKTOP_CLIENT_ID || secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET || vars.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: |
-          .\gradlew.bat :desktopApp:packageMsi :desktopApp:packageExe :desktopApp:createDistributable "-Pcosmotune.version=${{ steps.version.outputs.value }}"
+          .\gradlew.bat :desktopApp:packageReleaseMsi :desktopApp:packageReleaseExe :desktopApp:createReleaseDistributable "-Pcosmotune.version=${{ steps.version.outputs.value }}"
 
       - name: The installer asks where to install and adds a desktop shortcut
         shell: pwsh
         run: |
-          $msi = Get-ChildItem desktopApp/build/compose/binaries/main/msi/*.msi | Select-Object -First 1
+          $msi = Get-ChildItem desktopApp/build/compose/binaries/main-release/msi/*.msi | Select-Object -First 1
           ./tools/check-msi.ps1 -Msi $msi.FullName
 
       - name: The analyser and models are in the jar
         shell: bash
         run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/app/desktopApp*.jar)
+          jar=$(ls desktopApp/build/compose/binaries/main-release/app/Cosmotune/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'native/cosmotune_analysis.dll'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
           modeljar=$(ls "$(dirname "$jar")"/shared-jvm*.jar)
@@ -225,8 +225,8 @@ jobs:
         run: |
           $v = "${{ steps.version.outputs.value }}"
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/Cosmotune-$v-windows-x64.msi"
-          Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/Cosmotune-$v-windows-x64-setup.exe"
+          Copy-Item desktopApp/build/compose/binaries/main-release/msi/*.msi "dist/Cosmotune-$v-windows-x64.msi"
+          Copy-Item desktopApp/build/compose/binaries/main-release/exe/*.exe "dist/Cosmotune-$v-windows-x64-setup.exe"
           Get-ChildItem dist | Format-Table Name, Length
 
       - uses: actions/upload-artifact@v4
@@ -286,7 +286,7 @@ jobs:
           GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.GOOGLE_DESKTOP_CLIENT_ID || secrets.GOOGLE_DESKTOP_CLIENT_ID }}
           GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET || vars.GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: |
-          ./gradlew :desktopApp:packageDmg :desktopApp:createDistributable \
+          ./gradlew :desktopApp:packageReleaseDmg :desktopApp:createReleaseDistributable \
             -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Upload macOS test diagnostics
@@ -307,7 +307,7 @@ jobs:
 
       - name: The analyser and models are in the jar
         run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune.app/Contents/app/desktopApp*.jar)
+          jar=$(ls desktopApp/build/compose/binaries/main-release/app/Cosmotune.app/Contents/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'native/libcosmotune-media.dylib'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
           modeljar=$(ls "$(dirname "$jar")"/shared-jvm*.jar)
@@ -316,7 +316,7 @@ jobs:
       - name: The app starts
         continue-on-error: true
         run: |
-          app="desktopApp/build/compose/binaries/main/app/Cosmotune.app"
+          app="desktopApp/build/compose/binaries/main-release/app/Cosmotune.app"
           "$app/Contents/MacOS/Cosmotune" > start.log 2>&1 &
           pid=$!
           sleep 25
@@ -327,10 +327,10 @@ jobs:
           v="${{ steps.version.outputs.value }}"
           arch="${{ matrix.arch }}"
           mkdir -p dist
-          for f in desktopApp/build/compose/binaries/main/dmg/*.dmg; do
+          for f in desktopApp/build/compose/binaries/main-release/dmg/*.dmg; do
             [ -f "$f" ] && cp "$f" "dist/Cosmotune-$v-macos-$arch.dmg"
           done
-          ditto -c -k --keepParent desktopApp/build/compose/binaries/main/app/Cosmotune.app "dist/Cosmotune-$v-macos-$arch.zip"
+          ditto -c -k --keepParent desktopApp/build/compose/binaries/main-release/app/Cosmotune.app "dist/Cosmotune-$v-macos-$arch.zip"
           ls -lh dist
 
       - uses: actions/upload-artifact@v4
