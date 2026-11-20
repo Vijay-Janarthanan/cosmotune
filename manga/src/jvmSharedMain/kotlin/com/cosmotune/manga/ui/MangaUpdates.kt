@@ -1,5 +1,7 @@
 package com.cosmotune.manga.ui
 
+import com.cosmotune.ui.orbit.LocalOrbitUndo
+import com.cosmotune.ui.orbit.removedThen
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -117,13 +119,14 @@ internal fun MangaUpdatesPage(scope: MangaScope) {
     }
 }
 
-/** History (in Library): the last chapter read in each series, by day. Tap goes back to it; the cross takes a series out. */
+/** History (in Library): the last chapter read in each series, by day. Tap goes back to it; the cross takes a series out, with Undo. */
 @Composable
 internal fun MangaHistoryPage(scope: MangaScope) {
     val state by scope.repository.store.state.collectAsState()
     val palette = LocalCosmoColors.current.palette
     val list = rememberLazyListState()
     val days = mangaHistory(state)
+    val undo = LocalOrbitUndo.current
     val time = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
     Column(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("manga:history:list"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
@@ -140,14 +143,22 @@ internal fun MangaHistoryPage(scope: MangaScope) {
                     val at = time.format(Instant.ofEpochMilli(entry.progress.updatedAtMs).atZone(ZoneId.systemDefault()))
                     val position = entry.progress.takeIf { it.pageCount > 0 && !it.finished }?.let { "page ${it.page + 1} of ${it.pageCount}" } ?: if (entry.progress.finished) "finished" else null
                     ReadCoverRow(entry.book.title, listOfNotNull(entry.chapter?.title, position, at).joinToString(" · "), cover, key = entry.book.id,
-                        modifier = Modifier.padding(horizontal = ReadMargin, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = ReadMargin),
                         onClick = {
                             val chapter = entry.chapter
                             if (chapter != null) { scope.navigation.book = entry.book; scope.navigation.chapter = chapter } else scope.openBook(entry.book)
                         },
                         trailing = {
+                            // Gone at once, with "Removed · Undo" putting the place back.
                             ReadIconButton(CosmoIcons.Close, mangaText("Remove from history"), {
-                                scope.action { scope.repository.store.update { it.copy(progress = it.progress - entry.book.id) } }
+                                val id = entry.book.id
+                                val place = entry.progress
+                                scope.action {
+                                    scope.repository.store.update { it.copy(progress = it.progress - id) }
+                                    undo.removedThen(entry.book.title) {
+                                        scope.repository.store.update { old -> if (id in old.progress || old.books.none { it.id == id }) old else old.copy(progress = old.progress + (id to place)) }
+                                    }
+                                }
                             })
                         })
                 }
@@ -163,6 +174,7 @@ internal fun MangaDownloadsPage(scope: MangaScope) {
     val palette = LocalCosmoColors.current.palette
     val list = rememberLazyListState()
     val groups = state.books.mapNotNull { book -> book.listedChapters().filter { state.downloads.containsKey(it.id) }.takeIf { it.isNotEmpty() }?.let { book to it } }
+    val undo = LocalOrbitUndo.current
     Column(Modifier.fillMaxSize()) {
         ReadBackHead("Library", onBack = { scope.navigation.page = null })
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
@@ -184,8 +196,8 @@ internal fun MangaDownloadsPage(scope: MangaScope) {
                         read = chapter.id in state.readChapters, fresh = chapter.id in state.newChapters, download = ReadDownload.DONE,
                         onClick = { scope.navigation.book = book; scope.navigation.chapter = chapter },
                         onLongClick = { scope.openBook(book) },
-                        onDownload = { scope.action { scope.repository.removeDownload(chapter.id) } },
-                        modifier = Modifier.padding(horizontal = ReadMargin, vertical = 4.dp),
+                        onDownload = { mangaRemoveDownloads(scope, undo, listOf(chapter), chapter.title) },
+                        modifier = Modifier.padding(horizontal = ReadMargin),
                     )
                 }
             }

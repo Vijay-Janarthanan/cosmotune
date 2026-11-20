@@ -1,6 +1,9 @@
 @file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 package com.cosmotune.manga.ui
 
+import com.cosmotune.ui.orbit.LocalOrbitUndo
+import com.cosmotune.ui.orbit.OrbitUndoState
+import com.cosmotune.ui.orbit.removeAfterUndo
 import com.cosmotune.cache.PageCache
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -309,7 +312,7 @@ internal fun MangaUpdateRow(scope: MangaScope, entry: MangaUpdateEntry) {
     val state by scope.repository.store.state.collectAsState()
     val cover = rememberMangaCover(scope.repository, entry.book)
     val chapter = entry.chapter
-    ReadCoverRow(entry.book.title, chapter.title, cover, key = entry.book.id, modifier = Modifier.padding(horizontal = ReadMargin, vertical = 4.dp),
+    ReadCoverRow(entry.book.title, chapter.title, cover, key = entry.book.id, modifier = Modifier.padding(horizontal = ReadMargin),
         onClick = { scope.action { scope.repository.store.save(entry.book); scope.navigation.book = entry.book; scope.navigation.chapter = chapter } },
         trailing = { MangaDownloadButton(scope, entry.book, chapter, state) })
 }
@@ -317,8 +320,21 @@ internal fun MangaUpdateRow(scope: MangaScope, entry: MangaUpdateEntry) {
 /** The download of one chapter: start, progress, or remove. Local comics have nothing to download. */
 @Composable
 internal fun MangaDownloadButton(scope: MangaScope, book: MangaBook, chapter: MangaChapter, state: MangaLibraryState) {
+    val undo = LocalOrbitUndo.current
     ReadDownloadButton(mangaDownloadState(scope, chapter, state)) {
-        if (state.downloads.containsKey(chapter.id)) scope.action { scope.repository.removeDownload(chapter.id) } else mangaDownload(scope, book, listOf(chapter))
+        if (state.downloads.containsKey(chapter.id)) mangaRemoveDownloads(scope, undo, listOf(chapter), chapter.title) else mangaDownload(scope, book, listOf(chapter))
+    }
+}
+
+/**
+ * Removes the downloads of [chapters] with "Removed “[what]”" and Undo instead of asking: they leave the device's list at once and
+ * their pages are freed only once Undo has run out ([MangaRepository.takeOutDownloads]).
+ */
+internal fun mangaRemoveDownloads(scope: MangaScope, undo: OrbitUndoState?, chapters: Collection<MangaChapter>, what: String) {
+    if (chapters.isEmpty()) return
+    scope.action {
+        val taken = scope.repository.takeOutDownloads(chapters.map { it.id })
+        if (taken.isNotEmpty()) undo.removeAfterUndo(what, hide = {}, restore = { scope.repository.putBackDownloads(taken) }) { scope.repository.trimDownloads() }
     }
 }
 

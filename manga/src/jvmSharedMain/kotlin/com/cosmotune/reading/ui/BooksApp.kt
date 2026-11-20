@@ -41,7 +41,10 @@ import com.cosmotune.reading.data.*
 import com.cosmotune.ui.blocks.ModeNav
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.OrbitCardChip
+import com.cosmotune.ui.orbit.LocalOrbitUndo
 import com.cosmotune.ui.orbit.OrbitCoverTitleCard
+import com.cosmotune.ui.orbit.removeAfterUndo
+import com.cosmotune.ui.orbit.removedThen
 import com.cosmotune.ui.orbit.OrbitPageWash
 import com.cosmotune.ui.orbit.OrbitRowCover
 import com.cosmotune.ui.orbit.OrbitSongRow
@@ -286,7 +289,7 @@ private fun BookLibrary(scope: ReadScope) {
     val hero = reading.firstOrNull()
     LazyVerticalGrid(if (rows) GridCells.Fixed(1) else GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().testTag("books:library"), state = grid,
         contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
-        horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(if (rows) 6.dp else 18.dp)) {
+        horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(if (rows) 0.dp else 18.dp)) {
         item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {
             val count = state.books.size
             ReadPageHead("Library", if (count == 1) "1 book · ${reading.size} reading" else "$count books · ${reading.size} reading", Modifier.readBleed()) {
@@ -409,7 +412,7 @@ private fun BookBookmarks(scope: ReadScope) {
         groups.forEach { (book, marks) ->
             item(key = "book:${book.id}") {
                 ReadCoverRow(book.title, book.authors.joinToString(" · ").ifBlank { if (marks.size == 1) "1 bookmark" else "${marks.size} bookmarks" }, book.coverPath?.let(::File),
-                    key = book.id, onClick = { scope.navigation.book = book }, modifier = Modifier.padding(start = ReadMargin, end = ReadMargin, top = 20.dp, bottom = 4.dp))
+                    key = book.id, onClick = { scope.navigation.book = book }, modifier = Modifier.padding(start = ReadMargin, end = ReadMargin, top = 16.dp))
             }
             items(marks, key = { "mark:${it.id}" }) { mark -> BookmarkRow(scope, book, mark) }
         }
@@ -417,7 +420,7 @@ private fun BookBookmarks(scope: ReadScope) {
 }
 
 /**
- * A bookmark as an Orbit row: the mark, its name and when it was made, the cross that removes it. Tap opens the reader there.
+ * A bookmark as a flat Orbit row: the mark, its name and when it was made, the cross that removes it. Tap opens the reader there.
  * [nested] (the Bookmarks tab) steps it 24 dp in under its book's row; on the book's own page it stands on the page's margin, the
  * start edge of the Details rows under it.
  */
@@ -425,18 +428,25 @@ private fun BookBookmarks(scope: ReadScope) {
 internal fun BookmarkRow(scope: ReadScope, book: ReadingBook, mark: ReadingBookmark, nested: Boolean = true) {
     val fonts = orbitFonts()
     val look = orbitLook()
+    val undo = LocalOrbitUndo.current
     OrbitSongRow(
         title = mark.name, subtitle = agoLabel(mark.createdAtMs).replaceFirstChar(Char::uppercase), cover = null, fonts = fonts, look = look,
         onClick = { scope.action { scope.repository.saveLocator(book.id, mark.locator); scope.open(book) } },
-        modifier = Modifier.fillMaxWidth().padding(start = ReadMargin + if (nested) 24.dp else 0.dp, end = ReadMargin, top = 4.dp, bottom = 4.dp), height = 62.dp, icon = Icons.Outlined.BookmarkBorder,
-        discSize = 36.dp, endPadding = 8.dp,
-        trailing = { ReadIconButton(CosmoIcons.Close, "Remove bookmark", { scope.action { scope.repository.removeBookmark(mark.id) } }) },
+        modifier = Modifier.fillMaxWidth().padding(start = ReadMargin + if (nested) 24.dp else 0.dp, end = ReadMargin), icon = Icons.Outlined.BookmarkBorder,
+        trailing = { ReadIconButton(CosmoIcons.Close, "Remove bookmark", {
+            // Gone at once, with "Removed · Undo" to put it back.
+            scope.action {
+                scope.repository.removeBookmark(mark.id)
+                undo.removedThen(mark.name) { scope.repository.restoreBookmark(mark) }
+            }
+        }) },
     )
 }
 
 /**
  * A book on this device (board D's title page): the colour card (the cover, "BOOK · EPUB · 35 %", the title, the authors, the
- * reading line, the Finished and Remove chips, Continue or Read in the bite), the description, its bookmarks and its details.
+ * reading line, Mark finished and More (Remove from this device, with Undo), Continue or Read in the bite), the description, its
+ * bookmarks and its details.
  */
 @Composable
 private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
@@ -448,8 +458,16 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
     val cover = book.coverPath?.let(::File)
     val fraction = state.fraction(book)
     val finished = book.id in state.finished
-    var remove by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
+    val undo = LocalOrbitUndo.current
+    // Remove takes the book off the library at once, with "Removed · Undo"; its files are deleted only once Undo has run out.
+    val remove: () -> Unit = {
+        scope.action {
+            val taken = scope.repository.takeOutBook(book.id) ?: return@action
+            scope.navigation.book = null
+            undo.removeAfterUndo(book.title, hide = {}, restore = { scope.repository.putBackBook(taken) }) { scope.repository.deleteTakenBook(taken) }
+        }
+    }
     val (fill, _) = coverFill(null, book.id)
     Box(Modifier.fillMaxSize()) {
         OrbitPageWash(fill)
@@ -467,7 +485,7 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
                         Box {
                             com.cosmotune.ui.orbit.OrbitCardButton(CosmoIcons.MoreVertical, "More", colors, { more = true }, Modifier.testTag("books:book:more"))
                             com.cosmotune.ui.orbit.OrbitMenu(more, { more = false }, listOf(
-                                com.cosmotune.ui.orbit.OrbitMenuItem("Remove from this device", icon = CosmoIcons.Close) { remove = true },
+                                com.cosmotune.ui.orbit.OrbitMenuItem("Remove from this device", icon = CosmoIcons.Close) { remove() },
                             ), orbitFonts(), look, header = book.title)
                         }
                     },
@@ -499,15 +517,6 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
             }
         }
     }
-    if (remove) com.cosmotune.ui.sheets.CosmoAlertDialog(
-        onDismissRequest = { remove = false },
-        title = "Remove this book?",
-        message = "The imported copy, reading position and bookmarks will be removed from this device.",
-        confirmLabel = "Remove book",
-        onConfirm = { remove = false; scope.action { scope.repository.removeBook(book.id); scope.navigation.book = null } },
-        dismissLabel = "Keep book",
-        onDismiss = { remove = false },
-    )
 }
 
 /** A book's details as its page lists them: the format, the language, when it was added and where it came from. */

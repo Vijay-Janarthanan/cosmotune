@@ -189,7 +189,7 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
                     ReadChapterRow(item.title, if (item.id == chapter.id) mangaText("Reading now") else chapterSubtitle(item, library.progress[item.bookId], read),
                         read = read, fresh = item.id in library.newChapters, download = ReadDownload.NONE,
                         onClick = { chapters = false; if (item.id != chapter.id) onChapter(item) }, onLongClick = {}, onDownload = {},
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp), next = item.id == chapter.id, number = chapterNumber(item, index + 1))
+                        modifier = Modifier.padding(horizontal = 16.dp), next = item.id == chapter.id, number = chapterNumber(item, index + 1))
                 }
             }
             Spacer(Modifier.height(16.dp))

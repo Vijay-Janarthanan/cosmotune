@@ -1,6 +1,9 @@
 @file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 package com.cosmotune.manga.ui
 
+import com.cosmotune.ui.orbit.LocalOrbitUndo
+import com.cosmotune.ui.orbit.OrbitUndoState
+import com.cosmotune.ui.orbit.showThen
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -113,6 +116,10 @@ private fun SelectionBar(scope: MangaScope, book: MangaBook, listed: List<MangaC
     val state by repository.store.state.collectAsState()
     val look = orbitLook()
     val chosen = book.chapters.filter { it.id in selection }
+    val undo = LocalOrbitUndo.current
+    val markWords = if (chosen.size == 1) mangaText(if (chosen.all { it.id in state.readChapters }) "Marked unread" else "Marked read")
+        else "${chosen.size} " + mangaText(if (chosen.all { it.id in state.readChapters }) "chapters marked unread" else "chapters marked read")
+    val downloadsWord = mangaText("downloads")
     val allRead = chosen.all { it.id in state.readChapters }
     val toDownload = chosen.filter { it.sourceId != "local" && !state.downloads.containsKey(it.id) }
     val downloaded = chosen.filter { state.downloads.containsKey(it.id) }
@@ -127,19 +134,46 @@ private fun SelectionBar(scope: MangaScope, book: MangaBook, listed: List<MangaC
         }
         ReadChipRow(Modifier.padding(top = 8.dp), inset = 0.dp) {
             ReadPill(mangaText(if (allRead) "Mark unread" else "Mark read"), icon = CosmoIcons.Check, onClick = {
-                onSelection(emptySet()); scope.action { repository.store.save(book); chosen.forEach { repository.store.markRead(it, !allRead) } }
+                onSelection(emptySet())
+                markWithUndo(scope, undo, book, chosen, !allRead, state, markWords)
             }, modifier = Modifier.testTag("manga:selection:read"))
             if (toDownload.isNotEmpty() && !scope.transfer.active) ReadPill(mangaText("Download") + " · ${toDownload.size}", icon = CosmoIcons.Download, onClick = {
                 onSelection(emptySet()); mangaDownload(scope, book, toDownload)
             }, modifier = Modifier.testTag("manga:selection:download"))
             if (downloaded.isNotEmpty()) ReadPill(mangaText("Remove downloads") + " · ${downloaded.size}", icon = CosmoIcons.Close, onClick = {
-                onSelection(emptySet()); scope.action { downloaded.forEach { repository.removeDownload(it.id) } }
+                onSelection(emptySet())
+                mangaRemoveDownloads(scope, undo, downloaded, downloaded.singleOrNull()?.title ?: "${downloaded.size} $downloadsWord")
             })
             chosen.singleOrNull()?.let { only ->
                 val earlier = book.listedChapters(only.edition).takeWhile { it.id != only.id }.filter { it.id !in state.readChapters }
+                val earlierWords = "${earlier.size} " + mangaText("chapters marked read")
                 if (earlier.isNotEmpty()) ReadPill(mangaText("Mark earlier read"), icon = CosmoIcons.List, onClick = {
-                    onSelection(emptySet()); scope.action { repository.store.save(book); earlier.forEach { repository.store.markRead(it, true) } }
+                    onSelection(emptySet())
+                    markWithUndo(scope, undo, book, earlier, true, state, earlierWords)
                 })
+            }
+        }
+    }
+}
+
+/**
+ * Marks [chapters] read (or unread, [read] false) with "3 chapters marked read · Undo": Undo puts back each one's read mark, whether
+ * it was new, and the series' place as they were.
+ */
+private fun markWithUndo(scope: MangaScope, undo: OrbitUndoState?, book: MangaBook, chapters: List<MangaChapter>, read: Boolean, state: MangaLibraryState, words: String) {
+    if (chapters.isEmpty()) return
+    val ids = chapters.map { it.id }.toSet()
+    val wasRead = ids.filter { it in state.readChapters }.toSet()
+    val wasNew = ids.filter { it in state.newChapters }.toSet()
+    val place = state.progress[book.id]
+    val store = scope.repository.store
+    scope.action {
+        store.save(book)
+        chapters.forEach { store.markRead(it, read) }
+        undo.showThen(words) {
+            store.update { old ->
+                old.copy(readChapters = old.readChapters - ids + wasRead, newChapters = old.newChapters + wasNew,
+                    progress = if (place != null) old.progress + (book.id to place) else old.progress)
             }
         }
     }
@@ -225,6 +259,7 @@ private fun LazyListScope.chapterItems(scope: MangaScope, book: MangaBook, liste
     }
     itemsIndexed(listed, key = { _, chapter -> chapter.id }) { index, item ->
         val state by scope.repository.store.state.collectAsState()
+        val undo = LocalOrbitUndo.current
         val read = item.id in state.readChapters
         val fresh = item.id in state.newChapters
         val isNext = current?.id == item.id
@@ -239,13 +274,13 @@ private fun LazyListScope.chapterItems(scope: MangaScope, book: MangaBook, liste
             onClick = { onRead(item) },
             onLongClick = { onSelect(item) },
             onDownload = {
-                if (state.downloads.containsKey(item.id)) scope.action { scope.repository.removeDownload(item.id) } else mangaDownload(scope, book, listOf(item))
+                if (state.downloads.containsKey(item.id)) mangaRemoveDownloads(scope, undo, listOf(item), item.title) else mangaDownload(scope, book, listOf(item))
             },
             next = isNext,
             number = chapterNumber(item, index + 1),
             selected = if (selection.isEmpty()) null else item.id in selection,
             longClickLabel = "Choose chapters",
-            modifier = Modifier.padding(horizontal = ReadMargin, vertical = 3.dp).testTag("manga:chapter:${item.id}"),
+            modifier = Modifier.padding(horizontal = ReadMargin).testTag("manga:chapter:${item.id}"),
         )
     }
 }
