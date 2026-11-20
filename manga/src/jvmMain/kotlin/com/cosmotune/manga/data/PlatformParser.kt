@@ -3,14 +3,11 @@ package com.cosmotune.manga.data
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
+import com.dokar.quickjs.QuickJs
 import javax.imageio.ImageIO
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.graalvm.polyglot.Context
-import org.graalvm.polyglot.HostAccess
-import org.graalvm.polyglot.ResourceLimits
+import kotlinx.coroutines.withTimeout
 import org.koitharu.kotatsu.parsers.bitmap.Bitmap
 import org.koitharu.kotatsu.parsers.bitmap.Rect
 
@@ -39,13 +36,14 @@ internal actual fun encodeMangaBitmap(bitmap: Bitmap): ByteArray = ByteArrayOutp
     check(ImageIO.write((bitmap as DesktopPage).image, "png", it))
     it.toByteArray()
 }
-private val scriptDeadline = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "Manga JS deadline").apply { isDaemon = true } }
-internal actual suspend fun evaluateMangaScript(script: String, timeoutMs: Long): String? = withContext(Dispatchers.Default) {
+/** The phone's QuickJS limits: no host objects at all, 64 MiB, a 512 KiB stack and the caller's deadline. */
+internal actual suspend fun evaluateMangaScript(script: String, timeoutMs: Long): String? = withTimeout(timeoutMs) {
     require(script.length <= 512 * 1024) { "Source script exceeds the execution limit" }
-    val context = Context.newBuilder("js").allowHostAccess(HostAccess.NONE).allowHostClassLookup { false }
-        .allowCreateThread(false).resourceLimits(ResourceLimits.newBuilder().statementLimit(2_000_000, null).build())
-        .option("engine.WarnInterpreterOnly", "false").build()
-    val deadline = scriptDeadline.schedule({ context.close(true) }, timeoutMs, TimeUnit.MILLISECONDS)
-    try { context.eval("js", script).let { if (it.isNull) null else it.toString() } }
-    finally { deadline.cancel(false); context.close(true) }
+    withContext(Dispatchers.Default) {
+        val engine = QuickJs.create(Dispatchers.Default)
+        engine.maxStackSize = 512 * 1024L
+        engine.memoryLimit = 64L * 1024 * 1024
+        engine.evaluationTimeoutMillis = timeoutMs
+        try { engine.evaluate<Any?>(script)?.toString() } finally { engine.close() }
+    }
 }

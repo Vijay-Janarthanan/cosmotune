@@ -10,10 +10,9 @@
 -keepattributes SourceFile,LineNumberTable,Signature,InnerClasses,EnclosingMethod,Exceptions,*Annotation*
 
 # ---- Script engines and extractors ------------------------------------------
-# Rhino compiles and runs YouTube's player JavaScript and binds Java classes into
-# it reflectively; NewPipe and InnerTubeX drive it and parse with nanojson/jsoup.
--keep class org.mozilla.javascript.** { *; }
--keep class org.mozilla.classfile.** { *; }
+# YouTube's player JavaScript runs in QuickJS: InnerTubeX's cipher directly, and
+# NewPipe's through shared's org.schabi.newpipe.extractor.utils.JavaScript (no
+# Rhino ships). NewPipe and InnerTubeX parse with nanojson/jsoup.
 -keep class org.schabi.newpipe.** { *; }
 -keep class com.grack.nanojson.** { *; }
 -keep class org.jsoup.** { *; }
@@ -26,7 +25,11 @@
 -keep class ai.onnxruntime.** { *; }
 -keep class com.hierynomus.** { *; }
 -keep class net.engio.mbassy.** { *; }
--keep class org.bouncycastle.** { *; }
+# BouncyCastle whole except its post-quantum half: SMBJ and the watch pairing
+# reach classic primitives (MD4, AES-CMAC/CCM/GCM, HMAC, RSA, X25519, ASN.1)
+# by direct reference, and nothing here asks for a post-quantum algorithm. Any
+# pqc class the kept provider code refers to directly is still kept.
+-keep class !org.bouncycastle.pqc.**, org.bouncycastle.** { *; }
 -keepclasseswithmembernames,includedescriptorclasses class * { native <methods>; }
 # The vendored FFmpeg extension's JNI calls back into this by name to grow
 # its output buffer (native/ffmpeg/ffmpeg_jni.cc, JNI_OnLoad).

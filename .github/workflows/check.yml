@@ -38,11 +38,11 @@ jobs:
           python3 tools/check-tracker-evidence.py
 
       - name: Build the distributable
-        run: ./gradlew :desktopApp:createDistributable
+        run: ./gradlew :desktopApp:createReleaseDistributable
 
       - name: The analyser is in the jar
         run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/lib/app/desktopApp*.jar)
+          jar=$(ls desktopApp/build/compose/binaries/main-release/app/Cosmotune/lib/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'native/libcosmotune_analysis.so'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
 
@@ -85,12 +85,12 @@ jobs:
         run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :watch:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
-        run: .\gradlew.bat :desktopApp:createDistributable
+        run: .\gradlew.bat :desktopApp:createReleaseDistributable
 
       - name: The analyser is in the jar
         shell: bash
         run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/app/desktopApp*.jar)
+          jar=$(ls desktopApp/build/compose/binaries/main-release/app/Cosmotune/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'native/cosmotune_analysis.dll'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
           # Windows media controls (WinRT) and the window/WASAPI bridge, built from smtc_abi.cpp and
@@ -135,11 +135,11 @@ jobs:
         run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :watch:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
-        run: ./gradlew :desktopApp:createDistributable
+        run: ./gradlew :desktopApp:createReleaseDistributable
 
       - name: The analyser and models are in the jar
         run: |
-          jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune.app/Contents/app/desktopApp*.jar)
+          jar=$(ls desktopApp/build/compose/binaries/main-release/app/Cosmotune.app/Contents/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'models/.*\.onnx'
 
       - name: Upload test reports

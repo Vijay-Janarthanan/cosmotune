@@ -255,13 +255,17 @@ NewPipe's state is one per process: Music's fallback resolver and Video share on
 (today v0.26.3; v0.26.4's player-script parser failed on Music's WEB_REMIX formats, see the comment in `app/build.gradle.kts`).
 
 1. **Change the tag in all three modules together.** `app/build.gradle.kts` (the `newPipeExtractorRaw` dependency, and the jar
-   name `NewPipeExtractor-v0.26.3-noutils.jar` in the task `stripNewPipeExtractorUtils`), `desktopApp/build.gradle.kts`, and
+   name `NewPipeExtractor-v0.26.3-stripped.jar` in the task `stripNewPipeExtractorUtils`), `desktopApp/build.gradle.kts`, and
    `shared/build.gradle.kts` (`compileOnly` for the main code and `implementation` for `jvmTest`). `VideoModuleStructureTest` pins
    the version in `shared/build.gradle.kts`: change the pin in the same commit.
 2. **Re-derive `app`'s dependency list.** The app consumes a stripped jar, so what the extractor itself needs (nanojson, jsoup, jsr305,
-   protobuf-javalite, rhino, rhino-engine) is listed by hand after `implementation(files(newPipeExtractorStripped))`. Run
+   protobuf-javalite) is listed by hand after `implementation(files(newPipeExtractorStripped))`. Run
    `./gradlew :app:dependencies --configuration prodReleaseRuntimeClasspath` with the extractor declared as an ordinary
    dependency for the moment (or read the new tag's published `.module` file) and update the versions.
+   The stripped jar also leaves out `org/schabi/newpipe/extractor/utils/JavaScript.class`, on the phone, the TV and the desktop
+   (`targetNewPipeExtractor` in `desktopApp/build.gradle.kts`, which lists the same dependencies): shared's `JavaScript.kt` runs
+   the same two calls in QuickJS, so Rhino does not ship. Check that the new tag's `JavaScript` still has only `compileOrThrow` and
+   `run`, and that its lexer still needs only the three helpers in shared's `org/mozilla/javascript/RhinoLexerHelpers.kt`.
 3. **Compare the patched `Utils.java`**: `app/src/main/java/org/schabi/newpipe/extractor/utils/Utils.java` is Music's copy for
    Android below API 33; check it against the new tag's `Utils` and carry the patch over.
 4. **Tests**: `:shared:jvmTest` (`NewPipeRoutingTest`, `NewPipeMapperTest` and `SearchReplayTest` build the library's own objects, so a

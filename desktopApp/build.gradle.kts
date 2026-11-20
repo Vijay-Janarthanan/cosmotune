@@ -96,9 +96,11 @@ plugins {
 // Java APIs, metadata and licences, and only the libraries this package can load.
 val onnxRuntimeRaw by configurations.creating { isTransitive = false }
 val sqliteRuntimeRaw by configurations.creating { isTransitive = false }
+val ffmpegNativesRaw by configurations.creating { isTransitive = false }
 dependencies {
     onnxRuntimeRaw("com.microsoft.onnxruntime:onnxruntime:$onnxRuntimeVersion")
     sqliteRuntimeRaw("org.xerial:sqlite-jdbc:3.47.1.0")
+    ffmpegNativesRaw("org.bytedeco:ffmpeg:$ffmpegVersion:$nativeClassifier")
 }
 val targetOnnxRuntime by tasks.registering(Jar::class) {
     archiveFileName.set("onnxruntime-$onnxRuntimeVersion-$onnxNativePlatform.jar")
@@ -133,10 +135,54 @@ val targetSqliteRuntime by tasks.registering(Jar::class) {
         }
     }
 }
+// FFmpeg's natives for this platform without what the app never loads: it calls avformat, avcodec, avutil, swresample and
+// swscale through their Java bindings (decoding, resampling, the canvas video, a provider's FLAC encode), never avfilter or
+// avdevice, and never runs the ffmpeg or ffprobe programs. JavaCPP loads each library only when its binding class is first
+// used, so the ones left out are never looked for. (Video mode's libmpv carries its own FFmpeg, a different major version.)
+val targetFfmpegNatives by tasks.registering(Jar::class) {
+    archiveFileName.set("ffmpeg-$ffmpegVersion-$nativeClassifier.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("target-runtime"))
+    from(provider { zipTree(ffmpegNativesRaw.singleFile) })
+    exclude { element ->
+        val path = element.path
+        val file = path.substringAfterLast('/')
+        path.startsWith("org/bytedeco/ffmpeg/$nativeClassifier/") &&
+            ("avfilter" in file || "avdevice" in file || file.substringBefore('.') in setOf("ffmpeg", "ffprobe"))
+    }
+    doLast {
+        ZipFile(archiveFile.get().asFile).use { zip ->
+            val names = zip.entries().asSequence().map { it.name.substringAfterLast('/') }.toList()
+            listOf("avformat", "avcodec", "avutil", "swresample", "swscale").forEach { library ->
+                check(names.any { it.contains(library) && !it.startsWith("jni") }) { "FFmpeg natives: $library is missing" }
+                check(names.any { it.startsWith("jni$library") || it.startsWith("libjni$library") }) { "FFmpeg natives: the $library binding is missing" }
+            }
+        }
+    }
+}
+
 // :video also declares SQLite. Its compile dependency stays intact; the desktop
 // runtime uses the platform-specific copy below, including in native smoke tests.
 listOf("runtimeClasspath", "testRuntimeClasspath").forEach { name ->
     configurations.named(name) { exclude(group = "org.xerial", module = "sqlite-jdbc") }
+}
+
+// NewPipeExtractor without org.schabi.newpipe.extractor.utils.JavaScript, its one Rhino entry point: shared carries
+// a QuickJS version of that class, and on a class path the first copy found would win. :video and :watch declare
+// the extractor too, so the module is excluded from the desktop's runtime and this jar stands in for it, and Rhino
+// (which nothing else uses) goes with it.
+val newPipeExtractorRaw by configurations.creating { isTransitive = false }
+dependencies { newPipeExtractorRaw("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3") }
+val targetNewPipeExtractor by tasks.registering(Jar::class) {
+    archiveFileName.set("NewPipeExtractor-v0.26.3-quickjs.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("target-runtime"))
+    from(provider { zipTree(newPipeExtractorRaw.singleFile) })
+    exclude("org/schabi/newpipe/extractor/utils/JavaScript.class", "org/schabi/newpipe/extractor/utils/JavaScript\$*.class")
+}
+listOf("runtimeClasspath", "testRuntimeClasspath").forEach { name ->
+    configurations.named(name) {
+        exclude(group = "com.github.TeamNewPipe", module = "NewPipeExtractor")
+        exclude(group = "org.mozilla")
+    }
 }
 
 dependencies {
@@ -171,7 +217,7 @@ dependencies {
     implementation("org.bytedeco:javacpp:$javacppVersion")
     implementation("org.bytedeco:javacpp:$javacppVersion:$nativeClassifier")
     implementation("org.bytedeco:ffmpeg:$ffmpegVersion")
-    implementation("org.bytedeco:ffmpeg:$ffmpegVersion:$nativeClassifier")
+    implementation(files(targetFfmpegNatives.flatMap { it.archiveFile }))
 
     // Voice in shared rooms: WebRTC, peer to peer (see voice/DesktopVoiceEngine). Not transitive: the
     // main jar's POM names its natives through a classifier that only Maven's OS profiles fill in, so
@@ -221,13 +267,16 @@ dependencies {
     implementation("com.github.hypfvieh:dbus-java-core:5.2.0")
     implementation("com.github.hypfvieh:dbus-java-transport-junixsocket:5.2.0")
 
-    // Same URL deobfuscation helper used by Android's StreamResolver.
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
+    // Same URL deobfuscation helper used by Android's StreamResolver, as the phone ships it: without its own
+    // JavaScript class (shared's QuickJS one replaces it) and so without Rhino. The extractor's other dependencies
+    // are listed by hand, because dropping the module drops them too.
+    implementation(files(targetNewPipeExtractor.flatMap { it.archiveFile }))
+    implementation("com.github.TeamNewPipe:nanojson:e9d656ddb49a412a5a0a5d5ef20ca7ef09549996")
+    implementation("com.google.code.findbugs:jsr305:3.0.2")
+    implementation("com.google.protobuf:protobuf-javalite:4.35.0")
 
-    // JVM equivalent of Android's QuickJS module host.
-    implementation("org.graalvm.polyglot:polyglot:24.1.2")
-    implementation("org.graalvm.polyglot:js:24.1.2")
-    implementation("org.graalvm.js:js-language:24.1.2")
+    // Source modules run in QuickJS, as on Android (see DesktopModules).
+    implementation("io.github.dokar3:quickjs-kt:1.0.14")
 
     testImplementation(kotlin("test"))
 }
@@ -651,8 +700,11 @@ compose.desktop {
             jvmArgs("-Dcosmotune.google.client.id=$googleDesktopClientId", "-Dcosmotune.google.client.secret=$googleDesktopClientSecret")
         }
 
+        // The release packages (packageReleaseMsi, packageReleaseExe, packageReleaseDmg, createReleaseDistributable) are shrunk:
+        // unused AndroidX code, the bulk of it unused Material icons, is left out. Nothing is renamed or optimised, and every
+        // other library is kept whole; packaging/proguard-rules.pro says why.
         buildTypes.release.proguard {
-            isEnabled.set(false)
+            isEnabled.set(true)
             obfuscate.set(false)
             optimize.set(false)
             configurationFiles.from(project.file("packaging/proguard-rules.pro"))
@@ -673,19 +725,18 @@ compose.desktop {
             copyright = "Copyright © 2026 Cosmotune contributors, based on BitChord"
 
             modules(
+                // What the app's jars refer to (jdeps), plus the modules found through services or by name below. No longer
+                // listed: java.instrument, java.scripting and jdk.dynalink, which only GraalJS and Rhino used, and java.naming,
+                // which jdk.security.auth brings in by itself.
                 "java.base",
                 "java.desktop",
-                "java.instrument",
                 "java.logging",
                 "java.management",
-                "java.naming",
                 "java.net.http",
                 "java.prefs",
-                "java.scripting",
                 "java.sql",
                 "java.xml",
                 "jdk.crypto.ec",
-                "jdk.dynalink",
                 // Video mode's desktop player reads the video through a loopback range proxy (com.sun.net.httpserver);
                 // without this module the slim production runtime cannot serve it, while development runs work.
                 "jdk.httpserver",
@@ -754,6 +805,45 @@ compose.desktop {
         }
     }
 
+}
+
+// The bundled Java runtime: date and number formats only for the languages the app has words for (DesktopStrings and the
+// Android catalogues: English plus 24), rather than for every locale CLDR knows. java.util.Locale itself is unaffected; a
+// system locale outside the list formats dates and numbers as the root locale does. The module image stays uncompressed:
+// --compress=zip-6 halves it on disk but makes the installers about 8 MB larger, since they compress it better themselves.
+val runtimeLocales = listOf(
+    "en", "bn", "de", "es", "fr", "gu", "he", "hi", "id", "it", "ja", "kn", "ml", "mr", "or", "pa", "pl", "pt", "ru", "ta",
+    "te", "th", "tr", "vi", "zh",
+)
+tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJLinkTask>().configureEach {
+    freeArgs.addAll("--include-locales=${runtimeLocales.joinToString(",")}")
+}
+
+// ProGuard writes the stack map frames of every class it reads anew, and its preverifier gets the largest composables wrong:
+// DesktopAppKt.CosmotuneDesktopApp then fails verification at start ("Inconsistent stackmap frames"), with ProGuard 7.7 and 7.9
+// alike. Only AndroidX is shrunk (packaging/proguard-rules.pro keeps every other class whole), so every jar without AndroidX
+// classes is put back exactly as it was built, frames included; the shrunk AndroidX jars are the only ones ProGuard writes.
+tasks.matching { it.name == "proguardReleaseJars" }.configureEach {
+    val jarsConfig = layout.buildDirectory.file("compose/tmp/$name/jars-config.pro")
+    doLast {
+        // -injars 'C:\\path\\to.jar' on Windows, -injars '/path/to.jar' elsewhere.
+        fun path(line: String) = File(line.substringAfter('\'').substringBeforeLast('\'').replace("\\\\", "\\"))
+        val lines = jarsConfig.get().asFile.readLines()
+        val inputs = lines.filter { it.startsWith("-injars ") }.map(::path)
+        val outputs = lines.filter { it.startsWith("-outjars ") }.map(::path)
+        check(inputs.isNotEmpty() && inputs.size == outputs.size) { "unexpected ProGuard jar list in ${jarsConfig.get().asFile}" }
+        var restored = 0
+        inputs.zip(outputs).forEach { (input, output) ->
+            val shrunk = ZipFile(input).use { zip ->
+                zip.entries().asSequence().any { it.name.startsWith("androidx/") && it.name.endsWith(".class") }
+            }
+            if (!shrunk) {
+                input.copyTo(output, overwrite = true)
+                restored++
+            }
+        }
+        logger.lifecycle("proguard: ${inputs.size - restored} AndroidX jars shrunk, $restored jars kept as built")
+    }
 }
 
 // The Windows installers use packaging/windows/main.wxs (jpackage's own, plus closing a running Cosmotune before its files are

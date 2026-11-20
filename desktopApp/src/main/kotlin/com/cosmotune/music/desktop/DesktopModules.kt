@@ -19,9 +19,9 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import org.graalvm.polyglot.Context
-import org.graalvm.polyglot.HostAccess
-import org.graalvm.polyglot.proxy.ProxyExecutable
+import com.dokar.quickjs.QuickJs
+import com.dokar.quickjs.binding.FunctionBinding
+import kotlinx.serialization.json.JsonPrimitive
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -89,7 +89,7 @@ private data class DesktopHttpResponse(
     val headers: Map<String, String>,
 )
 
-/** A JSON object that must enter Graal as a guest value, not a host object. */
+/** A JSON object that enters the script as a JavaScript value, not as a string. */
 private data class DesktopJsJson(val value: String)
 
 /** Minimal blocking HTTP bridge used only from the restricted module context. */
@@ -141,45 +141,41 @@ private object DesktopModuleHttp {
     }
 }
 
-/** JVM host for the same module shape used by Android's Spine/Ricky sources. */
-private class DesktopModuleEngine(
-    private val jsCode: String,
+/**
+ * JVM host for the same module shape used by Android's Spine/Ricky sources, in the same QuickJS interpreter the phone uses. Nothing
+ * of the host is reachable from the script except the two functions bound here; arguments and results cross as JSON text.
+ */
+private class DesktopModuleEngine private constructor(
+    private val engine: QuickJs,
     private val baseUrl: String,
 ) : AutoCloseable {
-    private val context = Context.newBuilder("js")
-        .allowHostAccess(HostAccess.NONE)
-        .allowHostClassLookup { false }
-        .allowIO(false)
-        .allowNativeAccess(false)
-        .allowCreateThread(false)
-        .build()
 
-    init {
-        val bindings = context.getBindings("js")
-        bindings.putMember("__spine_fetch", ProxyExecutable { args ->
-            val url = args.getOrNull(0)?.asString() ?: error("fetch requires a URL")
-            val method = args.getOrNull(1)?.asString() ?: "GET"
-            val headers = args.getOrNull(2)?.asString()?.let(::parseHeaders).orEmpty()
-            val body = args.getOrNull(3)?.asString()
-            val response = DesktopModuleHttp.request(resolveUrl(url), method, headers, body)
-            buildJsonObject {
-                put("status", response.status)
-                put("ok", response.status in 200..299)
-                put("body", response.body)
-                put("headers", buildJsonObject {
-                    response.headers.forEach { (key, value) -> put(key, value) }
-                })
-            }.toString()
+    private suspend fun start(jsCode: String) {
+        engine.defineBinding("__spine_fetch", object : FunctionBinding<String> {
+            override fun invoke(args: Array<Any?>): String {
+                val url = args.getOrNull(0)?.toString() ?: error("fetch requires a URL")
+                val method = args.getOrNull(1)?.toString() ?: "GET"
+                val headers = args.getOrNull(2)?.toString()?.let(::parseHeaders).orEmpty()
+                val body = args.getOrNull(3)?.toString()
+                val response = DesktopModuleHttp.request(resolveUrl(url), method, headers, body)
+                return buildJsonObject {
+                    put("status", response.status)
+                    put("ok", response.status in 200..299)
+                    put("body", response.body)
+                    put("headers", buildJsonObject {
+                        response.headers.forEach { (key, value) -> put(key, value) }
+                    })
+                }.toString()
+            }
         })
-        bindings.putMember("__spine_log", ProxyExecutable { args ->
-            // Module console output is intentionally ignored.
-            null
+        // Module console output is intentionally ignored.
+        engine.defineBinding("__spine_log", object : FunctionBinding<Unit> {
+            override fun invoke(args: Array<Any?>) = Unit
         })
 
-        context.eval("js", POLYFILLS)
+        engine.evaluate<Any?>(POLYFILLS)
         val cleanCode = preprocessModuleCode(jsCode)
-        context.eval(
-            "js",
+        engine.evaluate<Any?>(
             """
             var __spine_iife_error = null;
             globalThis.__spine_mod = (function() {
@@ -200,63 +196,60 @@ private class DesktopModuleEngine(
                     return {};
                 }
             })();
+            'ok';
             """.trimIndent(),
         )
-        val error = context.eval("js", "String(__spine_iife_error || '')").asString()
+        val error = engine.evaluate<String>("String(__spine_iife_error || '')")
         check(error.isBlank()) { "Module init error: $error" }
-        val exports = context.eval("js", "Object.keys(__spine_mod).join(', ')").asString()
+        val exports = engine.evaluate<String>("Object.keys(__spine_mod).join(', ')")
         check("searchTracks" in exports || "getTrackStreamUrl" in exports) {
             "Module has no supported exports"
         }
     }
 
-    fun call(functionName: String, args: List<Any?>): String {
-        val function = context.getBindings("js").getMember("__spine_mod")
-            ?.getMember(functionName)
-        check(function != null && function.canExecute()) {
-            "$functionName is not a function"
+    suspend fun call(functionName: String, args: List<Any?>): String {
+        require(functionName.matches(Regex("[A-Za-z_][A-Za-z0-9_]{0,99}"))) { "Invalid module function name" }
+        val name = JsonPrimitive(functionName).toString()
+        check(engine.evaluate<String>("typeof __spine_mod[$name]") == "function") { "$functionName is not a function" }
+        val arguments = args.joinToString(", ") { argument ->
+            when (argument) {
+                null -> "null"
+                is DesktopJsJson -> "(${argument.value})"
+                is Number, is Boolean -> argument.toString()
+                else -> JsonPrimitive(argument.toString()).toString()
+            }
         }
-        val guestArgs = args.map { argument ->
-            if (argument is DesktopJsJson) context.eval("js", "(${argument.value})") else argument
-        }
-        val result = function.execute(*guestArgs.toTypedArray())
-        val bindings = context.getBindings("js")
-        bindings.putMember("__spine_call_result", result)
-        context.eval(
-            "js",
+        engine.evaluationTimeoutMillis = CALL_TIMEOUT_MS
+        // The call's promise settles inside this evaluation (its continuations run before evaluate returns), and the answer is
+        // read from the globals it leaves behind.
+        engine.evaluate<Any?>(
             """
             globalThis.__spine_call_done = false;
             globalThis.__spine_call_output = '';
             globalThis.__spine_call_error = '';
-            Promise.resolve(globalThis.__spine_call_result).then(
-                function(value) {
+            (async function() {
+                try {
+                    var value = await __spine_mod[$name]($arguments);
                     globalThis.__spine_call_output = value === undefined
                         ? 'null'
                         : (typeof value === 'string' ? value : JSON.stringify(value));
-                    globalThis.__spine_call_done = true;
-                },
-                function(error) {
-                    globalThis.__spine_call_error = error && error.message
-                        ? error.message : String(error);
+                } catch (error) {
+                    globalThis.__spine_call_error = error && error.message ? error.message : String(error);
+                } finally {
                     globalThis.__spine_call_done = true;
                 }
-            );
+            })();
+            'ok';
             """.trimIndent(),
         )
-        val deadline = System.nanoTime() + CALL_TIMEOUT_NS
-        while (!context.eval("js", "Boolean(__spine_call_done)").asBoolean()) {
-            check(System.nanoTime() < deadline) { "Timed out waiting for $functionName" }
-            if (Thread.interrupted()) throw InterruptedException("Module call interrupted")
-            // Evaluating a no-op gives Graal's promise queue a chance to run.
-            context.eval("js", "void 0")
-        }
-        val error = bindings.getMember("__spine_call_error").asString()
+        check(engine.evaluate<Boolean>("Boolean(__spine_call_done)")) { "Timed out waiting for $functionName" }
+        val error = engine.evaluate<String>("String(__spine_call_error || '')")
         check(error.isBlank()) { error }
-        return bindings.getMember("__spine_call_output").asString()
+        return engine.evaluate<String>("String(__spine_call_output)")
     }
 
     override fun close() {
-        context.close(true)
+        engine.close()
     }
 
     private fun resolveUrl(url: String): String {
@@ -272,8 +265,22 @@ private class DesktopModuleEngine(
         }.toMap()
     }.getOrDefault(emptyMap())
 
-    private companion object {
-        const val CALL_TIMEOUT_NS = 45_000_000_000L
+    companion object {
+        const val CALL_TIMEOUT_MS = 45_000L
+
+        /** An interpreter with [jsCode] evaluated into it, or a throw saying why not. */
+        suspend fun create(jsCode: String, baseUrl: String): DesktopModuleEngine {
+            val engine = QuickJs.create(Dispatchers.IO)
+            engine.memoryLimit = 128L * 1024 * 1024
+            engine.maxStackSize = 1024 * 1024L
+            engine.evaluationTimeoutMillis = CALL_TIMEOUT_MS
+            return try {
+                DesktopModuleEngine(engine, baseUrl).also { it.start(jsCode) }
+            } catch (error: Throwable) {
+                engine.close()
+                throw error
+            }
+        }
 
         fun preprocessModuleCode(jsCode: String): String {
             val code = jsCode.trim()
@@ -405,7 +412,7 @@ private class DesktopModuleManager {
                 val downloadUrl = URI.create(indexUrl).resolve(module.download).toString()
                 val response = DesktopModuleHttp.get(downloadUrl)
                 check(response.status in 200..299) { "Module ${module.id} returned HTTP ${response.status}" }
-                val engine = DesktopModuleEngine(response.body, URI.create(downloadUrl).resolve(".").toString())
+                val engine = DesktopModuleEngine.create(response.body, URI.create(downloadUrl).resolve(".").toString())
                 engines[key] = engine
                 locks.putIfAbsent(key, Mutex())
                 engine

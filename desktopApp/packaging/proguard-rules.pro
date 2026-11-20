@@ -1,78 +1,46 @@
-# Keep rules for the packaged release build.
+# Keep rules for the packaged release build (packageRelease*, createReleaseDistributable).
 #
-# Shrinking only — see the build script. Everything here is something the shrinker cannot see being
-# used, because it is reached by reflection, by a service loader, or from native code.
+# Shrinking only: nothing is renamed or optimised (see the build script), so stack traces, lookups by name and
+# serialised names all stay as they are.
+#
+# What is shrunk is AndroidX, which here is Compose and the libraries it brings (Material icons, Material 3,
+# foundation, UI, lifecycle, collection). That is where the dead weight is: material-icons-extended alone carries
+# about 7,000 icons, of which the app draws a few hundred. Compose is written to be shrunk and ships no reflection
+# of its own beyond what the plugin's default rules already cover.
+#
+# Everything else is kept whole, because a large part of it is reached in ways the shrinker cannot see:
+# - by reflection or by name: kotlinx.serialization serializers, Ktor and its engine (ServiceLoader), NewPipe's
+#   service list, JavaFX's toolkit and pipelines, ICU's data and services,
+#   SQLite's JDBC driver, dbus-java proxies, SLF4J's provider, Coil's service-loaded fetchers and decoders;
+# - from native code: JavaCPP/FFmpeg (bytedeco), ONNX Runtime, Skiko, WebRTC, QuickJS, JNA, mpv, and our own
+#   JNI entry points (the analyser, the Windows frame and media bridges);
+# - by code that is not in the package at all: manga parser bundles downloaded at run time are loaded into the
+#   app's class loader and may call any of kotatsu-parsers' dependencies (OkHttp, jsoup, org.json, coroutines);
+# - by QuickJS's bindings, which call back into Kotlin.
+# Our own code (com.cosmotune.**, com.my.kizzy.**) is kept whole too: it is serialised, found by name in settings
+# and called back from native code.
+-keep class !androidx.**, ** { *; }
 
-# The entry point.
--keep class com.cosmotune.music.desktop.MainKt { *; }
+-keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod, Exceptions, SourceFile, LineNumberTable,
+    RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations, MethodParameters, Record, PermittedSubclasses,
+    NestHost, NestMembers
 
-# Kotlin metadata and coroutines' internals.
--keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod, RuntimeVisibleAnnotations
--keep class kotlin.Metadata { *; }
--dontwarn kotlinx.coroutines.**
--keep class kotlinx.coroutines.** { *; }
-
-# kotlinx.serialization generates serializers and looks them up by name.
--keep,includedescriptorclasses class com.cosmotune.music.**$$serializer { *; }
--keepclassmembers class com.cosmotune.music.** {
-    *** Companion;
-    *** serializer(...);
-}
--keepclasseswithmembers class com.cosmotune.music.** {
-    kotlinx.serialization.KSerializer serializer(...);
-}
--keep class kotlinx.serialization.** { *; }
--dontwarn kotlinx.serialization.**
-
-# Ktor and its engine, both found through ServiceLoader.
--keep class io.ktor.** { *; }
--dontwarn io.ktor.**
-
-# JavaCPP resolves every binding class and native library by name.
--keep class org.bytedeco.** { *; }
--dontwarn org.bytedeco.**
-
-# ONNX Runtime's JNI layer calls back into these.
--keep class ai.onnxruntime.** { *; }
--dontwarn ai.onnxruntime.**
-
-# Skiko and Compose's own native bridge.
--keep class org.jetbrains.skia.** { *; }
--keep class org.jetbrains.skiko.** { *; }
--dontwarn org.jetbrains.skiko.**
-
-# dbus-java builds proxies from interfaces, and SQLite's driver is a service.
--keep class org.freedesktop.** { *; }
--keep class com.github.hypfvieh.** { *; }
--keep class org.sqlite.** { *; }
--dontwarn org.freedesktop.**
--dontwarn com.github.hypfvieh.**
-
-# Both script engines are discovered rather than referenced.
--keep class org.mozilla.javascript.** { *; }
--keep class com.oracle.truffle.** { *; }
--keep class org.graalvm.** { *; }
--dontwarn org.graalvm.**
--dontwarn com.oracle.truffle.**
-
-# NewPipe's extractor reflects over its service list.
--keep class org.schabi.newpipe.** { *; }
--dontwarn org.schabi.newpipe.**
-
-# Our own JNI entry points: the analyser's symbol names encode this package.
--keep class com.cosmotune.music.playback.smart.** { *; }
+# AndroidX pieces found by name rather than referenced.
+# Service-loaded implementations (ProGuard does not read META-INF/services on its own).
+-keep class * implements androidx.compose.ui.platform.PlatformContext { *; }
+-keepnames class androidx.** implements java.io.Serializable
+# Lifecycle and SavedState create ViewModels and their factories reflectively.
+-keep class * extends androidx.lifecycle.ViewModel { <init>(...); }
+-keepclassmembers class androidx.lifecycle.** { public <init>(...); }
 
 # Anything with a native method, and whatever it is called from.
--keepclasseswithmembernames class * {
+-keepclasseswithmembernames,includedescriptorclasses class * {
     native <methods>;
 }
 
-# Referenced but not on the path, and never reached at runtime either.
-#
-# kotlin.concurrent.atomics is the experimental API kotlin-stdlib 2.3 ships references to without
-# the classes; com.google.re2j is an optional regex backend Truffle will use if it finds one, and
-# it is not on this classpath.
--dontwarn kotlin.concurrent.atomics.**
--dontwarn com.google.re2j.**
--dontwarn org.newsclub.net.unix.**
--dontwarn com.google.protobuf.**
+# The libraries above reference optional dependencies that are not on this classpath and are never reached here
+# (OkHttp's Conscrypt/BouncyCastle/OpenJSSE platforms, PDFBox's
+# JBIG2/JPX codecs, Log4j and Commons Logging bridges, Android-only paths in shared libraries, and so on). Their
+# classes are kept unchanged whatever is reported, so these warnings say nothing about the packaged app.
+-ignorewarnings
+-dontnote **

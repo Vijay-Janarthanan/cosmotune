@@ -177,14 +177,17 @@ android {
              * shape the compiler emits, and the whole UI runs measurably slower.
              *
              * Nothing is renamed (-dontobfuscate), and every library that reaches
-             * for classes by name — Rhino running YouTube's player JavaScript,
-             * NewPipe, InnerTubeX, QuickJS, SMBJ and BouncyCastle, ONNX's JNI,
+             * for classes by name — NewPipe, InnerTubeX and the QuickJS engine
+             * running YouTube's player JavaScript, SMBJ and BouncyCastle, ONNX's JNI,
              * protobuf-lite, Ktor — is kept whole: see proguard-rules.pro. What R8
              * is left to optimise is Compose, Media3, coroutines and our own
              * code, which is where the time goes. Checked on a device through the
              * `benchmark` build type below before it ships.
              */
             isMinifyEnabled = true
+            // Resources nothing refers to are left out too: libraries' layouts, drawables and strings the app never
+            // shows. Resources looked up by name are kept by res/raw/manga_resources_keep.xml.
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -228,6 +231,9 @@ android {
             pickFirsts += setOf("META-INF/LICENSE.md", "META-INF/LICENSE.txt", "META-INF/NOTICE.md")
             // SMBJ's BouncyCastle and jspecify both ship this descriptor.
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            // BouncyCastle's tables for the retired Picnic signature scheme (1.2 MB): only its post-quantum Picnic
+            // engine reads them, and neither SMBJ nor the watch pairing uses post-quantum cryptography.
+            excludes += "org/bouncycastle/pqc/legacy/**"
         }
     }
     buildFeatures {
@@ -277,13 +283,17 @@ dependencies {
 val newPipeExtractorStripped = tasks.register<org.gradle.api.tasks.bundling.Jar>(
     "stripNewPipeExtractorUtils"
 ) {
-    archiveFileName.set("NewPipeExtractor-v0.26.3-noutils.jar")
+    archiveFileName.set("NewPipeExtractor-v0.26.3-stripped.jar")
     destinationDirectory.set(layout.buildDirectory.dir("stripped-libs"))
     from(provider { newPipeExtractorRaw.map { zipTree(it) } }) {
         // The class itself, plus any nested or synthetic siblings the upstream
         // compiler emitted alongside it, so nothing from the jar's Utils survives.
         exclude("org/schabi/newpipe/extractor/utils/Utils.class")
         exclude("org/schabi/newpipe/extractor/utils/Utils\$*.class")
+        // shared carries this one too, on QuickJS: YouTube's player functions run in the engine the app already has,
+        // and Rhino does not ship.
+        exclude("org/schabi/newpipe/extractor/utils/JavaScript.class")
+        exclude("org/schabi/newpipe/extractor/utils/JavaScript\$*.class")
     }
 }
 
@@ -403,8 +413,6 @@ dependencies {
     implementation("org.jsoup:jsoup:1.22.2")
     implementation("com.google.code.findbugs:jsr305:3.0.2")
     implementation("com.google.protobuf:protobuf-javalite:4.35.0")
-    implementation("org.mozilla:rhino:1.8.1")
-    implementation("org.mozilla:rhino-engine:1.8.1")
 
     // ---- Auth/session storage ----
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

@@ -52,10 +52,8 @@ class VerifiedQobuzAudioLiveTest {
             } catch (error: Exception) {
                 result["status"] = JsonPrimitive("UNAVAILABLE")
                 result["errorType"] = JsonPrimitive(error.javaClass.simpleName)
-                if (error is org.graalvm.polyglot.PolyglotException) {
-                    result["runtimeCancelled"] = JsonPrimitive(error.isCancelled)
-                    result["runtimeLimitExceeded"] = JsonPrimitive(error.isResourceExhausted)
-                    result["runtimeHostFailure"] = JsonPrimitive(error.isHostException)
+                if (error is com.dokar.quickjs.QuickJsException) {
+                    result["runtimeInterrupted"] = JsonPrimitive(error is com.dokar.quickjs.QuickJsInterruptedException)
                 }
                 if (error is ProviderResolutionException) {
                     error.hostApi?.let { result["failedHostApi"] = JsonPrimitive(it) }
