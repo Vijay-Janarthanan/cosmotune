@@ -18,14 +18,16 @@ class ShellClearanceTest {
 
     private val mainActivity = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
 
-    private val paddings = Regex("""bottom = if \(player\.song != null\) (\d+)\.dp else (\d+)\.dp""")
+    // The bottom bar's case of the phone pages' bottom padding (from 600 dp the tabs are in the rail and only the mini player stands
+    // under the page, which this test does not measure).
+    private val paddings = Regex("""player\.song != null -> (\d+)\.dp\s*else -> (\d+)\.dp""")
 
     private fun oldPaddings(): Pair<Int, Int> {
         val file = File(root, mainActivity)
         if (!file.isFile) fail("$mainActivity is not where this test expects it; update ShellClearanceTest")
         val match = paddings.find(file.readText())
             ?: fail(
-                "Could not find `bottom = if (player.song != null) N.dp else M.dp` in $mainActivity (the old pages' bottom " +
+                "Could not find the bottom bar's `player.song != null -> N.dp else -> M.dp` in $mainActivity (the old pages' bottom " +
                     "padding for the bars). The line moved or changed: re-check the new chrome's clearance, then update this test.",
             )
         return match.groupValues[1].toInt() to match.groupValues[2].toInt()
