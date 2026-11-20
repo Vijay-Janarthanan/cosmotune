@@ -124,6 +124,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         PodioModel(catalogue, library, scope, host, query, language, country, genre, searching, searchShows, satellite, globeFull, pages)
     }
     m.host = host
+    m.undoBar = com.cosmotune.ui.orbit.LocalOrbitUndo.current
     val queued by m.queue.state.collectAsUiState()
 
     // The section: the dock's or the rail's tab here, the sidebar's row on the desktop (the same channel in a narrow desktop window).
@@ -182,7 +183,6 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         delay(400)
         if (kotlin.math.abs(playback.rate - speed) > 0.01f) onSpeed(speed)
     }
-    LaunchedEffect(m.undo) { if (m.undo != null) { delay(6_000); m.undo = null } }
     LaunchedEffect(m.notice) { if (m.notice != null) { delay(5_000); m.notice = null } }
     fun openQueue() { m.playerSheet = false; m.queueOpen = true }
     val playingStation = if (live) (m.radio + saved.stations + listOfNotNull(m.selected)).firstOrNull { it.item().id == playback.id } else null
@@ -223,7 +223,9 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         val dockShown = compact && !m.globeFull
         val bottom = if (dockShown) with(density) { dockPx.toDp() } + 16.dp else 16.dp
         val head = rememberLivePlayheadOf(playback.positionMs, playback.playing && !playback.loading, playback.rate, playback.id)
-        val env = PodioEnv(saved, playback, downloadedEpisodes, episodeDownloadStatus, episodeDownloadsRunning, bottom,
+        // A download being removed leaves the lists at once; its file goes when its Undo runs out.
+        val shownDownloads = remember(downloadedEpisodes, m.removingDownloads) { downloadedEpisodes.filter { it.id !in m.removingDownloads } }
+        val env = PodioEnv(saved, playback, shownDownloads, episodeDownloadStatus, episodeDownloadsRunning, bottom,
             // The page's head carries the account (or the way back to Music) at every width.
             onMusic,
             ::chooseSection, wide = !compact, onToggle = onToggle, head = head, onSeek = onSeek, queue = queued)
@@ -259,11 +261,10 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                 section == PodioSection.PODCASTS -> m.shows.isEmpty()
                 else -> false
             }
+            // "Removed · Undo" is the window's snackbar (LocalOrbitUndo), not a banner of Podio's own.
             val notice = m.notice
-            val undo = m.undo
             val error = m.error?.takeIf { !pageShowsError }
             if (error != null) PodioBanner(error, "Dismiss", { m.error = null }, danger = true, look, fonts, modifier = place)
-            else if (undo != null) PodioBanner(undo.message, "Undo", { m.undo = null; undo.undo() }, danger = false, look, fonts, modifier = place.testTag("podio:undo"))
             else if (notice != null) PodioBanner(notice, "Dismiss", { m.notice = null }, danger = false, look, fonts, modifier = place)
         }
 
@@ -304,7 +305,11 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                 Column(Modifier.fillMaxSize().then(if (compact) Modifier else Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End + WindowInsetsSides.Bottom)))) {
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         CompositionLocalProvider(LocalPodioModeSwitcher provides true) { content() }
-                        if (!compact) banner(Modifier.align(Alignment.BottomCenter))
+                        // Beside the rail no dock carries the window's "Removed · Undo", so the page draws it over its foot.
+                        if (!compact) Column(Modifier.align(Alignment.BottomCenter).widthIn(max = 520.dp)) {
+                            com.cosmotune.ui.orbit.OrbitUndoHost(com.cosmotune.ui.orbit.LocalOrbitUndo.current, Modifier.padding(horizontal = 16.dp))
+                            banner(Modifier)
+                        }
                     }
                     if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live },
                         queued = queued.entries.size, onQueue = ::openQueue)
@@ -318,17 +323,6 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             showSpeed = m.speedFor(playingEntry?.show?.id), onShowSpeed = playingEntry?.let { entry -> { speed: Float? -> m.setShowSpeed(entry.show.id, speed) } }) { m.playerSheet = false }
         m.episodeSheet?.let { entry -> EpisodeSheet(m, env, entry) { m.episodeSheet = null } }
     }
-    }
-    m.downloadToRemove?.let { episode ->
-        com.cosmotune.ui.sheets.CosmoAlertDialog(
-            onDismissRequest = { m.downloadToRemove = null },
-            title = "Remove download?",
-            content = { Text(episode.title) },
-            confirmLabel = "Remove download",
-            onConfirm = m::removeSelectedDownload,
-            dismissLabel = "Cancel",
-            onDismiss = { m.downloadToRemove = null },
-        )
     }
     if (m.addFeed) com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = { m.addFeed = false },

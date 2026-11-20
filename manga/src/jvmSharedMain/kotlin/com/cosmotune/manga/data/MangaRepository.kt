@@ -295,6 +295,29 @@ class MangaRepository(val store: MangaStore,
         transfers.withLock { withContext(Dispatchers.IO) { trimCache(0, emptySet()) } }
     }
 
+    /**
+     * Takes the downloads of [chapterIds] off the device's list (a removal with "Removed · Undo"): their pages stay on the disk, no
+     * longer kept, until [trimDownloads] frees them; [putBackDownloads] lists them again. What was taken, by chapter.
+     */
+    suspend fun takeOutDownloads(chapterIds: Collection<String>): Map<String, List<MangaPage>> {
+        val ids = chapterIds.toSet()
+        var taken = emptyMap<String, List<MangaPage>>()
+        store.update { old -> taken = old.downloads.filterKeys { it in ids }; old.copy(downloads = old.downloads - ids) }
+        return taken
+    }
+
+    /** Lists [taken] downloads again (Undo), each whose pages are all still on the disk. */
+    suspend fun putBackDownloads(taken: Map<String, List<MangaPage>>) {
+        val whole = taken.filterValues { pages -> pages.all { page -> page.localFile?.let { File(it).isFile } ?: true } }
+        if (whole.isEmpty()) return
+        store.update { old -> old.copy(downloads = old.downloads + whole.filterKeys { it !in old.downloads }) }
+    }
+
+    /** Frees the pages of downloads taken out once their Undo has run out (as [removeDownload] does at once). */
+    suspend fun trimDownloads() {
+        transfers.withLock { withContext(Dispatchers.IO) { trimCache(0, emptySet()) } }
+    }
+
     suspend fun removeBook(bookId: String) {
         val old = store.state.value.books.find { it.id == bookId } ?: return
         store.remove(bookId)

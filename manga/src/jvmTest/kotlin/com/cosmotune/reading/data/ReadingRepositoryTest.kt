@@ -91,6 +91,35 @@ class ReadingRepositoryTest {
         assertFalse(File(book.filePath).exists())
     }
 
+    @Test fun aBookTakenOutComesBackWholeWithUndoAndItsFilesGoOnlyWhenUndoRunsOut() = runBlocking<Unit> {
+        val repository = ReadingRepository(temporary.newFolder())
+        val bytes = epub()
+        val book = repository.importFile("Story.epub") { bytes.inputStream() }
+        val locator = ReadingLocator("OEBPS/text/chapter.xhtml", .3)
+        repository.saveLocator(book.id, locator)
+        val mark = repository.saveBookmark(book.id, "A page", locator)
+        val collection = repository.createCollection("Evening books")
+        repository.assignCollection(book.id, collection.id, true)
+        repository.markFinished(book.id)
+        val taken = assertNotNull(repository.takeOutBook(book.id))
+        assertTrue(repository.state.value.books.isEmpty() && repository.state.value.bookmarks.isEmpty(), "gone from the library at once")
+        assertTrue(File(book.filePath).exists(), "its file stays while Undo can still put it back")
+        repository.putBackBook(taken)
+        val back = repository.state.value
+        assertEquals(listOf(book.id), back.books.map { it.id })
+        assertEquals(locator, back.progress.getValue(book.id).locator)
+        assertEquals(listOf(mark), back.bookmarks)
+        assertTrue(book.id in back.finished && book.id in back.collections.single().bookIds, "the Finished mark and the collection come back")
+        repository.deleteTakenBook(taken)
+        assertTrue(File(book.filePath).exists(), "a book put back keeps its file")
+        val again = assertNotNull(repository.takeOutBook(book.id))
+        repository.deleteTakenBook(again)
+        assertFalse(File(book.filePath).exists(), "once Undo has run out the file goes")
+        repository.removeBookmark(mark.id)
+        repository.restoreBookmark(mark)
+        assertTrue(repository.state.value.bookmarks.isEmpty(), "a bookmark of a book no longer in the library is not put back")
+    }
+
     @Test fun credentialProtectionAndAtomicFailurePreserveThePreviousLibrary() = runBlocking<Unit> {
         val root = temporary.newFolder()
         val protection = object : MangaFileProtection {

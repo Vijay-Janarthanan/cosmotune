@@ -1,5 +1,7 @@
 package com.cosmotune.ui.watch
 
+import com.cosmotune.ui.orbit.OrbitCollapsedHeader
+import com.cosmotune.ui.orbit.OrbitCollapsingHeaderBar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -137,9 +139,10 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
         downloads.start(target, shown, best, listOfNotNull(best.source.pluginName, best.label).joinToString(" · "))
     }) else null
 
+    val list = androidx.compose.foundation.lazy.rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
         WatchWash(fill, look)
-        LazyColumn(Modifier.fillMaxSize().testTag("watch:title:page"), contentPadding = frame.padding) {
+        LazyColumn(Modifier.fillMaxSize().testTag("watch:title:page"), state = list, contentPadding = frame.padding) {
             frame.header?.let { header -> item(key = "title:header") { header() } }
             item(key = "title:card") {
                 TitleCard(
@@ -197,6 +200,10 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
             }
             item(key = "title:end") { Spacer(Modifier.height(40.dp)) }
         }
+        // Once the card has scrolled away, the title and Play stand at the top of the page (the board's scrolled series).
+        val playable = !series || nextUp != null || firstEpisode != null
+        OrbitCollapsingHeaderBar(list, OrbitCollapsedHeader(shown.posterUrl ?: shown.backdropUrl, shown.name, pageLine(shown, page).ifBlank { null }, false,
+            play.takeIf { playable }, null), after = if (frame.header != null) 2 else 1, side = side)
     }
     if (animeMapping) {
         var season by remember { mutableStateOf("1") }
@@ -357,8 +364,8 @@ private fun PlayFrom(sources: SourcesState?, summary: TitleSummary, actions: Wat
             }
             if (matching.size > PLAY_FROM_SHOWN) WatchCardChip(if (all) "Show fewer" else "Show all ${matching.size}", look.ink, fonts, onClick = { all = !all })
         }
-        Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (sources == null) repeat(3) { WatchSkeleton(look, Modifier.fillMaxWidth().height(62.dp), radius = 22.dp) }
+        Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (sources == null) repeat(3) { com.cosmotune.ui.orbit.OrbitRowSkeleton(it) }
             if (all && streams.isNotEmpty()) {
                 WatchSourceFilters(streams, filter, { filter = it }, fonts, look)
                 if (matching.isEmpty()) WatchCardChip("No matches · Reset filters", look.ink, fonts, onClick = { filter = WatchStreamFilter() })
@@ -395,11 +402,12 @@ internal fun SourceRow(
     stream: Stream, best: Boolean, fonts: OrbitFonts, look: OrbitLook,
     titleRuntimeMin: Int? = null, onClick: (() -> Unit)? = null,
 ) {
+    // A flat row: the best copy is said by its peach name and "Best", not a wash.
     WatchRowFrame(look, height = 76.dp, highlighted = best, onClick = onClick) {
         WatchLogoTile(stream.source.badge, logoFill(stream.source.badge), fonts)
         Column(Modifier.weight(1f)) {
             Text("${stream.source.pluginName} · ${stream.label}",
-                style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                style = fonts.title.copy(fontSize = 14.sp), color = if (best) look.accent else look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val detailStyle = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp)
             Text(stream.watchMetadata(titleRuntimeMin = titleRuntimeMin), style = detailStyle, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             stream.description?.lineSequence()?.firstOrNull { it.isNotBlank() }?.let {
@@ -476,7 +484,7 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
                 WatchRoundButton(CosmoIcons.Download, "Download episodes", look, onClick = { batchOpen = true }, modifier = Modifier.padding(start = 8.dp))
             }
         }
-        Column(Modifier.padding(horizontal = side).padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(horizontal = side).padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             val list = episodes
             if (list == null) repeat(4) { WatchSkeleton(look, Modifier.fillMaxWidth().height(81.dp), radius = 14.dp) }
             else if (list.isEmpty()) Text("No episodes listed for this season.", style = fonts.body, color = look.dim, modifier = Modifier.padding(6.dp))
@@ -503,7 +511,7 @@ private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watc
             }
         }
         Column(Modifier.weight(1f)) {
-            Text("${e.number}. ${e.name}", style = fonts.title.copy(fontSize = 14.sp, lineHeight = 18.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text("${e.number}. ${e.name}", style = fonts.title.copy(fontSize = 14.sp, lineHeight = 18.sp), color = if (next) look.accent else look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val inProgress = progress != null && !progress.completed && progress.fraction > 0f
             val second = if (inProgress) leftText(progress!!.remainingMs) else e.overview?.lineSequence()?.firstOrNull { it.isNotBlank() }
             Text(listOfNotNull(runtimeText(e.runtimeMin), second).joinToString(" · "), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp),

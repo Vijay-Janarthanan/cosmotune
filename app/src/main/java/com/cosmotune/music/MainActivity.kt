@@ -2379,6 +2379,8 @@ private fun CosmotuneApp(
                 }
             },
             onRemoveFromQueue = { controller?.removeMediaItem(it) },
+            // Up next's "Removed · Undo": the song goes back where it stood.
+            onRestoreToQueue = { song, at -> controller?.let { c -> c.addMediaItem(at.coerceIn(0, c.mediaItemCount), song.toMediaItem()) } },
             onMoveInQueue = { from, to -> controller?.moveMediaItem(from, to) },
             onQueueDragActiveChange = { active -> controller?.setQueueDragActive(active) },
             // The enriched copy, not player.song â€” otherwise the menu

@@ -229,16 +229,16 @@ internal fun languageName(tag: String): String = if (tag.isBlank() || tag == "mu
     locale.getDisplayName(locale).replaceFirstChar { it.titlecase(locale) }.ifBlank { tag }
 }
 
-/** A source in Browse as an Orbit row: its initials on a round tile, its name, its language and kind, a chevron. */
+/** A source in Browse as a flat Orbit row: its initials on a round tile, its name, its language and kind, a chevron. */
 @Composable
 private fun MangaSourceRow(source: MangaSourceConfig, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     OrbitSongRow(
-        title = source.name, cover = null, fonts = fonts, look = look, onClick = onClick, modifier = modifier.fillMaxWidth(), height = 64.dp,
+        title = source.name, cover = null, fonts = fonts, look = look, onClick = onClick, modifier = modifier.fillMaxWidth(),
         subtitle = listOf(languageName(source.language), when (source.kind) { "komga" -> "Komga"; "template" -> "Website"; "mihon" -> "Extension"; else -> "Source" }).joinToString(" · "),
         discContent = {
-            Box(Modifier.size(44.dp).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(com.cosmotune.ui.orbit.orbitRowDisc()).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
                 Text(titleInitials(source.name), style = fonts.label, color = look.ink)
             }
         },

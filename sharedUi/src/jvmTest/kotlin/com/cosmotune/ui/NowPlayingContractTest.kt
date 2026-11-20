@@ -54,15 +54,21 @@ class NowPlayingContractTest {
 
     private val oldScreen get() = parameters(read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/player/NowPlayingScreen.kt"), "NowPlayingScreen")
 
+    /** The new screen's list less what the old screen never had: Up next's way back for "Removed · Undo". */
+    private fun withoutNew(list: List<String>): List<String> {
+        assertTrue(list.any { it.startsWith("onRestoreToQueue:") }, "Up next's Undo has its way back")
+        return list.filterNot { it.startsWith("onRestoreToQueue:") }
+    }
+
     // ---- the seam -------------------------------------------------------------------------------------------------------
 
     @Test fun theSwitchTakesNowPlayingScreensParametersNameForNameAndTypeForType() {
         val old = oldScreen
         assertTrue(old.size > 40, "the old screen's list was read (${old.size})")
-        assertEquals(old, parameters(nowPlaying("NowPlayingSwitch.kt"), "NowPlayingSwitch"))
+        assertEquals(old, withoutNew(parameters(nowPlaying("NowPlayingSwitch.kt"), "NowPlayingSwitch")))
     }
 
-    @Test fun theNewScreenTakesTheSameList() = assertEquals(oldScreen, parameters(nowPlaying("CosmoNowPlaying.kt"), "CosmoNowPlaying"))
+    @Test fun theNewScreenTakesTheSameList() = assertEquals(oldScreen, withoutNew(parameters(nowPlaying("CosmoNowPlaying.kt"), "CosmoNowPlaying")))
 
     @Test fun theSwitchsOneCallPassesEveryParameterByName() {
         val body = SourceContract.functionBody(nowPlaying("NowPlayingSwitch.kt"), "NowPlayingSwitch")

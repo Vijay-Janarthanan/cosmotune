@@ -144,6 +144,45 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         File(documents, bookId).takeIf { it.exists() }?.let(ReadingEpub::deleteOwned)
     } }
 
+    /**
+     * Takes [bookId] out of the library with its place, bookmarks, Finished mark and collections, but keeps its files, so a "Removed ·
+     * Undo" can put it back ([putBackBook]) until [deleteTakenBook] deletes them for good. Null when there is no such book.
+     */
+    suspend fun takeOutBook(bookId: String): TakenBook? = imports.withLock { withContext(Dispatchers.IO) {
+        val old = state.value
+        val book = old.books.find { it.id == bookId } ?: return@withContext null
+        val taken = TakenBook(book, old.progress[bookId], old.bookmarks.filter { it.bookId == bookId }, bookId in old.finished,
+            old.collections.filter { bookId in it.bookIds }.map { it.id }.toSet())
+        store.update { now -> now.copy(books = now.books.filterNot { it.id == bookId }, progress = now.progress - bookId,
+            bookmarks = now.bookmarks.filterNot { it.bookId == bookId }, finished = now.finished - bookId,
+            collections = now.collections.map { it.copy(bookIds = it.bookIds - bookId) }) }
+        taken
+    } }
+
+    /** Puts a book [takeOutBook] took out back as it was (unless it is in the library again already). */
+    suspend fun putBackBook(taken: TakenBook) {
+        val id = taken.book.id
+        store.update { old ->
+            if (old.books.any { it.id == id }) old
+            else old.copy(books = old.books + taken.book, progress = taken.progress?.let { old.progress + (id to it) } ?: old.progress,
+                bookmarks = old.bookmarks + taken.bookmarks.filter { mark -> old.bookmarks.none { it.id == mark.id } },
+                finished = if (taken.finished) old.finished + id else old.finished,
+                collections = old.collections.map { if (it.id in taken.collections) it.copy(bookIds = it.bookIds + id) else it })
+        }
+    }
+
+    /** Deletes the files of a book [takeOutBook] took out, once its Undo has run out; nothing if it is back in the library. */
+    suspend fun deleteTakenBook(taken: TakenBook) = imports.withLock { withContext(Dispatchers.IO) {
+        if (state.value.books.any { it.id == taken.book.id }) return@withContext
+        ownedFile(taken.book).delete()
+        File(documents, taken.book.id).takeIf { it.exists() }?.let(ReadingEpub::deleteOwned)
+    } }
+
+    /** Puts a removed bookmark back (the bookmark row's Undo). */
+    suspend fun restoreBookmark(mark: ReadingBookmark) = store.update { old ->
+        if (old.bookmarks.any { it.id == mark.id } || old.books.none { it.id == mark.bookId }) old else old.copy(bookmarks = old.bookmarks + mark)
+    }
+
     suspend fun saveOpdsSource(name: String, url: String, username: String = "", password: String = "", allowInsecureHttp: Boolean = false): ReadingOpdsSource {
         PersonalOpdsCatalogue("validation", url, username.takeIf(String::isNotEmpty), password, client, allowInsecureHttp)
         val id = "opds:" + MessageDigest.getInstance("SHA-256").digest(url.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
@@ -284,3 +323,12 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     }
     companion object { const val MAX_FILE_BYTES = 512L * 1024 * 1024 }
 }
+
+/** A book taken out of the library by [ReadingRepository.takeOutBook], with what belonged to it, while its Undo runs. */
+class TakenBook internal constructor(
+    val book: ReadingBook,
+    internal val progress: ReadingProgress?,
+    internal val bookmarks: List<ReadingBookmark>,
+    internal val finished: Boolean,
+    internal val collections: Set<String>,
+)

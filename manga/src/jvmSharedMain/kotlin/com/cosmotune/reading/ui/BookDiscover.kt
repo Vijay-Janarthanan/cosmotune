@@ -209,11 +209,11 @@ internal fun BookDiscover(scope: ReadScope) {
     if (connections) BookConnections(repository, onDismiss = { connections = false }, onError = scope.onError)
 }
 
-/** A catalogue entry as an Orbit row: its tall cover where a disc would be, the title, the authors and where it comes from. */
+/** A catalogue entry as a flat Orbit row: its tall cover where a disc would be, the title, the authors and where it comes from. */
 @Composable
 internal fun BookPublicationRow(publication: ReadingPublication, source: String, onClick: () -> Unit) {
     ReadCoverRow(publication.title, listOf(publication.authors.joinToString(", "), source).filter(String::isNotBlank).joinToString(" · "), publication.coverUrl,
-        key = publication.id, onClick = onClick, modifier = Modifier.padding(horizontal = ReadMargin, vertical = 4.dp))
+        key = publication.id, onClick = onClick, modifier = Modifier.padding(horizontal = ReadMargin))
 }
 
 /**

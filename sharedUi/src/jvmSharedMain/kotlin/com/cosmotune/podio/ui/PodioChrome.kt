@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -23,17 +24,17 @@ import com.cosmotune.podio.PodioSaved
 import com.cosmotune.ui.blocks.LocalModeProfileAction
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.kit.KitModeSwitcher
+import com.cosmotune.ui.orbit.OrbitBackHeader
 import com.cosmotune.ui.orbit.OrbitFonts
-import com.cosmotune.ui.orbit.OrbitLabel
 import com.cosmotune.ui.orbit.OrbitLook
-import com.cosmotune.ui.orbit.OrbitPageButton
 import com.cosmotune.ui.orbit.OrbitPageHeading
+import com.cosmotune.ui.orbit.OrbitRowSkeleton
 import com.cosmotune.ui.orbit.WatchMessage
-import com.cosmotune.ui.orbit.WatchSkeleton
 
 /*
- * The frame of Podio's pages in Orbit (board section C): the phone's mode pill, the page heading with its peach full stop and its
- * round buttons, the head of a page opened over a section (back and the mono kind), the notice along the foot, and the quiet states.
+ * The frame of Podio's pages in Orbit (board section C): the phone's head row (the mode pill, the round buttons, the account), the
+ * page heading with its peach full stop, the head of a page opened over a section (back and the mono kind), the notice along the
+ * foot, and the quiet states. Removals go to the window's "Removed · Undo" snackbar ([com.cosmotune.ui.orbit.LocalOrbitUndo]).
  */
 
 /** What every Podio page reads besides the model: the library, the playback, the downloads and where the page ends. */
@@ -73,37 +74,37 @@ internal class PodioEnv(
 internal val LocalPodioModeSwitcher = staticCompositionLocalOf { false }
 
 /**
- * A section's head (board section C, "Radio."): on the phone the mode pill and the account first; then the mono [label] over the
- * [title] in the wide face with its peach full stop, and the page's round buttons at the end ([actions]).
+ * A section's head (board frame 1, "Podcasts."): on the phone one row of the mode pill, the page's round buttons ([actions]) and the
+ * account, then the mono [label] over the 30 sp [title] with its peach full stop ([OrbitPageHeading]). Where the rail or the sidebar
+ * holds the mode and the account, the buttons stand at the end of the label's row instead.
  */
 @Composable internal fun PodioHead(title: String, label: String, fonts: OrbitFonts, look: OrbitLook, side: Dp, onMusic: (() -> Unit)?,
     modifier: Modifier = Modifier, actions: @Composable RowScope.() -> Unit = {}) {
     val phone = LocalPodioModeSwitcher.current
     Column(modifier.fillMaxWidth()) {
         if (phone) {
-            Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = side, end = side, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = side, end = side, top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 KitModeSwitcher()
                 Spacer(Modifier.weight(1f))
+                actions()
                 val account = LocalModeProfileAction.current
                 if (account != null) account() else if (onMusic != null) PodioTextAction("Music", look, fonts, onMusic)
             }
             com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = side).padding(top = 12.dp))
-        }
-        OrbitPageHeading(title, label, fonts, look, Modifier.padding(start = side + 4.dp, end = side, top = if (phone) 18.dp else 30.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
+            OrbitPageHeading(title, label, fonts, look, Modifier.padding(start = side + 4.dp, end = side, top = 14.dp).testTag("podio:head"))
+        } else {
+            OrbitPageHeading(title, label, fonts, look, Modifier.padding(start = side + 4.dp, end = side, top = 30.dp).testTag("podio:head")) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
+            }
         }
     }
 }
 
-/** The head of a page opened over a section (a show, a station): the round back button and the mono [kind]. */
+/** The head of a page opened over a section (a show, a station, the queue): the shared [OrbitBackHeader], back and the mono [kind]. */
 @Composable internal fun PodioBackHead(kind: String, onBack: () -> Unit, fonts: OrbitFonts, look: OrbitLook, side: Dp, modifier: Modifier = Modifier,
     backLabel: String = "Back", actions: @Composable RowScope.() -> Unit = {}) {
-    Row(modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = side, end = side, top = 14.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        OrbitPageButton(CosmoIcons.ChevronLeft, backLabel, onBack)
-        OrbitLabel(kind, fonts, look.dim, Modifier.weight(1f))
-        actions()
-    }
+    OrbitBackHeader(kind, onBack, modifier.windowInsetsPadding(WindowInsets.statusBars).padding(start = side, end = side, top = 8.dp), backLabel = backLabel, trailing = actions)
 }
 
 /** A word in the accent that does something ("Music", "Clear", "Load older episodes"). */
@@ -129,10 +130,10 @@ internal val LocalPodioModeSwitcher = staticCompositionLocalOf { false }
     WatchMessage(label, title, text, fonts, look, Modifier.padding(horizontal = side).padding(top = 18.dp).fillMaxWidth(), action, onAction)
 }
 
-/** Rows standing in while a list loads. */
-@Composable internal fun PodioSkeletonRows(count: Int, look: OrbitLook, side: Dp, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().padding(horizontal = side).padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        repeat(count) { WatchSkeleton(look, Modifier.fillMaxWidth().height(68.dp), radius = 22.dp) }
+/** Rows standing in while a list loads: the flat row's own shape ([OrbitRowSkeleton]), so nothing moves when the list arrives. */
+@Composable internal fun PodioSkeletonRows(count: Int, @Suppress("UNUSED_PARAMETER") look: OrbitLook, side: Dp, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().padding(horizontal = side).padding(top = 8.dp)) {
+        repeat(count) { OrbitRowSkeleton(it) }
     }
 }
 

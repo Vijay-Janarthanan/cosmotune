@@ -183,7 +183,7 @@ private enum class MyListSort(val label: String) { ADDED("Recently added"), NAME
 /**
  * My list (board frame 10): the heading with how many are saved and in progress, a row of tabs with counts (My list, Playlists,
  * Downloads; the last two open their pages), the sort and Select, then the posters in a grid with how far each is watched. Select
- * picks several to remove at once; removing says so in a toast with Undo instead of asking first.
+ * picks several to remove at once; removing says so on the window's "Removed · Undo" snackbar instead of asking first.
  */
 @Composable
 internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
@@ -196,8 +196,7 @@ internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
     var sortMenu by remember { mutableStateOf(false) }
     var selecting by rememberSaveable { mutableStateOf(false) }
     val selected = remember { mutableStateListOf<String>() }
-    var removed by remember { mutableStateOf<List<TitleSummary>>(emptyList()) }
-    LaunchedEffect(removed) { if (removed.isNotEmpty()) { delay(4_000); removed = emptyList() } }
+    val undo = com.cosmotune.ui.orbit.LocalOrbitUndo.current
     val watched = remember(going) { going.associate { it.summary.key to it.progress } }
     val shown = remember(list, sort) {
         when (sort) {
@@ -232,7 +231,10 @@ internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
                         WatchCardChip(if (selected.isEmpty()) "Remove" else "Remove ${selected.size}", look.ink, fonts, enabled = selected.isNotEmpty(), icon = CosmoIcons.Close, onClick = {
                             val gone = list.filter { it.key.value in selected }.map { it.summary }
                             gone.forEach { actions.setInMyList(it, false) }
-                            removed = gone; selected.clear(); selecting = false
+                            selected.clear(); selecting = false
+                            // "Removed · Undo" for 10 s: Undo puts the titles back on the list.
+                            val putBack = { gone.forEach { actions.setInMyList(it, true) } }
+                            if (gone.size == 1) undo?.removed(gone.single().name, putBack) else undo?.show("Removed ${gone.size} from My list", putBack)
                         })
                         Spacer(Modifier.weight(1f))
                         WatchCardChip("Done", look.ink, fonts, onClick = { selected.clear(); selecting = false })
@@ -267,13 +269,6 @@ internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
                 }
             }
         }
-        // Until the shared Undo snackbar lands: the app's toast, with Undo putting the titles back.
-        if (removed.isNotEmpty()) com.cosmotune.ui.sheets.CosmoToast(
-            if (removed.size == 1) "Removed from My list" else "Removed ${removed.size} from My list",
-            Modifier.align(Alignment.BottomCenter).padding(bottom = frame.padding.calculateBottomPadding()),
-            actionLabel = "Undo", actionIcon = CosmoIcons.Replay,
-            onAction = { removed.forEach { actions.setInMyList(it, true) }; removed = emptyList() },
-        )
     }
 }
 

@@ -328,15 +328,17 @@ fun settingsCategoryTint(category: SettingsCategory): Color {
  * [label] over it says where Settings was opened from ("Opened from Podio").
  */
 @Composable
-fun SettingsHubTitle(text: String, modifier: Modifier = Modifier, label: String = "") {
+fun SettingsHubTitle(text: String, modifier: Modifier = Modifier, label: String = "", trailing: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null) {
     val fonts = orbitFonts()
     val look = orbitLook()
+    // The shared page heading (it marks the title as the heading itself): the eyebrow with [trailing] at its end, then "Settings."
     OrbitPageHeading(
         title = text,
         label = label,
         fonts = fonts,
         look = look,
-        modifier = modifier.padding(start = HUB_SIDE, end = HUB_SIDE, top = 4.dp, bottom = 12.dp).semantics { heading() },
+        modifier = modifier.padding(start = HUB_SIDE, end = HUB_SIDE, top = 4.dp, bottom = 12.dp).testTag("settings:hub:title"),
+        trailing = trailing,
     )
 }
 

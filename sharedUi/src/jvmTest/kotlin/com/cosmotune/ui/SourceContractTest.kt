@@ -23,8 +23,10 @@ class SourceContractTest {
         val old = SourceContract.parameters(SourceContract.read(oldScreenPath), "NowPlayingScreen")
         val switch = SourceContract.parameters(SourceContract.read(switchPath), "NowPlayingSwitch")
         assertTrue(switch.size > 40, "the switch's list was read (${switch.size})")
-        assertEquals(old, switch)
-        assertEquals(old.size, SourceContract.names(switch).toSet().size, "every name is its own")
+        // The old screen's list, and Up next's way back for "Removed · Undo", which the old screen never had.
+        assertEquals(old, switch.filterNot { it.startsWith("onRestoreToQueue:") })
+        assertEquals(old.size + 1, switch.size)
+        assertEquals(switch.size, SourceContract.names(switch).toSet().size, "every name is its own")
         assertEquals("song", SourceContract.names(switch).first())
         assertEquals("modifier", SourceContract.names(switch).last())
     }

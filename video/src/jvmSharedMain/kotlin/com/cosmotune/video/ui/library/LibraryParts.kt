@@ -132,9 +132,9 @@ internal fun LibraryHeader(title: String, wide: Boolean, modifier: Modifier = Mo
 }
 
 /**
- * A row that leads to a page (Orbit rule 8): the song row's shape (64 dp, radius 22, the page's ink at 5 %), [icon] in a 44 dp disc
- * where a cover would be, [title] over [subtitle], the [count] in the mono label face at its end (when there is one) and a chevron.
- * [divided] is kept for the callers: Orbit rows stand apart, 8 dp between them, rather than on hairlines.
+ * A row that leads to a page: the flat [OrbitSongRow] (60 dp, 52 with Compact rows), [icon] in the row's disc where a cover would be,
+ * [title] over [subtitle], the [count] in the mono label face at its end (when there is one) and a chevron. [divided] is kept for
+ * the callers: flat rows stand edge to edge, with no hairlines.
  */
 @Suppress("UNUSED_PARAMETER")
 @Composable
@@ -142,8 +142,8 @@ internal fun LinkRow(icon: ImageVector, title: String, count: Int?, onClick: () 
     val fonts = orbitFonts()
     val look = orbitLook()
     OrbitSongRow(
-        title = title, subtitle = subtitle.orEmpty(), cover = null, fonts = fonts, look = look, onClick = onClick, icon = icon, height = 64.dp,
-        modifier = modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 4.dp),
+        title = title, subtitle = subtitle.orEmpty(), cover = null, fonts = fonts, look = look, onClick = onClick, icon = icon,
+        modifier = modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin),
         trailingText = count?.toString(),
         trailing = { Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = look.dim, modifier = Modifier.padding(start = 8.dp).size(CHEVRON)) },
     )

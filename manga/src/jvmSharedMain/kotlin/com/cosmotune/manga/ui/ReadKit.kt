@@ -81,6 +81,7 @@ import com.cosmotune.ui.orbit.WatchMessage
 import com.cosmotune.ui.orbit.WatchPicture
 import com.cosmotune.ui.orbit.WatchProgressLine
 import com.cosmotune.ui.orbit.WatchSkeleton
+import androidx.compose.ui.platform.testTag
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.LocalCosmoColors
@@ -217,23 +218,13 @@ private fun readNavTab(tab: String, name: String, count: Int?): com.cosmotune.ui
 }
 
 /**
- * A tab's heading (Home's greeting): the mono [label] over the [title] with its peach full stop, the page's round [actions] at the
- * end. Narrower than 600 dp the actions stand above the title, so a long word keeps the whole width.
+ * A tab's heading (Home's greeting, the shared [OrbitPageHeading]): the mono [label] with the page's round [actions] (+, search) at
+ * the end of its row, and the 30 sp [title] with its peach full stop under them, at every width.
  */
 @Composable
 internal fun ReadPageHead(title: String, label: String, modifier: Modifier = Modifier, actions: (@Composable RowScope.() -> Unit)? = null) {
-    val fonts = orbitFonts()
-    val look = orbitLook()
-    BoxWithConstraints(modifier.fillMaxWidth().padding(start = ReadMargin + 4.dp, end = ReadMargin, top = 18.dp, bottom = 8.dp)) {
-        if (maxWidth >= 600.dp || actions == null) {
-            OrbitPageHeading(title, label, fonts, look, Modifier.semantics { heading() }, trailing = actions?.let { a ->
-                { Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = a) }
-            })
-        } else Column {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically, content = actions)
-            OrbitPageHeading(title, label, fonts, look, Modifier.semantics { heading() })
-        }
-    }
+    OrbitPageHeading(title, label, orbitFonts(), orbitLook(), modifier.fillMaxWidth().padding(start = ReadMargin + 4.dp, end = ReadMargin, top = 18.dp, bottom = 8.dp).testTag("read:head"),
+        trailing = actions?.let { a -> { Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = a) } })
 }
 
 /** The head of a page pushed over a tab: back, the mono [kind], then the page's round [actions]. */
@@ -323,12 +314,11 @@ internal fun ReadSkeletonGrid(modifier: Modifier = Modifier, columns: Int = 3, r
     }
 }
 
-/** Rows loading: quiet 62 dp blocks. */
+/** Rows loading: the flat row's own shape ([OrbitRowSkeleton]), where the rows will land. */
 @Composable
 internal fun ReadSkeletonRows(count: Int = 6, modifier: Modifier = Modifier) {
-    val look = orbitLook()
-    Column(modifier.fillMaxWidth().padding(horizontal = ReadMargin, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        repeat(count) { WatchSkeleton(look, Modifier.fillMaxWidth().height(62.dp), radius = 22.dp) }
+    Column(modifier.fillMaxWidth().padding(horizontal = ReadMargin, vertical = 8.dp)) {
+        repeat(count) { com.cosmotune.ui.orbit.OrbitRowSkeleton(it) }
     }
 }
 
@@ -383,7 +373,7 @@ internal fun ReadSection(title: String, modifier: Modifier = Modifier, subtitle:
 internal enum class ReadDownload { NONE, AVAILABLE, RUNNING, DONE }
 
 /**
- * A chapter as a row (board frame 11): the chapter's [number] as a small tile where a disc would be (peach for the [next] chapter,
+ * A chapter as a flat row (board frame 11, 60 dp or 52 with Compact rows): the chapter's [number] as a small tile where a disc would be (peach for the [next] chapter,
  * the peach row), the title (dim once read) over the [meta] line with the peach dot in front while it is unread or [fresh], and the
  * download at the end (a ring while it runs, the filled mark once done). Tap opens it; a hold is [onLongClick] (Series: select).
  * With [selected] not null the row is choosing: the tile becomes the check and a tap toggles it.
@@ -409,11 +399,11 @@ internal fun ReadChapterRow(
     // The row's own press (a tap reads, a hold selects or opens the chapter's actions) is a plain combined click, clipped to the row.
     OrbitSongRow(
         title = title, subtitle = meta, cover = null, fonts = fonts, look = look, onClick = null,
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
             .combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick, onLongClickLabel = mangaText(longClickLabel))
             .contextClick(onLongClick)
             .then(if (selected != null) Modifier.semantics { this.selected = selected } else Modifier),
-        now = next, height = 60.dp, discSize = 34.dp, gap = 10.dp, endPadding = 8.dp,
+        now = next, discSize = 34.dp,
         titleContent = {
             Text(title, style = fonts.title, color = when { next -> look.accent; read -> look.dim; else -> look.ink }, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
@@ -448,7 +438,7 @@ internal fun ReadDownloadButton(download: ReadDownload, onDownload: () -> Unit) 
 }
 
 /**
- * A cover row (Updates, History, a catalogue's books): the tall cover where a song's disc would be, the [title], the [subtitle],
+ * A cover row (Updates, History, a catalogue's books), flat at the list's row height: the tall cover where a song's disc would be, the [title], the [subtitle],
  * and [trailing] at the end. Tap is [onClick]; [highlighted] is the peach row.
  */
 @Composable
@@ -464,7 +454,7 @@ internal fun ReadCoverRow(
 ) {
     OrbitSongRow(
         title = title, subtitle = subtitle, cover = null, fonts = orbitFonts(), look = orbitLook(), onClick = onClick, modifier = modifier.fillMaxWidth(),
-        now = highlighted, height = 72.dp, endPadding = if (trailing != null) 8.dp else 16.dp, discContent = { OrbitRowCover(cover, key) }, trailing = trailing,
+        now = highlighted, discContent = { OrbitRowCover(cover, key, width = if (com.cosmotune.ui.orbit.orbitCompactRows()) 30.dp else 32.dp) }, trailing = trailing,
     )
 }
 

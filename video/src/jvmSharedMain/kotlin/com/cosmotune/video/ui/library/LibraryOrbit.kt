@@ -25,7 +25,7 @@ internal fun OrbitGroupLabel(text: String, modifier: Modifier = Modifier) {
     OrbitLabel(text, orbitFonts(), orbitLook().dim, modifier.padding(start = CosmoSpacing.margin + 4.dp, end = CosmoSpacing.margin, top = 14.dp, bottom = 8.dp))
 }
 
-/** An Orbit row (62 dp, radius 22) with [icon] in a disc, or [cover] when there is one, [title] over [subtitle]. */
+/** A flat Orbit row ([OrbitSongRow], 60 dp or 52 with Compact rows) with [icon] in a disc, or [cover] when there is one, [title] over [subtitle]. */
 @Composable
 internal fun OrbitInfoRow(
     title: String,
@@ -43,10 +43,8 @@ internal fun OrbitInfoRow(
         fonts = orbitFonts(),
         look = orbitLook(),
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 4.dp),
-        height = 62.dp,
+        modifier = modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin),
         icon = if (cover == null) icon else null,
-        endPadding = if (trailing != null) 6.dp else 16.dp,
         trailing = trailing,
     )
 }

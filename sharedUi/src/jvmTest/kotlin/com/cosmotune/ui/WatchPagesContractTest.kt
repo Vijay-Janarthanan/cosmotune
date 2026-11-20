@@ -155,7 +155,8 @@ class WatchPagesContractTest {
         val list = read(dir + "WatchListPages.kt")
         assertTrue("\"My list · \${list.size}\"" in list && "\"Playlists · \${playlists.size}\"" in list && "\"Downloads · \${kept.size}\"" in list)
         assertTrue("MyListSort.entries" in list && "WatchCardChip(\"Select\"" in list)
-        assertTrue("actionLabel = \"Undo\"" in list && "removed.forEach { actions.setInMyList(it, true) }" in list, "removing says so with Undo")
+        assertTrue("LocalOrbitUndo.current" in list && "gone.forEach { actions.setInMyList(it, true) }" in list && "CosmoToast(" !in list,
+            "removing says so on the window's Undo snackbar, not the old toast")
         assertTrue("progress = progress?.fraction" in list, "posters show how far they were watched")
     }
 

@@ -1,5 +1,10 @@
 package com.cosmotune.video.ui.channel
 
+import com.cosmotune.ui.orbit.OrbitPageHeader
+import com.cosmotune.ui.orbit.OrbitHeaderSize
+import com.cosmotune.ui.orbit.OrbitHeaderButton
+import com.cosmotune.ui.orbit.OrbitHeaderSkeleton
+import com.cosmotune.ui.orbit.OrbitCardColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
@@ -118,52 +123,28 @@ internal fun ChannelCard(
     val label = listOfNotNull(stringResource(Res.string.video_channel_label), handle, videos).joinToString(" · ").uppercase()
     val description = channel.description?.lineSequence()?.firstOrNull { it.isNotBlank() }
     val latest = stringResource(Res.string.video_dl_latest)
-    val disc = if (wide) 128.dp else 80.dp
-    OrbitBiteCard(
-        fill, Modifier.fillMaxWidth().padding(horizontal = margin).testTag("video:channel:card"),
-        shape = com.cosmotune.ui.orbit.HeroBite,
-        bite = { if (onPlayLatest != null) OrbitPlayButton(false, onPlayLatest, look) },
-    ) {
-        if (bannerUrl != null) {
+    val share = stringResource(Res.string.video_share)
+    val line = listOfNotNull(subscribers, description).joinToString(" · ").ifBlank { null }
+    // The shared compact header (the board's channel card): the disc beside the words, the banner faded into the card behind them,
+    // Subscribe, Latest and Share as the one row of actions, and Play (the latest upload) in the bite.
+    OrbitPageHeader(
+        cover = channel.avatarUrl, label = label, title = channel.name, subtitle = line, playing = false, onPlay = onPlayLatest,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = margin).testTag("video:channel:card"),
+        colors = OrbitCardColors(fill, ink), onSubtitle = onAbout,
+        lead = { ChannelAvatar(channel.avatarUrl, OrbitHeaderSize.PAGE.disc, name = channel.name) },
+        backdrop = if (bannerUrl == null) null else ({ colors ->
             val stand = LocalThumbnailStandIn.current
-            Box(Modifier.matchParentSize()) {
-                if (stand != null) stand(bannerUrl, Modifier.fillMaxSize())
-                else AsyncImage(model = bannerUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                // The banner melts into the card so the words stay on its colour.
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to fill.copy(alpha = 0.55f), 0.55f to fill.copy(alpha = 0.92f), 1f to fill)))
-            }
+            if (stand != null) stand(bannerUrl, Modifier.fillMaxSize())
+            else AsyncImage(model = bannerUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            // The banner melts into the card so the words stay on its colour.
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to colors.fill.copy(alpha = 0.55f), 0.55f to colors.fill.copy(alpha = 0.92f), 1f to colors.fill)))
+        }),
+    ) { colors ->
+        SubscribePill(subscribed = subscribed, onClick = onSubscribe, ink = colors.ink, fill = colors.fill)
+        Box(Modifier.graphicsLayer { alpha = if (preparing) 0.45f else 1f }) {
+            OrbitHeaderButton(CosmoIcons.Download, latest, colors, { if (!preparing) onDownload() })
         }
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ChannelAvatar(channel.avatarUrl, disc, name = channel.name)
-                Column(Modifier.weight(1f).padding(start = if (wide) 24.dp else 14.dp)) {
-                    Text(label, style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        channel.name, style = if (wide) fonts.greeting.copy(fontSize = 36.sp, lineHeight = 38.sp) else fonts.heroTitle.copy(fontSize = 24.sp, lineHeight = 26.sp),
-                        color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp).semantics { heading() },
-                    )
-                    val line = listOfNotNull(subscribers, description).joinToString(" · ")
-                    if (line.isNotEmpty()) {
-                        Text(
-                            line, style = fonts.body.copy(fontSize = 13.sp, lineHeight = 18.sp), color = ink.copy(alpha = 0.82f), maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).then(if (onAbout != null) Modifier.clickable(role = Role.Button, onClick = onAbout) else Modifier),
-                        )
-                    }
-                }
-            }
-            // One row of round actions, clear of the bite: Subscribe is the filled one.
-            Row(Modifier.padding(top = 14.dp, end = 76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                SubscribePill(subscribed = subscribed, onClick = onSubscribe, ink = ink, fill = fill)
-                if (wide) {
-                    WatchCardChip(latest, ink, fonts, onDownload, icon = CosmoIcons.Download, enabled = !preparing)
-                } else {
-                    Box(Modifier.graphicsLayer { alpha = if (preparing) 0.45f else 1f }) {
-                        OrbitRoundButton(CosmoIcons.Download, latest, ink, { if (!preparing) onDownload() }, onInk = fill)
-                    }
-                }
-                OrbitRoundButton(CosmoIcons.Share, stringResource(Res.string.video_share), ink, onShare, onInk = fill)
-            }
-        }
+        OrbitHeaderButton(CosmoIcons.Share, share, colors, onShare)
     }
 }
 
@@ -185,17 +166,9 @@ internal fun sectionLabel(section: ChannelSection): String = stringResource(
     },
 )
 
-/** The colour card as it will be, as a quiet shimmer block with the disc's place in it, while the header loads. */
+/** The header as it will be while it loads: the shared header's own placeholder ([OrbitHeaderSkeleton]). */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun ChannelHeaderSkeleton(wide: Boolean, widthDp: Float, margin: Dp) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = margin).clip(CARD_SHAPE).background(orbitLook().row).padding(24.dp)) {
-        CosmoShimmer(Modifier.size(if (wide) 128.dp else 88.dp), CircleShape)
-        CosmoShimmer(Modifier.padding(top = 16.dp).fillMaxWidth(0.6f).height(26.dp))
-        CosmoShimmer(Modifier.padding(top = 8.dp).fillMaxWidth(0.4f).height(13.dp))
-        Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CosmoShimmer(Modifier.size(width = 112.dp, height = 40.dp), CircleShape)
-            CosmoShimmer(Modifier.size(40.dp), CircleShape)
-            CosmoShimmer(Modifier.size(40.dp), CircleShape)
-        }
-    }
+    OrbitHeaderSkeleton(Modifier.fillMaxWidth().padding(horizontal = margin))
 }

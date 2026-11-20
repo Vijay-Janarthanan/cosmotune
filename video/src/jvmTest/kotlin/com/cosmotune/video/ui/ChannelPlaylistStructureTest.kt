@@ -169,7 +169,8 @@ class ChannelPlaylistStructureTest {
                 assertTrue("role =" in argumentsOf(src, match.range.last), "$file: ${match.value} has no role")
             }
         }
-        assertTrue(seen >= 2, "found the clickables (found $seen)")
+        // The cards' own presses (the owner, the About line) are the shared header's now; the rest stay here.
+        assertTrue(seen >= 1, "found the clickables (found $seen)")
     }
 
     @Test fun everyLazyItemHasAKey() {
@@ -232,25 +233,25 @@ class ChannelPlaylistStructureTest {
 
     @Test fun theBannerIsFadedIntoTheCardBehindTheWords() {
         val header = code("channel/ChannelHeader")
-        assertTrue("Box(Modifier.matchParentSize())" in header, "the banner fills the card behind the words")
-        assertTrue("Brush.verticalGradient(0f to fill.copy(alpha = 0.55f)" in header, "and melts into the card's colour")
+        assertTrue("backdrop = if (bannerUrl == null) null else" in header, "the banner fills the card behind the words")
+        assertTrue("Brush.verticalGradient(0f to colors.fill.copy(alpha = 0.55f)" in header, "and melts into the card's colour")
     }
 
     @Test fun theHeadIsTheChannelsColourCardWithItsDisc() {
         val header = code("channel/ChannelHeader")
         assertTrue("coverFill(channel.avatarUrl, channel.id)" in header, "the card wears the colour of the channel's picture")
-        assertTrue("val disc = if (wide) 128.dp else 80.dp" in header && "ChannelAvatar(channel.avatarUrl, disc, name = channel.name)" in header, "the disc beside the name: 80 dp, 128 wide")
-        assertTrue("maxLines = 2" in header, "the name takes two lines")
+        assertTrue("OrbitPageHeader(" in header && "ChannelAvatar(channel.avatarUrl, OrbitHeaderSize.PAGE.disc, name = channel.name)" in header,
+            "the shared compact header, the channel's disc beside the name")
         assertTrue("listOfNotNull(stringResource(Res.string.video_channel_label), handle, videos)" in header, "the mono line")
         assertTrue("listOfNotNull(subscribers, description)" in header, "the subscribers and the description's first line under the name")
-        assertTrue("OrbitBiteCard(" in header && "if (onPlayLatest != null) OrbitPlayButton(false, onPlayLatest, look)" in header, "Play latest in the bite")
+        assertTrue("playing = false, onPlay = onPlayLatest" in header && "OrbitBiteCard(" !in header, "Play latest in the header's bite")
         assertTrue("channel.description?.lineSequence()" in header, "the first line of the description")
     }
 
     @Test fun theActionsAreSubscribeShareAndDownloadTheLatest() {
         val header = code("channel/ChannelHeader")
-        assertTrue("SubscribePill(subscribed = subscribed, onClick = onSubscribe, ink = ink, fill = fill)" in header, "Subscribe in the card's ink")
-        assertTrue("OrbitRoundButton(CosmoIcons.Share" in header, "Share is a round button")
+        assertTrue("SubscribePill(subscribed = subscribed, onClick = onSubscribe, ink = colors.ink, fill = colors.fill)" in header, "Subscribe in the card's ink")
+        assertTrue("OrbitHeaderButton(CosmoIcons.Share" in header, "Share is one of the header's round actions")
         assertTrue("Res.string.video_dl_latest" in header, "Download the latest")
         val page = code("channel/ChannelPage")
         assertTrue("DownloadBatchInfo(channel.id, BatchKind.CHANNEL_LATEST, channel.name)" in page && "latestPicker = true" in page)
@@ -304,20 +305,19 @@ class ChannelPlaylistStructureTest {
 
     @Test fun theHeadIsTheColourCard() {
         val header = code("playlist/PlaylistHeader")
-        assertTrue("OrbitBiteCard(" in header && "coverFill(shown.thumbnailUrl, shown.id)" in header, "one flat card in the picture's colour")
-        assertTrue("ThumbnailFrame(shown.thumbnailUrl, Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(22.dp))" in header, "the picture inside it, 16:9, nothing on it")
+        assertTrue("OrbitPageHeader(" in header && "coverFill(shown.thumbnailUrl, shown.id)" in header, "the shared compact header in the picture's colour")
+        assertTrue("cover = shown.thumbnailUrl" in header, "the picture as its disc")
         assertTrue("Res.string.video_your_playlist" in header && "Res.string.video_saved_playlist" in header && "Res.string.video_playlist" in header, "the mono label")
-        assertTrue("maxLines = 3" in header, "the title takes three lines")
         assertTrue("VideoText.durationParts(sec)" in header && "VideoText.duration(sec)" in header, "the total time comes from VideoText")
         assertTrue("PlaylistCard(shown, actions, wide, line.own)" in code("playlist/PlaylistPage"))
     }
 
     @Test fun theButtonsArePlayAllShuffleSaveDownloadAllAndMore() {
         val header = code("playlist/PlaylistHeader")
-        assertTrue("OrbitPlayButton(false, { if (actions.hasVideos) actions.onPlayAll() }, look)" in header, "Play all stands in the card's bite")
-        assertTrue("OrbitRoundButton(CosmoIcons.Shuffle, shuffle" in header, "Shuffle is a round button on the card")
-        assertTrue("OrbitRoundButton(VideoIcons.Bookmark, save, ink, it, on = shown.saved, onInk = fill)" in header, "Save is a bookmark, on when saved")
-        assertTrue("OrbitRoundButton(CosmoIcons.Download, downloadAll" in header, "Download all is a round button")
+        assertTrue("onPlay = { if (actions.hasVideos) actions.onPlayAll() }" in header, "Play all stands in the header's bite")
+        assertTrue("OrbitHeaderButton(CosmoIcons.Shuffle, shuffle" in header, "Shuffle is a round button on the card")
+        assertTrue("OrbitHeaderButton(VideoIcons.Bookmark, save, colors, it, on = shown.saved)" in header, "Save is a bookmark, on when saved")
+        assertTrue("OrbitHeaderButton(CosmoIcons.Download, downloadAll" in header, "Download all is a round button")
         assertTrue("OrbitRoundButton(CosmoIcons.MoreVertical" in header && "OrbitMenu(" in header, "More opens the Orbit menu")
         assertTrue("Res.string.video_dl_all" in header && "Res.string.video_save_playlist" in header && "Res.string.video_unsave_playlist" in header)
     }

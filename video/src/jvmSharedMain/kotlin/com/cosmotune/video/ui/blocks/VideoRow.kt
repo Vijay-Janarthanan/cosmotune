@@ -1,6 +1,5 @@
 package com.cosmotune.video.ui.blocks
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,7 +37,7 @@ import com.cosmotune.video.resources.video_more
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * A video in a list (Orbit rule 8, the row): radius 22, the page's ink at 5 %, the picture as a small 16:9 rectangle (128 dp, the
+ * A video in a list (Orbit rule 8, the flat row): no card behind it, the picture as a small 16:9 rectangle (128 dp, the
  * desktop's 168) with nothing on it, the title up to two lines over the meta line ("Channel · 12:04 · 2 days ago"), and the round
  * "more" button at the end. [trailing] replaces the more button with what a page shows at the end of its rows (a download's progress);
  * a hold and a right click still call [onMore]. [watchedFraction] draws the watched line under the picture, [title] stands in for the
@@ -90,9 +89,9 @@ internal fun Modifier.rowThumbnailSize(desktop: Boolean): Modifier {
 }
 
 /**
- * The Orbit row of videos and of playlists: [thumbnail], 14 dp, the [title] over the [meta] (led by a red "● LIVE" when [live]) and
- * [trailing], on the row's 5 % fill with radius 22, standing in the page's 16 dp margin with 8 dp between rows. The row is one
- * button ([onClick]); a hold or a right click calls [onMore] when there is one.
+ * The Orbit row of videos and of playlists, flat as every list row of the redesign: [thumbnail], 14 dp, the [title] over the [meta]
+ * (led by a red "● LIVE" when [live]) and [trailing], with no fill behind it (a press lights the row's bounds, radius 16), standing
+ * in the page's 16 dp margin. The row is one button ([onClick]); a hold or a right click calls [onMore] when there is one.
  */
 @Composable
 internal fun VideoRowFrame(
@@ -112,9 +111,8 @@ internal fun VideoRowFrame(
             Modifier
                 .fillMaxWidth()
                 .clip(ROW_SHAPE)
-                .background(look.row)
                 .videoClickable(ROW_RADIUS, onClick, onMore)
-                .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+                .padding(top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             thumbnail()
@@ -137,7 +135,7 @@ internal fun VideoRowFrame(
     }
 }
 
-/** The row's corner and the room between two rows (Orbit rule 8). */
-private val ROW_RADIUS = 22.dp
+/** The corner of a row's press and the room between two flat rows. */
+private val ROW_RADIUS = 16.dp
 private val ROW_SHAPE = RoundedCornerShape(ROW_RADIUS)
-private val ROW_GAP = 8.dp
+private val ROW_GAP = 4.dp

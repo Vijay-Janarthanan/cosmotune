@@ -129,7 +129,7 @@ class LibraryStructureTest {
         assertFalse("LibraryShelf(" in src, "no shelves on the Library tab any more")
         assertFalse("VideoRoute.Import" in src || "VideoRoute.Settings" in src, "Settings and Import and export are the drawer's")
         assertTrue("Res.string.video_your_playlists" in src && "VideoRoute.LocalPlaylist(" in src && "LibraryPlan.coverOf(" in src)
-        assertTrue("OrbitSongRow(" in file("LibraryParts") && "icon = icon, height = 64.dp" in file("LibraryParts"), "Orbit rows: 64 dp, the icon in a disc")
+        assertTrue("OrbitSongRow(" in file("LibraryParts") && "height = 64.dp" !in file("LibraryParts"), "flat Orbit rows at the list's row height, the icon in a disc")
     }
 
     @Test fun continueWatchingTakesTenToNinetyPercentNewestFirstUpToTen() {

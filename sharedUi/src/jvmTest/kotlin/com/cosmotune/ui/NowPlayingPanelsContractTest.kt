@@ -108,13 +108,16 @@ class NowPlayingPanelsContractTest {
 
     // ---- Up next ------------------------------------------------------------------------------------------------------
 
-    @Test fun upNextIsHomesRowsOnThePagesGroundInBothThemes() {
+    @Test fun upNextIsTheSharedQueueWithUndo() {
         val src = code(nowPlaying("NowPlayingUpNext.kt"))
-        assertTrue(src.contains("OrbitSongRow("), "Home's song rows")
+        assertTrue(src.contains("OrbitQueueList("), "the shared queue the desktop's panel shows")
+        assertTrue(src.contains("onRestore = onRestore"), "Undo puts a removed song back")
         assertFalse(src.contains("Color.White"), "no white text: the rows take the page's ink, light or dark")
-        assertFalse(src.contains(".live("))
-        assertTrue(src.contains("splitQueue(queue, queueIndex, showHistory)"), "the old queue's groups")
-        assertTrue(src.contains("rememberQueueDrag(listState, tracks, onMove, onDragActiveChange)"), "and its drag")
+        val queue = code(read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitQueue.kt"))
+        assertTrue(queue.contains("splitQueue(queue, queueIndex, showHistory)"), "the old queue's groups")
+        assertTrue(queue.contains("rememberQueueDrag(listState, tracks, onMove, onDragActiveChange)"), "and its drag")
+        assertTrue(code(nowPlaying("CosmoNowPlaying.kt")).contains("onRestore = onRestoreToQueue"), "the screen hands Undo its way back")
+        assertTrue(code(read("app/src/main/java/com/cosmotune/music/MainActivity.kt")).contains("onRestoreToQueue = { song, at ->"), "the phone puts the song back")
     }
 
     @Test fun theScreenHandsUpNextEveryHandler() {

@@ -154,6 +154,8 @@ fun CosmoNowPlaying(
     onToggleAutoplay: () -> Unit,
     onJumpTo: (Int) -> Unit,
     onRemoveFromQueue: (Int) -> Unit,
+    /** Puts a song removed from Up next back at its place ("Removed · Undo"); null where the host cannot, and no Undo is offered. */
+    onRestoreToQueue: ((Song, Int) -> Unit)? = null,
     onMoveInQueue: (Int, Int) -> Unit,
     onQueueDragActiveChange: (Boolean) -> Unit = {},
     onClearQueue: () -> Unit,
@@ -399,6 +401,7 @@ fun CosmoNowPlaying(
             isPlaying = isPlaying, progress = transport::progress, onJumpTo = onJumpTo, onRemove = onRemoveFromQueue,
             onMove = onMoveInQueue, onClear = onClearQueue, onToggleAutoplay = onToggleAutoplay,
             onDragActiveChange = onQueueDragActiveChange, fonts = orbitType, look = orbitInk, modifier = m, header = header,
+            onRestore = onRestoreToQueue,
         )
     }
     val relatedPanel: @Composable (Modifier, Boolean) -> Unit = { m, header ->

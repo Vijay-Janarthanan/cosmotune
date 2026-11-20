@@ -20,13 +20,17 @@ private class SharedPreferencesStore(private val preferences: SharedPreferences)
 }
 
 private var processWide: CosmoLookSettings? = null
+private val processWideLock = Any()
+
+/** The process's look settings outside composition (a background job reads "Keep downloaded"); the same one the screens use. */
+fun cosmoLookSettings(context: Context): CosmoLookSettings = synchronized(processWideLock) {
+    processWide ?: CosmoLookSettings(
+        SharedPreferencesStore(context.applicationContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)),
+    ).also { processWide = it }
+}
 
 @Composable
 actual fun rememberCosmoLookSettings(): CosmoLookSettings {
     val appContext = LocalContext.current.applicationContext
-    return remember(appContext) {
-        processWide ?: CosmoLookSettings(
-            SharedPreferencesStore(appContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)),
-        ).also { processWide = it }
-    }
+    return remember(appContext) { cosmoLookSettings(appContext) }
 }

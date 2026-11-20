@@ -80,13 +80,13 @@ internal fun MangaSources(repository: MangaRepository, bottom: androidx.compose.
             }
             items(shown, key = { it.id }) { source ->
                 val enabled = state.sources.any { it.id == source.id && it.enabled }
-                Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin, vertical = 4.dp).heightIn(min = 62.dp).clip(ReadShape.md).background(look.row)
+                Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin).heightIn(min = com.cosmotune.ui.orbit.orbitRowHeight()).clip(ReadShape.sm)
                     .testTag("manga:source:${source.id}")
                     .toggleable(value = enabled, role = Role.Switch, onValueChange = { value -> action {
                         val previous = state.sources.find { it.id == source.id }
                         repository.store.source(previous?.copy(enabled = value) ?: MangaSourceConfig(source.id, name = source.title, language = source.language, enabled = value))
                     } }).semantics(mergeDescendants = true) { contentDescription = "${source.title} (${source.language})" }
-                    .padding(start = 18.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(source.title, style = ReadType.rowTitle(), color = look.ink)
                         Text(languageName(source.language), style = ReadType.meta(), color = look.dim)

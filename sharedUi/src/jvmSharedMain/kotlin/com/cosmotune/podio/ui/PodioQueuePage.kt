@@ -75,15 +75,15 @@ internal fun queueLabel(state: PodioQueueState): String {
                     }
                 }
                 item(key = "h:heading") {
-                    OrbitPageHeading("Up next", queueLabel(state), fonts, look, Modifier.padding(start = side + 4.dp, end = side, top = 22.dp, bottom = 8.dp))
+                    OrbitPageHeading("Up next", queueLabel(state), fonts, look, Modifier.padding(start = side + 4.dp, end = side, top = 4.dp, bottom = 8.dp).testTag("podio:queue:head"))
                 }
                 tracks.nowPlaying?.let { now ->
                     val current = state.current
                     item(key = now.key) {
                         val playing = env.playback.id == current?.id
                         OrbitSongRow(now.song.title, now.song.artist, now.song.thumbnailUrl, fonts, look, onClick = if (playing) env.onToggle else current?.let { { m.playQueued(it) } },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = side).padding(top = 8.dp), now = true, playing = playing && env.playback.playing,
-                            progress = if (playing) ({ env.playedFraction() }) else null, height = 64.dp,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = side), now = true, playing = playing && env.playback.playing,
+                            progress = if (playing) ({ env.playedFraction() }) else null,
                             trailing = { if (playing) OrbitPlayButton(env.playback.playing, env.onToggle, look, size = 38.dp) })
                     }
                 }
@@ -132,7 +132,7 @@ private fun LazyListScope.group(rows: List<QueueTrack>, section: QueueSection, d
         val held = drag.held?.key == track.key
         if (held) DisposableEffect(Unit) { onDispose { drag.end(track.key) } }
         val remove = entry?.let { { m.removeFromQueue(it.id) } }
-        PodioSwipe((if (held) placed().alpha(0f) else placed()).padding(horizontal = side).padding(bottom = 6.dp), endLabel = "Remove", onEnd = remove) {
+        PodioSwipe((if (held) placed().alpha(0f) else placed()).padding(horizontal = side), endLabel = "Remove", onEnd = remove) {
             QueueRow(track, fonts, look, onClick = entry?.let { { m.playQueued(it) } }, onRemove = remove,
                 handle = Modifier.pointerInput(track.key) {
                     detectDragGestures(
@@ -145,11 +145,11 @@ private fun LazyListScope.group(rows: List<QueueTrack>, section: QueueSection, d
     }
 }
 
-/** Music's queue row: the drag handle at the start, the cover, the title over the show, the length and the cross at the end. */
+/** Music's queue row, flat: the drag handle at the start, the cover, the title over the show, the length and the cross at the end. */
 @Composable private fun QueueRow(track: QueueTrack, fonts: OrbitFonts, look: OrbitLook, onClick: (() -> Unit)?, onRemove: (() -> Unit)?, handle: Modifier?,
     modifier: Modifier = Modifier) {
     val song = track.song
-    OrbitSongRow(song.title, song.artist, song.thumbnailUrl, fonts, look, onClick = onClick, modifier = modifier.fillMaxWidth(), height = 64.dp,
+    OrbitSongRow(song.title, song.artist, song.thumbnailUrl, fonts, look, onClick = onClick, modifier = modifier.fillMaxWidth(),
         leading = handle?.let { h -> {
             Box(h.size(28.dp, 48.dp), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.DragHandle, "Drag to reorder", tint = look.dim, modifier = Modifier.size(18.dp)) }
         } }) {
