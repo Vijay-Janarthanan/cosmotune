@@ -120,7 +120,8 @@ val LocalWatchFullscreen = staticCompositionLocalOf<WatchFullscreenHost?> { null
  * The player (board notes: "the same player as Now Playing"): the picture, then the film card in the title's colour with play in
  * its bite, where you are, back and forward, audio, subtitles and the screen button (Whole, Fill, Cinema); the next episode
  * counts down on its own row near the end. Opens the route's target through the host's [com.cosmotune.watch.WatchPlayer], which
- * resumes from saved progress, and stops it when the page goes.
+ * resumes from saved progress. Closing the page leaves the film playing in the small player where Watch draws one
+ * ([LocalWatchKeepsPlaying]); elsewhere it stops when the page goes.
  */
 @Composable
 internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
@@ -131,12 +132,16 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     LaunchedEffect(route) { if (!route.attached && !playback.roomHolds(route.target.key)) player.open(route.target, route.summary, route.stream) }
     // The page's picture-in-picture: asked for here, before the page's own leaving, which reads it.
     val pip = com.cosmotune.ui.pip.rememberPip(com.cosmotune.ui.pip.PipOwner.WATCH)
-    DisposableEffect(player, route) {
+    // Where Watch draws the small player, closing the page leaves the film playing there; elsewhere it stops as the page goes.
+    val keepsPlaying = LocalWatchKeepsPlaying.current
+    DisposableEffect(player, route, keepsPlaying) {
+        WatchMini.keptInPip = false
         onDispose {
             val key = player.state.value.target?.key ?: route.target.key
             // In picture-in-picture the film plays on in the small window after the page has gone (its session is kept there).
             val returned = WatchPipReturns.take(key.value)
-            if ((!route.attached || returned) && !playback.roomHolds(key) && !pip.active) player.stop()
+            WatchMini.keptInPip = pip.active
+            if (!keepsPlaying && (!route.attached || returned) && !playback.roomHolds(key) && !pip.active) player.stop()
         }
     }
     val state by player.state.collectAsState()

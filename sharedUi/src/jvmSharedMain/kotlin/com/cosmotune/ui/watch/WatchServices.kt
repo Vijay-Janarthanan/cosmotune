@@ -153,6 +153,8 @@ object WatchNav {
     fun back(): Boolean {
         val now = stack.value
         if (now.isEmpty()) {
+            // Plugins is opened from Watch settings: Back returns there first.
+            if (tab.value == WatchTab.PLUGINS) { tab.value = WatchTab.SETTINGS; return true }
             if (tab.value != WatchTab.HOME) { tab.value = WatchTab.HOME; return true }
             return false
         }

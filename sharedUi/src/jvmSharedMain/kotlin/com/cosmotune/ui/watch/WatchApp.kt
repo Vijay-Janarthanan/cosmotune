@@ -1,6 +1,22 @@
 package com.cosmotune.ui.watch
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -87,6 +103,12 @@ fun WatchApp(
     LaunchedEffect(repository, switchedOn) { if (WatchHomeMemory.sourcesChanged(switchedOn)) watchPages(repository).markStale("watch:") }
     if (!profileUnlocked) { WatchProfileGate(repository, fonts, look); return }
     val scope = rememberCoroutineScope()
+    val keptPlayback = LocalWatchPlayback.current
+    // Leaving Watch (for another mode) stops what the small player held, as leaving the player page did before; a film kept in
+    // picture-in-picture or held by the room plays on.
+    androidx.compose.runtime.DisposableEffect(keptPlayback, pageUnderPlayer) {
+        onDispose { if (keptPlayback != null && !pageUnderPlayer) stopWhenLeaving(keptPlayback) }
+    }
     val room = com.cosmotune.ui.room.LocalRoomLauncher.current
     val downloads = LocalWatchDownloads.current
     val actions = remember(repository, scope, room, downloads) { WatchActions(repository, scope, room, downloads) }
@@ -96,16 +118,26 @@ fun WatchApp(
         val top = stack.lastOrNull()
         val header: (@Composable () -> Unit)? = when {
             top != null -> ({ WatchBackHeader(when { top is WatchRoute.Playlists -> "Watch playlists"; top is WatchRoute.Page && top.summary.type == TitleType.SERIES -> "Series"; else -> "Film" }, fonts, look) })
+            // Downloads, Plugins and Settings are reached from the profile menu on the phone: they come back with a back button.
+            showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader(if (tab == WatchTab.SETTINGS) "Watch settings" else tab.label, fonts, look) })
             showNavigation -> ({ WatchPhoneHeader(tab, fonts, look) })
             else -> null
         }
+        // The small player: a film or an episode closed while it plays goes on in the capsule at the foot of every page.
+        val keepsPlaying = keptPlayback != null && !pageUnderPlayer
+        val mini = keepsPlaying && top !is WatchRoute.Play && keptPlayback != null && watchMiniShown(keptPlayback)
+        val padding = if (!mini) contentPadding else PaddingValues(
+            start = contentPadding.calculateStartPadding(LayoutDirection.Ltr), top = contentPadding.calculateTopPadding(),
+            end = contentPadding.calculateEndPadding(LayoutDirection.Ltr), bottom = contentPadding.calculateBottomPadding() + WATCH_MINI_ROOM,
+        )
         val frame = WatchFrame(
             wide = wide,
             side = side ?: 16.dp,
-            padding = contentPadding,
+            padding = padding,
             header = if (onScrolled == null) header else ({ WatchScrollMark(contentPadding, onScrolled) { header?.invoke() } }),
             filterChips = filterChips,
         )
+        androidx.compose.runtime.CompositionLocalProvider(LocalWatchKeepsPlaying provides keepsPlaying) {
         when (top) {
             is WatchRoute.Playlists -> WatchPlaylistsPage(top.id, actions, fonts, look, frame)
             is WatchRoute.Play -> WatchPlayerPage(top, actions, fonts, look, frame)
@@ -122,8 +154,12 @@ fun WatchApp(
                 WatchTab.SETTINGS -> WatchSettingsPage(fonts, look, frame)
             }
         }
-        // The phone's pages scroll under the status bar: its ground keeps the clock readable and the titles from running under it.
-        if (showNavigation) com.cosmotune.ui.orbit.OrbitStatusBarScrim(Modifier.align(Alignment.TopCenter), look)
+        }
+        if (mini && keptPlayback != null) WatchMiniPlayer(keptPlayback, fonts, look,
+            Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 8.dp))
+        // The phone's pages scroll under the status bar: a solid band of the ground keeps the clock readable and keeps the titles
+        // from showing through under it; it fades out only below the bar.
+        if (showNavigation) WatchStatusBand(look, Modifier.align(Alignment.TopCenter))
         pending?.let { link -> WatchInstallSheet(link, fonts, look, onDone = { WatchNav.pendingInstall.value = null }) }
         // A link opened from outside (an intent, the system's URL handler, a second launch): its Install or pack sheet.
         when (val link = opened) {
@@ -236,24 +272,83 @@ internal class WatchActions(
 internal fun WatchWash(color: Color, look: OrbitLook, modifier: Modifier = Modifier) =
     com.cosmotune.ui.orbit.OrbitPageWash(color, modifier, height = 620.dp, look = look, darkAlpha = 0.55f, lightAlpha = 0.22f, tail = 0.33f)
 
-/** The phone's head of every tab: the mode pill (and the account button when the host gives one), then the tabs as chips. */
+/** The tabs of the phone's head, in the order the bottom bar will have them; Films and Series are Home's own chips. */
+internal val WATCH_PHONE_TABS = listOf(WatchTab.HOME, WatchTab.LIVE, WatchTab.SEARCH, WatchTab.MY_LIST)
+
+/** The pages the profile menu opens on the phone (they are not tabs there). */
+internal val WATCH_MENU_PAGES = setOf(WatchTab.DOWNLOADS, WatchTab.PLUGINS, WatchTab.SETTINGS)
+
+/**
+ * The phone's head of every tab: the mode pill, the Watch profile button (its menu holds Downloads, Plugins and Settings) and the
+ * account button when the host gives one, the Live pill, then the four tabs (Home, Live TV, Search, My list) as chips. Films and
+ * Series light Home, whose own chips they are.
+ */
 @Composable
 private fun WatchPhoneHeader(tab: WatchTab, fonts: OrbitFonts, look: OrbitLook) {
+    val lit = if (tab == WatchTab.FILMS || tab == WatchTab.SERIES) WatchTab.HOME else tab
     Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             KitModeSwitcher()
             Spacer(Modifier.weight(1f))
+            WatchProfileButton(fonts, look)
             LocalModeProfileAction.current?.invoke()
         }
         // The Live pill under the top bar, when something followed is live (the phone's; nothing elsewhere).
         com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp))
         OrbitChipRow(16.dp, Modifier.padding(top = 12.dp)) {
-            WatchTab.entries.forEach { t ->
-                OrbitSelectChip(t.label, t == tab, fonts, look, onClick = { WatchNav.go(t) }, haptic = false,
-                    icon = if (t == WatchTab.PLUGINS || t == WatchTab.SETTINGS) CosmoIcons.Settings else null)
-            }
+            WATCH_PHONE_TABS.forEach { t -> OrbitSelectChip(t.label, t == lit, fonts, look, onClick = { WatchNav.go(t) }, haptic = false) }
         }
     }
+}
+
+/**
+ * The Watch profile button: the viewer's initial in a disc of their own colour. Its menu names the viewer (Switch profile goes to
+ * the profiles in Watch settings), then Downloads with how many are kept, Plugins with how many are on, and Settings.
+ */
+@Composable
+private fun WatchProfileButton(fonts: OrbitFonts, look: OrbitLook) {
+    val repository = watchRepository()
+    val profiles by repository.profiles.collectAsState()
+    val active by repository.activeProfile.collectAsState()
+    val plugins by repository.plugins.collectAsState()
+    val kept = LocalWatchDownloads.current?.items?.collectAsState()?.value.orEmpty().count { it.status == com.cosmotune.watch.WatchDownload.Status.DONE }
+    val name = profiles.firstOrNull { it.id == active }?.name ?: "Watch"
+    val (fill, ink) = com.cosmotune.ui.orbit.coverFill(null, "profile:$active")
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).background(fill)
+                .clickable(onClickLabel = "Open the Watch menu", role = Role.Button) { open = true }
+                .semantics { contentDescription = "$name, Watch menu" },
+            contentAlignment = Alignment.Center,
+        ) { Text(name.take(1).uppercase(), style = fonts.title, color = ink) }
+        com.cosmotune.ui.orbit.OrbitMenu(
+            open, onDismiss = { open = false }, fonts = fonts, look = look, header = name,
+            items = listOf(
+                com.cosmotune.ui.orbit.OrbitMenuItem("Switch profile", if (profiles.size <= 1) "Add a viewer" else "${profiles.size} profiles",
+                    androidx.compose.material.icons.Icons.Rounded.Person) { WatchNav.go(WatchTab.SETTINGS) },
+                com.cosmotune.ui.orbit.OrbitMenuItem("Downloads", if (kept == 0) null else "$kept kept", CosmoIcons.Download) { WatchNav.go(WatchTab.DOWNLOADS) },
+                com.cosmotune.ui.orbit.OrbitMenuItem("Plugins", "${plugins.count { it.enabled }} on", androidx.compose.material.icons.Icons.Rounded.Extension) { WatchNav.go(WatchTab.PLUGINS) },
+                com.cosmotune.ui.orbit.OrbitMenuItem("Settings", null, CosmoIcons.Settings) { WatchNav.go(WatchTab.SETTINGS) },
+            ),
+        )
+    }
+}
+
+/**
+ * The band behind the status bar: the page's ground, solid over the bar itself so nothing scrolled under it shows through, then
+ * fading out over 14 dp below it.
+ */
+@Composable
+private fun WatchStatusBand(look: OrbitLook, modifier: Modifier = Modifier) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val bar = androidx.compose.foundation.layout.WindowInsets.statusBars.getTop(density)
+    if (bar <= 0) return
+    val fade = with(density) { 14.dp.toPx() }
+    Box(
+        modifier.fillMaxWidth().height(with(density) { (bar + fade).toDp() })
+            .background(Brush.verticalGradient(0f to look.ground, bar / (bar + fade) to look.ground, 1f to look.ground.copy(alpha = 0f))),
+    )
 }
 
 /** The head of a page opened over a tab (board: the round back button and the mono kind). */
