@@ -60,8 +60,10 @@ internal fun rememberCanvasArtwork(song: Song): CanvasArtwork? {
     // The OpenCanvas switch is the exception: turning it off has to take its
     // video away, and a clip carried over across a version switch (below)
     // would otherwise outlive it. A resolution change also drops the old rendition.
-    var canvas by remember(song.title, song.artist, openCanvasEnabled, openCanvasResolution) { mutableStateOf<CanvasArtwork?>(null) }
-    LaunchedEffect(song.videoId, song.albumName, canvasAllowedNow, prioritizeSpotifyCanvas, openCanvasEnabled, openCanvasResolution) {
+    // A video picked by hand ("Choose the video") moves the picks' revision: the song is looked up again, its old clip dropped.
+    val picks by com.cosmotune.music.data.canvas.CanvasVideoPicks.revision.collectAsStateWithLifecycle()
+    var canvas by remember(song.title, song.artist, openCanvasEnabled, openCanvasResolution, picks) { mutableStateOf<CanvasArtwork?>(null) }
+    LaunchedEffect(song.videoId, song.albumName, canvasAllowedNow, prioritizeSpotifyCanvas, openCanvasEnabled, openCanvasResolution, picks) {
         if (!canvasAllowedNow) {
             canvas = null
             return@LaunchedEffect

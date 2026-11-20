@@ -181,6 +181,15 @@ object OpenCanvas {
         return latest
     }
 
+    /**
+     * The music videos the search finds for a song, best first, for picking one by hand ("Choose the video"): what the automatic
+     * lookup would measure, without measuring. A pick is then resolved with `videoId`, which measures that video alone.
+     */
+    suspend fun videoChoices(title: String, artist: String, durationSec: Long = 0L, album: String? = null, limit: Int = 8): List<com.opencanvas.core.matcher.VideoCandidate> {
+        val query = com.opencanvas.core.stream.MusicVideoQuery.from(title, album)
+        return env().search.findOutcome(query.title, artist, durationSec, limit = limit, album = query.album).candidates
+    }
+
     /** Clears every session and every measured map, in memory and on disk. */
     fun clearCache() {
         synchronized(lock) {

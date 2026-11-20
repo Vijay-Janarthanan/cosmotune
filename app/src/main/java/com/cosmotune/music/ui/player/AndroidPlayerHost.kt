@@ -99,6 +99,9 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         CanvasRepository.canvasFor(song, background = true)
     }
 
+    // A pick is rare; the remembered answers of the other songs are found again in OpenCanvas's own store at once.
+    override fun forgetCanvas(song: Song) = CanvasRepository.forgetAll()
+
     @Composable
     override fun CanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) = AndroidCanvasVideo(spec, modifier)
 

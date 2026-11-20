@@ -66,6 +66,9 @@ internal object DesktopPlayerHost : PlayerHost {
         withContext(Dispatchers.IO) { DesktopCanvasClient.lookup(song, background = true) }
     }
 
+    // A pick is rare; the remembered answers of the other songs are found again in OpenCanvas's own store at once.
+    override fun forgetCanvas(song: Song) = DesktopCanvasClient.forgetAll()
+
     @Composable
     override fun CanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) = DesktopCanvasVideo(spec, modifier)
 

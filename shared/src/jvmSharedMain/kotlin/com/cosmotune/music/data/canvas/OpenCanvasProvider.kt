@@ -49,6 +49,7 @@ object OpenCanvasProvider {
      */
     fun configure(cacheDirectory: File?) {
         OpenCanvas.configure(OpenCanvasConfig(cacheDirectory = cacheDirectory, log = { DebugLog.d(TAG, it) }))
+        CanvasVideoPicks.keepIn(cacheDirectory)
         configured = true
     }
 
@@ -67,6 +68,8 @@ object OpenCanvasProvider {
     ) {
         if (trackVideoId.isNullOrBlank()) return
         if (!configured) configure(null)
+        val picked = CanvasVideoPicks.pick(title, artist)
+        if (picked == CanvasVideoPicks.NO_VIDEO) return
         OpenCanvas.prefetch(
             title = title,
             artist = artist,
@@ -74,6 +77,7 @@ object OpenCanvasProvider {
             mode = OpenCanvasMode.FULL_SYNCED_VIDEO,
             resolution = OpenCanvasResolution.fromLabel(resolutionLabel),
             trackVideoId = trackVideoId,
+            videoId = picked,
             album = album,
         )
     }
@@ -98,6 +102,9 @@ object OpenCanvasProvider {
     ): CanvasArtwork? = withContext(Dispatchers.IO) {
         if (trackVideoId.isNullOrBlank()) return@withContext null
         if (!configured) configure(null)
+        // A video picked by hand for this song is the one measured (the library then searches for nothing); "No video" is none.
+        val picked = CanvasVideoPicks.pick(title, artist)
+        if (picked == CanvasVideoPicks.NO_VIDEO) return@withContext null
         val query = MusicVideoQuery.from(title, album)
         val resolution = OpenCanvasResolution.fromLabel(resolutionLabel)
         val began = System.currentTimeMillis()
@@ -109,6 +116,7 @@ object OpenCanvasProvider {
             mode = OpenCanvasMode.FULL_SYNCED_VIDEO,
             resolution = resolution,
             trackVideoId = trackVideoId,
+            videoId = picked,
             album = query.album,
             background = background,
         ).resolvedCanvas(LOOKUP_TIMEOUT_MS) ?: return@withContext null
@@ -129,4 +137,74 @@ object OpenCanvasProvider {
             trajectory = track.trajectory,
         )
     }
+
+    /**
+     * The music videos found for a song, best first, for "Choose the video": the search the automatic lookup makes, without
+     * measuring any of them. Empty when nothing is found or the search gets no answer.
+     */
+    suspend fun videoChoices(title: String, artist: String, album: String?, durationSec: Long = 0L): List<VideoChoice> = withContext(Dispatchers.IO) {
+        if (!configured) configure(null)
+        runCatching { OpenCanvas.videoChoices(title, artist, durationSec, album) }.getOrDefault(emptyList()).map {
+            VideoChoice(it.videoId, it.title, it.channelTitle, it.durationSec)
+        }
+    }
+}
+
+/** One video found for a song: its id, title, channel and length (0 when the search did not say). */
+data class VideoChoice(val videoId: String, val title: String, val channel: String, val durationSec: Long) {
+    /** The video's small 16:9 still. */
+    val thumbnailUrl: String get() = "https://i.ytimg.com/vi/$videoId/mqdefault.jpg"
+}
+
+/**
+ * The videos picked by hand for songs ("Choose the video" on Now Playing), kept for each song (by its name and artists, so
+ * another copy or stream of the same song keeps the pick): a video id, or [NO_VIDEO] for the song with its cover. A song
+ * without a pick is looked up as usual. Kept in a small file beside OpenCanvas's maps, or only in memory without a folder.
+ * [revision] moves on every change, so a player showing the song looks it up again.
+ */
+object CanvasVideoPicks {
+    /** The pick that means "play the song with its cover". */
+    const val NO_VIDEO = "-"
+
+    private val lock = Any()
+    private val picks = java.util.Properties()
+    @Volatile private var file: File? = null
+    private val revisionFlow = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val revision: kotlinx.coroutines.flow.StateFlow<Int> = revisionFlow
+
+    /** Reads the picks kept in [directory] (once, at configure), and keeps new ones there. */
+    fun keepIn(directory: File?) {
+        val kept = directory?.let { File(it, FILE_NAME) }
+        synchronized(lock) {
+            file = kept
+            if (kept != null && kept.isFile) runCatching { kept.inputStream().use { picks.load(it) } }
+        }
+    }
+
+    /** The pick for the song, or null when it is looked up as usual. */
+    fun pick(title: String, artist: String): String? {
+        val key = key(title, artist) ?: return null
+        return synchronized(lock) { picks.getProperty(key) }
+    }
+
+    /** Keeps [videoId] (a video id, [NO_VIDEO], or null for "look it up as usual") as the song's pick. */
+    fun set(title: String, artist: String, videoId: String?) {
+        val key = key(title, artist) ?: return
+        synchronized(lock) {
+            if (videoId == null) picks.remove(key) else picks.setProperty(key, videoId)
+            file?.let { target ->
+                runCatching {
+                    target.parentFile?.mkdirs()
+                    target.outputStream().use { picks.store(it, "Videos picked by hand, per song") }
+                }.onFailure { DebugLog.d("OpenCanvas", "could not keep the video pick: ${it.message}") }
+            }
+        }
+        revisionFlow.value = revisionFlow.value + 1
+    }
+
+    /** The song's name and artists, cleaned as the lookup cleans them; its length is left out (services round it differently). */
+    internal fun key(title: String, artist: String): String? =
+        com.opencanvas.core.stream.SongIdentity.of(MusicVideoQuery.from(title, null).title, artist, 0L)?.key
+
+    private const val FILE_NAME = "video-picks.properties"
 }

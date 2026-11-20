@@ -54,6 +54,9 @@ interface PlayerHost {
         canvasFor(song)
     }
 
+    /** Forgets the Canvas worked out for [song] (a video was picked for it by hand), so the next lookup asks again. */
+    fun forgetCanvas(song: Song) {}
+
     /** The looping clip over the cover, decoded however this platform decodes video. */
     @Composable
     fun CanvasVideo(spec: CanvasVideoSpec, modifier: Modifier)
