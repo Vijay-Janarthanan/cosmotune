@@ -152,7 +152,8 @@ class MusicLinkContractTest {
     @Test fun thePhoneHostProvidesTheLinksAroundMusicOnlyWhileVideoIsAvailableAndTheLookIsOn() {
         val src = flat(phoneHost)
         assertTrue("val links = remember(shell, asked) { shell?.let { phoneModeLinks(it.settings, asked) } }" in src, "no shell (the look off): no links")
-        val provider = "CompositionLocalProvider(LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) }) {"
+        // The full-screen player's window is provided beside the links (one provider for both).
+        val provider = "CompositionLocalProvider( LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) }, com.cosmotune.ui.fullscreen.LocalFullScreenWindow provides fullScreenWindow, ) {"
         assertEquals(1, count(src, provider))
         assertTrue(src.indexOf(provider) < src.indexOf("holder.SaveableStateProvider(\"music\") { music() }"), "around Music's slot")
         val watch = src.substringAfter("internal fun phoneModeLinks(").substringBefore("internal fun videoOf(")

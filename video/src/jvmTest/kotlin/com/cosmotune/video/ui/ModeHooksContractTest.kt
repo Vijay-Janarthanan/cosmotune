@@ -33,9 +33,15 @@ class ModeHooksContractTest {
     // ---- MainActivity.kt (hook table row 6) -------------------------------------------------------------------------------------
 
     @Test fun mainActivityDrawsTheRootInsideThePhoneModeHostAndNamesVideoNowhereElse() {
-        val wrap = "BoxWithConstraints(Modifier.fillMaxSize()) { com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) { " +
-            "CosmotuneApp( darkTheme = darkTheme, windowWidth = maxWidth, windowHeight = maxHeight, appBackdrop = appBackdrop, ) } }"
-        assertEquals(1, count(flat(mainActivity), wrap), "the CosmotuneApp call and its arguments stand untouched inside the host's block")
+        // The window's undo snackbar and header slot (the redesign's shared pieces) may be provided between the host and the app.
+        val host = "BoxWithConstraints(Modifier.fillMaxSize()) { com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) { "
+        val app = "CosmotuneApp( darkTheme = darkTheme, windowWidth = maxWidth, windowHeight = maxHeight, appBackdrop = appBackdrop, )"
+        val text = flat(mainActivity)
+        assertEquals(1, count(text, host), "the host wraps the app")
+        assertEquals(1, count(text, app), "the CosmotuneApp call and its arguments stand untouched")
+        val between = text.substringAfter(host).substringBefore(app)
+        assertTrue(text.indexOf(host) < text.indexOf(app) && "com.cosmotune.video" !in between && "}" !in between.replace("remember { com.cosmotune.ui.orbit.OrbitHeaderSlot() }", ""),
+            "the app is drawn inside the host's block, with only providers between: $between")
         assertEquals(1, count(read(mainActivity), "com.cosmotune.video"), "the host is the only mention of Video in the file")
         assertFalse(importOfVideo.containsMatchIn(read(mainActivity)), "a full name, not an import")
     }
