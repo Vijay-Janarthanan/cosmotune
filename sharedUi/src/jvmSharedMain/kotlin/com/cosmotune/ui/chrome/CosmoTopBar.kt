@@ -51,7 +51,9 @@ import org.jetbrains.compose.resources.stringResource
  * - the [title], one line, in `textPrimary`, with [trailingTitle] after it in `textSecondary`. It is invisible at rest and
  *   fades in (the effects spring) once the page has [scrolled] past its own big heading, or when there is a trailing title.
  *   With an [accessory] the accessory is the bar's content and the title is not drawn: the page's field says what the page is;
- * - [accessory] fills the rest of the row (the Search tab's field), then [actions], 6 dp apart.
+ * - [accessory] fills the rest of the row (the Search tab's field), then [actions], 6 dp apart;
+ * - once [scrolled], on a pushed page, the heading that page handed over ([com.cosmotune.ui.orbit.LocalOrbitHeaderSlot]: an album's
+ *   disc, title, Shuffle and Play) stands in place of the title.
  *
  * At rest the bar draws nothing of its own: the root's top fade is the backdrop, and the icon buttons are glass circles. Once
  * [scrolled], it stands on the page's ground ([cosmoTopGround]) so nothing scrolling under it shows through its title. Under it
@@ -71,6 +73,8 @@ fun CosmoTopBar(
     actions: @Composable () -> Unit = {},
 ) {
     val palette = LocalCosmoColors.current.palette
+    // A pushed page's heading, once it has scrolled away (an album's, a playlist's): the page hands it over through the window's slot.
+    val collapsedHeader = com.cosmotune.ui.orbit.LocalOrbitHeaderSlot.current?.header?.takeIf { onBack != null }
     val type = LocalCosmoType.current
     val reduced = LocalReducedMotion.current
     val titleShown = scrolled || trailingTitle != null
@@ -117,6 +121,9 @@ fun CosmoTopBar(
             if (accessory != null) {
                 // The page's own control takes the rest of the row, with the bar's gap before the actions.
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { accessory() }
+            } else if (collapsedHeader != null && scrolled) {
+                // The page's header has scrolled away: its disc, title, Shuffle and Play take the bar (the Music board's 4b).
+                com.cosmotune.ui.orbit.OrbitCollapsedHeaderRow(collapsedHeader, Modifier.weight(1f))
             } else {
                 Row(
                     Modifier

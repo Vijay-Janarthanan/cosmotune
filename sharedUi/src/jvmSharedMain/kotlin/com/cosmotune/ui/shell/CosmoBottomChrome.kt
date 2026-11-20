@@ -104,9 +104,12 @@ import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
-/** One tab of the dock: its [label] (beside its icon while chosen, and its name for a screen reader) and the two icons (outlined at rest, filled when chosen). */
+/**
+ * One tab of the dock or the rail: its [label] (beside its icon while chosen, and its name for a screen reader), the two icons
+ * (outlined at rest, filled when chosen), and a [count] shown as a peach badge (Releases' new ones; null or 0 for none).
+ */
 @Immutable
-data class CosmoTab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
+data class CosmoTab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector, val count: Int? = null)
 
 
 /**
@@ -131,7 +134,11 @@ data class CosmoTab(val label: String, val icon: ImageVector, val selectedIcon: 
  * A mode that plays its own media (Video) passes [ownMedia]: its [song] is not Music's, so the small player owes nothing to Music's
  * player (no morph bounds, no hiding while Music's player stands open, no artwork host, no measured-quality pill). [onClose] adds a
  * close button after next: what stops that media. [showTabs] false leaves the small player alone (a wide window, whose tabs stand
- * in the sidebar). [dark] draws the dock on the dark palette in either theme (next to the Shorts pager, which is black).
+ * in the rail or the sidebar, [CosmoNavShell]). [dark] draws the dock on the dark palette in either theme (next to the Shorts pager,
+ * which is black). [search] puts the mode's round search button beside the tabs (the Music board's dock: four tabs and Search).
+ *
+ * Above the notices stands the window's "Removed · Undo" snackbar ([com.cosmotune.ui.orbit.LocalOrbitUndo]), 8 dp over the small
+ * player.
  */
 @Composable
 fun CosmoBottomChrome(
@@ -159,6 +166,7 @@ fun CosmoBottomChrome(
     showTabs: Boolean = true,
     dark: Boolean = false,
     ownMedia: Boolean = false,
+    search: CosmoNavSearch? = null,
 ) {
     if ((LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value ?: AppMode.MUSIC) != mode) return
     val shell = LocalCosmoShell.current
@@ -180,6 +188,7 @@ fun CosmoBottomChrome(
             // The dock grows by the small player's height on the move spring (a fade with reduced motion).
             .animateContentSize(moveSpec),
     ) {
+        com.cosmotune.ui.orbit.OrbitUndoHost(com.cosmotune.ui.orbit.LocalOrbitUndo.current)
         notices()
         // The small player and the tabs stand on one rounded slab of the page's ground: the gap between them and the small player's
         // bite show that ground, never the page scrolling under the dock.
@@ -193,7 +202,15 @@ fun CosmoBottomChrome(
                 Box(Modifier.fillMaxWidth().clip(DOCK_SHAPE).background(orbitDockFill(look))) { miniPlayer() }
                 if (showTabs) Spacer(Modifier.height(DOCK_GAP))
             }
-            if (showTabs) FloatingTabBar(tabs, selectedIndex, onTabSelected)
+            if (showTabs) {
+                if (search == null) FloatingTabBar(tabs, selectedIndex, onTabSelected)
+                else Row(verticalAlignment = Alignment.CenterVertically) {
+                    // While Search is open no tab is lit: the round button beside them is.
+                    FloatingTabBar(tabs, if (search.selected) -1 else selectedIndex, onTabSelected, Modifier.weight(1f))
+                    Spacer(Modifier.width(DOCK_GAP))
+                    DockSearchButton(search)
+                }
+            }
         }
     }
     }
@@ -218,11 +235,11 @@ fun rememberDockClearance(fallback: Dp = 0.dp, gap: Dp = 8.dp): Dp {
  * [OrbitDockTab] chips (the chosen one solid ink with its name, the others their icon alone, each named for a screen reader).
  */
 @Composable
-private fun FloatingTabBar(tabs: List<CosmoTab>, selectedIndex: Int, onTabSelected: (Int) -> Unit) {
+private fun FloatingTabBar(tabs: List<CosmoTab>, selectedIndex: Int, onTabSelected: (Int) -> Unit, modifier: Modifier = Modifier) {
     val look = orbitLook()
     val fonts = orbitFonts()
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .height(OrbitDockMetrics.BAR_DP.dp)
             .shadow(16.dp, DOCK_SHAPE, clip = false)
@@ -252,6 +269,7 @@ private fun TabPill(tab: CosmoTab, selected: Boolean, onClick: () -> Unit, fonts
         label = tab.label,
         icon = tab.icon,
         selectedIcon = tab.selectedIcon,
+        count = tab.count,
         selected = selected,
         onClick = { haptics.play(Haptic.Select); onClick() },
         fonts = fonts,

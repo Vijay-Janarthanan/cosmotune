@@ -358,12 +358,20 @@ class MainActivity : AppCompatActivity() {
                 // the split is about to be laid out in.
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {
+                    // The window's one "Removed · Undo" snackbar, and the slot a page hands its collapsed heading to the top bar through.
+                    val orbitUndo = com.cosmotune.ui.orbit.rememberOrbitUndo()
+                    val headerSlot = remember { com.cosmotune.ui.orbit.OrbitHeaderSlot() }
+                    CompositionLocalProvider(
+                        com.cosmotune.ui.orbit.LocalOrbitUndo provides orbitUndo,
+                        com.cosmotune.ui.orbit.LocalOrbitHeaderSlot provides headerSlot,
+                    ) {
                     CosmotuneApp(
                         darkTheme = darkTheme,
                         windowWidth = maxWidth,
                         windowHeight = maxHeight,
                         appBackdrop = appBackdrop,
                     )
+                    }
                     }
                 }
                 }
@@ -2167,7 +2175,12 @@ private fun CosmotuneApp(
     // See [topBarContentPadding].
     val listPadding = PaddingValues(
         top = topBarContentPadding(),
-        bottom = if (player.song != null) 210.dp else 140.dp,
+        bottom = when {
+            // From 600 dp the tabs are in the rail: only the mini player stands under the page.
+            com.cosmotune.ui.shell.CosmoNav.usesRail(windowWidth) -> if (player.song != null) 112.dp else 32.dp
+            player.song != null -> 210.dp
+            else -> 140.dp
+        },
     )
 
     // What colour the page currently under the bars is. The fades either end
@@ -2636,7 +2649,62 @@ private fun CosmotuneApp(
         // the feed, the frosted bars, the tab row â€” becomes the left half of
         // a row, and the player is the right. Off a tablet the row has the
         // one child it always had and changes nothing.
+        // One tab handler, whichever bar is drawing it.
+        val onTabSelected: (Int) -> Unit = { index ->
+            viewModel.clearDetail()
+            viewModel.closeMoodGenre()
+            showSettings = false
+            showAccountScrobbling = false
+            showSources = false
+            showListenTogether = false
+            showEqualizer = false
+            showReplay = false
+            settingsSubScreen = null
+            showHistory = false
+            libraryShowAll = null
+            selectedTab = index
+
+            // Every search tab tap resets the field, focuses it, and opens
+            // the keyboard through SearchScreen's focus request.
+            if (index == TAB_SEARCH) {
+                viewModel.onQueryChange("")
+                searchFocusRequested = true
+            }
+        }
+
+        // The navigation rule (CosmoNav): the bottom bar under 600 dp, the side rail from 600 dp. Four tabs, with Releases' unread
+        // count, and Search as a round button beside them (lit while Search is open, when no tab is).
+        val musicRail = com.cosmotune.ui.shell.CosmoNav.usesRail(windowWidth)
+        val unreadReleases = com.cosmotune.ui.listening.rememberUnreadReleases(
+            java.io.File(context.filesDir, "cosmotune-listening.json"), refreshKey = selectedTab to listeningToolsOpen,
+        )
+        val musicTabs = listOf(
+            CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(exploreLabel, CosmoIcons.Explore, CosmoIcons.ExploreFill),
+            CosmoTab(releasesLabel, CosmoIcons.Bell, CosmoIcons.BellFill, count = unreadReleases), CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill),
+        )
+        // Search and Settings (and what they open) belong to no tab: none is lit under them, rather than the tab left behind.
+        val musicTabIndex = if (selectedTab == TAB_SEARCH || showSettings) -1 else MUSIC_DOCK.indexOf(selectedTab)
+        val musicSearch = com.cosmotune.ui.shell.CosmoNavSearch(
+            label = searchLabel,
+            selected = selectedTab == TAB_SEARCH && !showSettings,
+            onClick = { onTabSelected(TAB_SEARCH) },
+        )
         Row(Modifier.fillMaxSize()) {
+            if (musicRail) {
+                com.cosmotune.ui.shell.CosmoNavRail(
+                    tabs = musicTabs,
+                    selectedIndex = musicTabIndex,
+                    onTabSelected = { index -> onTabSelected(MUSIC_DOCK[index]) },
+                    modifier = Modifier.fillMaxHeight(),
+                    search = musicSearch,
+                    footer = {
+                        com.cosmotune.ui.orbit.OrbitRoundButton(
+                            CosmoIcons.Settings, stringResource(R.string.settings), Color(cosmoShell.colors.palette.textPrimary),
+                            onClick = { showSettings = true }, size = 44.dp, on = showSettings, onInk = Color(cosmoShell.colors.palette.backgroundTop),
+                        )
+                    },
+                )
+            }
             // While the player covers the window, the page under it is out of the accessibility tree: a screen reader would otherwise
             // walk the hidden page behind the player.
             val pageCovered = showNowPlaying && playerSong != null
@@ -3387,20 +3455,16 @@ private fun CosmotuneApp(
                             topPadding = topBarContentPadding(),
                             // Orbit draws the big search pill on the page itself.
                             showField = true,
-                            // The settings page's own two-state selector, so the
-                            // app has one look for "pick one of these".
-                            sourceSwitcher = {
-                                SegmentedControl(
-                                    // In SearchSource order: the selected index is the source's ordinal.
-                                    options = listOf(
-                                        stringResource(R.string.search_source_youtube),
-                                        stringResource(R.string.library),
-                                        stringResource(R.string.search_source_addons),
-                                    ),
-                                    selectedIndex = searchSource.ordinal,
-                                    onSelect = { index -> onSearchSourceChange(SearchSource.entries[index]) },
-                                )
-                            },
+                            // The source chip at the end of the field: in SearchSource order, so the chosen index is the source's ordinal.
+                            sources = com.cosmotune.ui.search.SearchSources(
+                                options = listOf(
+                                    stringResource(R.string.search_source_youtube),
+                                    stringResource(R.string.library),
+                                    stringResource(R.string.search_source_addons),
+                                ),
+                                selected = searchSource.ordinal,
+                                onSelect = { index -> onSearchSourceChange(SearchSource.entries[index]) },
+                            ),
                             browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { viewModel.openMoodGenre(it); selectedTab = TAB_EXPLORE }, onRetry = viewModel::loadExplore),
                             searchingLibrary = searchSource == SearchSource.LIBRARY,
                             libraryResults = libraryResults,
@@ -3485,6 +3549,7 @@ private fun CosmotuneApp(
                             isPlaying = player.isPlaying,
                             onSongClick = { songs, index -> playFrom(songs, index, QueueSource(libraryLabel, PlaybackSourceType.BROWSE)) },
                             onSongLongPress = openSongMenu,
+                            onHistory = { showHistory = true },
                         )
                     }
                 }
@@ -3904,20 +3969,6 @@ private fun CosmotuneApp(
                             // A drawer entry must also leave the pages that are drawn instead of the tab (History, a Library "Show all",
                             // Discord, Spotify): the root shows one page by the order of its `when`, so without this the entry would only
                             // close the drawer.
-                            // Search is the same button in the same place on every root page of the mode (DESIGN_SYSTEM.md 4.1, 5.2).
-                            if (detail == null && selectedMoodGenre == null && selectedTab != TAB_SEARCH &&
-                                libraryShowAll == null && !showHistory && !showReplay && !showDiscord && !showSpotify
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        viewModel.onQueryChange("")
-                                        searchFocusRequested = true
-                                        selectedTab = TAB_SEARCH
-                                    },
-                                ) {
-                                    Icon(CosmoIcons.Search, contentDescription = searchLabel, tint = MaterialTheme.colorScheme.onSurface)
-                                }
-                            }
                             val leavePages = {
                                 showHistory = false
                                 libraryShowAll = null
@@ -4008,37 +4059,11 @@ private fun CosmotuneApp(
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
 
-                // One tab handler, whichever bar is drawing it.
-                val onTabSelected: (Int) -> Unit = { index ->
-                    viewModel.clearDetail()
-                    viewModel.closeMoodGenre()
-                    showSettings = false
-                    showAccountScrobbling = false
-                    showSources = false
-                    showListenTogether = false
-                    showEqualizer = false
-                    showReplay = false
-                    settingsSubScreen = null
-                    showHistory = false
-                    libraryShowAll = null
-                    selectedTab = index
-
-                    // Every search tab tap resets the field, focuses it, and opens
-                    // the keyboard through SearchScreen's focus request.
-                    if (index == TAB_SEARCH) {
-                        viewModel.onQueryChange("")
-                        searchFocusRequested = true
-                    }
-                }
-
-                // The floating chrome (tab capsule and mini capsule).
+                // The floating chrome: under 600 dp the tab bar with the round search button beside it and the mini player above;
+                // from 600 dp the tabs stand in the rail and only the mini player runs along the foot of the page.
                 com.cosmotune.ui.shell.CosmoBottomChrome(
-                    tabs = listOf(
-                        CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(exploreLabel, CosmoIcons.Explore, CosmoIcons.ExploreFill),
-                        CosmoTab(releasesLabel, CosmoIcons.Bell, CosmoIcons.BellFill), CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill),
-                    ),   // DESIGN_SYSTEM.md 5.2: Search is not a tab, it is the top bar's button
-                    // Search and Settings (and what they open) belong to no tab: none is lit under them, rather than the tab left behind.
-                    selectedIndex = if (selectedTab == TAB_SEARCH || showSettings) -1 else MUSIC_DOCK.indexOf(selectedTab),
+                    tabs = musicTabs,
+                    selectedIndex = musicTabIndex,
                     onTabSelected = { index -> onTabSelected(MUSIC_DOCK[index]) },
                     song = player.song, isPlaying = player.isPlaying, isLoading = playPauseBusy,
                     position = player.position, durationMs = player.durationMs,
@@ -4046,7 +4071,9 @@ private fun CosmotuneApp(
                     onExpand = { showNowPlaying = true }, controlsLocked = controlsLocked, onBlockedControl = showHostOnlyNotice,
                     hazeState = hazeState, onHeightChanged = { floatingBarsHeight.intValue = it },
                     notices = { QueueActionNoticeHost(queueNotice) },
-                    modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = FLOATING_BAR_MAX_WIDTH).fillMaxWidth(),
+                    showTabs = !musicRail,
+                    search = musicSearch,
+                    modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = if (musicRail) MUSIC_RAIL_PLAYER_MAX_WIDTH else FLOATING_BAR_MAX_WIDTH).fillMaxWidth(),
                 )
             }
             }
@@ -4827,6 +4854,9 @@ private const val TAB_RELEASES = 4
 
 /** The dock, in its order (DESIGN_SYSTEM.md 5.2). */
 private val MUSIC_DOCK = listOf(TAB_HOME, TAB_EXPLORE, TAB_RELEASES, TAB_LIBRARY)
+
+/** How wide the mini player may run along the foot of a page beside the rail. */
+private val MUSIC_RAIL_PLAYER_MAX_WIDTH = 760.dp
 
 /**
  * What a tab's key is prefixed with in the content switcher above.

@@ -207,25 +207,26 @@ class PhoneChromeContractTest {
     }
 
     @Test fun theDockHasFourTabsHomeExploreReleasesLibraryAndSearchIsTheBarsButton() {
-        val chrome = main.substringAfter("// The floating chrome (tab capsule and mini capsule).").substringBefore("selectedIndex = ")
-        assertTrue(chrome.length < main.length, "the chrome's comment is found")
-        assertEquals(4, Regex("""\bCosmoTab\(""").findAll(chrome).count(), "four tabs")
+        val tabs = main.substringAfter("val musicTabs = listOf(").substringBefore("\n        )")
+        assertTrue(tabs.length < main.length, "the tabs are found")
+        assertEquals(4, Regex("""\bCosmoTab\(""").findAll(tabs).count(), "four tabs")
         assertTrue(
             "CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(exploreLabel, CosmoIcons.Explore, CosmoIcons.ExploreFill), " +
-                "CosmoTab(releasesLabel, CosmoIcons.Bell, CosmoIcons.BellFill), CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill)" in squash(chrome),
-            "Home, Explore, Releases, Library, in that order",
+                "CosmoTab(releasesLabel, CosmoIcons.Bell, CosmoIcons.BellFill, count = unreadReleases), CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill)" in squash(tabs),
+            "Home, Explore, Releases (with its count), Library, in that order",
         )
-        assertFalse("searchLabel" in chrome, "no Search tab in the dock")
+        assertFalse("searchLabel" in tabs, "no Search tab in the dock")
         assertEquals(1, Regex("""\bCosmoTab\(homeLabel""").findAll(mainCode).count(), "and no second definition elsewhere")
-        assertTrue("// DESIGN_SYSTEM.md 5.2: Search is not a tab, it is the top bar's button" in main, "the comment says why")
-        assertFalse("// the order of TAB_HOME, TAB_EXPLORE, TAB_LIBRARY, TAB_SEARCH" in main, "the old comment is gone")
-        assertTrue("IconButton(" in main && "Icon(CosmoIcons.Search, contentDescription = searchLabel" in main, "Search is a button in the top bar's actions")
+        // The navigation rule: Search is the round button beside the tabs (and at the head of the rail), not the top bar's.
+        assertTrue("val musicSearch = com.cosmotune.ui.shell.CosmoNavSearch(" in main && "search = musicSearch," in main, "Search is the round button beside the tabs")
+        assertFalse("Icon(CosmoIcons.Search, contentDescription = searchLabel" in main, "and no longer a button of the top bar")
     }
 
     @Test fun theDockMapsItsTabsAndBackAndSearchKeepsTheTabItWasOpenedFromLit() {
         val text = main
         assertTrue("private val MUSIC_DOCK = listOf(TAB_HOME, TAB_EXPLORE, TAB_RELEASES, TAB_LIBRARY)" in text, "the dock's order, in the host's numbers")
-        assertTrue("selectedIndex = if (selectedTab == TAB_SEARCH || showSettings) -1 else MUSIC_DOCK.indexOf(selectedTab)," in text, "Search and Settings light no tab")
+        assertTrue("val musicTabIndex = if (selectedTab == TAB_SEARCH || showSettings) -1 else MUSIC_DOCK.indexOf(selectedTab)" in text, "Search and Settings light no tab")
+        assertTrue("selectedIndex = musicTabIndex," in text, "in the bar and the rail alike")
         assertTrue("onTabSelected = { index -> onTabSelected(MUSIC_DOCK[index]) }," in text, "the one tab handler is the root's")
         assertTrue("LaunchedEffect(selectedTab) { if (selectedTab != TAB_SEARCH) searchReturnTab = selectedTab }" in text, "the tab Search returns to")
         assertTrue("selectedTab == TAB_SEARCH -> ({ selectedTab = searchReturnTab })" in text, "the bar's back button returns there")
