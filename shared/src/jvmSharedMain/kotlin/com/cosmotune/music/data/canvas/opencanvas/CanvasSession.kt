@@ -68,6 +68,8 @@ internal class Environment(val config: OpenCanvasConfig) {
     val community = config.communityMapsUrl?.let { CommunityMaps(config.httpClient, it) }
     val search = MusicVideoSearch(config.httpClient, config.log)
     val measurer = SyncMeasurer(AudioFetcher(config.httpClient))
+    /** Measurements shared by the lookups of one song ([MeasurementShare]): a second lookup never measures the same video again. */
+    val measurements = MeasurementShare()
 
     init {
         config.instantBackend?.warmUp()
@@ -408,19 +410,31 @@ internal class CanvasSession(
             launch {
                 // The preview frames are read while the audio is measured: a small image, ready long before the map.
                 val preview = async { if (request.videoId == null) env.previewStill(candidate.videoId) else null }
-                val measured = measureOne(track, candidate.videoId, songVideoId)
+                // Shared with any other lookup of the same song: a second lookup (the song's stream id changed) takes the
+                // measurement the first made, or waits for the one it is making, instead of measuring the video again beside it.
+                val measured = env.measurements.measure(MeasurementShare.key(request.identity, request.song?.cacheId, candidate.videoId)) {
+                    measureOne(track, candidate.videoId, songVideoId)
+                }
                 arrivals.send(Triple(rankBase + index, candidate, measured to preview.await()))
             }
         }
 
         var winner: Pick? = null
-        // Until a usable map exists the batch has this long; after one does, the short grace below.
-        var graceEndsAt = System.currentTimeMillis() + BATCH_TIMEOUT_MS
+        // Until a usable map exists the batch has this long, and on a device that stalls (long garbage-collection pauses) the
+        // stalls are given back, up to as long again; after a usable map, the short grace below.
+        val deadline = BatchDeadline(BATCH_TIMEOUT_MS, maxExtraMs = BATCH_TIMEOUT_MS)
         var arrived = 0
         while (arrived < batch.size) {
-            val (rank, candidate, both) =
-                withTimeoutOrNull((graceEndsAt - System.currentTimeMillis()).coerceAtLeast(0L)) { arrivals.receive() }
-                    ?: break
+            val left = deadline.remaining()
+            if (left <= 0L) break
+            val slice = minOf(left, BatchDeadline.SLICE_MS)
+            val asked = System.currentTimeMillis()
+            val next = withTimeoutOrNull(slice) { arrivals.receive() }
+            if (next == null) {
+                deadline.waited(slice, System.currentTimeMillis() - asked)
+                continue
+            }
+            val (rank, candidate, both) = next
             val (measured, previewStill) = both
             arrived++
             val result = measured?.align
@@ -460,7 +474,7 @@ internal class CanvasSession(
                     (if (VideoMatcher.saysVideo(candidate.title)) SAYS_VIDEO_BONUS else 0.0) +
                     (if (candidate.filmChannel) FILM_CHANNEL_BONUS else 0.0) - (if (partial) PARTIAL_PENALTY else 0.0)
                 // A partial map does not shorten the wait: the rest of the batch may still match the whole song.
-                if (!partial && winner.let { it == null || it.partial }) graceEndsAt = System.currentTimeMillis() + OTHER_CANDIDATES_GRACE_MS
+                if (!partial && winner.let { it == null || it.partial }) deadline.restart(OTHER_CANDIDATES_GRACE_MS)
                 if (winner.let { it == null || score > it.score }) winner = Pick(candidate, result, score, partial)
                 if (rank == 0 && !partial && result.confidence >= CONFIDENT_FIRST_CHOICE) break // no need to wait for the others
             }
@@ -474,8 +488,6 @@ internal class CanvasSession(
         if (track == null || picture == null) return null
         val first = measure(track, picture, video)
         var best = first
-        fun Measurement.isAligned() = align.error == null &&
-            align.confidence >= YouTubeStreamResolver.MIN_SYNC_CONFIDENCE && align.segments.isNotEmpty()
         if (best?.isAligned() == true) return best
         // Frame sizes depend on the encoder as well as the recording. A readable but weak match
         // deserves the same bounded second-client check as an unreadable header. Keep the existing
@@ -625,6 +637,7 @@ internal class CanvasSession(
         const val PARTIAL_PENALTY = 1.0
         const val OTHER_CANDIDATES_GRACE_MS = 600L
         const val BATCH_SIZE = 3
+        /** A batch's wait before any of it lines up, not counting the device's stalls ([BatchDeadline]). */
         const val BATCH_TIMEOUT_MS = 12_000L
         /** All of the playing song's searches together, first and expanded. */
         const val SEARCH_BUDGET_MS = 15_000L
