@@ -55,8 +55,23 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
     private var planes: PointerPointer<BytePointer>? = null
     private var strides: IntPointer? = null
     private var scalerFormat = -1
+    private var scalerSourceWidth = 0
+    private var scalerSourceHeight = 0
+    private var scalerWidth = 0
+    private var scalerHeight = 0
     private var sourceWidth = 0
     private var sourceHeight = 0
+    // The size the clip is drawn at on screen, in pixels; 0 while unknown. Kept across reopening: it is the box, not the clip.
+    private var shownWidth = 0
+    private var shownHeight = 0
+    private val maxEdge = if (decorative) ARTWORK_EDGE else MAX_EDGE
+
+    /** Scalers made so far: one per pixel format and size, never one per frame. */
+    internal var scalerBuilds = 0
+        private set
+
+    /** The clip's own shape, width over height; 0 while nothing is open. */
+    val sourceAspect: Float get() = if (sourceHeight > 0) sourceWidth.toFloat() / sourceHeight else 0f
     private var streamIndex = -1
     private val artworkPacer = if (decorative) DesktopArtworkFramePacer() else null
     val artworkDelayMillis: Long get() = artworkPacer?.delayMillis ?: 0
@@ -174,11 +189,11 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
         sourceHeight = context.height()
         check(sourceWidth > 0 && sourceHeight > 0) { "the clip has no size" }
 
-        // Decorative loops never need a full-HD bitmap. Keep the full frame budget for synced video.
-        val edge = if (decorative) ARTWORK_EDGE else MAX_EDGE
-        val scale = minOf(1.0, edge.toDouble() / maxOf(sourceWidth, sourceHeight))
-        width = (((sourceWidth * scale).toInt() / 2) * 2).coerceAtLeast(2)
-        height = (((sourceHeight * scale).toInt() / 2) * 2).coerceAtLeast(2)
+        // Frames come out at the size they are drawn at (decorative loops never past 480 px, synced video never past full HD).
+        canvasOutputSize(sourceWidth, sourceHeight, shownWidth, shownHeight, maxEdge).let {
+            width = it.width
+            height = it.height
+        }
 
         val rate = stream.avg_frame_rate()
         if (rate.num() > 0 && rate.den() > 0) {
@@ -187,8 +202,33 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
             frameIntervalMillis = (1_000L * rate.den() / rate.num()).coerceIn(if (decorative) 1L else MIN_INTERVAL_MS, 200L)
         }
 
+        packet = av_packet_alloc()
+        frame = av_frame_alloc()
+    }
+
+    /**
+     * Tells the decoder the clip is drawn [widthPx] x [heightPx] on screen (0 for unknown), so frames come out at that size
+     * (capped at the source and at the edge limit) rather than at the source's. True when the output size changed; the scaler
+     * is then rebuilt once, before the next frame.
+     */
+    fun showAt(widthPx: Int, heightPx: Int): Boolean {
+        shownWidth = widthPx.coerceAtLeast(0)
+        shownHeight = heightPx.coerceAtLeast(0)
+        if (sourceWidth <= 0 || sourceHeight <= 0) return false
+        val size = canvasOutputSize(sourceWidth, sourceHeight, shownWidth, shownHeight, maxEdge)
+        if (size.width == width && size.height == height) return false
+        width = size.width
+        height = size.height
+        releaseBytes()
+        return true
+    }
+
+    /** The decoder's own frame buffer, for [nextFrame] into a byte array; laid out for the current size on first use. */
+    private fun bytesBuffer(): Boolean {
+        if (buffer != null) return true
         // Wired by FFmpeg rather than by hand.
         val size = av_image_get_buffer_size(AV_PIX_FMT_BGRA, width, height, 1)
+        if (size <= 0) return false
         buffer = BytePointer(size.toLong())
         view = buffer?.asByteBuffer()
         planes = PointerPointer<BytePointer>(4)
@@ -196,8 +236,17 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
         check(
             av_image_fill_arrays(planes, strides, buffer, AV_PIX_FMT_BGRA, width, height, 1) >= 0,
         ) { "could not lay out the frame buffer" }
-        packet = av_packet_alloc()
-        frame = av_frame_alloc()
+        return true
+    }
+
+    private fun releaseBytes() {
+        buffer?.deallocate()
+        planes?.deallocate()
+        strides?.deallocate()
+        buffer = null
+        view = null
+        planes = null
+        strides = null
     }
 
     private var timeBaseNum = 1L
@@ -254,13 +303,32 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
      * true, and otherwise reports false.
      */
     fun nextFrame(into: ByteArray, loop: Boolean = true): Boolean = try {
-        decodeNext(into, loop)
+        bytesBuffer() && decodeNext(planes!!, strides!!, loop) && run {
+            // Read through an explicit NIO view rewound each time rather than through the
+            // pointer's own `get`, whose starting offset is its position.
+            view?.let { pixels ->
+                pixels.rewind()
+                pixels.get(into, 0, minOf(into.size, width * height * 4))
+            }
+            true
+        }
     } catch (failure: Throwable) {
         DesktopTrackLog.log("canvas: decode failed — $failure")
         false
     }
 
-    private fun decodeNext(into: ByteArray, loop: Boolean): Boolean {
+    /**
+     * The next frame, scaled straight into [target]'s pixels (a bitmap that is drawn as it is, with no copy in between). A
+     * target of another size than the decoder's is refused rather than overrun.
+     */
+    fun nextFrame(target: CanvasFrameTarget, loop: Boolean = true): Boolean = try {
+        target.width == width && target.height == height && decodeNext(target.planes, target.strides, loop)
+    } catch (failure: Throwable) {
+        DesktopTrackLog.log("canvas: decode failed — $failure")
+        false
+    }
+
+    private fun decodeNext(planes: PointerPointer<*>, strides: IntPointer, loop: Boolean): Boolean {
         val container = format ?: return false
         val context = codec ?: return false
         val pkt = packet ?: return false
@@ -274,14 +342,11 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
                 if (lastPtsMs < skipUntilMs) continue
                 skipUntilMs = -1L
                 if (artworkPacer?.accept(lastPtsMs, frameIntervalMillis) == false) continue
-                val converter = scalerFor(decoded.format()) ?: return false
-                sws_scale(converter, decoded.data(), decoded.linesize(), 0, sourceHeight, planes, strides)
-                // Read through an explicit NIO view rewound each time rather than through the
-                // pointer's own `get`, whose starting offset is its position.
-                view?.let { pixels ->
-                    pixels.rewind()
-                    pixels.get(into, 0, minOf(into.size, width * height * 4))
-                }
+                // The frame's own size, which a stream may change mid-way, rather than the one it opened with.
+                val frameWidth = decoded.width().takeIf { it > 0 } ?: sourceWidth
+                val frameHeight = decoded.height().takeIf { it > 0 } ?: sourceHeight
+                val converter = scalerFor(decoded.format(), frameWidth, frameHeight) ?: return false
+                sws_scale(converter, decoded.data(), decoded.linesize(), 0, frameHeight, planes, strides)
                 return true
             }
             if (av_read_frame(container, pkt) < 0) {
@@ -303,25 +368,37 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
         }
     }
 
-    /** The converter for the format frames are actually arriving in. */
-    private fun scalerFor(pixelFormat: Int): SwsContext? {
-        scaler?.let { if (pixelFormat == scalerFormat) return it }
+    /**
+     * The converter for the format and size frames are actually arriving in, to the size they are shown at. Made again only
+     * when one of those changes.
+     */
+    private fun scalerFor(pixelFormat: Int, fromWidth: Int, fromHeight: Int): SwsContext? {
+        scaler?.let {
+            if (pixelFormat == scalerFormat && fromWidth == scalerSourceWidth && fromHeight == scalerSourceHeight &&
+                width == scalerWidth && height == scalerHeight
+            ) return it
+        }
         if (pixelFormat < 0) return null
         scaler?.let { sws_freeContext(it) }
+        scaler = null
         // BGRA because that is the order Skia's N32 bitmaps are laid out in, so the scaled frame
         // can be handed over without a second pass.
         val built = sws_getContext(
-            sourceWidth, sourceHeight, pixelFormat,
+            fromWidth, fromHeight, pixelFormat,
             width, height, AV_PIX_FMT_BGRA,
             SWS_BILINEAR, null, null, null as DoublePointer?,
         )
         if (built == null) {
             DesktopTrackLog.log("canvas: no converter for pixel format $pixelFormat")
-            scaler = null
             return null
         }
+        scalerBuilds++
         scaler = built
         scalerFormat = pixelFormat
+        scalerSourceWidth = fromWidth
+        scalerSourceHeight = fromHeight
+        scalerWidth = width
+        scalerHeight = height
         return built
     }
 
@@ -334,19 +411,17 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
         // A custom input is not released by closing the format context, and goes only after it.
         customIo?.close()
         customIo = null
-        buffer?.deallocate()
-        planes?.deallocate()
-        strides?.deallocate()
+        releaseBytes()
         frame = null
         packet = null
         scaler = null
         scalerFormat = -1
+        scalerSourceWidth = 0
+        scalerSourceHeight = 0
+        scalerWidth = 0
+        scalerHeight = 0
         codec = null
         format = null
-        buffer = null
-        view = null
-        planes = null
-        strides = null
         streamIndex = -1
         sourceWidth = 0
         sourceHeight = 0

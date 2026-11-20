@@ -6,14 +6,19 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
@@ -24,7 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.cosmotune.music.data.canvas.CanvasArtwork
@@ -38,9 +42,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
-import org.jetbrains.skia.ColorAlphaType
-import org.jetbrains.skia.Image
-import org.jetbrains.skia.ImageInfo
+import java.awt.Frame
+import java.awt.Window
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import kotlin.math.roundToInt
 
 /**
@@ -52,6 +59,10 @@ import kotlin.math.roundToInt
  * frame, then a 320ms fade reported through `onCoverChanged`, the aspect once
  * known, frames for the backdrop to re-tint off, the portrait fit, the bottom
  * dissolve, and a pause that keeps the last frame on screen.
+ *
+ * Frames are decoded at the size they are drawn, straight into one of two reused bitmaps ([CanvasFrameRing]), so a frame costs
+ * no allocation at all; and nothing is decoded while the video cannot be seen (window minimised or in the tray, the video out
+ * of the window or faded out), the synced video seeking back to the song when it is seen again.
  */
 @Composable
 internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
@@ -75,14 +86,46 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
         else recorded?.let { com.opencanvas.core.filter.FramingDecision(it.cx, it.cy, it.fitFullFrame, it.isSceneCut) } ?: liveFrame
     val focalX by animateFloatAsState(framing.cx, tween(if (framing.sceneCut) 0 else 180), label = "canvasSubjectX")
     val focalY by animateFloatAsState(framing.cy, tween(if (framing.sceneCut) 0 else 180), label = "canvasSubjectY")
+    // The frame on screen: one of [frames]' two bitmaps. Read only in draw, so a new frame repaints the clip and recomposes
+    // nothing; [rendered] changes only when there comes to be a frame or stops being one.
     var frame by remember(canvas) { mutableStateOf<ImageBitmap?>(null) }
-    val rendered = frame != null
+    val frames = remember(canvas) { CanvasFrameRing() }
+    // Freed once its decoder lets go of it, whenever that is.
+    DisposableEffect(frames) { onDispose { frames.close() } }
+    val rendered by remember(canvas) { derivedStateOf { frame != null } }
     val running by rememberUpdatedState(spec.isPlaying && !spec.pausedForTransition)
     val reportAspect by rememberUpdatedState(spec.onAspectRatioChanged)
     val reportRendered by rememberUpdatedState(spec.onRenderedChanged)
     val reportFrame by rememberUpdatedState(spec.onFrameCaptured)
     val reportCover by rememberUpdatedState(spec.onCoverChanged)
     val presentationAlpha by rememberUpdatedState(spec.presentationAlpha)
+    val captureEdge by rememberUpdatedState(spec.frameCapturePx)
+
+    // What the video is decoded at: the size it is drawn at, settled for a moment so an animated resize does not rebuild the
+    // scaler and the bitmaps on every step of it.
+    var decodeSize by remember { mutableStateOf(IntSize.Zero) }
+    LaunchedEffect(viewport) {
+        if (viewport.width <= 0 || viewport.height <= 0) return@LaunchedEffect
+        if (decodeSize != IntSize.Zero) delay(RESIZE_SETTLE_MS)
+        decodeSize = viewport
+    }
+    val windowShown by rememberWindowShown()
+    var onScreen by remember { mutableStateOf(true) }
+    val seen: () -> Boolean = {
+        CanvasVideoGate.shouldDecode(windowShown, onScreen, frame != null, presentationAlpha())
+    }
+
+    /** Shows the frame just decoded. */
+    fun present() {
+        frames.present()?.let { frame = it }
+    }
+
+    /** The cover shows instead of the video. */
+    fun hide() {
+        if (frame == null) return
+        frame = null
+        frames.hidden()
+    }
 
     LaunchedEffect(canvas) {
         // A music video that follows the song is driven by the effect below instead.
@@ -95,27 +138,30 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
             val decoder = playback.decoder
             var shown = 0
             try {
+                decoder.showAt(decodeSize.width, decodeSize.height)
                 val attempt = playback.open(listOfNotNull(canvas.url, canvas.fallbackUrl), canvas.headers)
                 if (attempt.result.isFailure) {
                     DesktopTrackLog.log("canvas: ${attempt.result.exceptionOrNull()?.message}")
                     return@LaunchedEffect
                 }
-                reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
-                sourceAspect = decoder.width.toFloat() / decoder.height.coerceAtLeast(1)
-                val pixels = ByteArray(decoder.width * decoder.height * 4)
-                val info = ImageInfo.makeN32(decoder.width, decoder.height, ColorAlphaType.OPAQUE)
+                reportAspect(decoder.sourceAspect)
+                sourceAspect = decoder.sourceAspect
                 while (isActive) {
                     // Paused with the track, or for the length of the sleeve's
-                    // collapse: the last frame stays up, nothing is decoded.
-                    snapshotFlow { running }.first { it }
+                    // collapse, or out of sight: the last frame stays up, nothing is decoded.
+                    snapshotFlow { running && seen() }.first { it }
                     val started = System.nanoTime()
-                    val decoded = withContext(Dispatchers.IO) { decoder.nextFrame(pixels) }
+                    decoder.showAt(decodeSize.width, decodeSize.height)
+                    if (!frames.ensure(decoder.width, decoder.height)) {
+                        CanvasFrameFailures.noteNoMemory()
+                        delay(NO_MEMORY_RETRY_MS)
+                        continue
+                    }
+                    val decoded = withContext(Dispatchers.IO) { frames.write { decoder.nextFrame(it) } } ?: false
                     if (!decoded) break
                     delay((decoder.artworkDelayMillis - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(0L))
                     shown++
-                    // Handed to Skia rather than copied, so the next frame
-                    // cannot be decoded into the same array.
-                    frame = Image.makeRaster(info, pixels.copyOf(), decoder.width * 4).toComposeImageBitmap()
+                    present()
                 }
             } finally {
                 playback.close()
@@ -138,21 +184,44 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
         val playback = DesktopCanvasPlayback()
         val decoder = playback.decoder
         val startedAt = System.nanoTime()
+        // Only for the subject framing, which samples frames as bytes; reused, and made only when it is on.
+        var analysisPixels: ByteArray? = null
         try {
+            decoder.showAt(decodeSize.width, decodeSize.height)
             val attempt = playback.open(listOfNotNull(canvas.url, canvas.fallbackUrl), canvas.headers)
             if (attempt.result.isFailure) {
                 DesktopTrackLog.log("canvas: ${attempt.result.exceptionOrNull()?.message}")
                 return@LaunchedEffect
             }
-            reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
-            sourceAspect = decoder.width.toFloat() / decoder.height.coerceAtLeast(1)
-            val pixels = ByteArray(decoder.width * decoder.height * 4)
-            val info = ImageInfo.makeN32(decoder.width, decoder.height, ColorAlphaType.OPAQUE)
-            fun present() {
-                frameTime = decoder.lastPtsMs / 1000.0
-                analysis?.submitBgra(pixels, decoder.width, decoder.height, frameTime)
-                // Handed to Skia rather than copied, so the next frame cannot be decoded into it.
-                frame = Image.makeRaster(info, pixels.copyOf(), decoder.width * 4).toComposeImageBitmap()
+            reportAspect(decoder.sourceAspect)
+            sourceAspect = decoder.sourceAspect
+
+            /** The next frame, into the bitmap not on screen, at the size the video is shown; false when there is none. */
+            suspend fun decodeNext(): Boolean {
+                decoder.showAt(decodeSize.width, decodeSize.height)
+                if (!frames.ensure(decoder.width, decoder.height)) {
+                    CanvasFrameFailures.noteNoMemory()
+                    return false
+                }
+                val worker = analysis
+                return withContext(Dispatchers.IO) {
+                    frames.write { target ->
+                        decoder.nextFrame(target, loop = false).also { decoded ->
+                            if (decoded && worker != null) {
+                                val bytes = analysisPixels?.takeIf { it.size == target.width * target.height * 4 }
+                                    ?: ByteArray(target.width * target.height * 4).also { analysisPixels = it }
+                                if (target.copyTo(bytes)) {
+                                    worker.submitBgra(bytes, target.width, target.height, decoder.lastPtsMs / 1000.0)
+                                }
+                            }
+                        }
+                    }
+                } ?: false
+            }
+            fun showDecoded() {
+                // Only a recorded framing path follows the frame's time; nothing else recomposes per frame.
+                if (canvas.trajectory != null) frameTime = decoder.lastPtsMs / 1000.0
+                present()
             }
             var epoch = sync.epoch()
             var positioned = false
@@ -162,10 +231,18 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                 val songMs = sync.songMs()
                 if (!policy.isVisible(songMs)) {
                     // Before the video starts or after it ends: the still cover shows through.
-                    frame = null
+                    hide()
                     positioned = false
                     shownPts = Long.MIN_VALUE
                     delay(CanvasSyncDefaults.CHECK_INTERVAL_MS / 2)
+                    continue
+                }
+                if (!seen()) {
+                    // Minimised, in the tray, out of the window or faded out: nothing is decoded until it is seen again, and
+                    // then the video seeks to wherever the song has got to.
+                    snapshotFlow { seen() }.first { it }
+                    positioned = false
+                    shownPts = Long.MIN_VALUE
                     continue
                 }
                 var target = policy.targetVideoMs(songMs)
@@ -181,15 +258,15 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                     // Paused with the song: the picture stays at exactly where the song is, and a seek
                     // made while paused still moves it.
                     if (shownPts == Long.MIN_VALUE || kotlin.math.abs(shownPts - target) > policy.toleranceMs) {
-                        if (withContext(Dispatchers.IO) { decoder.nextFrame(pixels, loop = false) }) {
+                        if (decodeNext()) {
                             shownPts = decoder.lastPtsMs
-                            present()
+                            showDecoded()
                         }
                     }
                     delay(CanvasSyncDefaults.CHECK_INTERVAL_MS / 5)
                     continue
                 }
-                if (!withContext(Dispatchers.IO) { decoder.nextFrame(pixels, loop = false) }) {
+                if (!decodeNext()) {
                     delay(CanvasSyncDefaults.CHECK_INTERVAL_MS)
                     continue
                 }
@@ -206,12 +283,13 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                     }
                 }
                 shownPts = pts
-                present()
+                showDecoded()
                 if (!firstFrameLogged) {
                     firstFrameLogged = true
                     val millis = (System.nanoTime() - startedAt) / 1_000_000
                     DesktopTrackLog.log(
-                        "canvas: synced first frame in $millis ms (${attempt.how}) at video $pts ms, song ${sync.songMs()} ms",
+                        "canvas: synced first frame in $millis ms (${attempt.how}) at video $pts ms, song ${sync.songMs()} ms, " +
+                            "decoded at ${decoder.width}x${decoder.height}",
                     )
                 }
             }
@@ -223,14 +301,17 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     LaunchedEffect(rendered) { reportRendered(rendered) }
 
     // One frame once there is one, and then — for a caller re-tinting off the
-    // clip — another every so often.
+    // clip — another every so often. A small copy each time: the bitmaps on screen are rewritten with every frame.
     LaunchedEffect(rendered, spec.refreshFrameEveryMs) {
         if (!rendered) return@LaunchedEffect
-        frame?.let(reportFrame)
+        fun capture() {
+            frame?.let { canvasFrameSnapshot(it, captureEdge) }?.let(reportFrame)
+        }
+        capture()
         val interval = spec.refreshFrameEveryMs ?: return@LaunchedEffect
         while (isActive) {
             delay(interval)
-            frame?.let(reportFrame)
+            capture()
         }
     }
 
@@ -252,11 +333,16 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     val bottomFade = spec.bottomFade
     val bottomFadeEndPx = spec.bottomFadeEndPx
     Canvas(
-        modifier = modifier.onSizeChanged { viewport = it }.clipToBounds().graphicsLayer {
-            this.alpha = alpha * presentationAlpha()
-            // Offscreen so the bottom dissolve masks the clip, not what is behind it.
-            if (bottomFade > 0.001f) compositingStrategy = CompositingStrategy.Offscreen
-        },
+        modifier = modifier.onSizeChanged { viewport = it }
+            .onGloballyPositioned { coordinates ->
+                val bounds = coordinates.boundsInWindow()
+                onScreen = bounds.width >= 1f && bounds.height >= 1f
+            }
+            .clipToBounds().graphicsLayer {
+                this.alpha = alpha * presentationAlpha()
+                // Offscreen so the bottom dissolve masks the clip, not what is behind it.
+                if (bottomFade > 0.001f) compositingStrategy = CompositingStrategy.Offscreen
+            },
     ) {
         val image = frame ?: return@Canvas
         val placement = com.opencanvas.core.filter.videoViewport(image.width.toFloat(), image.height.toFloat(),
@@ -293,6 +379,56 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     }
 }
 
+/**
+ * Whether the window this is composed in is on screen: false while it is minimised or hidden (closed to the tray). True where
+ * there is no window to ask.
+ */
+@Composable
+private fun rememberWindowShown(): State<Boolean> {
+    val window = AwtWindowLocal?.current
+    return produceState(initialValue = window?.let(::isWindowShown) ?: true, window) {
+        val shown = window ?: return@produceState
+        val update = { value = isWindowShown(shown) }
+        val windowEvents = object : WindowAdapter() {
+            override fun windowIconified(e: WindowEvent) = update()
+            override fun windowDeiconified(e: WindowEvent) = update()
+            override fun windowStateChanged(e: WindowEvent) = update()
+            override fun windowOpened(e: WindowEvent) = update()
+            override fun windowClosed(e: WindowEvent) = update()
+        }
+        val componentEvents = object : ComponentAdapter() {
+            override fun componentShown(e: ComponentEvent) = update()
+            override fun componentHidden(e: ComponentEvent) = update()
+        }
+        shown.addWindowListener(windowEvents)
+        shown.addWindowStateListener(windowEvents)
+        shown.addComponentListener(componentEvents)
+        update()
+        try {
+            kotlinx.coroutines.awaitCancellation()
+        } finally {
+            shown.removeWindowListener(windowEvents)
+            shown.removeWindowStateListener(windowEvents)
+            shown.removeComponentListener(componentEvents)
+        }
+    }
+}
+
+/**
+ * Compose's own record of the AWT window a composable is in (`androidx.compose.ui.window.LocalWindow`, provided by every
+ * `Window` and `DialogWindow`), which Compose keeps internal. Read once by name; without it every video counts as on screen,
+ * as before. The app's own window locals would not do: a picture-in-picture window composed from the main one inherits them,
+ * and its video would stop with the main window minimised, which is exactly when it is shown.
+ */
+@Suppress("UNCHECKED_CAST")
+private val AwtWindowLocal: androidx.compose.runtime.CompositionLocal<Window?>? = runCatching {
+    Class.forName("androidx.compose.ui.window.LocalWindowKt").getMethod("getLocalWindow").invoke(null)
+        as androidx.compose.runtime.CompositionLocal<Window?>
+}.getOrNull()
+
+private fun isWindowShown(window: Window): Boolean =
+    window.isShowing && !(window is Frame && (window.extendedState and Frame.ICONIFIED) != 0)
+
 /** The desktop's clip, in the shared player's terms. */
 internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(
     url = url,
@@ -313,16 +449,27 @@ internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(
 private const val FRAME_EARLY_MS = 8L
 private const val FRAME_LATE_MS = 90L
 
+/** How long the shown size has to hold before the video is decoded at it. */
+private const val RESIZE_SETTLE_MS = 250L
+
+/** How long a decorative clip waits to try again when there was no memory for its bitmaps. */
+private const val NO_MEMORY_RETRY_MS = 1_000L
+
 /** Frames the canvas could not draw, logged at most once a minute so a PC short of memory does not fill the log. */
 internal object CanvasFrameFailures {
     @Volatile private var lastLoggedMs = 0L
     @Volatile private var skipped = 0
 
-    fun note(failure: RuntimeException) {
+    fun note(failure: RuntimeException) = skip(failure.message)
+
+    /** No memory for the video's bitmaps: the frame is skipped, and tried again with the next one. */
+    fun noteNoMemory() = skip("no memory for the frame bitmaps")
+
+    private fun skip(why: String?) {
         skipped++
         val now = System.currentTimeMillis()
         if (now - lastLoggedMs < 60_000L) return
         lastLoggedMs = now
-        DesktopTrackLog.log("canvas: could not draw a video frame (${failure.message}); skipped $skipped so far, the cover shows meanwhile")
+        DesktopTrackLog.log("canvas: could not draw a video frame ($why); skipped $skipped so far, the cover shows meanwhile")
     }
 }
