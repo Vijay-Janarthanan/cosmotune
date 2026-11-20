@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.LocalReducedMotion
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /*
  * "Removed · Undo" (the shared board's A2 and A4): the one snackbar every removal shows, from the queue, a playlist, the downloads or
@@ -78,6 +79,41 @@ class OrbitUndoState {
     fun dismiss(shown: OrbitUndoOffer) {
         if (offer === shown) offer = null
     }
+}
+
+/** Where removals that wait out their Undo run: the app's own scope, so leaving the page before the time is up loses nothing. */
+private val deferredRemovals = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+
+/**
+ * A removal that cannot be put back once done (a file deleted from the device): [hide] takes it off the page at once and "Removed
+ * “[what]”" offers Undo; only when [ORBIT_UNDO_MS] has passed without Undo does [commit] remove it for good. Undo runs [restore] (shows
+ * it again) and nothing is deleted. Both run on the app's own scope, so they finish even after the page has gone. Where no shell
+ * draws the snackbar (a null state) it is removed at once.
+ */
+fun OrbitUndoState?.removeAfterUndo(what: String, hide: () -> Unit, restore: suspend () -> Unit, commit: suspend () -> Unit) {
+    hide()
+    if (this == null) {
+        deferredRemovals.launch { commit() }
+        return
+    }
+    val job = deferredRemovals.launch {
+        delay(ORBIT_UNDO_MS)
+        commit()
+    }
+    removed(what) {
+        job.cancel()
+        deferredRemovals.launch { restore() }
+    }
+}
+
+/** "Removed “[what]”" with an Undo that runs [restore] on the app's own scope (a store's write), so it finishes even after the page has gone. */
+fun OrbitUndoState?.removedThen(what: String, restore: suspend () -> Unit) {
+    this?.removed(what) { deferredRemovals.launch { restore() } }
+}
+
+/** [message] ("3 chapters marked read") with an Undo that runs [restore] on the app's own scope, as [removedThen]. */
+fun OrbitUndoState?.showThen(message: String, restore: suspend () -> Unit) {
+    this?.show(message) { deferredRemovals.launch { restore() } }
 }
 
 /** The window's [OrbitUndoState]; null where no shell draws one (a preview), and a removal there offers no undo. */

@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -86,7 +89,7 @@ private val HEADER_PADDING = 20.dp
  * (or [lead]: an artist's portrait in its dashed ring, an animated cover), the mono [label], the [title] (or [titleContent], the
  * album's title art) in two lines at most, the [subtitle] (a tap is [onSubtitle]: the artist), and
  * [buttons] as one row of round actions ([OrbitCardButton]); Play ([onPlay], showing pause while [playing]) stands in the bite. [corner]
- * goes in the top-end corner (the top result's "Save"). A tap on the card is [onClick], a hold [onLongClick].
+ * goes in the top-end corner (the top result's "Save"), [backdrop] under the words (a channel's banner). A tap on the card is [onClick], a hold [onLongClick].
  */
 @Composable
 fun OrbitPageHeader(
@@ -105,6 +108,8 @@ fun OrbitPageHeader(
     lead: (@Composable (OrbitCardColors) -> Unit)? = null,
     titleContent: (@Composable (OrbitCardColors) -> Unit)? = null,
     corner: (@Composable BoxScope.(OrbitCardColors) -> Unit)? = null,
+    /** Drawn under the words, filling the card (a channel's banner faded into its colour). */
+    backdrop: (@Composable BoxScope.(OrbitCardColors) -> Unit)? = null,
     buttons: (@Composable RowScope.(OrbitCardColors) -> Unit)? = null,
 ) {
     val fonts = orbitFonts()
@@ -115,6 +120,7 @@ fun OrbitPageHeader(
             Modifier.fillMaxSize().clip(size.shape).background(colors.fill)
                 .then(if (onClick != null || onLongClick != null) Modifier.longPressMenuClickable(onClick = { onClick?.invoke() }, onLongClick = onLongClick).contextClick(onLongClick) else Modifier),
         ) {
+            if (backdrop != null) Box(Modifier.matchParentSize()) { backdrop(colors) }
             Column(Modifier.fillMaxSize().padding(HEADER_PADDING)) {
                 Row(Modifier.fillMaxWidth().height(size.disc), verticalAlignment = Alignment.CenterVertically) {
                     if (lead != null) lead(colors) else Disc(cover, size.disc)
@@ -262,6 +268,24 @@ fun OrbitCollapsedHeaderBar(header: OrbitCollapsedHeader, modifier: Modifier = M
         OrbitCollapsedHeaderRow(header, Modifier.fillMaxWidth().height(56.dp).padding(start = side, end = side - 4.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(look.ink.copy(alpha = if (look.dark) 0.08f else 0.09f)))
     }
+}
+
+/**
+ * The collapsed heading of a page that draws its own top (Podio, Read, Manga, Video and Watch, which have no top-bar slot): once
+ * [list] has scrolled its first [after] items away (the header), [header] stands at the top of the page as [OrbitCollapsedHeaderBar],
+ * on the page's ground under the status bar. Put it last in the page's box.
+ */
+@Composable
+fun BoxScope.OrbitCollapsingHeaderBar(list: androidx.compose.foundation.lazy.LazyListState, header: OrbitCollapsedHeader, after: Int = 1, side: Dp = 16.dp) {
+    val collapsed by androidx.compose.runtime.remember(list, after) { androidx.compose.runtime.derivedStateOf { list.firstVisibleItemIndex >= after } }
+    if (!collapsed) return
+    val look = orbitLook()
+    OrbitCollapsedHeaderBar(
+        header,
+        Modifier.align(Alignment.TopCenter).background(look.ground)
+            .windowInsetsPadding(WindowInsets.statusBars).testTag("orbit:collapsed"),
+        side = side,
+    )
 }
 
 // ---- placeholders shaped like the page ---------------------------------------------------------------------------------------
