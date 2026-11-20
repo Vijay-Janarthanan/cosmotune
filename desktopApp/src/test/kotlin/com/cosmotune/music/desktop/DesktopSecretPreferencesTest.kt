@@ -55,6 +55,30 @@ class DesktopSecretPreferencesTest {
         assertTrue(store.values.isEmpty())
     }
 
+    /** The registry kept the sealed sign-in before 1.0.31; a PC whose security software refuses writes to that value. */
+    private class RefusingStore(sealed: String) : DesktopSecretPreferences.Store {
+        val values = linkedMapOf("google_cookie_1.sealed" to sealed)
+        override fun get(key: String) = values[key]
+        override fun put(key: String, value: String) { if (!key.endsWith(".sealed")) values[key] = value }
+        override fun remove(key: String) { if (!key.endsWith(".sealed")) values.remove(key) }
+    }
+
+    @Test fun windowsKeepsTheSealedValueInAFileAndMovesTheRegistryCopyThere() {
+        val oldSignIn = java.util.Base64.getEncoder().encodeToString(Reversing.protect("SID=old".toByteArray()))
+        val store = RefusingStore(oldSignIn)
+        val folder = temporary.newFolder("credentials")
+        val secrets = DesktopSecretPreferences(store, Reversing, folder)
+        assertEquals("SID=old", secrets.read("google_cookie_1"), "the registry copy is read when no file has it")
+        val file = java.io.File(folder, "google_cookie_1.sealed")
+        assertTrue(file.isFile, "and moved to the file")
+        assertFalse("SID=old" in file.readText(), "the file holds the sealed value, not the sign-in")
+        secrets.write("google_cookie_1", "SID=new")
+        assertEquals("SID=new", DesktopSecretPreferences(store, Reversing, folder).read("google_cookie_1"),
+            "a new sign-in survives a restart although the registry copy could not be replaced")
+        secrets.write("google_cookie_1", "")
+        assertFalse(file.exists())
+    }
+
     @Test fun aSealerThatFailsNeverFallsBackToPlainText() {
         val store = MemoryStore()
         val failing = object : DesktopSecretPreferences.Sealer {

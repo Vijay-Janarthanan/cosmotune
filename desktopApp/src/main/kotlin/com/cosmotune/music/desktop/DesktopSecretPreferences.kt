@@ -10,10 +10,12 @@ import java.util.Base64
  * Credentials kept by the desktop app (Last.fm session key and API secret, ListenBrainz token, the
  * Discord token and the YouTube Music cookie fallback), never as plain preference values (LK-20).
  *
- * Windows: sealed with current-user DPAPI and stored as `<key>.sealed`. Elsewhere: one owner-only
- * file per credential (directory 0700, file 0600) in the app's data directory, the same rule the
- * provider and source-library stores use. A value found under the old plain key is moved on first
- * read and the plain key is removed. Values are never logged.
+ * One owner-only file per credential in the app's data directory (directory 0700, file 0600), the
+ * same rule the provider and source-library stores use. On Windows the file holds the value sealed
+ * with current-user DPAPI (`<key>.sealed`). Before 1.0.31 Windows kept the sealed value in the
+ * registry, through Java's preferences; it is read from there when no file has it yet and moved to
+ * the file. A value found under the old plain key is moved on first read and the plain key is
+ * removed. Values are never logged.
  */
 internal class DesktopSecretPreferences(
     private val plain: Store,
@@ -27,9 +29,12 @@ internal class DesktopSecretPreferences(
         requireKey(key)
         val sealing = sealer
         val stored = if (sealing != null) {
-            plain.get("$key$SEALED")?.let { sealed ->
-                runCatching { sealing.unprotect(Base64.getDecoder().decode(sealed)) }.getOrNull()?.toString(Charsets.UTF_8)
-            }
+            fun open(sealed: String) = runCatching { sealing.unprotect(Base64.getDecoder().decode(sealed)) }.getOrNull()?.toString(Charsets.UTF_8)
+            sealedFile(key)?.takeIf { it.isFile }?.let { runCatching { it.readText(Charsets.UTF_8) }.getOrNull() }?.let(::open)
+                ?: plain.get("$key$SEALED")?.let(::open)?.also { old ->
+                    // Kept in the registry before 1.0.31: moved to the file.
+                    if (old.isNotEmpty() && sealedFile(key) != null) runCatching { write(key, old) }
+                }
         } else file(key)?.takeIf { it.isFile }?.let { runCatching { it.readText(Charsets.UTF_8) }.getOrNull() }
         if (!stored.isNullOrEmpty()) return stored
         val legacy = plain.get(key)?.takeIf { it.isNotEmpty() } ?: return ""
@@ -41,16 +46,27 @@ internal class DesktopSecretPreferences(
     fun write(key: String, value: String) {
         requireKey(key)
         if (value.isEmpty()) {
-            plain.remove(key); plain.remove("$key$SEALED"); file(key)?.delete(); return
+            plain.remove(key); runCatching { plain.remove("$key$SEALED") }; file(key)?.delete(); sealedFile(key)?.delete(); return
         }
         val sealing = sealer
         if (sealing != null) {
-            val sealed = sealing.protect(value.toByteArray(Charsets.UTF_8)) ?: error("Windows could not protect this credential")
-            plain.put("$key$SEALED", Base64.getEncoder().encodeToString(sealed))
+            val sealed = Base64.getEncoder().encodeToString(sealing.protect(value.toByteArray(Charsets.UTF_8)) ?: error("Windows could not protect this credential"))
+            val target = sealedFile(key)
+            if (target == null) {
+                plain.put("$key$SEALED", sealed)
+            } else {
+                writeOwnerOnly(target, sealed)
+                // The registry copy, if any, is an older value: removed, as far as this PC lets it be.
+                runCatching { plain.remove("$key$SEALED") }
+            }
             plain.remove(key)
             return
         }
-        val target = checkNotNull(file(key)) { "No private folder for credentials" }
+        writeOwnerOnly(checkNotNull(file(key)) { "No private folder for credentials" }, value)
+        plain.remove(key)
+    }
+
+    private fun writeOwnerOnly(target: File, value: String) {
         val folder = target.parentFile
         check(folder.isDirectory || folder.mkdirs())
         ownerOnly(folder, directory = true)
@@ -62,10 +78,11 @@ internal class DesktopSecretPreferences(
             catch (_: java.nio.file.AtomicMoveNotSupportedException) { Files.move(temporary.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING) }
             ownerOnly(target, directory = false)
         } finally { temporary.delete() }
-        plain.remove(key)
     }
 
     private fun file(key: String): File? = directory?.let { File(it, key.replace(Regex("[^A-Za-z0-9_-]"), "_")) }
+
+    private fun sealedFile(key: String): File? = file(key)?.let { File(it.parentFile, it.name + SEALED) }
 
     // Java preference keys are limited to 80 characters; ".sealed" is added to this one.
     private fun requireKey(key: String) = require(key.isNotBlank() && key.length <= 72) { "Invalid credential key" }
@@ -84,7 +101,7 @@ internal class DesktopSecretPreferences(
             }
         }
 
-        /** The app's own credential store: the user's preference node plus DPAPI or the private data folder. */
+        /** The app's own credential store: the private data folder (DPAPI-sealed on Windows), with the preference node for older values. */
         val shared: DesktopSecretPreferences by lazy {
             val persistence = DesktopPersistence()
             val store = object : Store {
@@ -98,7 +115,7 @@ internal class DesktopSecretPreferences(
             } else null
             val home = System.getProperty("user.home")
             val data = when {
-                DesktopPlatform.isWindows -> null
+                DesktopPlatform.isWindows -> File("$home/.local/share", "cosmotune/credentials")
                 System.getProperty("os.name").lowercase(java.util.Locale.ROOT).contains("mac") -> File(home, "Library/Application Support/Cosmotune/credentials")
                 else -> File(System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() } ?: "$home/.local/share", "cosmotune/credentials")
             }

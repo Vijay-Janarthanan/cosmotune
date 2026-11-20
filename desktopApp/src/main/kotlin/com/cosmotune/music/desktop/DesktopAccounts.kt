@@ -361,8 +361,8 @@ internal object DesktopAccounts {
 
     /**
      * Sign-ins this PC would not let the app save, by account: kept for this run instead, so a refused save does not put the
-     * stored copy (an older, dead sign-in) back in force over the one just made. Security software that guards saved browser
-     * cookies refuses the write while reporting nothing; the app is not to get round it, only not to sign the person out.
+     * stored copy (an older, dead sign-in) back in force over the one just made. Security software can refuse the write while
+     * reporting nothing; the save is checked by reading it back, and a refusal is said in the log and to the person.
      */
     private val unsaved = java.util.concurrent.ConcurrentHashMap<String, String>()
     @Volatile private var toldUnsaved = false
