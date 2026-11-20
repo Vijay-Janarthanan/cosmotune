@@ -96,6 +96,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         LyricsTranslation.cacheDir = cacheDir
         // The last content of every main page, shown at once on the next start while the page refreshes (PageCache).
         com.cosmotune.cache.PageCache.configure(java.io.File(cacheDir, "pages"))
+        // Each song's lyrics, looked up once for the player and the service together and kept between plays (LyricsStore).
+        com.cosmotune.music.data.lyrics.LyricsStore.configure(java.io.File(cacheDir, "lyrics"))
         // A song video candidate's preview frames (a WebP sheet), to tell a still poster from a video.
         com.opencanvas.core.stream.PreviewFrames.decoder = { bytes ->
             runCatching {

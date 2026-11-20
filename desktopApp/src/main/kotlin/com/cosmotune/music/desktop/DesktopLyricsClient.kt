@@ -4,6 +4,7 @@ import com.cosmotune.music.data.lyrics.LrcLib
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.data.lyrics.LyricsRepository
 import com.cosmotune.music.data.lyrics.LyricsSource
+import com.cosmotune.music.data.lyrics.LyricsStore
 import com.cosmotune.music.data.lyrics.withBackgroundVocals
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.durationMillis
@@ -61,9 +62,34 @@ object DesktopLyricsClient {
 
     private val cache = ConcurrentHashMap<LookupKey, Cached>()
 
-    /** A rejected provider result must not be reused by the next lookup. */
+    /** A rejected provider result must not be reused by the next lookup, nor the copy kept on the disk. */
     fun invalidate(videoId: String) {
         cache.keys.removeIf { it.song.videoId == videoId }
+        LyricsStore.forget(videoId)
+    }
+
+    /**
+     * Looks [song] up ahead (the next one in the queue) through [LyricsStore], which keeps the answer, so its lyrics are there
+     * the moment it starts. Not for a local file, whose own words need no lookup, nor without a length to match on.
+     */
+    fun prefetch(song: Song) {
+        if (song.localPath != null || song.localUri != null) return
+        val persistence = DesktopPersistence()
+        if (!persistence.boolean(KEY_SYNCED_LYRICS, true)) return
+        val asked = enabledSources(persistence.lyricsSourceOrder(), persistence.lyricsEnabledSources()).mapNotNull(::lyricsSourceNamed)
+        if (asked.isEmpty()) return
+        LyricsStore.prefetch(
+            LyricsStore.Request(
+                videoId = song.videoId,
+                title = song.title,
+                artist = song.artist,
+                durationMs = song.durationMillis(),
+                album = song.albumName,
+                sources = asked.toSet(),
+                order = asked,
+                prioritizeSyllableSync = persistence.boolean(KEY_PRIORITIZE_SYLLABLES, false),
+            ),
+        )
     }
 
     /**
@@ -103,7 +129,7 @@ object DesktopLyricsClient {
             if (embedded != null) {
                 Result.success(DesktopLyrics("Downloaded", embedded))
             } else {
-                val found = LyricsRepository.lyrics(
+                val request = LyricsStore.Request(
                     videoId = song.videoId,
                     title = song.title,
                     artist = song.artist,
@@ -112,6 +138,17 @@ object DesktopLyricsClient {
                     sources = asked.toSet(),
                     order = asked,
                     prioritizeSyllableSync = prioritizeSyllables,
+                )
+                // The automatic lookup is kept between plays (LyricsStore); one provider picked by hand always asks it.
+                val found = if (only == null) LyricsStore.lyrics(request) else LyricsRepository.lyrics(
+                    videoId = request.videoId,
+                    title = request.title,
+                    artist = request.artist,
+                    durationMs = request.durationMs,
+                    album = request.album,
+                    sources = request.sources,
+                    order = request.order,
+                    prioritizeSyllableSync = request.prioritizeSyllableSync,
                 )
                 if (found == null) {
                     Result.failure(IllegalStateException("Lyrics unavailable"))

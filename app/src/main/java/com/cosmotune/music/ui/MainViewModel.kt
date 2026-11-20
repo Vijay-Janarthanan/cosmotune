@@ -27,6 +27,7 @@ import com.cosmotune.music.data.spotify.SpotifyTrack
 import com.cosmotune.music.data.lyrics.EmbeddedLyrics
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.data.lyrics.LyricsRepository
+import com.cosmotune.music.data.lyrics.LyricsStore
 import com.cosmotune.music.data.lyrics.LyricsSource
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.data.innertube.Innertube
@@ -484,9 +485,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 lyricsFor = null
                 return@launch
             }
-            val found = LyricsRepository.lyrics(
-                videoId, title, artist, durationMs, album, sources,
-                AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+            // One lookup per song for this screen and the playback service together, kept between plays: LyricsStore.
+            val found = LyricsStore.lyrics(
+                LyricsStore.Request(
+                    videoId, title, artist, durationMs, album, sources,
+                    AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+                ),
                 onSourceStarted = { source -> providerStarted(generation, source) },
                 onSourceResult = { source, result ->
                     providerFinished(generation, source, result)

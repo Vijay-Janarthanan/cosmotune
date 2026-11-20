@@ -13,6 +13,7 @@ package com.cosmotune.music.data.lyrics
  * Empty for a word nobody split, which is most of them — the word is then its
  * own single syllable.
  */
+@kotlinx.serialization.Serializable
 data class LyricWord(
     val startMs: Long,
     val endMs: Long,
@@ -76,6 +77,7 @@ data class LyricWord(
  * One separately timed piece of a [LyricWord]: the characters [startChar]
  * until [endChar] of the word's text, sung from [startMs] to [endMs].
  */
+@kotlinx.serialization.Serializable
 data class LyricSyllable(
     val startMs: Long,
     val endMs: Long,
@@ -153,6 +155,7 @@ enum class LyricAlignment { Start, End }
  * underneath the lead on its own clock. Never nested: a background line's own
  * [background] is always null.
  */
+@kotlinx.serialization.Serializable
 data class LyricLine(
     val timeMs: Long,
     val text: String,

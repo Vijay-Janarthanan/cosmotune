@@ -1998,6 +1998,8 @@ fun CosmotuneDesktopApp() {
         }
         lyricsLoading = true
         val found = DesktopLyricsClient.lookup(current, length, only = lyricsOnly)
+        // The next song's lyrics are looked up ahead and kept, so they are there the moment it starts.
+        if (lyricsOnly == null) liveQueue.upcoming.firstOrNull()?.let(DesktopLyricsClient::prefetch)
         found.fold(
             // Moved by their saved automatic offset, if any (Extras: lyrics auto offset).
             onSuccess = { lyrics = it.copy(lines = com.cosmotune.lyrics.autosync.LyricsAutoOffset.applied(current.videoId, it.lines)) },
