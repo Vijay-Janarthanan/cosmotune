@@ -212,8 +212,10 @@ internal fun WatchLogoTile(mark: String, fill: Color, fonts: OrbitFonts, modifie
 }
 
 /**
- * A Watch row (board `.r`): radius 22, ink at 5 %, or the accent wash when [highlighted] (the best source, the next episode).
- * Focusable with a ring; [onClick] null makes it a plain row.
+ * A Watch row (board `.r`), flat as every list row of the redesign ([OrbitSongRow]): no card behind it, only a press drawn in the
+ * row's bounds; [highlighted] (the best source, the next episode) is said by the row's own peach words, not a wash. [card] keeps the
+ * old filled card (radius 22, ink at 5 %, the accent wash when [highlighted]) for a row standing over a picture (the player's next
+ * episode). Focusable with a ring; [onClick] null makes it a plain row.
  */
 @Composable
 fun WatchRowFrame(
@@ -222,18 +224,22 @@ fun WatchRowFrame(
     height: Dp = 62.dp,
     highlighted: Boolean = false,
     onClick: (() -> Unit)? = null,
+    card: Boolean = false,
     content: @Composable RowScope.() -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val fill = if (highlighted) Brush.horizontalGradient(0f to look.accent.copy(alpha = if (look.dark) 0.22f else 0.18f), 0.75f to look.row)
-    else Brush.linearGradient(listOf(look.row, look.row))
+    val radius = if (card) 22.dp else 16.dp
+    val ground = if (!card) Modifier else Modifier.background(
+        if (highlighted) Brush.horizontalGradient(0f to look.accent.copy(alpha = if (look.dark) 0.22f else 0.18f), 0.75f to look.row)
+        else Brush.linearGradient(listOf(look.row, look.row)),
+    )
     Row(
-        modifier.fillMaxWidth().height(height).cosmoFocusRing(interaction, 22.dp).clip(RoundedCornerShape(22.dp)).background(fill)
+        modifier.fillMaxWidth().height(height).cosmoFocusRing(interaction, radius).clip(RoundedCornerShape(radius)).then(ground)
             .then(
                 if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = onClick)
                 else Modifier,
             )
-            .padding(start = 8.dp, end = 16.dp),
+            .padding(start = if (card) 8.dp else 0.dp, end = if (card) 16.dp else 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         content = content,

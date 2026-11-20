@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.playlist
 
+import com.cosmotune.ui.orbit.OrbitPageHeader
+import com.cosmotune.ui.orbit.OrbitHeaderButton
+import com.cosmotune.ui.orbit.OrbitHeaderSkeleton
+import com.cosmotune.ui.orbit.OrbitCardColors
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.ColumnScope
@@ -131,8 +135,8 @@ internal class PlaylistActions(
 )
 
 /**
- * The playlist's colour card (Orbit, as the album page): one flat card in the colour of the playlist's picture, the picture inside it
- * (16:9, at the start from 600 dp, on top below; nothing on it), the mono line ("PLAYLIST · 42 VIDEOS · 3 H 12 MIN"), the title in
+ * The playlist's colour card (Orbit, as the album page): the shared compact header ([OrbitPageHeader]) in the colour of the playlist's
+ * picture, the picture as its disc, the mono line ("PLAYLIST · 42 VIDEOS · 3 H 12 MIN"), the title in
  * the wide face, the owner (a tap opens their channel), and the round buttons: Shuffle, Save (a remote playlist), "Download all" and
  * More (Share, or Rename and Delete). "Play all" stands in the bite.
  */
@@ -155,50 +159,22 @@ internal fun PlaylistCard(shown: PlaylistShown, actions: PlaylistActions, wide: 
     val downloadAll = stringResource(Res.string.video_dl_all)
     val save = stringResource(if (shown.saved) Res.string.video_unsave_playlist else Res.string.video_save_playlist)
     val hasMore = actions.onShare != null || actions.onRename != null || actions.onDelete != null
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(start = margin, end = margin, top = 6.dp, bottom = 12.dp)) {
-        val roomy = maxWidth >= 600.dp
-        OrbitBiteCard(
-            fill, Modifier.fillMaxWidth().testTag("video:playlist:card"),
-            bite = {
-                Box(Modifier.semantics { contentDescription = playAll }) {
-                    OrbitPlayButton(false, { if (actions.hasVideos) actions.onPlayAll() }, look)
-                }
-            },
-        ) {
-            val words: @Composable ColumnScope.() -> Unit = {
-                Text(label, style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    shown.title, style = if (roomy) fonts.greeting.copy(fontSize = 34.sp, lineHeight = 36.sp) else fonts.heroTitle.copy(fontSize = 25.sp, lineHeight = 27.sp),
-                    color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp).semantics { heading() },
-                )
-                if (owner != null) {
-                    val open = actions.onOpenOwner
-                    Text(
-                        owner, style = fonts.body.copy(fontSize = 15.sp, fontWeight = FontWeight(600)), color = ink.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp)).then(if (open != null) Modifier.clickable(role = Role.Button, onClick = open) else Modifier).padding(vertical = 6.dp),
-                    )
-                }
-                Row(Modifier.padding(top = 14.dp, end = if (roomy) 0.dp else 76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    val faded = if (actions.hasVideos) ink else ink.copy(alpha = 0.4f)
-                    OrbitRoundButton(CosmoIcons.Shuffle, shuffle, faded, { if (actions.hasVideos) actions.onShuffle() }, onInk = fill)
-                    actions.onToggleSaved?.let { OrbitRoundButton(VideoIcons.Bookmark, save, ink, it, on = shown.saved, onInk = fill) }
-                    val canDownload = actions.hasVideos && !actions.preparing
-                    OrbitRoundButton(CosmoIcons.Download, downloadAll, if (canDownload) ink else ink.copy(alpha = 0.4f), { if (canDownload) actions.onDownloadAll() }, onInk = fill)
-                    if (hasMore) PlaylistMore(actions, ink, fill)
-                }
-            }
-            if (roomy) {
-                Row(Modifier.fillMaxWidth().padding(start = 18.dp, top = 18.dp, bottom = 18.dp, end = 96.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ThumbnailFrame(shown.thumbnailUrl, Modifier.size(300.dp, 168.75.dp).aspectRatio(16f / 9f), RoundedCornerShape(24.dp))
-                    Column(Modifier.weight(1f).padding(start = 28.dp), content = words)
-                }
-            } else {
-                Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    ThumbnailFrame(shown.thumbnailUrl, Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(22.dp))
-                    Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 8.dp), content = words)
-                }
-            }
-        }
+    // The shared compact header (as the album page): the picture as its disc beside the words, Shuffle, Save, Download all and More
+    // as the one row of actions, and Play all in the bite.
+    OrbitPageHeader(
+        cover = shown.thumbnailUrl, label = label, title = shown.title, subtitle = owner, playing = false,
+        onPlay = { if (actions.hasVideos) actions.onPlayAll() },
+        modifier = Modifier.fillMaxWidth().padding(start = margin, end = margin, top = 6.dp, bottom = 12.dp).testTag("video:playlist:card")
+            .semantics { contentDescription = playAll },
+        colors = OrbitCardColors(fill, ink), onSubtitle = actions.onOpenOwner,
+    ) { colors ->
+        val faded = if (actions.hasVideos) colors else OrbitCardColors(colors.fill, colors.ink.copy(alpha = 0.4f))
+        OrbitHeaderButton(CosmoIcons.Shuffle, shuffle, faded, { if (actions.hasVideos) actions.onShuffle() })
+        actions.onToggleSaved?.let { OrbitHeaderButton(VideoIcons.Bookmark, save, colors, it, on = shown.saved) }
+        val canDownload = actions.hasVideos && !actions.preparing
+        OrbitHeaderButton(CosmoIcons.Download, downloadAll, if (canDownload) colors else OrbitCardColors(colors.fill, colors.ink.copy(alpha = 0.4f)),
+            { if (canDownload) actions.onDownloadAll() })
+        if (hasMore) PlaylistMore(actions, colors.ink, colors.fill)
     }
 }
 
@@ -248,15 +224,5 @@ private fun PlaylistMore(actions: PlaylistActions, ink: Color, fill: Color) {
 @Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun PlaylistHeaderSkeleton(wide: Boolean, margin: Dp) {
-    Column(
-        Modifier.fillMaxWidth().padding(start = margin, end = margin, top = 6.dp, bottom = 12.dp).clip(RoundedCornerShape(34.dp)).background(orbitLook().row).padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        CosmoShimmer(Modifier.fillMaxWidth(if (wide) 0.4f else 1f).aspectRatio(16f / 9f), RoundedCornerShape(22.dp))
-        CosmoShimmer(Modifier.fillMaxWidth(0.3f).height(12.dp))
-        CosmoShimmer(Modifier.fillMaxWidth(0.7f).height(26.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            repeat(3) { CosmoShimmer(Modifier.size(40.dp), RoundedCornerShape(percent = 50)) }
-        }
-    }
+    OrbitHeaderSkeleton(Modifier.fillMaxWidth().padding(start = margin, end = margin, top = 6.dp, bottom = 12.dp))
 }

@@ -168,7 +168,7 @@ class VideoBlocksStructureTest {
         assertTrue("OrbitShelfRow(CosmoSpacing.margin, 18.dp)" in shelf && "OrbitSectionHeader(title" in shelf)
         val row = code("VideoRow")
         for (name in listOf("ROW_THUMB_W_DP", "DESKTOP_ROW_THUMB_W_DP")) assertTrue("VideoMetrics.$name" in row, "the row reads $name")
-        assertTrue("ROW_RADIUS = 22.dp" in row && ".background(look.row)" in row, "Orbit rule 8: radius 22, the ink at 5 %")
+        assertTrue("ROW_RADIUS = 16.dp" in row && ".background(look.row)" !in row, "the flat row: no fill, a press in the row's bounds")
         assertTrue("OrbitRoundButton(CosmoIcons.MoreVertical" in row)
         assertEquals(128f, VideoMetrics.ROW_THUMB_W_DP, "128 x 72")
         val strip = code("ChannelStrip")

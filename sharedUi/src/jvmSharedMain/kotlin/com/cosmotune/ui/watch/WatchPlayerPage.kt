@@ -545,11 +545,11 @@ private fun NextEpisodeRow(state: WatchPlayerState, controls: WatchPlayerControl
         WatchCardChip("Play now", look.ink, fonts, onClick = controls.playNext, solid = true, onSolid = look.ground)
         WatchCardChip("Cancel", look.ink, fonts, onClick = controls.cancelNext)
     }
-    if (wide) WatchRowFrame(look, Modifier.padding(bottom = 12.dp), height = 66.dp, highlighted = true) {
+    if (wide) WatchRowFrame(look, Modifier.padding(bottom = 12.dp), height = 66.dp, highlighted = true, card = true) {
         WatchPicture(next.stillUrl, next.key.value, Modifier.padding(start = 2.dp).size(84.dp, 48.dp), radius = 12.dp)
         words(Modifier.weight(1f))
         buttons()
-    } else WatchRowFrame(look, Modifier.padding(bottom = 12.dp), height = 118.dp, highlighted = true) {
+    } else WatchRowFrame(look, Modifier.padding(bottom = 12.dp), height = 118.dp, highlighted = true, card = true) {
         WatchPicture(next.stillUrl, next.key.value, Modifier.padding(start = 4.dp).size(84.dp, 48.dp), radius = 12.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             words(Modifier)

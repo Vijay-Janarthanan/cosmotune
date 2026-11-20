@@ -1,5 +1,6 @@
 package com.cosmotune.ui.watch
 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
@@ -351,11 +352,9 @@ private fun WatchStatusBand(look: OrbitLook, modifier: Modifier = Modifier) {
     )
 }
 
-/** The head of a page opened over a tab (board: the round back button and the mono kind). */
+/** The head of a page opened over a tab: the shared [com.cosmotune.ui.orbit.OrbitBackHeader], the round back button and the mono kind. */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 private fun WatchBackHeader(kind: String, fonts: OrbitFonts, look: OrbitLook) {
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        WatchRoundButton(CosmoIcons.ChevronLeft, "Back", look, onClick = { WatchNav.back() })
-        OrbitLabel(kind, fonts, look.dim)
-    }
+    com.cosmotune.ui.orbit.OrbitBackHeader(kind, { WatchNav.back() }, Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp).testTag("watch:back-head"))
 }
