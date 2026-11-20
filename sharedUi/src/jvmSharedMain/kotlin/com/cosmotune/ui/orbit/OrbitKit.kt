@@ -140,7 +140,8 @@ internal val CARD_FALLBACK = Color(0xFF3A2A2A)
 val CARD_INK = Color(0xFFFFEDE2)
 
 class OrbitFonts(val wide: FontFamily, val narrow: FontFamily, val text: FontFamily) {
-    val greeting = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 38.sp, lineHeight = 38.sp, letterSpacing = (-0.6).sp)
+    /** Every page's heading (Home's greeting, "Library.", "Settings."): 30 sp in the wide face. */
+    val greeting = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 30.sp, lineHeight = 34.sp, letterSpacing = (-0.45).sp)
     val heroTitle = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 26.sp, lineHeight = 27.sp, letterSpacing = (-0.4).sp)
     val section = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 21.sp, lineHeight = 24.sp, letterSpacing = (-0.3).sp)
     val number = TextStyle(fontFamily = narrow, fontWeight = FontWeight(900), fontSize = 58.sp, lineHeight = 52.sp)
@@ -290,7 +291,7 @@ fun clock(ms: Long): String { val s = ms / 1000; return "%d:%02d".format(s / 60,
 @Composable
 /**
  * A chip: 40 dp, ink at 8 %; [selected] makes it solid ink with ground-coloured text (a tab that is showing). [leading] is
- * optional (null: the title alone, padded evenly); [trailing] goes after the title (a count).
+ * optional (null: the title alone, padded evenly); [count] follows the title in the mono face, and [trailing] goes after that.
  */
 fun OrbitChip(
     title: String,
@@ -299,6 +300,8 @@ fun OrbitChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    /** A count after the title in the mono face ("Songs 20"); left out when null. */
+    count: Int? = null,
     trailing: (@Composable () -> Unit)? = null,
     leading: (@Composable () -> Unit)?,
 ) {
@@ -315,12 +318,25 @@ fun OrbitChip(
             Spacer(Modifier.width(8.dp))
         }
         Text(title, style = fonts.chip, color = text, maxLines = 1)
+        if (count != null) {
+            Spacer(Modifier.width(6.dp))
+            OrbitCount(count, fonts, text.copy(alpha = 0.62f))
+        }
         if (trailing != null) {
             Spacer(Modifier.width(8.dp))
             trailing()
         }
     }
 }
+
+/** A count beside a tab's or a chip's name: the mono face at 11.5 sp ("20", "1.2K" for more than 9 999). */
+@Composable
+fun OrbitCount(count: Int, fonts: OrbitFonts, color: Color, modifier: Modifier = Modifier) {
+    Text(orbitCountText(count), style = fonts.label.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp), color = color, maxLines = 1, modifier = modifier)
+}
+
+/** A count as a tab or a chip shows it: as it is up to 9 999, then in thousands ("12K"). */
+fun orbitCountText(count: Int): String = if (count < 10_000) "$count" else "${count / 1000}K"
 
 // ---- the room -------------------------------------------------------------------------------------------------------------------
 

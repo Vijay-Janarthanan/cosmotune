@@ -332,7 +332,7 @@ fun CosmoSearch(
                         onHistoryRemove = onHistoryRemove,
                         onHistoryClear = onHistoryClear,
                     )
-                    results is UiState.Loading -> songListSkeleton(circular = filter == SearchFilter.ARTISTS)
+                    results is UiState.Loading -> songListSkeleton()
                     results is UiState.Error -> item(key = "search:error") { MessageState(results.message) }
                     results is UiState.Success -> resultRows(
                         rows = results.data,

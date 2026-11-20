@@ -189,7 +189,7 @@ internal fun LazyListScope.resultRows(
         }
     }
     if (loadingMore) {
-        songListSkeleton(count = 3, keyPrefix = "skeleton:search:more", circular = filter == SearchFilter.ARTISTS)
+        songListSkeleton(count = 3, keyPrefix = "skeleton:search:more")
     }
 }
 

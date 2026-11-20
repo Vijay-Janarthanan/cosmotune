@@ -32,6 +32,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
     private val npControlsMinimizedFlow = MutableStateFlow(store.getBoolean(KEY_NP_CONTROLS_MINIMIZED, false))
     private val amoledFlow = MutableStateFlow(store.getBoolean(KEY_AMOLED, false))
     private val videoViewFlow = MutableStateFlow(VideoView.kept(store.getInt(KEY_VIDEO_VIEW, VideoView.WHOLE.ordinal)))
+    private val compactRowsFlow = MutableStateFlow(store.getBoolean(KEY_COMPACT_ROWS, false))
     val coverColours: StateFlow<Boolean> = coverColoursFlow.asStateFlow()
 
     /** How much colour the cover brings: 0 Calm, 1 Balanced (the default), 2 Rich. See [Intensity.multiplier]. */
@@ -60,6 +61,14 @@ class CosmoLookSettings(private val store: KeyValueStore) {
      * (cut to fill the frame). Cinema is entered per visit and is not kept; a stored Cinema or Mini reads as Whole.
      */
     val videoView: StateFlow<VideoView> = videoViewFlow.asStateFlow()
+
+    /**
+     * The size of every list row (Look and colours, Row size): Comfortable (false, the default: 60 dp rows with a 48 dp disc) or
+     * Compact (true: 52 dp rows with a 40 dp disc).
+     */
+    val compactRows: StateFlow<Boolean> = compactRowsFlow.asStateFlow()
+
+    fun setCompactRows(on: Boolean) { store.putBoolean(KEY_COMPACT_ROWS, on); compactRowsFlow.value = on }
 
     fun setVideoView(view: VideoView) {
         val kept = VideoView.kept(view.ordinal)
@@ -95,6 +104,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_NP_CONTROLS_MINIMIZED = "np_controls_minimized"
         const val KEY_AMOLED = "amoled"
         const val KEY_VIDEO_VIEW = "np_video_view"
+        const val KEY_COMPACT_ROWS = "compact_rows"
 
         private fun modeOf(stored: Int): AppMode = AppMode.entries.getOrNull(stored) ?: AppMode.MUSIC
     }

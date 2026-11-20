@@ -5,7 +5,9 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -28,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.cosmotune.design.CapsuleGeometry
 import com.cosmotune.design.ShellMetrics
 import com.cosmotune.ui.components.cosmoFocusRing
@@ -90,7 +93,8 @@ internal fun orbitDockFill(look: OrbitLook): Color = look.ink.copy(alpha = if (l
 
 /**
  * One tab of the dock: the chosen one ([selected]) a solid ink chip with its [selectedIcon] and [label] in the ground's colour, the
- * others the [icon] alone in the dim ink, named [label] for a screen reader. The chip grows into its name on a short tween.
+ * others the [icon] alone in the dim ink, named [label] for a screen reader. The chip grows into its name on a short tween. A [count]
+ * (Releases' new ones) is a small peach badge on the icon, and sits after the name while the tab is chosen.
  */
 @Composable
 internal fun OrbitDockTab(
@@ -103,6 +107,7 @@ internal fun OrbitDockTab(
     look: OrbitLook,
     modifier: Modifier = Modifier,
     interaction: MutableInteractionSource,
+    count: Int? = null,
 ) {
     val fill by animateColorAsState(if (selected) look.ink else Color.Transparent, tween(180), label = "tab-fill")
     val ink by animateColorAsState(if (selected) look.ground else look.dim, tween(180), label = "tab-ink")
@@ -114,16 +119,47 @@ internal fun OrbitDockTab(
             .clip(CircleShape)
             .background(fill)
             .selectable(selected = selected, interactionSource = interaction, indication = null, role = Role.Tab, onClick = onClick)
-            .then(if (selected) Modifier else Modifier.semantics { contentDescription = label })
+            .then(if (selected) Modifier else Modifier.semantics { contentDescription = orbitTabName(label, count) })
             .animateContentSize(tween(180))
             .padding(horizontal = if (selected) 16.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(if (selected) selectedIcon else icon, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
+        Box {
+            Icon(if (selected) selectedIcon else icon, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
+            if (!selected && count != null && count > 0) OrbitBadge(count, look, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp), ring = orbitDockFill(look))
+        }
         if (selected) {
             Spacer(Modifier.width(8.dp))
             Text(label, style = fonts.chip, color = ink, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+            if (count != null && count > 0) {
+                Spacer(Modifier.width(6.dp))
+                OrbitBadge(count, look, ring = null)
+            }
         }
+    }
+}
+
+/** What a screen reader hears for a tab with a count: "Releases, 3 new". */
+internal fun orbitTabName(label: String, count: Int?): String = if (count != null && count > 0) "$label, $count new" else label
+
+/**
+ * The count badge of a tab or a rail item: 18 dp high, peach with dark ink, at least round; [ring] (the bar's fill) is a 2.5 dp ring
+ * of the ground under it so it stands clear of the icon it sits on.
+ */
+@Composable
+fun OrbitBadge(count: Int, look: OrbitLook, modifier: Modifier = Modifier, ring: Color? = null) {
+    val fonts = orbitFonts()
+    Box(
+        modifier
+            .then(if (ring != null) Modifier.background(ring, CircleShape).padding(2.5.dp) else Modifier)
+            .height(18.dp).widthIn(min = 18.dp).clip(CircleShape).background(if (look.dark) PEACH else Color(0xFFE0662C))
+            .padding(horizontal = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            orbitCountText(count), style = fonts.chip.copy(fontSize = 11.sp, lineHeight = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight(800)),
+            color = Color(0xFF2A1607), maxLines = 1,
+        )
     }
 }
 

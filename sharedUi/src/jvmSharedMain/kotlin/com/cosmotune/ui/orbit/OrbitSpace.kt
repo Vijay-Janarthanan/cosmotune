@@ -1,5 +1,6 @@
 package com.cosmotune.ui.orbit
 
+import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.theme.CosmoSpacing
 
 /**
@@ -32,4 +33,11 @@ object OrbitSpace {
     val cardPaddingLoose = CosmoSpacing.s5
     /** Chips in a row or a wrap, and buttons side by side. */
     val chipGap = sm
+
+    /**
+     * The one section rhythm of every page: a section (a shelf, "Top songs", "Albums") starts [section] (24 dp) under the one before
+     * it, and its heading stands [sectionToContent] (10 dp) above its content.
+     */
+    val section = xl
+    val sectionToContent = 10.dp
 }

@@ -38,8 +38,8 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The look's settings, drawn with the settings page's own rows so they sit in its Appearance group like their neighbours: "Colours
- * follow the cover", the AMOLED black, the colour intensity (Calm, Balanced, Rich, a segmented control stacked under its row), and
- * the entry to the "Preview the look" style sheet. The intensity is only live while the colours follow the cover.
+ * follow the cover", the AMOLED black, the colour intensity (Calm, Balanced, Rich, a segmented control stacked under its row), the
+ * row size (Comfortable or Compact, [com.cosmotune.ui.settings.CosmoRowSizeSetting]), and the entry to the "Preview the look" style sheet. The intensity is only live while the colours follow the cover.
  */
 @Composable
 internal fun CosmoLookSettingsRows() {
@@ -87,6 +87,8 @@ internal fun CosmoLookSettingsRows() {
                 compact = true,
             )
         }
+        RowDivider()
+        com.cosmotune.ui.settings.CosmoRowSizeSetting()
         RowDivider()
         SettingsRow(
             icon = Icons.Rounded.Visibility,

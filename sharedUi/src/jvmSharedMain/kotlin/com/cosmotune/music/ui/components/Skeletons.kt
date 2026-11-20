@@ -83,38 +83,22 @@ private fun SectionHeaderSkeleton(index: Int = 0) {
     }
 }
 
-/**
- * Stands in for one `SongRow`, down to the 52dp of artwork and the 20dp gutter.
- * [circular] matches the browse rows, where artists are drawn as circles.
- */
+/** Stands in for one list row: the flat row's own shape ([com.cosmotune.ui.orbit.OrbitRowSkeleton]) inside the page gutter. */
 @Composable
-fun SongRowSkeleton(index: Int = 0, circular: Boolean = false, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ShimmerBox(Modifier.size(52.dp), if (circular) CircleShape else RoundedCornerShape(CosmoRadii.rSm))
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            SkeletonLine(fraction = TitleWidths[index % TitleWidths.size], height = 14.dp)
-            Spacer(Modifier.height(7.dp))
-            SkeletonLine(fraction = SubtitleWidths[index % SubtitleWidths.size], height = 11.dp)
-        }
-    }
+fun SongRowSkeleton(index: Int = 0, modifier: Modifier = Modifier, numbered: Boolean = false) {
+    com.cosmotune.ui.orbit.OrbitRowSkeleton(index, modifier.padding(horizontal = PAGE_GUTTER), numbered = numbered)
 }
 
-/** A run of track-row placeholders, for search hits and release track lists. */
+/** A run of list-row placeholders, for search hits, history and release track lists ([numbered] for an album's). */
 fun LazyListScope.songListSkeleton(
     count: Int = 8,
     keyPrefix: String = "skeleton:song",
-    circular: Boolean = false,
     alpha: Float = 1f,
+    numbered: Boolean = false,
 ) {
     items(count, key = { "$keyPrefix:$it" }) { index ->
         Box(Modifier.graphicsLayer { this.alpha = alpha }) {
-            SongRowSkeleton(index = index, circular = circular)
+            SongRowSkeleton(index = index, numbered = numbered)
         }
     }
 }
