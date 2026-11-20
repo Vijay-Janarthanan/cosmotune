@@ -161,30 +161,20 @@ private fun statusWords(status: SearchInStatus): String = when (status) {
 }
 
 /**
- * "Search in" in Orbit: a sideways-scrolling row of Orbit chips ([KitChip], 40 dp, the chosen one solid ink), each with the source's
- * status dot at its top end. [cosmo] is kept for the callers: both looks draw the Orbit chips.
+ * "Search in" in Orbit: Orbit chips ([KitChip], 40 dp, the chosen one solid ink), each with the source's status dot at its top end,
+ * for the one sideways row of chips under Search's field (after the filters).
  */
 @Composable
-fun SearchInChips(state: SearchInState, cosmo: Boolean, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .testTag("search-in"),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        state.choices.forEach { choice ->
-            val selected = choice.key == state.selected
-            val dot = dotFor(choice.status)
-            val description = listOf(choice.label, statusWords(choice.status)).filter(String::isNotEmpty).joinToString(", ")
-            // The chip has no badge slot: the status dot is laid over its top end.
-            Box(Modifier.testTag("search-in:${choice.key}").semantics(mergeDescendants = true) { contentDescription = description }) {
-                KitChip(label = choice.label, selected = selected, onClick = { state.onSelect(choice.key) })
-                if (dot != null) StatusDot(dot, Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 6.dp)
-                    .testTag("search-in:${choice.key}:${choice.status.name.lowercase()}"))
-            }
+fun SearchInChipsInRow(state: SearchInState) {
+    state.choices.forEach { choice ->
+        val selected = choice.key == state.selected
+        val dot = dotFor(choice.status)
+        val description = listOf(choice.label, statusWords(choice.status)).filter(String::isNotEmpty).joinToString(", ")
+        // The chip has no badge slot: the status dot is laid over its top end.
+        Box(Modifier.testTag("search-in:${choice.key}").semantics(mergeDescendants = true) { contentDescription = description }) {
+            KitChip(label = choice.label, selected = selected, onClick = { state.onSelect(choice.key) })
+            if (dot != null) StatusDot(dot, Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 6.dp)
+                .testTag("search-in:${choice.key}:${choice.status.name.lowercase()}"))
         }
     }
 }

@@ -1,5 +1,13 @@
 package com.cosmotune.ui.library
 
+import androidx.compose.ui.graphics.Color
+import com.cosmotune.ui.orbit.OrbitSpace
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -108,10 +116,11 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 /*
- * The Library page in Orbit (Canvas repo, design/cosmotune/pages-orbit/board.html, section 4): the heading "Library." with a mono
- * count, Liked songs as the colour card with Play in its bite next to a quiet Downloaded card, chips that choose what is shown
- * (Playlists, Albums, Artists, Songs, Downloaded) and how it is sorted, and under them the chosen chip's page: playlists and
- * albums as records with the play moon on their edge, artists as portraits, songs as Home's rows. LibrarySwitch calls it.
+ * The Library page in Orbit (the Music board's 3): the heading "Library." with a mono count, four 64 dp shortcut tiles (Liked songs
+ * in their cover's colour with a small Play, Downloads, History, and the first pinned playlist), chips with counts that choose what
+ * is shown (Playlists, Albums, Artists, Songs, Downloaded), one control row (find in the library, the order, records or rows), and
+ * under them the chosen chip's page: playlists and albums as three columns of records with the play moon on their edge, artists as
+ * portraits, songs as flat rows. LibrarySwitch calls it.
  */
 
 /** The chips of the page, in the board's order. Playlists, Albums, Artists and Downloaded are the feed's [LibrarySegment]s. */
@@ -170,6 +179,8 @@ fun CosmoLibrary(
     isPlaying: Boolean = false,
     onSongClick: ((List<Song>, Int) -> Unit)? = null,
     onSongLongPress: ((Song) -> Unit)? = null,
+    /** Opens the listening history (its shortcut tile); null leaves the tile out. */
+    onHistory: (() -> Unit)? = null,
 ) {
     val pinned by AppUi.host.pinnedPlaylists.collectAsStateWithLifecycle()
     var segmentIndex by rememberSaveable { mutableStateOf(0) }
@@ -184,12 +195,15 @@ fun CosmoLibrary(
     val library = (state as? UiState.Success)?.data
     val playlists = remember(library) { library?.let { LibrarySegments.shelfFor(LibrarySegment.PLAYLISTS, it.shelves) }?.items.orEmpty() }
     val liked = remember(playlists, pinned) { LibrarySegments.playlistLayout(playlists, pinned).liked }
+    val pinnedPlaylist = remember(playlists, pinned, liked) { playlists.firstOrNull { it.browseId != null && it.browseId in pinned && it != liked } }
+    // Find in the library: what the chosen chip shows, narrowed by title (and by artist for songs). Cleared with the chip.
+    var query by rememberSaveable(segmentIndex) { mutableStateOf("") }
     PullToRefresh(refreshing = refreshing, onRefresh = onRefresh, state = pullState, modifier = modifier) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth >= 840.dp
             val side = if (wide) 28.dp else 16.dp
             val (columns, cell) = orbitRecordGrid(maxWidth, side)
-            val page = LibraryLook(fonts, look, side, wide, columns, cell, librarySort, grid)
+            val page = LibraryLook(fonts, look, side, wide, columns, cell, librarySort, grid, query.trim())
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
                 item(key = "heading") {
                     val count = library?.shelves?.let { shelves ->
@@ -198,25 +212,32 @@ fun CosmoLibrary(
                     LibraryHeading(count, onNewPlaylist, page)
                 }
                 item(key = "lead") {
-                    LeadCards(
+                    ShortcutTiles(
                         liked = liked.takeIf { signedIn },
                         likedSongs = if (signedIn) library?.likedSongs.orEmpty() else emptyList(),
                         likedComplete = library?.likedContinuation == null,
                         downloadedCount = downloadedCount,
+                        pinned = pinnedPlaylist.takeIf { signedIn },
                         page = page,
                         onOpen = onShelfItemClick,
                         onHold = onShelfItemLongPress,
                         onPlay = onSongClick,
                         onDownloaded = { segmentIndex = LibraryChip.DOWNLOADED.ordinal },
+                        onHistory = onHistory,
                     )
                 }
                 item(key = "segments") {
-                    LibraryChips(
+                    val counts = library?.let { libraryCounts(it, pinned, liked) }.orEmpty() + (LibraryChip.DOWNLOADED to downloadedCount)
+                    LibraryChips(chip = chip, onChip = { segmentIndex = it.ordinal }, counts = counts, page = page)
+                }
+                item(key = "controls") {
+                    LibraryControls(
                         chip = chip,
-                        onChip = { segmentIndex = it.ordinal },
+                        query = query,
+                        onQuery = { query = it },
                         sort = librarySort,
                         grid = grid,
-                        onToggleGrid = { listSegments = if (grid) listSegments + chip.ordinal else listSegments - chip.ordinal },
+                        onGrid = { wanted -> listSegments = if (wanted) listSegments - chip.ordinal else listSegments + chip.ordinal },
                         page = page,
                     )
                 }
@@ -253,7 +274,7 @@ fun CosmoLibrary(
     }
 }
 
-/** How the page is drawn: the Orbit fonts and colours, the gutter, the records' grid, the order, and records or rows. */
+/** How the page is drawn: the Orbit fonts and colours, the gutter, the records' grid, the order, records or rows, and what is looked for. */
 private class LibraryLook(
     val fonts: OrbitFonts,
     val look: OrbitLook,
@@ -263,7 +284,23 @@ private class LibraryLook(
     val cell: Dp,
     val sort: LibrarySort,
     val grid: Boolean,
+    val query: String,
 )
+
+/** [items] whose title (or line under it) holds the page's query, whatever the case; everything while nothing is typed. */
+private fun List<ShelfItem>.matching(page: LibraryLook): List<ShelfItem> =
+    if (page.query.isEmpty()) this else filter { it.title.contains(page.query, ignoreCase = true) || it.subtitle.contains(page.query, ignoreCase = true) }
+
+/** How many each chip shows: the chips' counts. */
+private fun libraryCounts(library: LibraryPage, pinned: List<String>, liked: ShelfItem?): Map<LibraryChip, Int> {
+    val playlists = LibrarySegments.playlistLayout(LibrarySegments.shelfFor(LibrarySegment.PLAYLISTS, library.shelves)?.items.orEmpty(), pinned)
+    return mapOf(
+        LibraryChip.PLAYLISTS to (listOfNotNull(playlists.mix).size + playlists.rows.size),
+        LibraryChip.ALBUMS to (LibrarySegments.shelfFor(LibrarySegment.ALBUMS, library.shelves)?.items?.size ?: 0),
+        LibraryChip.ARTISTS to (LibrarySegments.shelfFor(LibrarySegment.ARTISTS, library.shelves)?.items?.size ?: 0),
+        LibraryChip.SONGS to library.librarySongs.ifEmpty { library.likedSongs }.size,
+    )
+}
 
 // ---- the head of the page -----------------------------------------------------------------------------------------------
 
@@ -275,102 +312,148 @@ private fun LibraryHeading(count: Int, onNewPlaylist: () -> Unit, page: LibraryL
         label = if (count > 0) "Your library · $count items" else "Your library",
         fonts = page.fonts,
         look = page.look,
-        modifier = Modifier.padding(start = page.side + 6.dp, end = page.side, top = 18.dp),
+        modifier = Modifier.padding(start = page.side + 4.dp, end = page.side, top = 6.dp),
     ) {
-        OrbitRoundButton(CosmoIcons.Plus, stringResource(Res.string.new_playlist), page.look.ink, onClick = onNewPlaylist, size = 44.dp)
+        OrbitRoundButton(CosmoIcons.Plus, stringResource(Res.string.new_playlist), page.look.ink, onClick = onNewPlaylist, onInk = page.look.ground, touch = 48.dp)
     }
 }
 
 /**
- * Liked songs as the colour card in its cover's colour (the count, "Everything you loved", the first covers as small discs, and
- * Play in the bite), and beside it (under it on the phone) the quiet Downloaded card, which opens the Downloaded chip. Play
- * plays the liked songs from the top through [onPlay]; without it, or before they are read, it opens the playlist.
+ * The shortcut tiles (the Music board's 3): two columns of 64 dp tiles. Liked songs in its cover's colour, with the count and a small
+ * peach Play that plays them from the top ([onPlay]; without it, or before they are read, it opens the playlist); Downloads with its
+ * count, which opens the Downloaded chip; History ([onHistory]); and the first [pinned] playlist. Signed out, Downloads and History.
  */
 @Composable
-private fun LeadCards(
+private fun ShortcutTiles(
     liked: ShelfItem?,
     likedSongs: List<Song>,
     likedComplete: Boolean,
     downloadedCount: Int,
+    pinned: ShelfItem?,
     page: LibraryLook,
     onOpen: (ShelfItem) -> Unit,
     onHold: (ShelfItem) -> Unit,
     onPlay: ((List<Song>, Int) -> Unit)?,
     onDownloaded: () -> Unit,
+    onHistory: (() -> Unit)?,
 ) {
-    val showLiked = liked != null || likedSongs.isNotEmpty()
-    val likedCard: @Composable (Modifier) -> Unit = { m ->
+    val tiles = mutableListOf<@Composable (Modifier) -> Unit>()
+    if (liked != null || likedSongs.isNotEmpty()) tiles += { m ->
         val (fill, ink) = coverFill(liked?.thumbnailUrl ?: likedSongs.firstOrNull()?.thumbnailUrl, "liked")
-        val play: () -> Unit = {
-            if (onPlay != null && likedSongs.isNotEmpty()) onPlay(likedSongs, 0) else liked?.let(onOpen)
-        }
+        val play: () -> Unit = { if (onPlay != null && likedSongs.isNotEmpty()) onPlay(likedSongs, 0) else liked?.let(onOpen) }
         val open: () -> Unit = { if (liked != null) onOpen(liked) else play() }
+        val count = if (likedComplete && likedSongs.isNotEmpty()) songsText(likedSongs.size) else "Liked songs"
         val hold: (() -> Unit)? = liked?.let { { onHold(it) } }
-        OrbitBiteCard(fill = fill, modifier = m, bite = { OrbitPlayButton(playing = false, onClick = play, look = page.look) }) {
-            Box(Modifier.fillMaxSize().longPressMenuClickable(onClick = open, onLongClick = hold).contextClick(hold))
-            Column(Modifier.padding(start = 24.dp, top = 24.dp, end = 24.dp)) {
-                val count = if (likedComplete && likedSongs.isNotEmpty()) " · ${likedSongs.size}" else ""
-                OrbitLabel("Liked songs$count", page.fonts, ink.copy(alpha = 0.75f))
-                Text("Everything you loved", style = page.fonts.heroTitle.copy(fontSize = 28.sp, lineHeight = 30.sp), color = ink, maxLines = 2,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp, end = 70.dp))
-            }
-            Row(Modifier.align(Alignment.BottomStart).padding(start = 21.dp, bottom = 21.dp), horizontalArrangement = Arrangement.spacedBy((-14).dp)) {
-                likedSongs.take(3).forEach { song ->
-                    Box(Modifier.size(46.dp).clip(CircleShape).background(fill).padding(3.dp)) { Disc(song.thumbnailUrl, 40.dp) }
-                }
-            }
-        }
+        ShortcutTile("Liked", count, page, m, fill = fill, ink = ink, onClick = open, onLongClick = hold,
+            lead = { TileIcon(CosmoIcons.HeartFill, ink, ink.copy(alpha = 0.16f)) },
+            trailing = { OrbitPlayButton(playing = false, onClick = play, look = page.look, size = 32.dp, touch = 48.dp) },
+        )
     }
-    val songs = when (downloadedCount) { 0 -> "Nothing yet"; 1 -> "1 song"; else -> "$downloadedCount songs" }
-    val downloadedCard: @Composable (Modifier) -> Unit = { m ->
-        Column(m.clip(RoundedCornerShape(30.dp)).background(page.look.chip).clickable(onClick = onDownloaded).padding(22.dp)) {
-            OrbitLabel("Downloaded · on this device", page.fonts, page.look.dim)
-            Text(songs, style = page.fonts.heroTitle.copy(fontSize = 24.sp), color = page.look.ink, maxLines = 1, modifier = Modifier.padding(top = 10.dp))
-            Text("Plays without the internet", style = page.fonts.body, color = page.look.dim, modifier = Modifier.padding(top = 4.dp))
-        }
+    tiles += { m ->
+        ShortcutTile("Downloads", if (downloadedCount == 0) "Nothing yet" else songsText(downloadedCount), page, m, onClick = onDownloaded,
+            lead = { TileIcon(CosmoIcons.Download, page.look.ink, page.look.chip) }, testTag = "music:library:downloads")
     }
-    val outer = Modifier.padding(horizontal = page.side).padding(top = 22.dp)
-    if (!showLiked) {
-        // Alone (signed out, no Liked songs card): one quiet line-high card, not a big empty one.
-        Row(
-            outer.widthIn(max = 560.dp).fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(page.look.chip).clickable(onClick = onDownloaded)
-                .padding(horizontal = 22.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                OrbitLabel("Downloaded · on this device", page.fonts, page.look.dim)
-                Text("$songs · Plays without the internet", style = page.fonts.title, color = page.look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 6.dp))
+    if (onHistory != null) tiles += { m ->
+        ShortcutTile("History", "What you played", page, m, onClick = onHistory, lead = { TileIcon(CosmoIcons.Clock, page.look.ink, page.look.chip) }, testTag = "music:library:history")
+    }
+    if (pinned != null) tiles += { m ->
+        ShortcutTile(pinned.title, listOf("Pinned", localizeCardSubtitle(pinned.subtitle)).filter { it.isNotBlank() }.joinToString(" · "), page, m,
+            onClick = { onOpen(pinned) }, onLongClick = { onHold(pinned) }, lead = { Disc(pinned.thumbnailUrl, 44.dp) })
+    }
+    val columns = if (page.wide) 4 else 2
+    Column(Modifier.padding(horizontal = page.side).padding(top = 16.dp).testTag("music:library:tiles"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        tiles.chunked(columns).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEach { tile -> tile(Modifier.weight(1f)) }
+                repeat(columns - pair.size) { Spacer(Modifier.weight(1f)) }
             }
-            Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = page.look.dim, modifier = Modifier.padding(start = 12.dp).size(20.dp))
-        }
-        return
-    }
-    if (page.wide) {
-        Row(outer.fillMaxWidth().height(170.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            likedCard(Modifier.weight(1.15f).fillMaxSize())
-            downloadedCard(Modifier.weight(1f).fillMaxSize())
-        }
-    } else {
-        Column(outer.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            likedCard(Modifier.fillMaxWidth().height(180.dp))
-            downloadedCard(Modifier.fillMaxWidth())
         }
     }
 }
 
-/** The chips: what is shown, then (but on Downloaded) the order as a chip with its menu and the records-or-rows switch. */
+private fun songsText(count: Int): String = if (count == 1) "1 song" else "$count songs"
+
+/** One 64 dp shortcut tile: [lead] (a 44 dp round icon or a disc), the [title] over its [line], and [trailing]; quiet ink, or [fill]. */
 @Composable
-private fun LibraryChips(chip: LibraryChip, onChip: (LibraryChip) -> Unit, sort: LibrarySort, grid: Boolean, onToggleGrid: () -> Unit, page: LibraryLook) {
-    var sortOpen by remember { mutableStateOf(false) }
-    OrbitChipRow(page.side, Modifier.padding(top = 22.dp, bottom = 6.dp).testTag("music:library:chips")) {
+private fun ShortcutTile(
+    title: String,
+    line: String,
+    page: LibraryLook,
+    modifier: Modifier,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    fill: Color = page.look.chip,
+    ink: Color = page.look.ink,
+    testTag: String? = null,
+    lead: @Composable () -> Unit,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier.height(64.dp).clip(RoundedCornerShape(22.dp)).background(fill)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        lead()
+        Column(Modifier.weight(1f)) {
+            Text(title, style = page.fonts.title.copy(fontSize = 14.5.sp), color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(line, style = page.fonts.body.copy(fontSize = 12.sp, fontWeight = FontWeight(600)), color = if (fill == page.look.chip) page.look.dim else ink.copy(alpha = 0.74f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        trailing?.invoke()
+    }
+}
+
+@Composable
+private fun TileIcon(icon: ImageVector, ink: Color, ground: Color) {
+    Box(Modifier.size(44.dp).clip(CircleShape).background(ground), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** The chips that choose what is shown, each with its count. */
+@Composable
+private fun LibraryChips(chip: LibraryChip, onChip: (LibraryChip) -> Unit, counts: Map<LibraryChip, Int>, page: LibraryLook) {
+    OrbitChipRow(page.side, Modifier.padding(top = 20.dp).testTag("music:library:chips")) {
         LibraryChip.entries.forEach { entry ->
-            OrbitSelectChip(entry.label, selected = entry == chip, fonts = page.fonts, look = page.look, onClick = { onChip(entry) }, haptic = entry != chip)
+            OrbitSelectChip(entry.label, selected = entry == chip, fonts = page.fonts, look = page.look, onClick = { onChip(entry) }, haptic = entry != chip, count = counts[entry])
+        }
+    }
+}
+
+/**
+ * The one control row under the chips: find in what the chip shows (a 40 dp field), the order as a chip with its menu, and the
+ * records-or-rows switch (two segments). Downloaded has the field alone; Songs has no records to switch to.
+ */
+@Composable
+private fun LibraryControls(chip: LibraryChip, query: String, onQuery: (String) -> Unit, sort: LibrarySort, grid: Boolean, onGrid: (Boolean) -> Unit, page: LibraryLook) {
+    var sortOpen by remember { mutableStateOf(false) }
+    val look = page.look
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = page.side).padding(top = 10.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            Modifier.weight(1f).height(40.dp).clip(CircleShape).background(look.chip).padding(start = 14.dp, end = 6.dp).testTag("music:library:find"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(CosmoIcons.Search, contentDescription = null, tint = look.dim, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                val text = page.fonts.chip.copy(fontWeight = FontWeight(600))
+                if (query.isEmpty()) Text("Find in ${chip.label.lowercase()}", style = text, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                BasicTextField(
+                    value = query, onValueChange = onQuery, singleLine = true, textStyle = text.copy(color = look.ink),
+                    cursorBrush = SolidColor(look.accent), modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (query.isNotEmpty()) OrbitRoundButton(CosmoIcons.Close, "Clear", look.ink, onClick = { onQuery("") }, size = 28.dp)
         }
         if (chip != LibraryChip.DOWNLOADED) {
-            Spacer(Modifier.width(16.dp))
             Box {
-                OrbitSelectChip(sortLabel(sort), selected = false, fonts = page.fonts, look = page.look, onClick = { sortOpen = true },
+                OrbitSelectChip(sortLabel(sort), selected = false, fonts = page.fonts, look = look, onClick = { sortOpen = true },
                     modifier = Modifier.testTag("music:library:sort"), icon = CosmoIcons.Sort)
                 // The sort menu is the kit's popover (board batch-a, section 4): the order in force is solid ink.
                 OrbitMenu(
@@ -380,17 +463,22 @@ private fun LibraryChips(chip: LibraryChip, onChip: (LibraryChip) -> Unit, sort:
                         OrbitMenuItem(sortLabel(option), selected = option == sort) { AppUi.host.setLibrarySort(option) }
                     },
                     fonts = page.fonts,
-                    look = page.look,
+                    look = look,
                     header = "Sort by",
                     width = 240.dp,
                 )
             }
             if (chip != LibraryChip.SONGS) {
-                OrbitRoundButton(
-                    if (grid) CosmoIcons.List else CosmoIcons.Grid,
-                    stringResource(if (grid) Res.string.cosmo_view_list else Res.string.cosmo_view_grid),
-                    page.look.ink, onClick = onToggleGrid, modifier = Modifier.testTag("music:library:view"),
-                )
+                Row(Modifier.height(40.dp).clip(CircleShape).background(look.chip).padding(3.dp).testTag("music:library:view"), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    for ((records, icon, label) in listOf(Triple(true, CosmoIcons.Grid, Res.string.cosmo_view_grid), Triple(false, CosmoIcons.List, Res.string.cosmo_view_list))) {
+                        val on = grid == records
+                        Box(
+                            Modifier.size(34.dp).clip(CircleShape).background(if (on) look.ink else Color.Transparent)
+                                .selectable(selected = on, role = Role.Tab, onClick = { onGrid(records) }),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(icon, contentDescription = stringResource(label), tint = if (on) look.ground else look.dim, modifier = Modifier.size(18.dp)) }
+                    }
+                }
             }
         }
     }
@@ -406,7 +494,7 @@ private fun sortLabel(sort: LibrarySort): String = stringResource(
 )
 
 private fun LazyListScope.sectionHeader(key: String, title: String, page: LibraryLook) {
-    item(key = key) { OrbitSectionHeader(title, "", page.fonts, page.look, Modifier.padding(horizontal = page.side + 6.dp).padding(top = 28.dp, bottom = 12.dp)) }
+    item(key = key) { OrbitSectionHeader(title, "", page.fonts, page.look, Modifier.padding(horizontal = page.side + 4.dp).padding(top = OrbitSpace.section, bottom = OrbitSpace.sectionToContent)) }
 }
 
 // ---- Playlists ----------------------------------------------------------------------------------------------------------
@@ -453,7 +541,7 @@ private fun LazyListScope.playlistsSegment(
     item(key = "replay") { replay() }
     makeChips(onNewPlaylist, onImportSpotifyPlaylist, page)
     // The liked playlist has its card above; the mix the old page gave a tile of its own is a record like the rest.
-    val rows = LibrarySegments.sorted(listOfNotNull(layout.mix) + layout.rows, page.sort)
+    val rows = LibrarySegments.sorted(listOfNotNull(layout.mix) + layout.rows, page.sort).matching(page)
     if (page.grid) recordGrid("playlist", rows, onClick, onLongPress, page)
     else itemsIndexed(rows, key = { index, item -> "playlist:" + shelfKey(item, index) }) { _, item ->
         val pinnedItem = item.browseId != null && item.browseId in pinned
@@ -464,9 +552,8 @@ private fun LazyListScope.playlistsSegment(
             fonts = page.fonts,
             look = page.look,
             onClick = { onClick(item) },
-            modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp).fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = page.side).fillMaxWidth(),
             onLongClick = { onLongPress(item) },
-            endPadding = 6.dp,
             trailing = {
                 if (pinnedItem) PinMark(page)
                 MoreButton(page) { onLongPress(item) }
@@ -521,7 +608,7 @@ private fun RowScope.MoreButton(page: LibraryLook, onClick: () -> Unit) {
 
 /** Albums: the Albums shelf as records with the play moon, or as rows. */
 private fun LazyListScope.albumsSegment(albums: HomeShelf?, onClick: (ShelfItem) -> Unit, onLongPress: (ShelfItem) -> Unit, page: LibraryLook) {
-    val items = LibrarySegments.sorted(albums?.items.orEmpty(), page.sort)
+    val items = LibrarySegments.sorted(albums?.items.orEmpty(), page.sort).matching(page)
     if (items.isEmpty()) {
         item(key = "albums:empty") { MessageState(stringResource(Res.string.cosmo_state_empty)) }
         return
@@ -532,7 +619,7 @@ private fun LazyListScope.albumsSegment(albums: HomeShelf?, onClick: (ShelfItem)
 
 /** Artists: from the Artists and Subscriptions shelves, as portraits or as rows with a round photo. */
 private fun LazyListScope.artistsSegment(artists: HomeShelf?, onClick: (ShelfItem) -> Unit, onLongPress: (ShelfItem) -> Unit, page: LibraryLook) {
-    val items = LibrarySegments.sorted(artists?.items.orEmpty(), page.sort)
+    val items = LibrarySegments.sorted(artists?.items.orEmpty(), page.sort).matching(page)
     if (items.isEmpty()) {
         item(key = "artists:empty") { MessageState(stringResource(Res.string.cosmo_state_empty)) }
         return
@@ -560,13 +647,16 @@ private fun LazyListScope.songsSegment(
             LibrarySort.TITLE_ASC -> list.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
             LibrarySort.TITLE_DESC -> list.sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.title })
         }
+    }.let { list ->
+        if (page.query.isEmpty()) list
+        else list.filter { it.title.contains(page.query, ignoreCase = true) || it.artist.contains(page.query, ignoreCase = true) }
     }
     if (songs.isEmpty()) {
         item(key = "songs:empty") { MessageState(stringResource(Res.string.cosmo_state_empty)) }
         return
     }
     val isCurrentRow = playingRowMatcher(songs, currentSong)
-    item(key = "songs:top") { Spacer(Modifier.height(8.dp)) }
+    item(key = "songs:top") { Spacer(Modifier.height(4.dp)) }
     itemsIndexed(songs, key = { index, song -> "song:${song.videoId}:$index" }) { index, song ->
         val current = isCurrentRow(song)
         OrbitSongRowFor(
@@ -577,7 +667,7 @@ private fun LazyListScope.songsSegment(
                 if (onSongClick != null) onSongClick(songs, index)
                 else onShelfItemClick(ShelfItem(song.title, song.artist, song.thumbnailUrl, song.videoId, null, song = song))
             },
-            modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = page.side),
             onLongClick = onSongLongPress?.let { held -> { held(song) } },
             now = current,
             playing = isPlaying && current,
@@ -595,7 +685,7 @@ private fun LazyListScope.itemRows(prefix: String, items: List<ShelfItem>, onCli
             fonts = page.fonts,
             look = page.look,
             onClick = { onClick(item) },
-            modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp).fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = page.side).fillMaxWidth(),
             onLongClick = { onLongPress(item) },
         )
     }
@@ -620,7 +710,7 @@ private fun LazyListScope.downloadedSegment(
     }
     if (links.isNotEmpty()) {
         item(key = "folders:header") {
-            OrbitSectionHeader(stringResource(Res.string.cosmo_library_folders), "", page.fonts, page.look, Modifier.padding(horizontal = page.side + 6.dp).padding(top = 22.dp, bottom = 12.dp))
+            OrbitSectionHeader(stringResource(Res.string.cosmo_library_folders), "", page.fonts, page.look, Modifier.padding(horizontal = page.side + 4.dp).padding(top = 14.dp, bottom = OrbitSpace.sectionToContent))
         }
         itemsIndexed(links, key = { index, link -> "folder:${link.item.browseId ?: link.item.title}#$index" }) { _, link ->
             val logo = link.logo?.let { painterResource(it) }
@@ -631,23 +721,23 @@ private fun LazyListScope.downloadedSegment(
                 fonts = page.fonts,
                 look = page.look,
                 onClick = { onClick(link.item) },
-                modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp).fillMaxWidth(),
-                endPadding = 6.dp,
+                modifier = Modifier.padding(horizontal = page.side).fillMaxWidth(),
                 discContent = {
                     Box(Modifier.size(44.dp).clip(CircleShape).background(page.look.chip), contentAlignment = Alignment.Center) {
                         if (logo != null) Icon(logo, contentDescription = null, tint = androidx.compose.ui.graphics.Color.Unspecified, modifier = Modifier.size(22.dp))
                         else Icon(link.icon, contentDescription = null, tint = page.look.ink, modifier = Modifier.size(20.dp))
                     }
                 },
-                trailing = { Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = page.look.dim, modifier = Modifier.padding(end = 10.dp).size(20.dp)) },
+                trailing = { Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = page.look.dim, modifier = Modifier.padding(end = 12.dp).size(20.dp)) },
             )
         }
     }
-    if (deviceItems.isNotEmpty()) {
+    val device = deviceItems.matching(page)
+    if (device.isNotEmpty()) {
         item(key = "device:header") {
-            OrbitSectionHeader(stringResource(Res.string.on_device), "", page.fonts, page.look, Modifier.padding(horizontal = page.side + 6.dp).padding(top = 28.dp, bottom = 12.dp))
+            OrbitSectionHeader(stringResource(Res.string.on_device), "", page.fonts, page.look, Modifier.padding(horizontal = page.side + 4.dp).padding(top = OrbitSpace.section, bottom = OrbitSpace.sectionToContent))
         }
-        recordGrid("device", deviceItems, onClick, onLongPress, page)
+        recordGrid("device", device, onClick, onLongPress, page)
     }
 }
 
@@ -668,8 +758,8 @@ private fun LazyListScope.recordGrid(
     val rows = items.chunked(page.columns.coerceAtLeast(1))
     itemsIndexed(rows, key = { index, _ -> "$prefix:row:$index" }) { index, row ->
         Row(
-            Modifier.fillMaxWidth().padding(start = page.side, end = page.side, top = if (index == 0) 14.dp else 22.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            Modifier.fillMaxWidth().padding(start = page.side, end = page.side, top = if (index == 0) 10.dp else 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             for (item in row) LibraryRecord(item, onClick, onLongPress, page, page.cell, portraits)
         }
@@ -682,13 +772,13 @@ private fun RecordRail(items: List<ShelfItem>, onClick: (ShelfItem) -> Unit, onL
     val state = rememberLazyListState()
     LazyRow(
         state = state,
-        contentPadding = PaddingValues(horizontal = page.side + 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        contentPadding = PaddingValues(horizontal = page.side),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         flingBehavior = rememberShelfFlingBehavior(state),
         verticalAlignment = Alignment.Top,
     ) {
         itemsIndexed(items, key = { index, item -> shelfKey(item, index) }) { _, item ->
-            LibraryRecord(item, onClick, onLongPress, page, if (portraits) 120.dp else 150.dp, portraits)
+            LibraryRecord(item, onClick, onLongPress, page, if (portraits) 112.dp else 140.dp, portraits)
         }
     }
 }

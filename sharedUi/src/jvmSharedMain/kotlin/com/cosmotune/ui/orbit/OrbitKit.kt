@@ -140,7 +140,8 @@ internal val CARD_FALLBACK = Color(0xFF3A2A2A)
 val CARD_INK = Color(0xFFFFEDE2)
 
 class OrbitFonts(val wide: FontFamily, val narrow: FontFamily, val text: FontFamily) {
-    val greeting = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 38.sp, lineHeight = 38.sp, letterSpacing = (-0.6).sp)
+    /** Every page's heading (Home's greeting, "Library.", "Settings."): 30 sp in the wide face. */
+    val greeting = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 30.sp, lineHeight = 34.sp, letterSpacing = (-0.45).sp)
     val heroTitle = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 26.sp, lineHeight = 27.sp, letterSpacing = (-0.4).sp)
     val section = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 21.sp, lineHeight = 24.sp, letterSpacing = (-0.3).sp)
     val number = TextStyle(fontFamily = narrow, fontWeight = FontWeight(900), fontSize = 58.sp, lineHeight = 52.sp)
@@ -290,7 +291,7 @@ fun clock(ms: Long): String { val s = ms / 1000; return "%d:%02d".format(s / 60,
 @Composable
 /**
  * A chip: 40 dp, ink at 8 %; [selected] makes it solid ink with ground-coloured text (a tab that is showing). [leading] is
- * optional (null: the title alone, padded evenly); [trailing] goes after the title (a count).
+ * optional (null: the title alone, padded evenly); [count] follows the title in the mono face, and [trailing] goes after that.
  */
 fun OrbitChip(
     title: String,
@@ -299,6 +300,8 @@ fun OrbitChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    /** A count after the title in the mono face ("Songs 20"); left out when null. */
+    count: Int? = null,
     trailing: (@Composable () -> Unit)? = null,
     leading: (@Composable () -> Unit)?,
 ) {
@@ -315,6 +318,10 @@ fun OrbitChip(
             Spacer(Modifier.width(8.dp))
         }
         Text(title, style = fonts.chip, color = text, maxLines = 1)
+        if (count != null) {
+            Spacer(Modifier.width(6.dp))
+            OrbitCount(count, fonts, text.copy(alpha = 0.62f))
+        }
         if (trailing != null) {
             Spacer(Modifier.width(8.dp))
             trailing()
@@ -322,44 +329,45 @@ fun OrbitChip(
     }
 }
 
+/** A count beside a tab's or a chip's name: the mono face at 11.5 sp ("20", "1.2K" for more than 9 999). */
+@Composable
+fun OrbitCount(count: Int, fonts: OrbitFonts, color: Color, modifier: Modifier = Modifier) {
+    Text(orbitCountText(count), style = fonts.label.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp), color = color, maxLines = 1, modifier = modifier)
+}
+
+/** A count as a tab or a chip shows it: as it is up to 9 999, then in thousands ("12K"). */
+fun orbitCountText(count: Int): String = if (count < 10_000) "$count" else "${count / 1000}K"
+
 // ---- the room -------------------------------------------------------------------------------------------------------------------
 
+/**
+ * The room as one 56 dp line (the Music board's 1): the room's colour, the people mark in a round 40 dp tile, "Listen together" over
+ * "Start a room or join a friend's" (or, in a room, "Your room" over how many are listening), and Start (Open) as a pill at its end.
+ * A tap anywhere opens the room.
+ */
 @Composable
-internal fun OrbitRoomCard(room: RoomLauncher, fonts: OrbitFonts, modifier: Modifier) {
+internal fun OrbitRoomLine(room: RoomLauncher, fonts: OrbitFonts, modifier: Modifier) {
     val live = room.inRoom
     val tone = roomCardColors(orbitLook())
-    Box(modifier.clip(RoundedCornerShape(30.dp)).background(tone.fill).clickable { room.openRoom() }) {
-        // The room as a small system: a disc in the middle and one moon on its orbits per person in it.
-        Canvas(Modifier.align(Alignment.TopEnd).offset(x = 64.dp, y = (-52).dp).size(200.dp)) {
-            val c = center
-            drawCircle(tone.ink.copy(alpha = 0.16f), 44.dp.toPx(), c, style = Stroke(1.dp.toPx()))
-            drawCircle(tone.ink.copy(alpha = 0.16f), 78.dp.toPx(), c, style = Stroke(1.dp.toPx()))
-            drawCircle(tone.ink.copy(alpha = 0.22f), 20.dp.toPx(), c)
-            val people = if (live) room.memberCount.coerceIn(1, 6) else 3
-            val colors = listOf(Color(0xFFE9875A), Color(0xFF5B8C6A), Color(0xFF8B6CC9), Color(0xFFD9A441), Color(0xFF4F8FD9), Color(0xFFC96C9A))
-            repeat(people) { i ->
-                val r = if (i % 2 == 0) 78.dp.toPx() else 44.dp.toPx()
-                val a = Math.toRadians(110.0 + i * 47.0)
-                drawCircle(colors[i % colors.size].copy(alpha = if (live) 1f else 0.55f), 12.dp.toPx(), c + Offset((r * cos(a)).toFloat(), (r * sin(a)).toFloat()))
-            }
+    Row(
+        modifier.height(56.dp).clip(CircleShape).background(tone.fill).clickable(onClickLabel = if (live) "Open room" else "Start a room") { room.openRoom() }
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(40.dp).clip(CircleShape).background(tone.ink.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Icon(com.cosmotune.ui.components.CosmoIcons.Together, contentDescription = null, tint = tone.ink, modifier = Modifier.size(20.dp))
+            if (live) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(tone.live))
         }
-        Column(Modifier.padding(20.dp).fillMaxHeight()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (live) { Box(Modifier.size(7.dp).clip(CircleShape).background(tone.live)); Spacer(Modifier.width(8.dp)) }
-                Text(if (live) "LIVE ROOM · ${room.memberCount}" else "LISTEN TOGETHER", style = fonts.label, color = tone.dim)
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(if (live) "Your room" else "Start a room", style = fonts.section.copy(fontSize = 23.sp), color = tone.ink)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(if (live) "Your room" else "Listen together", style = fonts.title, color = tone.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                if (live) "${room.memberCount} listening with you. Open it to chat, ask for songs or talk."
-                else "Friends join with a code and hear the same song in their own app.",
-                style = fonts.body, color = tone.text, modifier = Modifier.padding(top = 6.dp).widthIn(max = 196.dp),
+                if (live) "${room.memberCount} listening with you" else "Start a room or join a friend's",
+                style = fonts.body.copy(fontSize = 12.5.sp, fontWeight = FontWeight(600)), color = tone.dim, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.weight(1f))
-            Row(
-                Modifier.height(34.dp).clip(CircleShape).background(tone.ink).padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) { Text(if (live) "Open room" else "Start", style = fonts.chip.copy(fontSize = 13.sp, fontWeight = FontWeight(800)), color = tone.fill) }
+        }
+        Box(Modifier.height(40.dp).clip(CircleShape).background(tone.ink).padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+            Text(if (live) "Open" else "Start", style = fonts.chip.copy(fontWeight = FontWeight(800)), color = tone.fill)
         }
     }
 }

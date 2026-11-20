@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -102,12 +100,14 @@ fun OrbitCardChip(text: String, colors: OrbitCardColors, onClick: () -> Unit, mo
     WatchCardChip(text, colors.ink, orbitFonts(), onClick, modifier, icon = icon, solid = solid, onSolid = colors.fill, iconGap = 6.dp)
 
 /**
- * An album's or a playlist's card (board section 1): one flat card in the cover's colour with the cover as a big disc, the mono
- * [label] ("ALBUM · 12 SONGS · 48 MIN"), the [title], who made it ([credit]; a tap is [onCredit]), [below] (the quality the
- * catalogue reports) and the round [buttons]; Play stands in the bite. From 600 dp the disc stands at the start and the words beside
- * it; narrower, the disc is on top. When [motion] is given the album's animated cover loops silently inside the disc, under the
- * same rules as the player's. With [titleArt] (an album, a single or an EP; not a playlist) the title is the album's title art
- * over the card's colour, in the room the plain title had (up to three lines), breathing while the album plays.
+ * An album's or a playlist's card: the compact page header ([OrbitPageHeader], 220 dp) in the cover's own colour, the cover as a
+ * 120 dp disc beside the mono [label] ("ALBUM · 2026 · 12 SONGS"), the [title], who made it ([credit]; a tap is [onCredit]) and one row
+ * of round [buttons]; Play stands in the bite. When [motion] is given the album's animated cover loops silently inside the disc, under
+ * the same rules as the player's. With [titleArt] (an album, a single or an EP; not a playlist) the title is the album's title art over
+ * the card's colour, in the plain title's two lines, breathing while the album plays.
+ *
+ * [tall] is the tablet's left pane (the Music board's 9): the card as tall as its pane wants, a 176 dp disc in its top-end corner and
+ * the words under it at 34 sp, with [below] (the quality the catalogue reports) under the credit.
  */
 @Composable
 fun OrbitReleaseCard(
@@ -121,65 +121,67 @@ fun OrbitReleaseCard(
     modifier: Modifier = Modifier,
     motion: CanvasArtwork? = null,
     titleArt: TitleArtAlbum? = null,
+    tall: Boolean = false,
     below: @Composable ColumnScope.(OrbitCardColors) -> Unit = {},
     buttons: @Composable RowScope.(OrbitCardColors) -> Unit,
 ) {
-    val fonts = orbitFonts()
-    val look = orbitLook()
     val (fill, ink) = coverFill(cover, title)
     val colors = OrbitCardColors(fill, ink)
     val allowed = motion != null && rememberMotionAllowed()
-    BoxWithConstraints(modifier) {
-        val wide = maxWidth >= 600.dp
-        val cardWidth = maxWidth
-        OrbitBiteCard(fill, Modifier.fillMaxWidth(), bite = {
-            if (onPlay != null) OrbitPlayButton(playing, onPlay, look, Modifier.testTag("orbit:card:play"))
-        }) {
-            val words: @Composable ColumnScope.() -> Unit = {
-                Text(label.uppercase(), style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (titleArt != null) {
-                    // The plain title's room: three lines of 42 sp (wide) or 30 sp, never smaller than it was.
+    if (!tall) {
+        OrbitPageHeader(
+            cover = cover, label = label, title = title, subtitle = credit, playing = playing, onPlay = onPlay, modifier = modifier,
+            colors = colors, onSubtitle = onCredit,
+            lead = { OrbitMotionDisc(cover, OrbitHeaderSize.PAGE.disc, motion, allowed) },
+            titleContent = titleArt?.let { art ->
+                { c ->
                     AlbumTitleArt(
-                        titleArt, ink = ink, ground = fill, modifier = Modifier.padding(top = 12.dp).fillMaxWidth(),
-                        place = TitleArt.Place.HERO, playing = playing,
-                        maxSize = if (wide) 64.sp else 52.sp, minSize = if (wide) 32.sp else 24.sp, maxLines = 3,
-                        maxHeight = if (wide) 126.dp else 90.dp, heading = true,
-                    )
-                } else {
-                    Text(
-                        title, style = if (wide) fonts.greeting.copy(fontSize = 40.sp, lineHeight = 42.sp) else fonts.heroTitle.copy(fontSize = 28.sp, lineHeight = 30.sp),
-                        color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 12.dp).semantics { heading() },
+                        art, ink = c.ink, ground = c.fill, modifier = Modifier.fillMaxWidth(), place = TitleArt.Place.HERO, playing = playing,
+                        maxSize = 30.sp, minSize = 20.sp, maxLines = 2, maxHeight = 62.dp, heading = true,
                     )
                 }
-                if (!credit.isNullOrBlank()) {
-                    Text(
-                        credit, style = fonts.body.copy(fontSize = 15.sp, fontWeight = FontWeight(600)), color = ink.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp))
-                            .then(if (onCredit != null) Modifier.clickable(onClick = onCredit) else Modifier).padding(vertical = 6.dp),
-                    )
-                }
-                below(colors)
-                Row(Modifier.padding(top = 18.dp, end = if (wide) 0.dp else 76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    buttons(colors)
-                }
-            }
-            if (wide) {
-                Row(Modifier.fillMaxWidth().heightIn(min = 250.dp).padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OrbitMotionDisc(cover, 202.dp, motion, allowed)
-                    Column(Modifier.weight(1f).padding(start = 32.dp, end = 72.dp), content = words)
-                }
+            },
+            buttons = buttons,
+        )
+        return
+    }
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    OrbitBiteCard(fill, modifier, shape = TALL_BITE, biteInset = 14.dp, bite = {
+        if (onPlay != null) OrbitPlayButton(playing, onPlay, look, Modifier.testTag("orbit:card:play"), size = 60.dp)
+    }) {
+        Column(Modifier.fillMaxWidth().padding(24.dp)) {
+            OrbitMotionDisc(cover, 176.dp, motion, allowed, Modifier.align(Alignment.End))
+            Spacer(Modifier.height(22.dp))
+            Text(label.uppercase(), style = fonts.label, color = ink.copy(alpha = 0.74f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (titleArt != null) {
+                AlbumTitleArt(
+                    titleArt, ink = ink, ground = fill, modifier = Modifier.padding(top = 8.dp).fillMaxWidth(), place = TitleArt.Place.HERO,
+                    playing = playing, maxSize = 34.sp, minSize = 22.sp, maxLines = 3, maxHeight = 110.dp, heading = true,
+                )
             } else {
-                Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                    val disc = (cardWidth - 96.dp).coerceIn(160.dp, 232.dp)
-                    OrbitMotionDisc(cover, disc, motion, allowed, Modifier.align(Alignment.CenterHorizontally))
-                    Spacer(Modifier.height(20.dp))
-                    words()
-                }
+                Text(
+                    title, style = fonts.heroTitle.copy(fontSize = 34.sp, lineHeight = 36.sp), color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp).semantics { heading() },
+                )
+            }
+            if (!credit.isNullOrBlank()) {
+                Text(
+                    credit, style = fonts.body.copy(fontSize = 15.sp, fontWeight = FontWeight(600)), color = ink.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(10.dp))
+                        .then(if (onCredit != null) Modifier.clickable(onClick = onCredit) else Modifier).padding(vertical = 6.dp),
+                )
+            }
+            below(colors)
+            Row(Modifier.padding(top = 22.dp, end = 80.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                buttons(colors)
             }
         }
     }
 }
+
+/** The tall card's corners and the bite round its 60 dp Play (6 dp of ground round it, 14 dp in). */
+private val TALL_BITE = BiteShape(corner = 34.dp, bite = 36.dp, inset = 44.dp)
 
 /** A section of a page: the title in wide type, its strap line, and [action] at its end ("Show all"). */
 @Composable
@@ -195,8 +197,9 @@ fun OrbitPageSection(title: String, modifier: Modifier = Modifier, subtitle: Str
 }
 
 /**
- * A song of an album or a playlist as Home's row: [OrbitSongRowFor] with the page's fonts and look. [cover] and [subtitle] stand in
- * for the song's own (a track's number, the artist and album), [showQuality] leads the second line with what the catalogue offers,
+ * A song of an album or a playlist as the flat list row: [OrbitSongRowFor] with the page's fonts and look. [cover] and [subtitle] stand
+ * in for the song's own, [number] puts the track's number in the disc's place (an album), [showQuality] leads the second line with
+ * what the catalogue offers,
  * [downloadedTint] marks a downloaded song, and [trailing] replaces the end of the row (the desktop's hover actions and duration).
  */
 @Composable
@@ -213,11 +216,12 @@ fun OrbitTrackRow(
     selected: Boolean? = null,
     showQuality: Boolean = false,
     downloadedTint: Color? = null,
+    number: Int? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     OrbitSongRowFor(
         song, orbitFonts(), orbitLook(), onClick, modifier, onLongClick = onLongClick, onSwipe = onSwipe, now = now, playing = playing,
-        showSourceQuality = showQuality, cover = cover, subtitle = subtitle, selected = selected, downloadedTint = downloadedTint, trailing = trailing,
+        showSourceQuality = showQuality, cover = cover, subtitle = subtitle, selected = selected, downloadedTint = downloadedTint, number = number, trailing = trailing,
     )
 }
 

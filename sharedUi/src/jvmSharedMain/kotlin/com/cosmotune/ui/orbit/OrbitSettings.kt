@@ -1,5 +1,6 @@
 package com.cosmotune.ui.orbit
 
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -94,14 +95,35 @@ fun OrbitAccountCard(
 ) {
     val (fill, ink) = coverFill(pictureUrl, "account:$name")
     // A narrow card (the desktop's column beside the settings page) gives the words the room a big disc would take.
+    if (compact) {
+        // The phone's settings home (the Music board's 8a): one 64 dp row in the account's colour, not a card.
+        Row(
+            modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(24.dp)).background(fill)
+                .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(ink.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                Icon(CosmoIcons.User, contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
+                if (pictureUrl != null) Disc(pictureUrl, 40.dp)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(name, style = fonts.title, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(listOfNotNull(line?.takeIf { it.isNotBlank() }, label.takeIf { line.isNullOrBlank() }).firstOrNull().orEmpty(), style = fonts.body.copy(fontSize = 12.5.sp, fontWeight = FontWeight(600)), color = ink.copy(alpha = 0.78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (onClick != null) Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = ink.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+        }
+        return
+    }
     BoxWithConstraints(modifier.fillMaxWidth()) {
-    val disc = if (compact || maxWidth < 400.dp) 72.dp else 96.dp
+    val disc = if (maxWidth < 400.dp) 72.dp else 96.dp
     Row(
-        Modifier.fillMaxWidth().heightIn(min = if (compact) 120.dp else 150.dp).clip(RoundedCornerShape(32.dp)).background(fill)
+        Modifier.fillMaxWidth().heightIn(min = 150.dp).clip(RoundedCornerShape(32.dp)).background(fill)
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .padding(if (compact) 18.dp else 22.dp),
+            .padding(22.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(if (compact) 14.dp else 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Box(Modifier.size(disc).clip(CircleShape).background(ink.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
             Icon(CosmoIcons.User, contentDescription = null, tint = ink, modifier = Modifier.size(disc * 0.42f))
@@ -110,7 +132,7 @@ fun OrbitAccountCard(
         Column(Modifier.weight(1f)) {
             OrbitLabel(label, fonts, ink.copy(alpha = 0.75f))
             Text(
-                name, style = fonts.heroTitle.copy(fontSize = if (compact) 22.sp else 26.sp, lineHeight = if (compact) 25.sp else 29.sp), color = ink,
+                name, style = fonts.heroTitle.copy(fontSize = 26.sp, lineHeight = 29.sp), color = ink,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp),
             )
             if (!line.isNullOrBlank()) {
@@ -124,14 +146,13 @@ fun OrbitAccountCard(
 }
 
 /**
- * A category of the settings home (board 2, `.tile`): radius 26, ink at 5 %, a 44 dp icon tile in the category's [fill] with a white
- * glyph, the [title] and the one-line [summary]. [stacked] puts the icon over the text (a narrow cell: the phone's two columns).
- * [selected] (not null: the tile is a tab, the desktop's list beside the page) true is solid ink with the ground's colour for its text.
- * [summaryLines] lets a search result say where it lives and what it does; a [stacked] tile (a narrow cell) gives its summary two lines
- * at least, so "Wi-Fi: Lossless · Mobile data: Lossless" is read whole.
+ * A category of the settings home as one flat 56 dp row (the Music board's 8a): a 36 dp tile in the category's [fill] with a white
+ * glyph, the [title] and its current value or what it holds ([summary], one line, or [summaryLines] for a search result), and a
+ * chevron. [selected] (not null: the row is a tab, the desktop's list beside the page) true is solid ink with the ground's colour for
+ * its words.
  */
 @Composable
-internal fun OrbitSettingsTile(
+internal fun OrbitSettingsRow(
     icon: ImageVector,
     fill: Color,
     title: String,
@@ -141,55 +162,26 @@ internal fun OrbitSettingsTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean? = null,
-    stacked: Boolean = false,
     summaryLines: Int = 1,
 ) {
     val on = selected == true
     val ink = if (on) look.ground else look.ink
     val dim = if (on) look.ground.copy(alpha = 0.72f) else look.dim
-    Box(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(if (on) look.ink else look.row)
-            .then(if (selected != null) Modifier.selectable(selected, role = Role.Tab, onClick = onClick) else Modifier.clickable(role = Role.Button, onClick = onClick)),
-        contentAlignment = if (stacked) Alignment.TopStart else Alignment.CenterStart,
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(18.dp)).background(if (on) look.ink else Color.Transparent)
+            .then(if (selected != null) Modifier.selectable(selected, role = Role.Tab, onClick = onClick) else Modifier.clickable(role = Role.Button, onClick = onClick))
+            .padding(start = 4.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        val iconTile = @Composable {
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(fill), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
-            }
+        Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(fill), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(19.dp))
         }
-        val text = @Composable { m: Modifier ->
-            Column(m) {
-                Text(title, style = fonts.title.copy(fontSize = 14.5.sp), color = ink, maxLines = if (stacked) 2 else 1, overflow = TextOverflow.Ellipsis)
-                Text(summary, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = dim, maxLines = if (stacked) maxOf(summaryLines, 2) else summaryLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-            }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = fonts.title, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (summary.isNotBlank()) Text(summary, style = fonts.body.copy(fontSize = 13.sp, lineHeight = 17.sp), color = dim, maxLines = summaryLines, overflow = TextOverflow.Ellipsis)
         }
-        if (stacked) {
-            Column(Modifier.padding(16.dp)) {
-                iconTile()
-                Spacer(Modifier.height(12.dp))
-                text(Modifier)
-            }
-        } else {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                iconTile()
-                Spacer(Modifier.width(14.dp))
-                text(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-/** [count] cells in [columns] columns [gap] apart, each row as tall as its tallest cell, as the settings home lays its tiles. */
-@Composable
-internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 12.dp, columns: Int = 2, cell: @Composable (Int, Modifier) -> Unit) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(gap)) {
-        for (start in 0 until count step columns) {
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                for (i in start until start + columns) {
-                    Box(Modifier.weight(1f).fillMaxHeight()) { if (i < count) cell(i, Modifier.fillMaxHeight()) }
-                }
-            }
-        }
+        Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = dim, modifier = Modifier.size(20.dp))
     }
 }
 

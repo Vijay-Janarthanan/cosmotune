@@ -60,6 +60,8 @@ class ShellStructureTest {
                 // The dock (revamp): a swipe to the right plays the previous song, and Video's own mini player stands inside the dock.
                 // Last again, with defaults, so every caller that passes its arguments by name is untouched.
                 "onPrevious", "miniPlayer", "onClose", "showTabs", "dark", "ownMedia",
+                // The navigation rule: the mode's round search button beside the tabs.
+                "search",
             ),
             parameterNames(signature(chrome, "CosmoBottomChrome")),
         )
@@ -171,7 +173,8 @@ class ShellStructureTest {
         val dock = read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitDock.kt")
         val tab = SourceContract.functionBody(dock, "OrbitDockTab")
         assertTrue("if (selected) {" in tab && "Text(label" in tab, "the chosen tab shows its name")
-        assertTrue("Modifier.semantics { contentDescription = label }" in tab, "the others are named for a screen reader")
+        assertTrue("Modifier.semantics { contentDescription = orbitTabName(label, count) }" in tab, "the others are named for a screen reader, with their count")
+        assertTrue("OrbitBadge(count, look" in tab, "a count is a peach badge on the tab")
         assertTrue("role = Role.Tab" in tab, "each is a tab")
         val bar = SourceContract.functionBody(chrome, "FloatingTabBar")
         assertTrue("OrbitDockMetrics.BAR_DP" in bar && "orbitDockFill(look)" in bar, "the board's 60 dp bar on a solid ground")

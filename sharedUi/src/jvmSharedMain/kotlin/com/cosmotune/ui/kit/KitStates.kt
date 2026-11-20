@@ -120,38 +120,13 @@ fun KitSkeletonRows(count: Int = 6, modifier: Modifier = Modifier, art: KitArt =
 }
 
 /**
- * The navigation rail of a wide window (the dock's tabs, standing on the start edge), in Orbit: each [CosmoTab] its icon over its
- * label, the chosen one's icon on a solid ink pill in the ground's colour with its label in the ink, the others in the dim ink with a
- * faint wash under the pointer. Every one is labelled; the rail is a group of tabs for screen readers.
+ * The navigation rail of a wide window (the dock's tabs, standing on the start edge): the shell's one rail
+ * ([com.cosmotune.ui.shell.CosmoNavRail]: each [CosmoTab] its icon over its label, the chosen one's icon on a solid ink pill, a count
+ * as a peach badge), with [header] at its head. Every one is labelled; the rail is a group of tabs for screen readers.
  */
 @Composable
 fun KitNavRail(tabs: List<CosmoTab>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, header: @Composable ColumnScope.() -> Unit = {}) {
-    val look = orbitLook()
-    val fonts = orbitFonts()
-    Column(modifier.widthIn(min = 88.dp).padding(vertical = 12.dp).selectableGroup(), horizontalAlignment = Alignment.CenterHorizontally) {
-        header()
-        tabs.forEachIndexed { index, tab ->
-            val selected = index == selectedIndex
-            Column(
-                Modifier
-                    .padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) })
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .wrapContentWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(
-                    Modifier.size(56.dp, 32.dp).clip(CircleShape).background(if (selected) look.ink else Color.Transparent),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = null, tint = if (selected) look.ground else look.dim, modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(tab.label, style = fonts.body.copy(fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight(700)), color = if (selected) look.ink else look.dim, maxLines = 1)
-            }
-        }
-    }
+    com.cosmotune.ui.shell.CosmoNavRail(tabs, selectedIndex, onSelect, modifier, header = { Column(horizontalAlignment = Alignment.CenterHorizontally) { header() } })
 }
 
 /**

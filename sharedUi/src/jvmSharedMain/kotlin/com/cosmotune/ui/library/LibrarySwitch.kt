@@ -17,8 +17,8 @@ import com.cosmotune.music.ui.screens.LibraryLink
  * The one entry point of the Library page: [CosmoLibrary].
  *
  * The parameter list is upstream's `LibraryScreen`'s, name for name and in the same order, so upstream's call sites still merge;
- * when upstream adds one, add it here and decide whether the page needs it. The last four (the Songs chip and the Liked card's Play)
- * are the Orbit page's own.
+ * when upstream adds one, add it here and decide whether the page needs it. The last five (the Songs chip, the Liked tile's Play and
+ * the History tile) are the Orbit page's own.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +47,7 @@ fun LibrarySwitch(
     isPlaying: Boolean = false,
     onSongClick: ((List<Song>, Int) -> Unit)? = null,
     onSongLongPress: ((Song) -> Unit)? = null,
+    onHistory: (() -> Unit)? = null,
 ) {
     CosmoLibrary(
         signedIn = signedIn, state = state, listState = listState, onShelfItemClick = onShelfItemClick,
@@ -54,6 +55,6 @@ fun LibrarySwitch(
         onImportSpotifyPlaylist = onImportSpotifyPlaylist, onShowAll = onShowAll, replay = replay, onSignIn = onSignIn,
         onRetry = onRetry, refreshing = refreshing, onRefresh = onRefresh, pullState = pullState, modifier = modifier,
         contentPadding = contentPadding, links = links, deviceItems = deviceItems, showTitle = showTitle, sourceShelves = sourceShelves,
-        currentSong = currentSong, isPlaying = isPlaying, onSongClick = onSongClick, onSongLongPress = onSongLongPress,
+        currentSong = currentSong, isPlaying = isPlaying, onSongClick = onSongClick, onSongLongPress = onSongLongPress, onHistory = onHistory,
     )
 }

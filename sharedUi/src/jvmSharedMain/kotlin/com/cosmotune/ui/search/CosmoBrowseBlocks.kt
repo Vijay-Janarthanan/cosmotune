@@ -1,5 +1,6 @@
 package com.cosmotune.ui.search
 
+import com.cosmotune.ui.orbit.OrbitSpace
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,7 +48,7 @@ internal fun rememberBrowseLists(state: UiState<List<MoodGenreSection>>?): Brows
 
 /** The narrowest a tile is let get on a wide page, in dp, and the space between two tiles. */
 internal const val TILE_MIN_DP = 200f
-internal const val TILE_GAP_DP = 12f
+internal const val TILE_GAP_DP = 8f
 
 /**
  * How many tiles stand in a row on a page [widthDp] wide with [sideDp] gutters: two on the phone, and from 600 dp on as many
@@ -81,7 +82,7 @@ internal fun LazyListScope.browseTiles(
         UiState.Loading -> {
             header("browse:moods-title", firstTitle, side, fonts, look)
             itemsIndexed((0 until SKELETON_TILES).chunked(columns), key = { index, _ -> "browse:skeleton:$index" }) { index, row ->
-                TileRow(index, row.size, columns, side) { ShimmerBox(Modifier.weight(1f).height(110.dp), RoundedCornerShape(26.dp)) }
+                TileRow(index, row.size, columns, side) { ShimmerBox(Modifier.weight(1f).height(56.dp), RoundedCornerShape(18.dp)) }
             }
             return true
         }
@@ -111,7 +112,7 @@ internal fun LazyListScope.browseTiles(
 }
 
 private fun LazyListScope.header(key: String, title: String, side: Dp, fonts: OrbitFonts, look: OrbitLook) {
-    item(key = key) { OrbitSectionHeader(title, "", fonts, look, Modifier.padding(horizontal = side + 6.dp).padding(top = 30.dp, bottom = 14.dp)) }
+    item(key = key) { OrbitSectionHeader(title, "", fonts, look, Modifier.padding(horizontal = side + 4.dp).padding(top = OrbitSpace.section, bottom = OrbitSpace.sectionToContent)) }
 }
 
 /** [moods] as tiles, [columns] to a row; each row is one lazy item, keyed on its first tile. */

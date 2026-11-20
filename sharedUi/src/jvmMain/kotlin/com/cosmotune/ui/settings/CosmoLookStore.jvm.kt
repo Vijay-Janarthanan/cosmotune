@@ -11,6 +11,8 @@ private class PreferencesStore(private val node: Preferences) : KeyValueStore {
     override fun putBoolean(key: String, value: Boolean) = node.putBoolean(key, value)
     override fun getInt(key: String, default: Int): Int = node.getInt(key, default)
     override fun putInt(key: String, value: Int) = node.putInt(key, value)
+    override fun getString(key: String, default: String): String = node.get(key, default)
+    override fun putString(key: String, value: String) = node.put(key, value)
 }
 
 // Our own child of the desktop settings node, apart from the app's own keys and from an installed copy of the upstream app.

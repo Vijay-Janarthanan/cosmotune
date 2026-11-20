@@ -93,16 +93,29 @@ import com.cosmotune.music.sharedui.resources.search_addons_hint
 import com.cosmotune.music.ui.components.MessageState
 import com.cosmotune.music.ui.components.songListSkeleton
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.testTag
+import com.cosmotune.ui.orbit.OrbitMenu
+import com.cosmotune.ui.orbit.OrbitMenuItem
+import com.cosmotune.music.data.model.BrowseType
 
 /**
- * Search in Orbit, with Explore inside it (Canvas repo, design/cosmotune/pages-orbit/board.html, section 3): one page that is,
- * by what the field holds, the idle page (recent searches as chips, then Explore's moods and genres as colour tiles), the
- * suggestions while typing, or the results. It takes [SearchSwitch]'s parameters, [browse] being Explore's moods and genres that
- * the root hands over; without it the idle page has recent searches only.
+ * The sources Search can ask (YouTube, the library, the add-ons): their names in [SearchSource] order, the one chosen, and what
+ * choosing one does. Drawn as one chip at the end of the search field ("YouTube ▾") that opens the menu of them.
+ */
+class SearchSources(val options: List<String>, val selected: Int, val onSelect: (Int) -> Unit)
+
+/**
+ * Search in Orbit, with Explore inside it (the Music board's 2a and 2b): one page that is, by what the field holds, the idle page
+ * (recent searches as one sideways row of chips, then Explore's moods and genres as 56 dp colour tiles), the suggestions while typing,
+ * or the results. It takes [SearchSwitch]'s parameters, [browse] being Explore's moods and genres that the root hands over; without
+ * it the idle page has recent searches only.
  *
- * A fixed column stands above the list: the big search pill (when [showField]), the source switcher while nothing is typed, the
- * "Search in" chips, and the filter chips once there is a result set to narrow. The list under it takes the bottom of
- * [contentPadding].
+ * A fixed column stands above the list: the search pill (when [showField]) with the source chip ([sources]) at its end, and under it
+ * one row of chips: the filters with their counts once there is a result set to narrow, then the "Search in" choices. The list under
+ * it takes the bottom of [contentPadding].
  */
 @Composable
 fun CosmoSearch(
@@ -142,7 +155,7 @@ fun CosmoSearch(
     searchingLibrary: Boolean = false,
     libraryResults: UiState<List<Song>>? = null,
     onLibrarySongClick: (List<Song>, Int) -> Unit = onSongClick,
-    sourceSwitcher: (@Composable () -> Unit)? = null,
+    sources: SearchSources? = null,
     searchingAddons: Boolean = false,
     addonResults: UiState<List<Song>>? = null,
     addonHistory: List<String> = emptyList(),
@@ -229,28 +242,22 @@ fun CosmoSearch(
                         fonts = fonts,
                         look = look,
                         focusRequester = focusRequester,
-                        modifier = Modifier.padding(start = side, end = side, top = 14.dp, bottom = 10.dp),
+                        modifier = Modifier.padding(start = side, end = side, top = 8.dp, bottom = 12.dp),
+                        trailing = sources?.let { { SourceChip(it, page) } },
                     )
                 }
-                if (sourceSwitcher != null) {
-                    AnimatedVisibility(
-                        visible = query.isEmpty(),
-                        enter = if (reduced) fadeIn(tween(Springs.REDUCED_MS)) else fadeIn() + expandVertically(),
-                        exit = if (reduced) fadeOut(tween(Springs.REDUCED_MS)) else fadeOut() + shrinkVertically(),
-                    ) {
-                        Box(Modifier.padding(start = side, end = side, bottom = 4.dp)) {
-                            sourceSwitcher()
-                        }
+                // One row of chips under the field: the filters (with counts, once there is a result set to narrow; they stay up
+                // for an empty or failed search too, or picking a filter that finds nothing would take away the control needed to
+                // leave it; they are YouTube's categories, so the Library source has none), then "Search in" (every installed
+                // source by name, the remembered choice selected; up while typing too, so where the query goes is chosen first).
+                val filtering = results != null && !suggesting && !searchingLibrary && !searchingAddons
+                val choosing = searchIn != null && !searchingLibrary
+                val counts = rememberFilterCounts(query, filter, results)
+                if (filtering || choosing) {
+                    OrbitChipRow(side, Modifier.padding(bottom = 12.dp).testTag("search:chips")) {
+                        if (filtering) SearchFilterChips(filter = filter, onFilterChange = onFilterChange, counts = counts, fonts = fonts, look = look)
+                        if (choosing) SearchInChipsInRow(requireNotNull(searchIn))
                     }
-                }
-                // "Search in": every installed source by name, the remembered choice selected. Up while typing too, so where the
-                // query goes is chosen before it is sent.
-                if (searchIn != null && !searchingLibrary) SearchInChips(searchIn, cosmo = true)
-                // The filters only mean something once there is a result set to narrow; they stay up for an empty or failed
-                // search too, or picking a filter that finds nothing would take away the control needed to leave it. They are
-                // YouTube's categories, so the Library source has none.
-                if (results != null && !suggesting && !searchingLibrary && !searchingAddons) {
-                    SearchFilterChips(filter = filter, onFilterChange = onFilterChange, fonts = fonts, look = look, side = side)
                 }
             }
 
@@ -281,7 +288,7 @@ fun CosmoSearch(
                                 fonts = fonts,
                                 look = look,
                                 onClick = { onAddonSongClick(tracks, index) },
-                                modifier = Modifier.padding(horizontal = side, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = side),
                                 onLongClick = { onSongLongPress(song) },
                                 onSwipe = { onSongSwipe(song) },
                                 now = current,
@@ -332,7 +339,7 @@ fun CosmoSearch(
                         onHistoryRemove = onHistoryRemove,
                         onHistoryClear = onHistoryClear,
                     )
-                    results is UiState.Loading -> songListSkeleton(circular = filter == SearchFilter.ARTISTS)
+                    results is UiState.Loading -> songListSkeleton()
                     results is UiState.Error -> item(key = "search:error") { MessageState(results.message) }
                     results is UiState.Success -> resultRows(
                         rows = results.data,
@@ -355,16 +362,73 @@ fun CosmoSearch(
 private val FILTER_ORDER = listOf(SearchFilter.ALL, SearchFilter.SONGS, SearchFilter.ALBUMS, SearchFilter.ARTISTS, SearchFilter.PLAYLISTS, SearchFilter.VIDEOS)
 
 /**
- * The filters as Orbit chips in a row that scrolls sideways, every filter the search offers. The chip plays the select haptic
- * itself, so only a tap that changes the filter buzzes.
+ * The filters as Orbit chips, every filter the search offers, each with its count where it is known ([rememberFilterCounts]). The
+ * chip plays the select haptic itself, so only a tap that changes the filter buzzes.
  */
 @Composable
-private fun SearchFilterChips(filter: SearchFilter, onFilterChange: (SearchFilter) -> Unit, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
+private fun SearchFilterChips(filter: SearchFilter, onFilterChange: (SearchFilter) -> Unit, counts: Map<SearchFilter, Int>, fonts: OrbitFonts, look: OrbitLook) {
     val entries = remember { SearchFilter.entries.sortedBy { FILTER_ORDER.indexOf(it).let { i -> if (i < 0) Int.MAX_VALUE else i } } }
-    OrbitChipRow(side, Modifier.padding(top = 4.dp, bottom = 10.dp)) {
-        entries.forEach { entry ->
-            OrbitSelectChip(entry.label, selected = entry == filter, fonts = fonts, look = look, onClick = { onFilterChange(entry) }, haptic = entry != filter)
+    entries.forEach { entry ->
+        OrbitSelectChip(entry.label, selected = entry == filter, fonts = fonts, look = look, onClick = { onFilterChange(entry) }, haptic = entry != filter, count = counts[entry])
+    }
+}
+
+/**
+ * How many of each kind the search found (namida's "Tracks 10 · Albums 1"): counted from the page of "All" for this query, and kept
+ * while a filter narrows it (a filter's own page then counts its own kind). "All" itself carries no count. A new query starts over.
+ */
+@Composable
+private fun rememberFilterCounts(query: String, filter: SearchFilter, results: UiState<List<SearchResult>>?): Map<SearchFilter, Int> {
+    val counts = remember(query.trim()) { androidx.compose.runtime.mutableStateMapOf<SearchFilter, Int>() }
+    val rows = (results as? UiState.Success)?.data
+    LaunchedEffect(rows, filter) {
+        if (rows == null) return@LaunchedEffect
+        if (filter == SearchFilter.ALL) {
+            searchKindCounts(rows).forEach { (kind, n) -> counts[kind] = n }
+        } else counts[filter] = rows.size
+    }
+    return counts
+}
+
+/** The filters and how many of the page of "All"'s [rows] each would show. */
+internal fun searchKindCounts(rows: List<SearchResult>): Map<SearchFilter, Int> {
+    val browse = rows.filterIsInstance<SearchResult.Browse>()
+    val songs = rows.count { (it is SearchResult.Track || it is SearchResult.TopTrack) && !it.isVideoRow() }
+    return buildMap {
+        put(SearchFilter.SONGS, songs)
+        put(SearchFilter.VIDEOS, rows.count { it.isVideoRow() })
+        put(SearchFilter.ALBUMS, browse.count { it.item.type == BrowseType.ALBUM })
+        put(SearchFilter.ARTISTS, browse.count { it.item.type == BrowseType.ARTIST })
+        put(SearchFilter.PLAYLISTS, browse.count { it.item.type == BrowseType.PLAYLIST })
+    }
+}
+
+private fun SearchResult.isVideoRow(): Boolean = when (this) {
+    is SearchResult.TopTrack -> song.isVideo
+    is SearchResult.Track -> song.isVideo
+    is SearchResult.Browse -> false
+}
+
+/** The source chip at the end of the field: the chosen source and a chevron, on the page's ground; it opens the menu of sources. */
+@Composable
+private fun SourceChip(sources: SearchSources, page: SearchPage) {
+    var open by remember { mutableStateOf(false) }
+    val label = sources.options.getOrNull(sources.selected).orEmpty()
+    Box {
+        Row(
+            Modifier.height(40.dp).clip(CircleShape).background(page.look.ground).clickable(role = Role.Button, onClickLabel = "Search in") { open = true }
+                .padding(start = 13.dp, end = 10.dp).testTag("search:source"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, style = page.fonts.chip.copy(fontSize = 13.sp), color = page.look.ink, maxLines = 1)
+            Spacer(Modifier.width(4.dp))
+            Icon(CosmoIcons.ChevronDown, contentDescription = null, tint = page.look.ink, modifier = Modifier.size(16.dp))
         }
+        OrbitMenu(
+            open = open, onDismiss = { open = false },
+            items = sources.options.mapIndexed { index, option -> OrbitMenuItem(option, selected = index == sources.selected) { sources.onSelect(index) } },
+            fonts = page.fonts, look = page.look, header = "Search in", width = 220.dp,
+        )
     }
 }
 
@@ -579,7 +643,7 @@ private fun LazyListScope.typeaheadRows(
             is SearchResult.TopTrack -> "ta:top:${result.song.videoId}"
         }
     }) { result ->
-        val m = Modifier.padding(horizontal = page.side, vertical = 4.dp)
+        val m = Modifier.padding(horizontal = page.side)
         when (result) {
             is SearchResult.Track -> TypeaheadSong(result.song, actions, onTypeaheadLongPress, isCurrentRow(result.song), page, m)
             is SearchResult.TopTrack -> TypeaheadSong(result.song, actions, onTypeaheadLongPress, isCurrentRow(result.song), page, m)

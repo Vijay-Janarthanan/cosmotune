@@ -30,10 +30,11 @@ class LibraryContractTest {
     @Test fun libraryScreenAndItsReplacementsTakeTheSameList() {
         val old = params(SourceContract.read(oldLibrary), "LibraryScreen")
         assertEquals(20, old.size, "the old screen's list was read (${old.size})")
-        // Orbit's Songs chip and the Liked card's Play add four, last and with defaults, for the new page only.
+        // Orbit's Songs chip, the Liked tile's Play and the History tile add five, last and with defaults, for the new page only.
         val orbit = listOf(
             "currentSong: Song? = null", "isPlaying: Boolean = false",
             "onSongClick: ((List<Song>, Int) -> Unit)? = null", "onSongLongPress: ((Song) -> Unit)? = null",
+            "onHistory: (() -> Unit)? = null",
         )
         assertEquals(old + orbit, params(lib("LibrarySwitch"), "LibrarySwitch"))
         assertEquals(old + orbit, params(lib("CosmoLibrary"), "CosmoLibrary"))
@@ -185,14 +186,18 @@ class LibraryContractTest {
         assertFalse(Regex("""\bif \(showTitle\)""").containsMatchIn(code), "the title shows on both platforms: showTitle is not read")
     }
 
-    @Test fun likedSongsLeadsAsTheColourCardWithPlayInItsBiteBesideTheDownloadedCard() {
+    @Test fun shortcutTilesLeadWithLikedDownloadsHistoryAndAPinnedPlaylist() {
         val code = SourceContract.code(lib("CosmoLibrary"))
-        val lead = SourceContract.functionBody(lib("CosmoLibrary"), "LeadCards")
-        assertTrue("OrbitBiteCard(fill = fill" in lead && "OrbitPlayButton(playing = false, onClick = play" in lead, "one card, Play in its bite")
-        assertTrue("coverFill(" in lead, "in its cover's colour")
-        assertTrue("onPlay(likedSongs, 0)" in lead && "liked?.let(onOpen)" in lead, "Play plays the liked songs, or opens the playlist")
-        assertTrue("Downloaded · on this device" in lead && "onClick = onDownloaded" in lead, "the quiet Downloaded card opens its chip")
+        val tiles = SourceContract.functionBody(lib("CosmoLibrary"), "ShortcutTiles")
+        assertTrue("ShortcutTile(\"Liked\"" in tiles && "coverFill(" in tiles, "Liked in its cover's colour")
+        assertTrue("OrbitPlayButton(playing = false, onClick = play" in tiles, "with a small Play")
+        assertTrue("onPlay(likedSongs, 0)" in tiles && "liked?.let(onOpen)" in tiles, "Play plays the liked songs, or opens the playlist")
+        assertTrue("ShortcutTile(\"Downloads\"" in tiles && "onClick = onDownloaded" in tiles, "Downloads opens its chip")
+        assertTrue("ShortcutTile(\"History\"" in tiles && "onClick = onHistory" in tiles, "History opens the history")
+        assertTrue("pinned.title" in tiles, "and the first pinned playlist")
+        assertTrue(".height(64.dp)" in SourceContract.functionBody(lib("CosmoLibrary"), "ShortcutTile"), "64 dp tiles")
         assertTrue("AppUi.host.downloadedIds().size" in code)
+        assertTrue("fun LibraryControls(" in code && "Find in" in code, "one control row with find in the library")
     }
 
     @Test fun everyPlaylistRowHasTheMoreButtonAndAHoldThatOpenTheSameMenu() {

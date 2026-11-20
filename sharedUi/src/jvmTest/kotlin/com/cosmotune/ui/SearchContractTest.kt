@@ -145,11 +145,12 @@ class SearchContractTest {
 
     @Test fun theFilterChipsAreTheOldFiltersAndComeUnderTheOldConditions() {
         val new = SourceContract.code(search("CosmoSearch"))
-        assertTrue("if (results != null && !suggesting && !searchingLibrary && !searchingAddons) {" in new)
+        assertTrue("val filtering = results != null && !suggesting && !searchingLibrary && !searchingAddons" in new)
         assertTrue("SearchFilter.entries.sortedBy { FILTER_ORDER.indexOf(it)" in new, "every filter the search offers, in the board's order")
-        // P4-19: the chip that is already chosen does not buzz again
-        assertTrue("OrbitSelectChip(entry.label, selected = entry == filter, fonts = fonts, look = look, onClick = { onFilterChange(entry) }, haptic = entry != filter)" in new)
-        assertTrue("visible = query.isEmpty()," in new, "the Library switcher is up only while nothing is typed, as the old")
+        // P4-19: the chip that is already chosen does not buzz again; each carries its count (the Music board's 2b)
+        assertTrue("OrbitSelectChip(entry.label, selected = entry == filter, fonts = fonts, look = look, onClick = { onFilterChange(entry) }, haptic = entry != filter, count = counts[entry])" in new)
+        assertTrue("OrbitChipRow(side, Modifier.padding(bottom = 12.dp).testTag(\"search:chips\"))" in new && "SearchInChipsInRow(" in new, "the filters and Search in share one row of chips")
+        assertTrue("trailing = sources?.let { { SourceChip(it, page) } }" in new, "the source is a chip at the end of the field")
         assertTrue("contentPadding.calculateBottomPadding()" in new, "the list takes the bottom of contentPadding")
         assertTrue("if (showField) {" in new && "OrbitSearchPill(" in new, "the big search pill heads the page")
     }
@@ -302,7 +303,7 @@ class SearchContractTest {
     @Test fun theResultPageUsesTheOrbitPiecesTheBoardNames() {
         val results = SourceContract.code(search("CosmoSearchResults"))
         for (needle in listOf(
-            "OrbitBiteCard(", "OrbitPlayButton(", "coverFill(cover, title)", "OrbitLabel(\"Top result · \$kind\"", "OrbitArtistDisc(", "OrbitSongRow(", "OrbitSongRowFor(",
+            "OrbitPageHeader(", "size = OrbitHeaderSize.RESULT", "label = \"Top result · \$kind\"", "OrbitArtistDisc(", "OrbitSongRow(", "OrbitSongRowFor(",
             "OrbitRecord(", "OrbitPortrait(", "CosmoIcons.Plus", "Res.string.playlist_action", "Res.string.cosmo_search_no_results_hint", "WIDE_SEARCH_DP",
             "Res.string.search_library_no_results", "Res.string.search_library_empty", "songListSkeleton(count = 3, keyPrefix = \"skeleton:search:more\"",
         )) assertTrue(needle in results, "CosmoSearchResults has $needle")

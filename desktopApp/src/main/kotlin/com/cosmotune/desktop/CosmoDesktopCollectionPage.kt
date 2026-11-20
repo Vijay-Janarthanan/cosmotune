@@ -90,8 +90,8 @@ import org.jetbrains.compose.resources.stringResource
 private val PAGE_PADDING_X = 28.dp
 private val PAGE_PADDING_TOP = 16.dp
 
-/** Rows are 8 dp apart, as Home's; room under the last row for whatever floats over the page. */
-private val ROW_GAP = 8.dp
+/** Rows are flat and touch (the flat row's own height is its rhythm); room under the last row for whatever floats over the page. */
+private val ROW_GAP = 0.dp
 private val PAGE_FOOT = 32.dp
 
 /**
@@ -163,7 +163,9 @@ internal fun CosmoDesktopCollectionPage(
             top = contentPadding.calculateTopPadding(),
         ),
     ) {
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
         LazyColumn(
+            state = listState,
             contentPadding = PaddingValues(start = PAGE_PADDING_X, top = PAGE_PADDING_TOP, end = PAGE_PADDING_X, bottom = PAGE_FOOT + bottom),
             verticalArrangement = Arrangement.spacedBy(ROW_GAP),
         ) {
@@ -260,6 +262,8 @@ internal fun CosmoDesktopCollectionPage(
                     onAddToPlaylist = onAddToPlaylist,
                     onRemove = onRemoveFromPlaylist?.takeIf { song.setVideoId != null },
                     reserveRemove = onRemoveFromPlaylist != null,
+                    // An album's rows carry their track numbers in place of its cover again.
+                    number = if (isAlbum) entry.index + 1 else null,
                 )
             }
             if (collection.continuation != null || collection.paginationError != null) {
@@ -281,6 +285,25 @@ internal fun CosmoDesktopCollectionPage(
                     }
                 }
             }
+        }
+        // Once the card has scrolled away, its heading stands at the top of the page: the disc, the title, Shuffle and Play.
+        val collapsed by remember(listState) { androidx.compose.runtime.derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+        if (collapsed && songs.isNotEmpty()) {
+            com.cosmotune.ui.orbit.OrbitCollapsedHeaderBar(
+                com.cosmotune.ui.orbit.OrbitCollapsedHeader(
+                    cover = collection.thumbnailUrl ?: songs.firstOrNull()?.thumbnailUrl, title = collection.title, subtitle = null,
+                    playing = ArtistPlay.showsPause(songs, nowPlaying, isPlaying),
+                    onPlay = {
+                        when (ArtistPlay.tap(songs, nowPlaying, canToggle = onPlayPause != null)) {
+                            ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()
+                            ArtistPlay.Tap.PLAY_LIST -> if (queue.isNotEmpty()) onPlaySongs(queue, 0)
+                        }
+                    },
+                    onShuffle = { if (queue.isNotEmpty()) onShuffle(queue) },
+                ),
+                Modifier.align(Alignment.TopCenter),
+                side = PAGE_PADDING_X,
+            )
         }
     }
 }
@@ -454,6 +477,7 @@ private fun CollectionTrackRow(
     onRemove: ((Song) -> Unit)?,
     reserveRemove: Boolean,
     selected: Boolean? = null,
+    number: Int? = null,
 ) {
     val palette = LocalCosmoColors.current.palette
     val type = LocalCosmoType.current
@@ -469,6 +493,7 @@ private fun CollectionTrackRow(
         now = isCurrent,
         playing = isCurrent && isPlaying,
         selected = selected,
+        number = number,
         showQuality = true,
         modifier = Modifier
             .fillMaxWidth()

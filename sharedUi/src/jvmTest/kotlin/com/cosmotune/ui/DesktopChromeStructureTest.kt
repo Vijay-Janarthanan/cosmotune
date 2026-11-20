@@ -188,12 +188,15 @@ class DesktopChromeStructureTest {
         val text = app
         val call = text.indexOf("com.cosmotune.ui.shell.CosmoBottomChrome(")
         assertTrue(call >= 0, "the shared chrome is called")
-        assertEquals("bottomBar = { compact ->", text.substring(text.lastIndexOf("bottomBar = {", call), call).trim(), "it is the whole of the lambda's start")
+        assertEquals("bottomBar = { showTabs ->", text.substring(text.lastIndexOf("bottomBar = {", call), call).trim(), "it is the whole of the lambda's start")
         val between = callFrom(text, call)
         assertEquals("}", text.substring(call + between.length).trimStart().take(1), "and nothing follows it in the lambda")
-        // DESIGN_SYSTEM.md 5.2: Home, Explore, Releases and Library; Search is the top bar's button.
-        for (key in listOf("\"home\"", "SharedRes.string.explore", "SharedRes.string.cosmo_releases", "\"library\"")) assertTrue(key in between, "the tab label $key")
-        assertTrue("\"search\"" !in between, "no Search tab")
+        // The navigation rule: Home, Explore, Releases and Library (desktopMusicTabs), Search the round button beside them.
+        assertTrue("tabs = desktopMusicTabs()," in between, "the four tabs")
+        val tabs = SourceContract.functionBody(text, "desktopMusicTabs")
+        for (key in listOf("\"home\"", "SharedRes.string.explore", "SharedRes.string.cosmo_releases", "\"library\"")) assertTrue(key in tabs, "the tab label $key")
+        assertTrue("\"search\"" !in tabs, "no Search tab")
+        assertTrue("search = com.cosmotune.ui.shell.CosmoNavSearch(" in between, "Search is the round button beside the tabs")
         assertTrue("selectedIndex = MUSIC_DOCK.indexOf(destination)," in between, "the selected tab; any other page lights nothing")
         assertTrue("listOf(DesktopDestination.LISTEN_NOW, DesktopDestination.EXPLORE, DesktopDestination.RELEASES, DesktopDestination.LIBRARY)" in text, "the dock's order")
         assertTrue("onTabSelected" in between && "selectDestination(" in between, "a tab selects its destination")

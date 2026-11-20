@@ -1,5 +1,9 @@
 package com.cosmotune.ui.search
 
+import androidx.compose.ui.platform.testTag
+import com.cosmotune.ui.orbit.OrbitSpace
+import com.cosmotune.ui.orbit.OrbitHeaderSize
+import com.cosmotune.ui.orbit.OrbitPageHeader
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -177,7 +181,7 @@ internal fun LazyListScope.resultRows(
     if (top != null) {
         item(key = "search:top-result:${topKey(top)}") {
             if (page.wide) WideTopAndSongs(top, songs?.rows.orEmpty(), tracks, actions, page)
-            else TopResultCard(top, actions, page, Modifier.padding(horizontal = page.side).padding(top = 8.dp).fillMaxWidth().height(250.dp))
+            else TopResultCard(top, actions, page, Modifier.padding(horizontal = page.side).padding(top = 4.dp).fillMaxWidth())
         }
     }
     for (section in sections) {
@@ -189,7 +193,7 @@ internal fun LazyListScope.resultRows(
         }
     }
     if (loadingMore) {
-        songListSkeleton(count = 3, keyPrefix = "skeleton:search:more", circular = filter == SearchFilter.ARTISTS)
+        songListSkeleton(count = 3, keyPrefix = "skeleton:search:more")
     }
 }
 
@@ -202,7 +206,7 @@ private fun topKey(top: SearchResult): String = when (top) {
 /** A section's heading in the wide face. */
 private fun LazyListScope.sectionTitle(key: String, title: StringResource, page: SearchPage) {
     item(key = key) {
-        OrbitSectionHeader(stringResource(title), "", page.fonts, page.look, Modifier.padding(horizontal = page.side + 6.dp).padding(top = 28.dp, bottom = 12.dp))
+        OrbitSectionHeader(stringResource(title), "", page.fonts, page.look, Modifier.padding(horizontal = page.side + 4.dp).padding(top = OrbitSpace.section, bottom = OrbitSpace.sectionToContent))
     }
 }
 
@@ -211,7 +215,7 @@ private fun LazyListScope.songSection(section: SearchSection, tracks: List<Song>
     sectionTitle("search-section:${section.kind}", requireNotNull(section.kind.title), page)
     itemsIndexed(section.rows, key = { index, row -> rowKey(row, index) }) { _, row ->
         val song = (row as? SearchResult.Track)?.song ?: return@itemsIndexed
-        SearchSongRow(song, tracks, actions, page, Modifier.padding(horizontal = page.side, vertical = 4.dp))
+        SearchSongRow(song, tracks, actions, page, Modifier.padding(horizontal = page.side))
     }
 }
 
@@ -233,12 +237,12 @@ private fun LazyListScope.recordShelf(section: SearchSection, actions: SearchRow
         val state = rememberLazyListState()
         LazyRow(
             state = state,
-            contentPadding = PaddingValues(horizontal = page.side + 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            contentPadding = PaddingValues(horizontal = page.side),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             flingBehavior = rememberShelfFlingBehavior(state),
             verticalAlignment = Alignment.Top,
         ) {
-            itemsIndexed(items, key = { index, item -> "release_${item.browseId}_$index" }) { _, item -> SearchRecord(item, actions, page, if (page.wide) 150.dp else 140.dp) }
+            itemsIndexed(items, key = { index, item -> "release_${item.browseId}_$index" }) { _, item -> SearchRecord(item, actions, page, if (page.wide) 140.dp else 124.dp) }
         }
     }
 }
@@ -251,8 +255,8 @@ private fun LazyListScope.portraitShelf(section: SearchSection, actions: SearchR
         val state = rememberLazyListState()
         LazyRow(
             state = state,
-            contentPadding = PaddingValues(horizontal = page.side + 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = page.side),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             flingBehavior = rememberShelfFlingBehavior(state),
             verticalAlignment = Alignment.Top,
         ) {
@@ -292,13 +296,13 @@ private fun LazyListScope.plainSection(section: SearchSection, tracks: List<Song
     val songs = section.rows.withIndex().filter { it.value is SearchResult.Track || it.value is SearchResult.TopTrack }
     itemsIndexed(songs, key = { _, row -> rowKey(row.value, row.index) }) { _, row ->
         val song = when (val r = row.value) { is SearchResult.Track -> r.song; is SearchResult.TopTrack -> r.song; else -> return@itemsIndexed }
-        SearchSongRow(song, tracks, actions, page, Modifier.padding(horizontal = page.side, vertical = 4.dp))
+        SearchSongRow(song, tracks, actions, page, Modifier.padding(horizontal = page.side))
     }
     val grid = section.rows.filterIsInstance<SearchResult.Browse>().map { it.item }.chunked(page.columns)
     itemsIndexed(grid, key = { index, row -> "grid_${row.first().browseId}_$index" }) { index, row ->
         Row(
-            Modifier.fillMaxWidth().padding(start = page.side, end = page.side, top = if (index == 0) 8.dp else 22.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            Modifier.fillMaxWidth().padding(start = page.side, end = page.side, top = if (index == 0) 8.dp else 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             row.forEach { item -> SearchRecord(item, actions, page, page.cell) }
         }
@@ -379,7 +383,7 @@ internal fun LazyListScope.libraryRows(
                     fonts = page.fonts,
                     look = page.look,
                     onClick = { onSongClick(tracks, index) },
-                    modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = page.side),
                     onLongClick = { onSongLongPress(song) },
                     onSwipe = { onSongSwipe(song) },
                     now = current,
@@ -396,18 +400,18 @@ internal fun LazyListScope.libraryRows(
 // the top result
 
 /**
- * The promoted hit as the colour card in its cover's colour: the cover as a disc (an artist's plays Apple's motion portrait when
- * there is one and it may play), the mono "TOP RESULT · SONG" label, the title and the line under it, and Play in the bite. A
- * song also has the round add-to-playlist button. A tap does what Play does; a hold (or a right click) opens the menu. Narrow, the
- * disc stands at the top and the words at the foot; wide, the words stand beside the disc.
+ * The top result as the compact header in its smaller size ([OrbitHeaderSize.RESULT], the Music board's 2b): 120 dp, the cover as an
+ * 80 dp disc (an artist's picture for an artist) beside "TOP RESULT · SONG", the title and who made it; for a song a round + in the
+ * card's top-end corner adds it to a playlist, and Play stands in the bite. A tap plays the song or opens the page; a hold opens the
+ * menu.
  */
 @Composable
 private fun TopResultCard(top: SearchResult, actions: SearchRowActions, page: SearchPage, modifier: Modifier) {
-    val fonts = page.fonts
     val song = (top as? SearchResult.TopTrack)?.song ?: (top as? SearchResult.Track)?.song
     val item = (top as? SearchResult.Browse)?.item
     val title = song?.title ?: item?.title.orEmpty()
-    val subtitle = song?.artist ?: item?.let { it.subtitle.ifBlank { typeLabel(it.type.name) } }.orEmpty()
+    val subtitle = song?.let { listOfNotNull(it.artist.takeIf(String::isNotBlank), it.durationText).joinToString(" · ") }
+        ?: item?.let { it.subtitle.ifBlank { typeLabel(it.type.name) } }.orEmpty()
     val cover = song?.thumbnailUrl ?: item?.thumbnailUrl
     val kind = when {
         song != null -> if (song.isVideo) "Video" else "Song"
@@ -416,38 +420,19 @@ private fun TopResultCard(top: SearchResult, actions: SearchRowActions, page: Se
         item?.type == BrowseType.PLAYLIST -> "Playlist"
         else -> "Result"
     }
-    val (fill, ink) = coverFill(cover, title)
     val open: () -> Unit = { if (song != null) actions.onTopResultPlay(song) else if (item != null) actions.onBrowseClick(item) }
     val hold: (() -> Unit)? = when {
         song != null -> ({ actions.onSongLongPress(song) })
         item != null -> holdFor(item, actions)
         else -> null
     }
-    OrbitBiteCard(fill = fill, modifier = modifier, bite = { OrbitPlayButton(playing = false, onClick = open, look = page.look) }) {
-        Box(Modifier.fillMaxSize().longPressMenuClickable(onClick = open, onLongClick = hold).contextClick(hold))
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val beside = maxWidth >= 380.dp && maxHeight < 240.dp
-            val discSize = if (beside) 110.dp else 104.dp
-            val disc: @Composable (Modifier) -> Unit = { m ->
-                if (item?.type == BrowseType.ARTIST) OrbitArtistDisc(item.title, cover, discSize, m, artistIdentity = item.browseId) else Disc(cover, discSize, m)
-            }
-            val words: @Composable (Modifier) -> Unit = { m ->
-                Column(m) {
-                    OrbitLabel("Top result · $kind", fonts, ink.copy(alpha = 0.75f))
-                    Text(title, style = fonts.heroTitle, color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
-                    if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body.copy(fontSize = 13.5.sp), color = ink.copy(alpha = 0.85f), maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-                }
-            }
-            disc(Modifier.padding(start = 22.dp, top = 22.dp))
-            if (beside) words(Modifier.padding(start = 150.dp, top = 30.dp, end = if (song != null) 64.dp else 22.dp))
-            else words(Modifier.align(Alignment.BottomStart).padding(start = 22.dp, bottom = 22.dp, end = 100.dp))
-            if (song != null) {
-                OrbitRoundButton(CosmoIcons.Plus, stringResource(Res.string.playlist_action), ink, onClick = { actions.onTopResultPlaylist(song) },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(14.dp))
-            }
-        }
-    }
+    val addLabel = stringResource(Res.string.playlist_action)
+    OrbitPageHeader(
+        cover = cover, label = "Top result · $kind", title = title, subtitle = subtitle, playing = false, onPlay = open,
+        modifier = modifier.testTag("search:top-result"), size = OrbitHeaderSize.RESULT, onClick = open, onLongClick = hold,
+        lead = if (item?.type == BrowseType.ARTIST) { _ -> OrbitArtistDisc(item.title, cover, OrbitHeaderSize.RESULT.disc, artistIdentity = item.browseId) } else null,
+        corner = if (song != null) { colors -> OrbitRoundButton(CosmoIcons.Plus, addLabel, colors.ink, onClick = { actions.onTopResultPlaylist(song) }, size = 36.dp, touch = 48.dp) } else null,
+    )
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -457,7 +442,7 @@ private fun TopResultCard(top: SearchResult, actions: SearchRowActions, page: Se
 @Composable
 private fun WideTopAndSongs(top: SearchResult, songRows: List<SearchResult>, tracks: List<Song>, actions: SearchRowActions, page: SearchPage) {
     Row(Modifier.fillMaxWidth().padding(horizontal = page.side).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        TopResultCard(top, actions, page, Modifier.weight(1f).height(210.dp))
+        TopResultCard(top, actions, page, Modifier.weight(1f))
         Column(Modifier.weight(1.2f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             songRows.forEachIndexed { index, row ->
                 val song = (row as? SearchResult.Track)?.song ?: return@forEachIndexed

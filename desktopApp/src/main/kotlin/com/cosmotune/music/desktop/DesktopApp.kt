@@ -393,6 +393,18 @@ internal fun desktopTypography(): Typography {
 /** The new look's dock in a compact window, in its order (DESIGN_SYSTEM.md 5.2). */
 private val MUSIC_DOCK get() = listOf(DesktopDestination.LISTEN_NOW, DesktopDestination.EXPLORE, DesktopDestination.RELEASES, DesktopDestination.LIBRARY)
 
+/** Music's four tabs on the desktop's bottom bar and rail, with Releases' unread count. */
+@Composable
+private fun desktopMusicTabs(): List<com.cosmotune.ui.shell.CosmoTab> {
+    val unread = com.cosmotune.ui.listening.rememberUnreadReleases(com.cosmotune.desktop.desktopListeningFile())
+    return listOf(
+        com.cosmotune.ui.shell.CosmoTab(DesktopStrings["home", "Home"], com.cosmotune.ui.components.CosmoIcons.Home, com.cosmotune.ui.components.CosmoIcons.HomeFill),
+        com.cosmotune.ui.shell.CosmoTab(org.jetbrains.compose.resources.stringResource(SharedRes.string.explore), com.cosmotune.ui.components.CosmoIcons.Explore, com.cosmotune.ui.components.CosmoIcons.ExploreFill),
+        com.cosmotune.ui.shell.CosmoTab(org.jetbrains.compose.resources.stringResource(SharedRes.string.cosmo_releases), com.cosmotune.ui.components.CosmoIcons.Bell, com.cosmotune.ui.components.CosmoIcons.BellFill, count = unread),
+        com.cosmotune.ui.shell.CosmoTab(DesktopStrings["library", "Library"], com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.LibraryFill),
+    )
+}
+
 private enum class DesktopDestination(val id: String, val label: String) {
     LISTEN_NOW("listen-now", "Home"),
     EXPLORE("explore", "Explore"),
@@ -3361,6 +3373,14 @@ fun CosmotuneDesktopApp() {
         }
     }
 
+    // Undo of a removal: the song back at the place it had (never before the one playing).
+    fun restoreToQueue(song: Song, at: Int) {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        liveQueue = liveQueue.insert(at.coerceAtLeast(liveQueue.index + 1), song)
+        saveQueue()
+        partySyncHolder[0]?.onLocalIntent()
+    }
+
     fun moveInQueue(from: Int, to: Int) {
         if (DesktopListenTogether.state.value.controlsLocked) return
         val edited = liveQueue.move(from, to)
@@ -3794,16 +3814,34 @@ fun CosmotuneDesktopApp() {
                         onSearchFocused = { searchFocusRequested = false },
                     )
                 },
-                bottomBar = { compact ->
-                    com.cosmotune.ui.shell.CosmoBottomChrome(
-                        tabs = listOf(
-                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["home", "Home"], com.cosmotune.ui.components.CosmoIcons.Home, com.cosmotune.ui.components.CosmoIcons.HomeFill),
-                            com.cosmotune.ui.shell.CosmoTab(org.jetbrains.compose.resources.stringResource(SharedRes.string.explore), com.cosmotune.ui.components.CosmoIcons.Explore, com.cosmotune.ui.components.CosmoIcons.ExploreFill),
-                            com.cosmotune.ui.shell.CosmoTab(org.jetbrains.compose.resources.stringResource(SharedRes.string.cosmo_releases), com.cosmotune.ui.components.CosmoIcons.Bell, com.cosmotune.ui.components.CosmoIcons.BellFill),
-                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["library", "Library"], com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.LibraryFill),
-                        ),   // DESIGN_SYSTEM.md 5.2: Search is not a tab, it is the top bar's button
+                rail = {
+                    com.cosmotune.ui.shell.CosmoNavRail(
+                        tabs = desktopMusicTabs(),
                         selectedIndex = MUSIC_DOCK.indexOf(destination),
                         onTabSelected = { index -> selectDestination(MUSIC_DOCK[index]) },
+                        modifier = Modifier.fillMaxHeight(),
+                        search = com.cosmotune.ui.shell.CosmoNavSearch(
+                            DesktopStrings["search", "Search"], selected = destination == DesktopDestination.SEARCH && overlays.settingsPage == null,
+                            onClick = { selectDestination(DesktopDestination.SEARCH); searchFocusRequested = true },
+                        ),
+                        footer = {
+                            com.cosmotune.ui.orbit.OrbitRoundButton(
+                                com.cosmotune.ui.components.CosmoIcons.Settings, DesktopStrings["settings", "Settings"],
+                                com.cosmotune.ui.orbit.orbitLook().ink, onClick = ::openSettings, size = 44.dp,
+                            )
+                        },
+                    )
+                },
+                bottomBar = { showTabs ->
+                    com.cosmotune.ui.shell.CosmoBottomChrome(
+                        tabs = desktopMusicTabs(),
+                        selectedIndex = MUSIC_DOCK.indexOf(destination),
+                        onTabSelected = { index -> selectDestination(MUSIC_DOCK[index]) },
+                        showTabs = showTabs,
+                        search = com.cosmotune.ui.shell.CosmoNavSearch(
+                            DesktopStrings["search", "Search"], selected = destination == DesktopDestination.SEARCH && overlays.settingsPage == null,
+                            onClick = { selectDestination(DesktopDestination.SEARCH); searchFocusRequested = true },
+                        ),
                         song = selectedSong,
                         isPlaying = playback.isPlaying,
                         isLoading = playback.isLoading,
@@ -3859,6 +3897,9 @@ fun CosmotuneDesktopApp() {
                                 isPlaying = playback.isPlaying,
                                 progress = { livePlayhead.fraction(playback.durationMs) },
                                 onToggleAutoplay = { setAutoplay(!DesktopAutoplay.enabled(partyState, autoplay)) },
+                                onRestore = ::restoreToQueue,
+                                // In the order chosen: each goes in right after the one playing, so the last first.
+                                onPlayNext = { songs -> songs.asReversed().forEach(::playNext) },
                             )
                         }
                     }
@@ -4930,26 +4971,24 @@ fun CosmotuneDesktopApp() {
                             // Orbit's big search pill heads the page, bound to the same query as the sidebar's field.
                             showField = true,
                             // YouTube Music or the add-ons, as on the phone (the desktop's library has its own page and search).
-                            sourceSwitcher = {
-                                com.cosmotune.ui.components.CosmoSegmented(
-                                    options = listOf(
-                                        DesktopStrings["search_source_youtube", "YouTube"],
-                                        DesktopStrings["search_source_addons", "Addons"],
-                                    ),
-                                    selectedIndex = if (searchAddons) 1 else 0,
-                                    onSelect = { index ->
-                                        val addons = index == 1
-                                        if (addons != searchAddons) {
-                                            searchAddons = addons
-                                            DesktopSearchIn.select(if (addons) DesktopSearchIn.lastAddonChoice else AddonSearch.YOUTUBE)
-                                            searchSuggestions = emptyList()
-                                            searchTypeahead = emptyList()
-                                            searchScrollReset++
-                                            if (query.isNotBlank()) search()
-                                        }
-                                    },
-                                )
-                            },
+                            sources = com.cosmotune.ui.search.SearchSources(
+                                options = listOf(
+                                    DesktopStrings["search_source_youtube", "YouTube"],
+                                    DesktopStrings["search_source_addons", "Addons"],
+                                ),
+                                selected = if (searchAddons) 1 else 0,
+                                onSelect = { index ->
+                                    val addons = index == 1
+                                    if (addons != searchAddons) {
+                                        searchAddons = addons
+                                        DesktopSearchIn.select(if (addons) DesktopSearchIn.lastAddonChoice else AddonSearch.YOUTUBE)
+                                        searchSuggestions = emptyList()
+                                        searchTypeahead = emptyList()
+                                        searchScrollReset++
+                                        if (query.isNotBlank()) search()
+                                    }
+                                },
+                            ),
                             searchingAddons = searchAddons,
                             addonResults = addonResults,
                             addonHistory = addonHistory,
@@ -5043,6 +5082,7 @@ fun CosmotuneDesktopApp() {
                             isPlaying = playback.isPlaying,
                             onSongClick = { songs, index -> playSongs(songs, index, source = DesktopQueueSource(DesktopStrings["library", "Library"], PlaybackSourceType.BROWSE)) },
                             onSongLongPress = ::openMenu,
+                            onHistory = { selectDestination(DesktopDestination.HISTORY) },
                         )
                         // Orbit's History (board batch-a 1): the rows under their day labels, the stat card beside them.
                         destination == DesktopDestination.HISTORY -> {
@@ -5266,6 +5306,9 @@ private fun DesktopFrame(
     /** A notice under the top bar, in the page's flow: it pushes the page down rather than lying over it. */
     notice: @Composable () -> Unit = {},
     sidebar: @Composable () -> Unit,
+    /** The tabs as the side rail, for a window from 600 dp to the sidebar's width (the navigation rule, CosmoNav). */
+    rail: @Composable () -> Unit,
+    /** The bottom chrome, with its tabs (true, under 600 dp) or the mini player alone beside the rail (false). */
     bottomBar: @Composable (Boolean) -> Unit,
     /** The column on the far side of the page — the lyrics or the queue, when one is open. */
     trailing: @Composable () -> Unit = {},
@@ -5283,7 +5326,9 @@ private fun DesktopFrame(
     // material is, so none of them stands on the raw material or on a flat slab; the material shows through under the title bar only.
     val maximized by DesktopWindowMode.maximized.collectAsState()
     val roundCorners = DesktopPlatform.isMac && !maximized
-    CompositionLocalProvider(LocalDesktopHaze provides haze) {
+    // The window's one "Removed · Undo" snackbar: the bottom chrome draws it in a narrow window, the frame over the player bar here.
+    val orbitUndo = com.cosmotune.ui.orbit.rememberOrbitUndo()
+    CompositionLocalProvider(LocalDesktopHaze provides haze, com.cosmotune.ui.orbit.LocalOrbitUndo provides orbitUndo) {
         Box(
             modifier
                 .fillMaxSize()
@@ -5302,10 +5347,14 @@ private fun DesktopFrame(
                     if (glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val compact = maxWidth < 980.dp
+                        // The navigation rule (CosmoNav): under 600 dp the bottom bar, from 600 dp the side rail, and from the
+                        // sidebar's width the full sidebar.
+                        val railed = compact && com.cosmotune.ui.shell.CosmoNav.usesRail(maxWidth)
                         // The sidebar runs the full height of the window, its head the window's
                         // caption; the player's bar and the page share the column beside it.
                         Row(Modifier.fillMaxSize()) {
                             if (!compact) sidebar()
+                            if (railed) rail()
                             Column(Modifier.weight(1f).fillMaxHeight()) {
                             topBar(compact)
                             notice()
@@ -5327,7 +5376,13 @@ private fun DesktopFrame(
                                         )
                                     }
                                     if (compact) {
-                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(true) }
+                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(!railed) }
+                                    } else {
+                                        com.cosmotune.ui.orbit.OrbitUndoHost(
+                                            orbitUndo,
+                                            Modifier.align(Alignment.BottomCenter).widthIn(max = 520.dp).padding(horizontal = 16.dp)
+                                                .padding(bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(false, songShown = LocalNowPlaying.current != null).dp),
+                                        )
                                     }
                                 }
                                 Box(

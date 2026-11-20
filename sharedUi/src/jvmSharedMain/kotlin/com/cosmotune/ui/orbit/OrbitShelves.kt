@@ -57,8 +57,8 @@ import com.cosmotune.ui.components.CosmoIcons
 // ---- rows -----------------------------------------------------------------------------------------------------------------------
 
 /**
- * A row of a ranking (a chart, an artist's top songs): [OrbitSongRow] with no fill of its own, the place as a big narrow number in
- * its [leading] (the first in peach) and a 48 dp disc. The playing row ([now]) has its title in peach and the orbit round its disc.
+ * A row of a ranking (a chart, an artist's top songs): the flat [OrbitSongRow] at the list's row height, the place as a 28 sp narrow
+ * number in its [leading] (the first in peach) and the row's disc. The playing row ([now]) has its title in peach and the orbit round its disc.
  * A null [onClick] with no [onLongClick] leaves the row inert (a Replay story's runners-up, where a tap turns the page).
  */
 @Composable
@@ -81,11 +81,11 @@ internal fun OrbitRankedRow(
 ) {
     OrbitSongRow(
         title, subtitle, cover, fonts, look, onClick, modifier.fillMaxWidth(), now = now, playing = playing, onLongClick = onLongClick,
-        icon = icon, height = 66.dp, discSize = 48.dp, gap = 6.dp, radius = 18.dp, plain = true, endPadding = 6.dp, trailingText = trailingText, trailing = trailing,
+        icon = icon, gap = 6.dp, trailingText = trailingText, trailing = trailing,
         leading = {
             Text(
-                "$rank", style = fonts.number.copy(fontSize = 40.sp, lineHeight = 40.sp), color = if (rank == 1) look.accent else look.ink.copy(alpha = 0.3f),
-                modifier = Modifier.padding(start = 2.dp).width(52.dp),
+                "$rank", style = fonts.number.copy(fontSize = 28.sp, lineHeight = 28.sp), color = if (rank == 1) look.accent else look.ink.copy(alpha = 0.3f),
+                modifier = Modifier.padding(start = 2.dp).width(36.dp),
             )
         },
     )
@@ -125,7 +125,7 @@ internal fun OrbitRecord(
     modifier: Modifier = Modifier,
     onPlay: (() -> Unit)? = onClick,
     onLongClick: (() -> Unit)? = null,
-    size: Dp = 152.dp,
+    size: Dp = ORBIT_RAIL_RECORD,
 ) {
     Column(modifier.width(size).longPressMenuClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick)) {
         Box(Modifier.size(size)) {
@@ -133,10 +133,15 @@ internal fun OrbitRecord(
             // Play is a small moon on the disc's edge, so the cover itself stays clear.
             if (onPlay != null) DiscPlayMoon(look, onPlay, size = if (size < 130.dp) 38.dp else 44.dp)
         }
-        Text(title, style = fonts.title, color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+        // A grid's small record (under 130 dp) keeps its title to one line, 8 dp under the disc; a rail's gets two lines.
+        val small = size < 130.dp
+        Text(title, style = fonts.title, color = look.ink, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (small) 8.dp else 12.dp))
         if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
+
+/** The record of a sideways rail: 140 dp (a grid's are narrower, [orbitRecordGrid]). */
+internal val ORBIT_RAIL_RECORD = 140.dp
 
 /** Albums as a row of records (Home's disc row). */
 @Composable
@@ -148,9 +153,9 @@ internal fun OrbitRecordRow(
     onClick: (ShelfItem) -> Unit,
     onLongClick: ((ShelfItem) -> Unit)? = null,
     onPlay: (ShelfItem) -> Unit = onClick,
-    size: Dp = 152.dp,
+    size: Dp = ORBIT_RAIL_RECORD,
 ) {
-    OrbitShelfRow(side + 4.dp, 18.dp) {
+    OrbitShelfRow(side, 12.dp) {
         itemsIndexed(items, key = { i, it -> shelfItemKey(it, i) }) { _, item ->
             OrbitRecord(item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, onPlay = { onPlay(item) },
                 onLongClick = onLongClick?.let { { it(item) } }, size = size)

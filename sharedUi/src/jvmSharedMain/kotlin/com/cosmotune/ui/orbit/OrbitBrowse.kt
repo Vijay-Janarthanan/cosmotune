@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -95,8 +97,9 @@ import kotlin.math.abs
 // ---- the search pill ---------------------------------------------------------------------------------------------------------
 
 /**
- * The page's search field: a 60 dp pill in ink at 8 %, the magnifier, the text, and a round clear button once something is typed.
- * A header's pill is lower ([height]) and may show its shortcut ([keyHint], "Ctrl K") while empty; [onFocusChanged] follows the field.
+ * The page's search field: a 52 dp pill in ink at 8 %, the magnifier, the text, a round clear button once something is typed, and
+ * [trailing] at its end (Search's source chip, "YouTube ▾"). A header's pill is lower ([height]) and may show its shortcut ([keyHint],
+ * "Ctrl K") while empty; [onFocusChanged] follows the field.
  */
 @Composable
 fun OrbitSearchPill(
@@ -108,9 +111,10 @@ fun OrbitSearchPill(
     look: OrbitLook,
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
-    height: Dp = 60.dp,
+    height: Dp = 52.dp,
     keyHint: String? = null,
     onFocusChanged: ((Boolean) -> Unit)? = null,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -141,7 +145,11 @@ fun OrbitSearchPill(
         } else if (keyHint != null) {
             OrbitLabel(keyHint, fonts, look.dim, Modifier.clip(CircleShape).background(look.chip).padding(horizontal = 10.dp, vertical = 5.dp))
             Spacer(Modifier.width(6.dp))
-        } else Spacer(Modifier.width(12.dp))
+        } else if (trailing == null) Spacer(Modifier.width(12.dp))
+        if (trailing != null) {
+            Spacer(Modifier.width(6.dp))
+            trailing()
+        }
     }
 }
 
@@ -159,6 +167,8 @@ fun OrbitSelectChip(
     icon: ImageVector? = null,
     painter: Painter? = null,
     haptic: Boolean = true,
+    /** A count after the title in the mono face (a tab's "Songs 20"); left out when null. */
+    count: Int? = null,
 ) {
     val haptics = rememberHaptics()
     val ink = if (selected) look.ground else look.ink
@@ -171,6 +181,10 @@ fun OrbitSelectChip(
         if (icon != null) { Icon(icon, contentDescription = null, tint = if (selected) ink else look.accent, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }
         if (painter != null) { Icon(painter, contentDescription = null, tint = Color.Unspecified, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }
         Text(title, style = fonts.chip, color = ink, maxLines = 1)
+        if (count != null) {
+            Spacer(Modifier.width(6.dp))
+            OrbitCount(count, fonts, ink.copy(alpha = 0.62f))
+        }
     }
 }
 
@@ -185,24 +199,29 @@ fun OrbitChipRow(side: Dp, modifier: Modifier = Modifier, content: @Composable R
     )
 }
 
-/** A page's heading, as Home's greeting: the mono [label] (none when empty) over the [title] in the wide face with its peach full stop, [trailing] at the end; a long title wraps to [maxLines]. */
+/**
+ * A page's heading (the boards' `.ph`): one row with the mono [label] at its start and [trailing] (round buttons) at its end, 40 dp
+ * tall, and under it the [title] at 30 sp in the wide face with its peach full stop; a long title wraps to [maxLines]. With no label
+ * and no trailing the title stands alone.
+ */
 @Composable
 fun OrbitPageHeading(title: String, label: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, maxLines: Int = 1, trailing: (@Composable RowScope.() -> Unit)? = null) {
-    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        Column(Modifier.weight(1f)) {
-            if (label.isNotEmpty()) {
-                OrbitLabel(label, fonts, look.dim)
-                Spacer(Modifier.height(10.dp))
+    Column(modifier.fillMaxWidth()) {
+        if (label.isNotEmpty() || trailing != null) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OrbitLabel(label, fonts, look.dim, Modifier.weight(1f))
+                if (trailing != null) trailing()
             }
-            Text(
-                androidx.compose.ui.text.buildAnnotatedString {
-                    append(title)
-                    pushStyle(androidx.compose.ui.text.SpanStyle(color = look.accent)); append("."); pop()
-                },
-                style = fonts.greeting, color = look.ink, maxLines = maxLines, overflow = TextOverflow.Ellipsis,
-            )
+            Spacer(Modifier.height(2.dp))
         }
-        if (trailing != null) trailing()
+        Text(
+            androidx.compose.ui.text.buildAnnotatedString {
+                append(title)
+                pushStyle(androidx.compose.ui.text.SpanStyle(color = look.accent)); append("."); pop()
+            },
+            style = fonts.greeting, color = look.ink, maxLines = maxLines, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.semantics { heading() },
+        )
     }
 }
 
@@ -237,6 +256,7 @@ internal fun OrbitSongRowFor(
     subtitle: String = song.artist,
     selected: Boolean? = null,
     downloadedTint: Color? = null,
+    number: Int? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val pending = song.isMatchPending
@@ -245,11 +265,17 @@ internal fun OrbitSongRowFor(
     val row: @Composable (Modifier) -> Unit = { m ->
         OrbitSongRow(
             title = song.title, subtitle = subtitle, cover = cover, fonts = fonts, look = look, onClick = onClick,
-            modifier = m.fillMaxWidth(), now = now, playing = playing,
+            modifier = m.fillMaxWidth(), now = now, playing = playing, number = number,
             onLongClick = onLongClick.takeUnless { pending || missing },
             enabled = !missing,
             titleContent = { ExplicitSongTitle(song, style = fonts.title, color = if (now) look.accent else look.ink) },
-            subtitleLeading = quality?.let { badge -> { QualityPill(badge, compact = true) } },
+            // With a trailing of its own (one button), a downloaded song's mark leads the second line instead of ending the row.
+            subtitleLeading = if (quality != null || (downloadedTint != null && trailing != null)) {
+                {
+                    if (downloadedTint != null && trailing != null) DownloadedBadge(song.videoId, if (downloadedTint == Color.Unspecified) look.accent else downloadedTint)
+                    quality?.let { badge -> QualityPill(badge, compact = true) }
+                }
+            } else null,
             discContent = when {
                 selected != null -> { { OrbitCheckMark(selected, look) } }
                 pending -> { { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = look.dim) } }
@@ -271,13 +297,20 @@ internal fun OrbitSongRowFor(
 
 // ---- records and portraits -----------------------------------------------------------------------------------------------
 
-/** A grid of records: as many 150 dp cells as fit [width] with [side] gutters and 18 dp between (at least two), and their width. */
-internal fun orbitRecordGrid(width: Dp, side: Dp): Pair<Int, Dp> {
-    val gap = 18.dp
+/**
+ * A grid of records: as many cells of at least [min] (104 dp: three columns of about 118 dp on a phone) as fit [width] with [side]
+ * gutters and [ORBIT_GRID_GAP] between (at least two), and their width. Sideways rails keep their 140 dp records.
+ */
+internal fun orbitRecordGrid(width: Dp, side: Dp, min: Dp = 104.dp): Pair<Int, Dp> {
+    val gap = ORBIT_GRID_GAP
     val room = width - side * 2
-    val columns = ((room + gap) / (150.dp + gap)).toInt().coerceAtLeast(2)
+    val columns = ((room + gap) / (min + gap)).toInt().coerceAtLeast(2)
     return columns to (room - gap * (columns - 1)) / columns
 }
+
+/** Between the records of a grid, across; [ORBIT_GRID_ROW_GAP] down. */
+internal val ORBIT_GRID_GAP = 12.dp
+internal val ORBIT_GRID_ROW_GAP = 14.dp
 
 /**
  * An artist as a plain portrait: a round photo [size] wide and the name under it, centred. No play moon: a tap opens them. With no
@@ -310,7 +343,8 @@ internal fun OrbitPortrait(
 /** The two shapes of the colour tile: a playlist's tall card, and a mood's or genre's short tile. */
 internal enum class OrbitTile(val height: Dp, val radius: Dp, val disc: Dp, val discX: Dp, val discY: Dp, val titleTop: Dp, val titleLines: Int, val bareWithoutCover: Boolean) {
     CARD(224.dp, 28.dp, 124.dp, 30.dp, 30.dp, 18.dp, 3, false),
-    MOOD(110.dp, 26.dp, 76.dp, 20.dp, 22.dp, 14.dp, 2, true),
+    /** A mood or a genre: 56 dp (the Music board's 2a), so a phone shows all eight on its first screen. */
+    MOOD(56.dp, 18.dp, 46.dp, 12.dp, 14.dp, 18.dp, 1, true),
 }
 
 /**
@@ -334,7 +368,10 @@ internal fun OrbitColourTile(
     Box(modifier.height(kind.height).clip(RoundedCornerShape(kind.radius)).background(fill).longPressMenuClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick)) {
         // Above the disc: the words never stand on the cover.
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = kind.titleTop)) {
-            Text(title, style = fonts.section.copy(fontSize = 17.sp, lineHeight = 20.sp), color = ink, maxLines = kind.titleLines, overflow = TextOverflow.Ellipsis)
+            Text(
+                title, style = fonts.section.copy(fontSize = if (kind == OrbitTile.MOOD) 15.sp else 17.sp, lineHeight = 20.sp), color = ink, maxLines = kind.titleLines,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = if (kind == OrbitTile.MOOD) 40.dp else 0.dp),
+            )
             if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body.copy(fontSize = 12.sp), color = ink.copy(alpha = 0.72f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         }
         val disc = Modifier.align(Alignment.BottomEnd).offset(x = kind.discX, y = kind.discY)

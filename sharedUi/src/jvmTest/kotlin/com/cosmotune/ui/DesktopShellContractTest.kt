@@ -224,16 +224,17 @@ class DesktopShellContractTest {
 
     private fun bottomBarBlock(): String {
         val text = app
-        val start = text.indexOf("bottomBar = { compact ->")
+        val start = text.indexOf("bottomBar = { showTabs ->")
         assertTrue(start >= 0, "the bottomBar lambda")
         val call = text.indexOf("com.cosmotune.ui.shell.CosmoBottomChrome(", start)
-        assertTrue(call > start && text.substring(start, call).trim() == "bottomBar = { compact ->", "the lambda is the shared chrome and only that")
+        assertTrue(call > start && text.substring(start, call).trim() == "bottomBar = { showTabs ->", "the lambda is the shared chrome and only that")
         return callAt(text.substring(call), "com.cosmotune.ui.shell.CosmoBottomChrome(")
     }
 
     @Test fun aNarrowWindowHasFourTabsHomeExploreReleasesLibraryAndSearchIsTheBarsButton() {
         val block = bottomBarBlock()
-        val tabs = block.substringBefore("selectedIndex = ")
+        assertTrue("tabs = desktopMusicTabs()," in block, "the bar and the rail share the four tabs")
+        val tabs = SourceContract.functionBody(app, "desktopMusicTabs")
         assertEquals(4, Regex("""com\.cosmotune\.ui\.shell\.CosmoTab\(""").findAll(tabs).count(), "four tabs")
         val flat = squash(tabs)
         val order = listOf("DesktopStrings[\"home\", \"Home\"]", "SharedRes.string.explore", "SharedRes.string.cosmo_releases", "DesktopStrings[\"library\", \"Library\"]").map { flat.indexOf(it) }
@@ -242,7 +243,7 @@ class DesktopShellContractTest {
         for (icon in listOf("CosmoIcons.Home, com.cosmotune.ui.components.CosmoIcons.HomeFill", "CosmoIcons.Explore, com.cosmotune.ui.components.CosmoIcons.ExploreFill", "CosmoIcons.Bell, com.cosmotune.ui.components.CosmoIcons.BellFill", "CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.LibraryFill")) {
             assertTrue(icon in flat, "the phone's icons: $icon")
         }
-        assertTrue("onSearch = { selectDestination(DesktopDestination.SEARCH) }," in app, "and Search is the compact top bar's button")
+        assertTrue("search = com.cosmotune.ui.shell.CosmoNavSearch(" in block, "and Search is the round button beside the tabs")
     }
 
     @Test fun theTabsMapTheirFourDestinationsAndBack() {
