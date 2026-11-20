@@ -27,7 +27,6 @@ import com.cosmotune.video.model.Kiosk
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_all
-import com.cosmotune.video.resources.video_shorts
 import com.cosmotune.video.ui.blocks.VideoChips
 import com.cosmotune.video.ui.blocks.VideoShelfCard
 import com.cosmotune.video.ui.blocks.uniqueKeys
@@ -73,28 +72,24 @@ private val CHIP_PLACEHOLDER_WIDTH = 84.dp
 private val CHIP_PLACEHOLDER_HEIGHT = 32.dp
 
 /**
- * The chip row: "All" first (the mixed feed; chosen while [selectedId] is null), the Shorts chip when [showShorts] (a button, it opens
- * the pager and is never the chosen one), then a chip for each of [kiosks] with [selectedId] chosen; a tap on a kiosk calls [onSelect]. While
- * [kiosks] is null (not answered yet) placeholders stand after the others.
+ * The chip row: "All" first (the mixed feed; chosen while [selectedId] is null), then a chip for each of [kiosks] with [selectedId]
+ * chosen; a tap on a kiosk calls [onSelect]. Shorts are not a chip: they have their own tab and their shelf on Home. While [kiosks]
+ * is null (not answered yet) placeholders stand after the others.
  */
 @Composable
 internal fun HomeChips(
     kiosks: List<Kiosk>?,
     selectedId: String?,
-    showShorts: Boolean,
     onAll: () -> Unit,
-    onShorts: () -> Unit,
     onSelect: (Kiosk) -> Unit,
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
 ) {
     val allLabel = stringResource(Res.string.video_all)
-    val shortsLabel = stringResource(Res.string.video_shorts)
-    val lead = if (showShorts) 2 else 1
-    val labels = remember(kiosks, showShorts, allLabel, shortsLabel) {
+    val lead = 1
+    val labels = remember(kiosks, allLabel) {
         buildList {
             add(allLabel)
-            if (showShorts) add(shortsLabel)
             kiosks?.forEach { add(it.name) }
         }
     }
@@ -105,7 +100,6 @@ internal fun HomeChips(
         onSelect = { index ->
             when {
                 index == 0 -> onAll()
-                showShorts && index == 1 -> onShorts()
                 else -> kiosks?.getOrNull(index - lead)?.let(onSelect)
             }
         },
