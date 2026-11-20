@@ -58,4 +58,99 @@ class WatchPagesContractTest {
         assertTrue(Regex("""if \(nextDue\) .*NextEpisodeRow\(state, controls,""").containsMatchIn(cinema), "the countdown row with Play now and Cancel")
         assertTrue("if (chrome) FilmCard(" in cinema, "the film card still hides with the controls")
     }
+
+    // ---- the redesign (Video and Watch board, frames 6 to 12) ---------------------------------------------------------------
+
+    private val dir = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/"
+
+    @Test fun thePhoneHasFourTabsAndTheProfileMenuHoldsDownloadsPluginsAndSettings() {
+        assertEquals(listOf(WatchTab.HOME, WatchTab.LIVE, WatchTab.SEARCH, WatchTab.MY_LIST), com.cosmotune.ui.watch.WATCH_PHONE_TABS)
+        assertEquals(setOf(WatchTab.DOWNLOADS, WatchTab.PLUGINS, WatchTab.SETTINGS), com.cosmotune.ui.watch.WATCH_MENU_PAGES)
+        val app = read(dir + "WatchApp.kt")
+        assertTrue("WATCH_PHONE_TABS.forEach { t -> OrbitSelectChip(t.label, t == lit" in app, "the head shows the four tabs, not every page")
+        assertFalse("WatchTab.entries.forEach" in app, "no chip for every page any more")
+        for (entry in listOf("OrbitMenuItem(\"Downloads\"", "OrbitMenuItem(\"Plugins\"", "OrbitMenuItem(\"Settings\"")) assertTrue(entry in app, "the profile menu has $entry")
+        assertTrue("showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader(" in app, "the menu's pages come back with a back button")
+    }
+
+    @Test fun theStatusBarBandIsSolidOverTheBar() {
+        val app = read(dir + "WatchApp.kt")
+        assertTrue("Brush.verticalGradient(0f to look.ground, bar / (bar + fade) to look.ground, 1f to look.ground.copy(alpha = 0f))" in app, "solid over the bar, fading only below it")
+        assertFalse("OrbitStatusBarScrim(" in app, "not the see-through scrim")
+    }
+
+    @Test fun backFromPluginsReturnsToWatchSettings() {
+        try {
+            WatchNav.go(WatchTab.PLUGINS)
+            assertTrue(WatchNav.back())
+            assertEquals(WatchTab.SETTINGS, WatchNav.tab.value)
+            assertTrue(WatchNav.back())
+            assertEquals(WatchTab.HOME, WatchNav.tab.value)
+        } finally {
+            WatchNav.go(WatchTab.HOME)
+        }
+    }
+
+    @Test fun homeHasContinueWatchingFirstAndOnlyAllFilmsAndSeries() {
+        val home = read(dir + "WatchHomePage.kt")
+        assertTrue("listOf(HomeFilter.ALL to \"All\", HomeFilter.FILMS to \"Films\", HomeFilter.SERIES to \"Series\")" in home, "Live TV is its own tab, not a filter")
+        assertTrue(home.indexOf("item(key = \"watch:continue\")") in 0 until home.indexOf("item(key = \"watch:featured\")"), "Continue watching before the featured card")
+        assertTrue("height(if (wide) 250.dp else 220.dp)" in home, "the featured card is about 220 dp on a phone")
+        assertFalse("WatchCardChip(if (inList)" in home, "My list is a round action, not a chip")
+        assertTrue("WatchNav.go(WatchTab.LIVE)" in home && "items.take(if (wide) 6 else 3)" in home, "Live now: three rows and See all")
+        assertTrue("progress = watched[s.key]" in home, "posters in the rows show how far they were watched")
+    }
+
+    @Test fun aTitlePageHasOneMainActionAndASeriesAlwaysPlays() {
+        val title = read(dir + "WatchTitlePage.kt")
+        assertFalse(Regex("""WatchCardChip\([^)]*Resume""").containsMatchIn(title), "no Resume chip beside the bite")
+        assertTrue("val playable = !series || nextUp != null || firstEpisode != null" in title, "a series not started plays its first episode")
+        assertTrue("series && first != null && page != null -> actions.playEpisode(page, first)" in title)
+        assertTrue("WatchCardActions(cardActions, ink, fill, fonts" in title, "the other actions as one row")
+        assertFalse("OrbitMenuItem(if (inList) \"Remove from My list\"" in title, "My list is not in the menu twice")
+        assertTrue(title.indexOf("item(key = \"title:sources\")") in 0 until title.indexOf("item(key = \"title:tabs\")"), "Play from above the tabs")
+        assertTrue("private const val PLAY_FROM_SHOWN = 3" in title, "the best three copies, then Show all")
+        assertFalse("Text(\"New\"" in title, "no New under every episode")
+    }
+
+    @Test fun whatPlayInTheBiteWillDoIsSaidUnderTheTitle() {
+        val series = WatchKey("s:tmdb:1")
+        val first = com.cosmotune.watch.model.Episode(WatchKey("e:tmdb:1:1:1"), series, 1, 1, "Pilot")
+        assertEquals("Play Season 1, Episode 1 · 24 episodes", com.cosmotune.ui.watch.playLine(true, null, first, null, 24))
+        assertEquals(null, com.cosmotune.ui.watch.playLine(true, null, null, null, null))
+    }
+
+    @Test fun closingThePlayerKeepsTheFilmInTheSmallPlayer() {
+        val page = read(dir + "WatchPlayerPage.kt")
+        assertTrue("if (!keepsPlaying && (!route.attached || returned)" in page, "where Watch draws the small player the page does not stop the film")
+        val app = read(dir + "WatchApp.kt")
+        assertTrue("val mini = keepsPlaying && top !is WatchRoute.Play" in app && "WatchMiniPlayer(keptPlayback" in app, "the capsule shows over every other page")
+        assertTrue("onDispose { if (keptPlayback != null && !pageUnderPlayer) stopWhenLeaving(keptPlayback) }" in app, "leaving Watch stops it")
+        val mini = read(dir + "WatchMiniPlayer.kt")
+        assertTrue("WatchNav.showPlaying(target, summary)" in mini, "a tap reopens the player on what plays")
+        assertTrue("onClick = { player.stop() }" in mini, "close stops the film")
+    }
+
+    @Test fun watchSettingsAreTheSharedSettingsRowsWithPluginsInside() {
+        val settings = read(dir + "WatchSettingsPage.kt")
+        assertTrue("CosmoSettingsGroup(header = \"Sources and add-ons\")" in settings, "Sources and add-ons first")
+        assertTrue("CosmoSettingsRow(Icons.Rounded.Extension, \"Plugins\"" in settings && "onClick = { WatchNav.go(WatchTab.PLUGINS) }" in settings, "Plugins is a row of it")
+        for (group in listOf("Profiles", "Display", "Connected services")) assertTrue("header = \"$group\"" in settings, "the $group group")
+        assertFalse("fun WatchSettingsPage(" in read(dir + "WatchPluginsPage.kt"), "the hand-built page is gone")
+    }
+
+    @Test fun myListHasItsTabsWithCountsSortSelectAndUndo() {
+        val list = read(dir + "WatchListPages.kt")
+        assertTrue("\"My list · \${list.size}\"" in list && "\"Playlists · \${playlists.size}\"" in list && "\"Downloads · \${kept.size}\"" in list)
+        assertTrue("MyListSort.entries" in list && "WatchCardChip(\"Select\"" in list)
+        assertTrue("actionLabel = \"Undo\"" in list && "removed.forEach { actions.setInMyList(it, true) }" in list, "removing says so with Undo")
+        assertTrue("progress = progress?.fraction" in list, "posters show how far they were watched")
+    }
+
+    @Test fun liveTvOnThePhoneHasThreeDropdownsAndALogoColumn() {
+        val live = read(dir + "WatchLivePage.kt")
+        for (name in listOf("\"Country\"", "\"Language\"", "\"Category\"")) assertTrue("FacetChip($name" in live, "the $name dropdown")
+        assertTrue("val channelWidth = if (wide) 220.dp else 68.dp" in live, "the phone's channel column is the logo")
+        assertTrue("GuideList(window, now, fonts, look, clock, playChannel)" in live, "and the guide can be a list")
+    }
 }
