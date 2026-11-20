@@ -4040,6 +4040,7 @@ fun CosmotuneDesktopApp() {
                             },
                             onJumpTo = ::playQueueIndex,
                             onRemoveFromQueue = ::removeFromQueue,
+                            onRestoreToQueue = ::restoreToQueue,
                             onMoveInQueue = ::moveInQueue,
                             onClearQueue = ::clearQueue,
                             onOpenMenu = { playerMenuOpen = true },

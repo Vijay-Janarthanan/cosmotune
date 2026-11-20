@@ -91,9 +91,10 @@ class NowPlayingWideContractTest {
         assertTrue(src.contains("lyricsPanel(lm, WIDE_LYRICS_STYLE, WIDE_LYRICS_TOP_PADDING)"), "the lyrics in the text face, the sung line in the read face")
         assertTrue(src.contains("NowPlayingUpNext(") && src.contains("NowPlayingRelated("))
         val upNext = code(nowPlaying("NowPlayingUpNext.kt"))
-        assertTrue(upNext.contains("OrbitSongRow("), "Home's song rows")
+        assertTrue(upNext.contains("OrbitQueueList("), "the shared queue's flat rows")
+        val queue = code(File(root, "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitQueue.kt").readText())
         for (keep in listOf("onJumpTo(track.timelineIndex)", "onRemove(track.timelineIndex)", "drag.start(track.key, section)", "onClear", "onToggleAutoplay")) {
-            assertTrue(upNext.contains(keep), "the queue still does $keep")
+            assertTrue(queue.contains(keep), "the queue still does $keep")
         }
         assertTrue(src.contains("onPanel = { panels.panel = it }"), "the chips are the panel")
     }
