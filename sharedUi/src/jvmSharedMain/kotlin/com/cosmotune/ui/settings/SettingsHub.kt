@@ -13,9 +13,8 @@ import com.cosmotune.ui.orbit.OrbitLabel
 import com.cosmotune.ui.orbit.OrbitPageHeading
 import com.cosmotune.ui.orbit.OrbitRoundButton
 import com.cosmotune.ui.orbit.OrbitSearchPill
-import com.cosmotune.ui.orbit.OrbitSettingsTile
+import com.cosmotune.ui.orbit.OrbitSettingsRow
 import com.cosmotune.ui.orbit.OrbitStatCard
-import com.cosmotune.ui.orbit.OrbitTileGrid
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.runtime.remember
@@ -114,9 +113,9 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /*
- * The settings home in Orbit (Canvas repo, design/cosmotune/batch-a/board.html, section 2) and what phone and desktop draw around
- * their pages: the account card that leads it ([SettingsAccountCard]), the categories as tiles in two columns with their icons and
- * one-line summaries ([SettingsHub]), the desktop's home beside the open page ([SettingsCategoryRail]), the header of a page
+ * The settings home in Orbit (the Music board's 8a) and what phone and desktop draw around their pages: the account row that leads it
+ * ([SettingsAccountCard]), the categories as one column of 56 dp rows with their coloured icons, current values and chevrons
+ * ([SettingsHub]), the desktop's home beside the open page ([SettingsCategoryRail]), the header of a page
  * ([SettingsPageHeader]), the search field ([SettingsSearchPill]) and the search results ([SettingsSearchResults]). The rows of the
  * pages themselves are the blocks of CosmoSettingsBlocks.kt.
  */
@@ -307,7 +306,7 @@ fun SettingsHubTitle(text: String, modifier: Modifier = Modifier) {
         label = "",
         fonts = fonts,
         look = look,
-        modifier = modifier.padding(start = HUB_SIDE, end = HUB_SIDE, top = 12.dp, bottom = 16.dp).semantics { heading() },
+        modifier = modifier.padding(start = HUB_SIDE, end = HUB_SIDE, top = 4.dp, bottom = 12.dp).semantics { heading() },
     )
 }
 
@@ -337,9 +336,9 @@ fun SettingsAccountCard(
 }
 
 /**
- * The settings home (board 2): [accountCard] first when there is one (it stands in for the Account category), then one tile per
- * category of [entries] in two columns: its colour tile with the category's icon, its name and its summary on one line. Picking one
- * calls [onOpen]. A cell under 240 dp wide (the phone) stacks the icon over the words.
+ * The settings home (the Music board's 8a): [accountCard] first when there is one (it stands in for the Account category), then one
+ * flat row per category of [entries]: its colour tile with the category's icon, its name and its current value on one line, and a
+ * chevron. Picking one calls [onOpen].
  */
 @Composable
 fun SettingsHub(
@@ -352,9 +351,9 @@ fun SettingsHub(
     Column(modifier.fillMaxWidth().padding(horizontal = HUB_SIDE)) {
         if (accountCard != null) {
             accountCard()
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
         }
-        SettingsTiles(shown, selected = null, onOpen = onOpen, tag = "settings:hub:")
+        SettingsRows(shown, selected = null, onOpen = onOpen, tag = "settings:hub:")
     }
 }
 
@@ -363,14 +362,12 @@ private fun hubOrder(entries: List<SettingsCategoryEntry>): List<SettingsCategor
     HUB_ORDER.mapNotNull { category -> entries.firstOrNull { it.category == category } } + entries.filter { it.category !in HUB_ORDER }
 
 @Composable
-private fun SettingsTiles(entries: List<SettingsCategoryEntry>, selected: SettingsCategory?, onOpen: (SettingsCategory) -> Unit, tag: String, columns: Int = 2) {
+private fun SettingsRows(entries: List<SettingsCategoryEntry>, selected: SettingsCategory?, onOpen: (SettingsCategory) -> Unit, tag: String) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val stacked = (maxWidth - 12.dp * (columns - 1)) / columns < 240.dp
-        OrbitTileGrid(entries.size, columns = columns) { i, cell ->
-            val entry = entries[i]
-            OrbitSettingsTile(
+    Column(Modifier.fillMaxWidth()) {
+        entries.forEach { entry ->
+            OrbitSettingsRow(
                 icon = entry.icon,
                 fill = settingsCategoryTint(entry.category),
                 title = entry.title,
@@ -378,16 +375,15 @@ private fun SettingsTiles(entries: List<SettingsCategoryEntry>, selected: Settin
                 fonts = fonts,
                 look = look,
                 onClick = { onOpen(entry.category) },
-                modifier = cell.testTag(tag + entry.category.name),
+                modifier = Modifier.testTag(tag + entry.category.name),
                 selected = selected?.let { it == entry.category },
-                stacked = stacked,
             )
         }
     }
 }
 
 /**
- * The search results: [results] best first, each a tile of the settings home's look (its category's colour tile, its title, and where
+ * The search results: [results] best first, each a row of the settings home's look (its category's colour tile, its title, and where
  * it lives, "Playback & audio quality · Output", before its summary). Picking one calls [onPick]; the screen then opens its page and
  * lights the row up. With no results, a quiet card says so ([emptyMessage], or "No settings match").
  */
@@ -401,7 +397,7 @@ fun SettingsSearchResults(
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    Column(modifier.fillMaxWidth().padding(horizontal = HUB_SIDE), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth().padding(horizontal = HUB_SIDE)) {
         if (results.isEmpty()) {
             val message = emptyMessage ?: stringResource(Res.string.cosmo_settings_no_results, query.trim())
             OrbitStatCard(SettingsText.RESULTS.text(), message, null, fonts, look, Modifier.padding(top = 12.dp).testTag("settings:results:empty"))
@@ -414,7 +410,7 @@ fun SettingsSearchResults(
                 .joinToString(" · ")
             val summary = listOfNotNull(where.takeIf { it.isNotEmpty() }, item.summary?.takeIf { it.isNotBlank() && it != item.title })
                 .joinToString(" — ")
-            OrbitSettingsTile(
+            OrbitSettingsRow(
                 icon = item.category.icon,
                 fill = settingsCategoryTint(item.category),
                 title = item.title,
@@ -444,7 +440,7 @@ fun SettingsPageHeader(
     val look = orbitLook()
     Column(modifier.fillMaxWidth().padding(horizontal = HUB_SIDE)) {
         if (onBack != null) {
-            OrbitRoundButton(CosmoIcons.ArrowLeft, SettingsText.BACK.text(), look.ink, onBack, Modifier.padding(top = 4.dp, bottom = 14.dp).testTag("settings:back"))
+            OrbitRoundButton(CosmoIcons.ArrowLeft, SettingsText.BACK.text(), look.ink, onBack, Modifier.padding(top = 4.dp, bottom = 8.dp).testTag("settings:back"))
         }
         OrbitLabel("Settings", fonts, look.dim, Modifier.padding(start = 2.dp))
         Text(
@@ -456,7 +452,7 @@ fun SettingsPageHeader(
             color = look.ink,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 10.dp).semantics { heading() },
+            modifier = Modifier.padding(top = 6.dp).semantics { heading() },
         )
         if (subtitle != null) {
             Text(subtitle, style = fonts.body, color = look.dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
@@ -465,9 +461,9 @@ fun SettingsPageHeader(
 }
 
 /**
- * The desktop's settings home beside the page (board 2, the left column): [accountCard] when there is one, then a tile per entry in
- * [columns] columns, the [selected] one solid ink (null selects none, while the search is open). Each tile is a tab of the list, so a
- * screen reader says which one is open.
+ * The desktop's settings home beside the page (board 2, the left column): [accountCard] when there is one, then a row per entry, the
+ * [selected] one solid ink (null selects none, while the search is open). Each row is a tab of the list, so a screen reader says which
+ * one is open. [columns] is kept for the callers: the rows are one column.
  */
 @Composable
 fun SettingsCategoryRail(
@@ -483,9 +479,9 @@ fun SettingsCategoryRail(
     Column(modifier.selectableGroup()) {
         if (accountCard != null) {
             accountCard()
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
         }
-        SettingsTiles(shown, selected = selected ?: SettingsCategory.ALL, onOpen = onSelect, tag = "settings:rail:", columns = columns)
+        SettingsRows(shown, selected = selected ?: SettingsCategory.ALL, onOpen = onSelect, tag = "settings:rail:")
     }
 }
 

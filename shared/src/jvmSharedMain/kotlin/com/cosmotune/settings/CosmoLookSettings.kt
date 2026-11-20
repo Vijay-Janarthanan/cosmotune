@@ -70,6 +70,33 @@ class CosmoLookSettings(private val store: KeyValueStore) {
 
     fun setCompactRows(on: Boolean) { store.putBoolean(KEY_COMPACT_ROWS, on); compactRowsFlow.value = on }
 
+    private val keepDownloadedFlow = MutableStateFlow(readSet(KEY_KEEP_DOWNLOADED))
+
+    /**
+     * The playlists kept downloaded (a playlist page's "Keep downloaded" switch), by browse id: their new songs download on Wi-Fi.
+     * Kept here, beside the look, because both hosts already keep this store.
+     */
+    val keepDownloaded: StateFlow<Set<String>> = keepDownloadedFlow.asStateFlow()
+
+    fun setKeepDownloaded(playlistId: String, on: Boolean) {
+        val next = if (on) keepDownloadedFlow.value + playlistId else keepDownloadedFlow.value - playlistId
+        writeSet(KEY_KEEP_DOWNLOADED, next)
+        keepDownloadedFlow.value = next
+    }
+
+    /** The songs "Keep downloaded" has already fetched for [playlistId]: one removed from the device later is not fetched again. */
+    fun keptSongs(playlistId: String): Set<String> = readSet(KEY_KEPT_PREFIX + playlistId)
+
+    fun addKeptSongs(playlistId: String, ids: Collection<String>) {
+        if (ids.isEmpty()) return
+        writeSet(KEY_KEPT_PREFIX + playlistId, keptSongs(playlistId) + ids)
+    }
+
+    private fun readSet(key: String): Set<String> = store.getString(key, "").split(SET_SEPARATOR).filter { it.isNotBlank() }.toSet()
+
+    /** At most the last [MAX_SET] entries: a preferences value has a length limit on the desktop (8 KiB). */
+    private fun writeSet(key: String, value: Set<String>) = store.putString(key, value.toList().takeLast(MAX_SET).joinToString(SET_SEPARATOR))
+
     fun setVideoView(view: VideoView) {
         val kept = VideoView.kept(view.ordinal)
         store.putInt(KEY_VIDEO_VIEW, kept.ordinal)
@@ -105,6 +132,10 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_AMOLED = "amoled"
         const val KEY_VIDEO_VIEW = "np_video_view"
         const val KEY_COMPACT_ROWS = "compact_rows"
+        const val KEY_KEEP_DOWNLOADED = "keep_downloaded"
+        const val KEY_KEPT_PREFIX = "kept_songs:"
+        private const val SET_SEPARATOR = ","
+        private const val MAX_SET = 600
 
         private fun modeOf(stored: Int): AppMode = AppMode.entries.getOrNull(stored) ?: AppMode.MUSIC
     }

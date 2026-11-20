@@ -234,7 +234,7 @@ class PagesContractTest {
         val release = SourceContract.code(page("CosmoReleasePage"))
         assertTrue("OrbitReleaseCard(" in release && "OrbitTrackRow(" in release, "the release is the colour card and Home's rows")
         assertTrue("motion = albumCanvas" in release, "the album's animated cover plays in the card's disc")
-        assertTrue("top = contentPadding.calculateTopPadding() + PageMetrics.COVER_TOP_DP.dp" in release, "the card stands below the bar")
+        assertTrue("val top = contentPadding.calculateTopPadding()" in release && "top = top + PageMetrics.COVER_TOP_DP.dp" in release, "the card stands below the bar")
         val artist = SourceContract.code(page("CosmoArtistPage"))
         assertTrue("OrbitArtistPage(" in artist && "contentPadding = contentPadding" in artist, "the artist page is the shared Orbit page, with the caller's padding")
         assertTrue("OrbitLatestRelease(" in artist && "onToggleSaved = onToggleReleaseLibrary" in artist, "the latest release keeps its save toggle")

@@ -318,7 +318,9 @@
     <string name="cosmo_settings_cat_sources_summary">Provider packages, add-ons and the order sources are tried in</string>
     <string name="cosmo_settings_cat_downloads">Downloads &amp; storage</string>
     <string name="cosmo_settings_cat_downloads_summary">Download quality, song cache and local music</string>
-    <string name="cosmo_settings_cat_lyrics">Lyrics &amp; music video</string>
+    <string name="cosmo_keep_downloaded">Keep downloaded</string>
+    <string name="cosmo_keep_downloaded_line">New songs on Wi‑Fi · %1$d of %2$d saved</string>
+    <string name="cosmo_settings_cat_lyrics">Lyrics and video</string>
     <string name="cosmo_settings_cat_lyrics_summary">Synced lyrics, animated covers and OpenCanvas</string>
     <string name="cosmo_settings_cat_appearance">Appearance</string>
     <string name="cosmo_settings_cat_appearance_summary">Theme, the look, the player and language</string>

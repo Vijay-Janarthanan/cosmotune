@@ -193,14 +193,15 @@ class VisualPolishContractTest {
         }
         val cosmo = SourceContract.code(SourceContract.read("$ui/states/CosmoShimmer.kt"))
         assertTrue("CoverField.SKEL_BASE" in cosmo && "CoverField.SKEL_SHINE" in cosmo, "the cover's skeleton pair")
-        // the new pages draw their own skeleton, at full strength and of the new rows' measure
-        assertTrue("pageSkeleton(\"skeleton:release\", rowDp = PageMetrics.TRACK_ROW_DP)" in code("$ui/pages/CosmoReleasePage.kt"))
-        assertTrue("pageSkeleton(\"skeleton:artist\", rowDp = 66f)" in code("$ui/orbit/OrbitArtist.kt"), "the artist's skeleton is of its ranked rows")
-        val parts = SourceContract.read("$ui/pages/PageParts.kt")
-        val skeleton = SourceContract.functionBody(parts, "pageSkeleton")
-        assertTrue(Regex("""CosmoShimmer\(""").findAll(skeleton).count() >= 5, "every block is the cover's shimmer")
-        assertFalse("alpha" in skeleton, "not dimmed over the page")
-        assertTrue("BlockMetrics.ROW_ART_DP.dp" in skeleton && "SKELETON_COVER_SHAPE = RoundedCornerShape(CosmoRadii.rSm)" in SourceContract.code(parts), "a 48 dp cover of radius 8, as the rows have")
+        // the new pages' placeholders are the kit's, in the shape of the page: the flat row's height and disc (or a number's bar)
+        assertTrue("orbitRowSkeletons(\"skeleton:release\", side, rows = 8, numbered = album)" in code("$ui/pages/CosmoReleasePage.kt"))
+        assertTrue("orbitRowSkeletons(\"skeleton:artist\", side, rows = 4)" in code("$ui/orbit/OrbitArtist.kt"), "the artist's skeleton is of its top songs")
+        val kit = SourceContract.read("$ui/orbit/OrbitHeader.kt")
+        val row = SourceContract.functionBody(kit, "OrbitRowSkeleton")
+        assertTrue(Regex("""CosmoShimmer\(""").findAll(row).count() >= 3, "every block is the cover's shimmer")
+        assertFalse("alpha" in row, "not dimmed over the page")
+        assertTrue("orbitRowHeight()" in row && "orbitRowDisc()" in row, "the row's own height and disc")
+        assertTrue("CosmoShimmer(Modifier.fillMaxSize(), size.shape)" in SourceContract.functionBody(kit, "OrbitHeaderSkeleton"), "the header's placeholder is the card's own outline")
         // and no new screen draws a skeleton of its own in other colours
         val newLook = java.io.File(SourceContract.root, ui).walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
         for (file in newLook) {

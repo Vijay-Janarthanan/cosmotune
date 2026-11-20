@@ -1,5 +1,16 @@
 package com.cosmotune.ui.home
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
+import com.cosmotune.ui.orbit.clock
+import com.cosmotune.ui.orbit.OrbitRoomLine
+import com.cosmotune.ui.orbit.OrbitSpace
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitPageHeading
+import com.cosmotune.ui.orbit.OrbitHeaderSize
+import com.cosmotune.ui.orbit.OrbitPageHeader
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -101,6 +112,7 @@ import com.cosmotune.music.ui.components.MessageState
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.cosmotune.music.ui.screens.localizeShelfSubtitle
 import com.cosmotune.music.ui.screens.localizeShelfTitle
+import com.cosmotune.music.ui.screens.localizeCardSubtitle
 import com.cosmotune.browse.BrowseSplit
 import com.cosmotune.ui.browse.CosmoBrowse
 import com.cosmotune.ui.components.CosmoIcons
@@ -191,43 +203,21 @@ fun OrbitHome(
             val wide = maxWidth >= 840.dp
             val side = if (wide) 28.dp else 16.dp
 
+            val pick = pickUp(shelves, elsewhere)
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
                 item(key = "orbit:live") { com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = side).padding(top = 10.dp)) }
-                item(key = "orbit:greeting") { OrbitGreeting(fonts, look, Modifier.padding(start = side + 6.dp, end = side, top = 18.dp)) }
+                item(key = "orbit:greeting") {
+                    OrbitGreeting(fonts, look, Modifier.padding(start = side + 4.dp, end = side, top = 6.dp), onSurprise = rememberSurprise(shelves, onItemClick))
+                }
 
-                if (currentSong != null || shelves.isNotEmpty() || elsewhere != null) item(key = "orbit:hero") {
-                    val hero = rememberHero(shelves, currentSong, isPlaying, elsewhere)
-                    // A hold on the card or its play button opens the menu of what it shows, as a hold on any other card of
-                    // the feed does: the song that plays, or the item it starts from.
-                    val heroHeld = if (hero.elsewhere) null else hero.item ?: currentSong?.takeIf { hero.isCurrent }?.let {
-                        ShelfItem(it.title, it.artist, it.thumbnailUrl, it.videoId, null, song = it)
-                    }
-                    val heroCard: @Composable (Modifier) -> Unit = { m ->
-                        OrbitHero(
-                            hero = hero, fonts = fonts, look = look,
-                            playbackTime = if (elsewhere != null && hero.elsewhere) ({ elsewhere.positionMs to elsewhere.durationMs }) else playbackTime.takeIf { hero.isCurrent },
-                            onBite = { if (hero.elsewhere) elsewhere?.onContinue?.invoke() else if (hero.isCurrent) onPlayPause?.invoke() else hero.item?.let { onItemClick(it, hero.shelfTitle) } },
-                            onCard = { if (hero.elsewhere) elsewhere?.onContinue?.invoke() else if (!hero.isCurrent) hero.item?.let { onItemClick(it, hero.shelfTitle) } else onPlayPause?.invoke() },
-                            onHold = heroHeld?.let { held -> onItemLongPress?.let { open -> { open(held) } } } ?: elsewhere?.onPutAside?.takeIf { hero.elsewhere },
-                            modifier = m,
-                        )
-                    }
-                    if (wide && room != null) {
-                        Row(Modifier.padding(horizontal = side).padding(top = 24.dp).height(HERO_HEIGHT), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            heroCard(Modifier.weight(1.7f).fillMaxHeight())
-                            OrbitRoomCard(room, fonts, Modifier.weight(1f).fillMaxHeight())
-                        }
-                    } else {
-                        heroCard(Modifier.padding(horizontal = side).padding(top = 24.dp).fillMaxWidth().height(HERO_HEIGHT))
-                    }
+                // The top card never repeats the song the mini player already shows: another device's song while this one plays
+                // nothing, else where to pick up (the first album or playlist of a "listen again" shelf), else where to start.
+                if (pick != null) item(key = "orbit:hero") {
+                    PickUpCard(pick, elsewhere, onItemClick, onItemLongPress, Modifier.padding(horizontal = side).padding(top = 16.dp).fillMaxWidth())
                 }
 
                 if (quickLinks.isNotEmpty() || moods.isNotEmpty()) {
                     item(key = "orbit:chips") { OrbitChips(quickLinks, moods, browse, fonts, look, side) }
-                }
-
-                if (!wide && room != null) {
-                    item(key = "orbit:room") { OrbitRoomCard(room, fonts, Modifier.padding(horizontal = side).padding(top = 22.dp).fillMaxWidth().height(172.dp)) }
                 }
 
                 if (!signedIn && onSignIn != null) {
@@ -247,15 +237,22 @@ fun OrbitHome(
                 }
 
                 val styles = planStyles(shelves)
+                // The room, as one line, after the first shelf (Quick picks), where it no longer pushes the picks down.
+                val roomAfter = shelves.indexOfFirst { it.items.isNotEmpty() }
+                if (room != null && roomAfter < 0) item(key = "orbit:room") { OrbitRoomLine(room, fonts, Modifier.padding(horizontal = side).padding(top = OrbitSpace.section).fillMaxWidth()) }
                 shelves.forEachIndexed { index, shelf ->
                     if (index == CONTROLS_AFTER) controls()
                     if (shelf.items.isEmpty()) return@forEachIndexed
                     item(key = "orbit:shelf:" + shelf.title + index) {
                         val open: (ShelfItem) -> Unit = { onItemClick(it, shelf.title) }
                         Column {
-                            OrbitSectionHeader(localizeShelfTitle(shelf.title), localizeShelfSubtitle(shelf.subtitle), fonts, look, Modifier.padding(horizontal = side + 6.dp).padding(top = 34.dp, bottom = 14.dp))
+                            if (styles[index] == ShelfStyle.SONGS) {
+                                OrbitQuickPicks(shelf, localizeShelfTitle(shelf.title), fonts, look, side, currentSong, isPlaying, open, onItemLongPress)
+                                return@Column
+                            }
+                            OrbitSectionHeader(localizeShelfTitle(shelf.title), localizeShelfSubtitle(shelf.subtitle), fonts, look, Modifier.padding(horizontal = side + 4.dp).padding(top = OrbitSpace.section, bottom = OrbitSpace.sectionToContent))
                             when (styles[index]) {
-                                ShelfStyle.SONGS -> OrbitSongRows(shelf, wide, fonts, look, currentSong, isPlaying, open, onItemLongPress, Modifier.padding(horizontal = side))
+                                ShelfStyle.SONGS -> Unit
                                 ShelfStyle.ARTISTS -> OrbitArtistRow(shelf.items, fonts, look, side, open)
                                 ShelfStyle.RANKED -> OrbitRanked(shelf, wide, fonts, look, open, onItemLongPress, Modifier.padding(horizontal = side))
                                 ShelfStyle.FEATURE -> OrbitFeature(shelf, wide, fonts, look, side, open, onItemLongPress)
@@ -263,6 +260,9 @@ fun OrbitHome(
                                 ShelfStyle.CARDS -> OrbitCardRow(shelf, fonts, side, open, onItemLongPress)
                             }
                         }
+                    }
+                    if (room != null && index == roomAfter) item(key = "orbit:room") {
+                        OrbitRoomLine(room, fonts, Modifier.padding(horizontal = side).padding(top = OrbitSpace.section).fillMaxWidth())
                     }
                 }
                 if (shelves.size <= CONTROLS_AFTER) controls()
@@ -286,13 +286,12 @@ fun OrbitHome(
     }
 }
 
-private val HERO_HEIGHT = 280.dp
 private const val CONTROLS_AFTER = 3
 
 // ---- greeting -------------------------------------------------------------------------------------------------------------------
 
 @Composable
-private fun OrbitGreeting(fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
+private fun OrbitGreeting(fonts: OrbitFonts, look: OrbitLook, modifier: Modifier, onSurprise: (() -> Unit)?) {
     val now = remember { LocalDateTime.now() }
     val part = when (now.hour) {
         in 5..11 -> "Good morning"
@@ -300,91 +299,87 @@ private fun OrbitGreeting(fonts: OrbitFonts, look: OrbitLook, modifier: Modifier
         in 17..21 -> "Good evening"
         else -> "Late night"
     }
-    val line = remember(now) { now.format(DateTimeFormatter.ofPattern("EEE dd MMM — HH:mm", Locale.ENGLISH)).uppercase(Locale.ENGLISH) }
-    Column(modifier) {
-        Text(line, style = fonts.label, color = look.dim)
-        Spacer(Modifier.height(10.dp))
-        Text(buildAnnotatedString { append(part); withStyle(SpanStyle(color = look.accent)) { append(".") } }, style = fonts.greeting, color = look.ink)
+    val line = remember(now) { now.format(DateTimeFormatter.ofPattern("EEE d MMM · HH:mm", Locale.ENGLISH)) }
+    OrbitPageHeading(part, line, fonts, look, modifier) {
+        if (onSurprise != null) OrbitRoundButton(CosmoIcons.Shuffle, "Surprise me", look.ink, onSurprise, Modifier.testTag("music:home:surprise"), onInk = look.ground, touch = 48.dp)
     }
 }
 
-// ---- hero -----------------------------------------------------------------------------------------------------------------------
-
-private class Hero(val title: String, val subtitle: String, val cover: String?, val label: String, val isCurrent: Boolean, val playing: Boolean, val item: ShelfItem?, val shelfTitle: String, val album: String? = null, val elsewhere: Boolean = false, val timeNote: String = "")
-
+/** "Surprise me": plays a song picked at random from Home's song shelves; null while there are none. */
 @Composable
-private fun rememberHero(shelves: List<HomeShelf>, current: Song?, playing: Boolean, elsewhere: ElsewhereOffer? = null): Hero {
-    val shelf = remember(shelves) { shelves.firstOrNull { s -> s.items.firstOrNull()?.videoId != null } ?: shelves.firstOrNull { it.items.isNotEmpty() } }
-    val from = localizeShelfTitle(shelf?.title.orEmpty()).uppercase()
-    return remember(shelf, current, playing, from, elsewhere) {
-        if (elsewhere != null) {
-            val song = elsewhere.song
-            val next = if (elsewhere.upNext > 0) " · ${elsewhere.upNext} UP NEXT" else ""
-            Hero(song.title, song.artist, song.thumbnailUrl, "ON ${elsewhere.where.uppercase()}", false, false, null, "", album = song.albumName, elsewhere = true, timeNote = next)
-        } else if (current != null) {
-            Hero(current.title, current.artist, current.thumbnailUrl, if (playing) "NOW ORBITING" else "PAUSED", true, playing, null, "", album = current.albumName)
-        } else {
-            val item = shelf?.items?.firstOrNull()
-            Hero(item?.title.orEmpty(), item?.subtitle.orEmpty(), item?.thumbnailUrl, "START HERE · $from", false, false, item, shelf?.title.orEmpty())
-        }
-    }
+private fun rememberSurprise(shelves: List<HomeShelf>, onItemClick: (ShelfItem, String) -> Unit): (() -> Unit)? {
+    val songs = remember(shelves) { shelves.flatMap { shelf -> shelf.items.filter { it.videoId != null }.map { it to shelf.title } } }
+    if (songs.isEmpty()) return null
+    return { songs.random().let { (item, shelf) -> onItemClick(item, shelf) } }
 }
 
+// ---- the pick-up card -------------------------------------------------------------------------------------------------------
+
+/** What Home's top card offers: an item of the feed to pick up or start from, with its mono line. */
+private class PickUp(val item: ShelfItem?, val label: String, val shelfTitle: String)
+
+private val PICK_UP_WORDS = Regex("\\b(listen again|recent|recently|back|keep listening|pick up|jump back)\\b", RegexOption.IGNORE_CASE)
+
+/**
+ * Home's top card: [elsewhere] (another device's song) first; else the first album or playlist of a shelf that is the person's own
+ * recent listening ("Listen again"), "PICK UP · PLAYLIST"; else the first item of the first shelf, "START HERE · QUICK PICKS".
+ * Never the loaded song: the mini player shows that already.
+ */
 @Composable
-private fun OrbitHero(
-    hero: Hero, fonts: OrbitFonts, look: OrbitLook, playbackTime: (() -> Pair<Long, Long>)?, onBite: () -> Unit, onCard: () -> Unit,
-    onHold: (() -> Unit)?, modifier: Modifier,
-) {
-    val (fill, ink) = coverFill(hero.cover, hero.title)
-    BoxWithConstraints(modifier) {
-        val disc = if (maxWidth < 380.dp) 124.dp else 148.dp
-        Box(
-            Modifier.fillMaxSize().clip(HeroBite)
-                .background(Brush.linearGradient(listOf(fill, fill.copy(alpha = 0.82f).compositeOver(Color.Black))))
-                .longPressMenuClickable(onClick = onCard, onLongClick = onHold).contextClick(onHold)
-                .testTag("music:home:hero"),
-        ) {
-            Text(hero.label, style = fonts.label, color = ink.copy(alpha = 0.72f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 22.dp, top = 22.dp, end = disc + 40.dp))
-            Box(Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 12.dp).size(disc + 30.dp), contentAlignment = Alignment.Center) {
-                Disc(hero.cover, disc)
-                OrbitRing(
-                    disc + 30.dp, ink,
-                    progress = playbackTime?.let { time -> { time().let { (p, d) -> if (d > 0) p.toFloat() / d else null } } },
-                    spinning = hero.playing,
-                )
-            }
-            Column(Modifier.align(Alignment.BottomStart).padding(start = 22.dp, bottom = 22.dp, end = 104.dp)) {
-                if (playbackTime != null) {
-                    val (p, d) = playbackTime()
-                    if (d > 0) Text("${clock(p)} / ${clock(d)}${hero.timeNote}", style = fonts.label, color = ink.copy(alpha = 0.72f), modifier = Modifier.padding(bottom = 10.dp))
-                }
-                // The hero's title as title art (Cover Cut, or Voiced type), in the plain title's two lines of 27 sp.
-                AlbumTitleArt(
-                    TitleArtAlbum(hero.title, hero.cover, artist = hero.subtitle, album = hero.album), ink = ink, ground = fill, modifier = Modifier.fillMaxWidth(),
-                    place = TitleArt.Place.FEATURE, maxSize = 34.sp, minSize = 20.sp, maxLines = 2, maxHeight = 54.dp,
-                )
-                Text(hero.subtitle, style = fonts.body.copy(fontSize = 15.sp), color = ink.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-            }
+private fun pickUp(shelves: List<HomeShelf>, elsewhere: ElsewhereOffer?): PickUp? {
+    val first = shelves.firstOrNull { it.items.isNotEmpty() }
+    val from = localizeShelfTitle(first?.title.orEmpty())
+    return remember(shelves, elsewhere, from) {
+        if (elsewhere != null) return@remember PickUp(null, "", "")
+        val again = shelves.firstOrNull { PICK_UP_WORDS.containsMatchIn(it.title) }?.let { shelf ->
+            shelf.items.firstOrNull { it.browseId != null && it.browseId?.startsWith("UC") != true }?.let { it to shelf.title }
         }
-        Box(
-            Modifier.align(Alignment.BottomEnd).padding(13.dp).size(66.dp).clip(CircleShape)
-                .background(if (look.dark) PEACH else Color(0xFF1D1416)).longPressMenuClickable(onClick = onBite, onLongClick = onHold)
-                .testTag("music:home:hero:play"),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(if (hero.isCurrent && hero.playing) CosmoIcons.Pause else CosmoIcons.Play, contentDescription = if (hero.playing) "Pause" else "Play",
-                tint = if (look.dark) Color(0xFF2A100A) else PEACH, modifier = Modifier.size(26.dp))
+        when {
+            again != null -> PickUp(again.first, "Pick up · ${kindOf(again.first)}", again.second)
+            first != null -> PickUp(first.items.first(), "Start here · $from", first.title)
+            else -> null
         }
     }
 }
 
+private fun kindOf(item: ShelfItem): String = when {
+    item.videoId != null && item.browseId == null -> "song"
+    item.browseId?.startsWith("MPRE") == true -> "album"
+    else -> "playlist"
+}
+
+/**
+ * The pick-up card: the compact header in its pick-up size ([OrbitHeaderSize.PICK_UP], 160 dp, no actions), in the item's own colour.
+ * For another device's song the mono line says where it plays and how far it got; Play (or a tap) carries on with it, a hold puts it
+ * aside. For an item a tap opens (or plays) it and a hold opens its menu.
+ */
+@Composable
+private fun PickUpCard(pick: PickUp, elsewhere: ElsewhereOffer?, onItemClick: (ShelfItem, String) -> Unit, onItemLongPress: ((ShelfItem) -> Unit)?, modifier: Modifier) {
+    if (elsewhere != null) {
+        val song = elsewhere.song
+        val next = if (elsewhere.upNext > 0) " · ${elsewhere.upNext} up next" else ""
+        val time = if (elsewhere.durationMs > 0) " · ${clock(elsewhere.positionMs)} / ${clock(elsewhere.durationMs)}" else ""
+        OrbitPageHeader(
+            cover = song.thumbnailUrl, label = "On ${elsewhere.where}$time$next", title = song.title, subtitle = song.artist,
+            playing = false, onPlay = elsewhere.onContinue, modifier = modifier.testTag("music:home:hero"), size = OrbitHeaderSize.PICK_UP,
+            onClick = elsewhere.onContinue, onLongClick = elsewhere.onPutAside,
+        )
+        return
+    }
+    val item = pick.item ?: return
+    val open = { onItemClick(item, pick.shelfTitle) }
+    OrbitPageHeader(
+        cover = item.thumbnailUrl, label = pick.label, title = item.title, subtitle = localizeCardSubtitle(item.subtitle).ifBlank { null },
+        playing = false, onPlay = open, modifier = modifier.testTag("music:home:hero"), size = OrbitHeaderSize.PICK_UP,
+        onClick = open, onLongClick = onItemLongPress?.let { held -> { held(item) } },
+    )
+}
 
 // ---- chips: the quick links, then the moods -------------------------------------------------------------------------------------
 
 @Composable
 private fun OrbitChips(links: List<HomeQuickLink>, moods: List<MoodGenre>, browse: CosmoBrowse?, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
-    LazyRow(Modifier.padding(top = 20.dp), contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyRow(Modifier.padding(top = 16.dp), contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(links, key = { _, l -> "link:" + l.title }) { _, link ->
             OrbitChip(link.title, fonts, look, onClick = link.onClick) { Icon(link.icon, null, tint = look.accent, modifier = Modifier.size(18.dp)) }
         }
@@ -398,31 +393,60 @@ private fun OrbitChips(links: List<HomeQuickLink>, moods: List<MoodGenre>, brows
 }
 
 
-/** A song shelf as rows with round covers: four at first (eight in two columns when wide), the rest behind "Show all". */
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * A song shelf as Quick picks (the Music board's 1): pages of four flat rows that swipe sideways, the next page peeking at the edge,
+ * under the shelf's heading with a dot for each page (the one in view long). Every song of the shelf is a swipe away, none behind
+ * "Show all".
+ */
 @Composable
-private fun OrbitSongRows(
-    shelf: HomeShelf, wide: Boolean, fonts: OrbitFonts, look: OrbitLook, current: Song?, playing: Boolean,
-    onClick: (ShelfItem) -> Unit, onLongPress: ((ShelfItem) -> Unit)?, modifier: Modifier,
+private fun OrbitQuickPicks(
+    shelf: HomeShelf, title: String, fonts: OrbitFonts, look: OrbitLook, side: Dp, current: Song?, playing: Boolean,
+    onClick: (ShelfItem) -> Unit, onLongPress: ((ShelfItem) -> Unit)?,
 ) {
-    var all by rememberSaveable(shelf.title) { mutableStateOf(false) }
-    val columns = if (wide) 2 else 1
-    val first = if (wide) 8 else 4
-    val shown = if (all) shelf.items else shelf.items.take(first)
+    val pages = remember(shelf.items) { shelf.items.chunked(QUICK_PICKS_PER_PAGE) }
     val isPlaying = remember(shelf.items, current) { playingShelfItemMatcher(shelf.items, current) }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        shown.chunked(columns).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                pair.forEach { item ->
-                    OrbitSongRow(
-                        item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, modifier = Modifier.weight(1f),
-                        now = isPlaying(item), playing = playing, onLongClick = onLongPress?.let { { it(item) } }, trailingText = item.song?.durationText,
-                    )
+    val state = rememberLazyListState()
+    val page by remember(state) { derivedStateOf { state.firstVisibleItemIndex + if (state.firstVisibleItemScrollOffset > 0 && state.canScrollForward.not()) 1 else 0 } }
+    Column {
+        Row(Modifier.fillMaxWidth().padding(horizontal = side + 4.dp).padding(top = OrbitSpace.section, bottom = OrbitSpace.sectionToContent), verticalAlignment = Alignment.CenterVertically) {
+            OrbitSectionHeader(title, "", fonts, look, Modifier.weight(1f))
+            if (pages.size > 1) PageDots(pages.size, page.coerceIn(0, pages.lastIndex), look)
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            // A page is the width less the gutter and a 40 dp peek of the next; never wider than a row needs to be.
+            val pageWidth = (maxWidth - side * 2 - if (pages.size > 1) 40.dp else 0.dp).coerceAtMost(420.dp)
+            LazyRow(
+                state = state,
+                contentPadding = PaddingValues(horizontal = side),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                flingBehavior = androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior(state),
+                modifier = Modifier.testTag("music:home:quick-picks"),
+            ) {
+                itemsIndexed(pages, key = { index, _ -> "qp:${shelf.title}:$index" }) { _, items ->
+                    Column(Modifier.width(pageWidth)) {
+                        items.forEach { item ->
+                            OrbitSongRow(
+                                item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, modifier = Modifier.fillMaxWidth(),
+                                now = isPlaying(item), playing = playing, onLongClick = onLongPress?.let { { it(item) } },
+                                trailing = { if (onLongPress != null) OrbitRoundButton(CosmoIcons.MoreVertical, "More", look.dim, { onLongPress(item) }, size = 40.dp, onInk = look.ground) },
+                            )
+                        }
+                    }
                 }
-                if (pair.size < columns) Spacer(Modifier.weight(1f))
             }
         }
-        if (shelf.items.size > first) OrbitShowAll(all, shelf.items.size, fonts, look, onToggle = { all = !all })
+    }
+}
+
+private const val QUICK_PICKS_PER_PAGE = 4
+
+/** One dot a page, the one in view a 16 dp bar. */
+@Composable
+private fun PageDots(count: Int, current: Int, look: OrbitLook) {
+    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.semantics { contentDescription = "Page ${current + 1} of $count" }) {
+        repeat(count.coerceAtMost(8)) { i ->
+            Box(Modifier.size(width = if (i == current) 16.dp else 6.dp, height = 6.dp).clip(CircleShape).background(if (i == current) look.ink else look.ink.copy(alpha = 0.28f)))
+        }
     }
 }
 

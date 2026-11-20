@@ -64,7 +64,8 @@ fun MusicListControls(shown: Int, loaded: Int, hasMore: Boolean, order: MusicLis
     }
 }
 
-@Composable private fun orderLabel(order: MusicListOrder) = stringResource(when (order) {
+/** The name of a list order, as the order chip and menu say it. */
+@Composable internal fun orderLabel(order: MusicListOrder) = stringResource(when (order) {
     MusicListOrder.DEFAULT -> Res.string.music_list_default
     MusicListOrder.REVERSED -> Res.string.music_list_reversed
     MusicListOrder.TITLE -> Res.string.music_list_title

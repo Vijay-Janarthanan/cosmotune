@@ -166,10 +166,38 @@ fun OrbitPageHeader(
     }
 }
 
-/** A round action of a page header: 44 dp, the card's ink at 12 % (solid when [on]). */
+/**
+ * A round action of a page header: 44 dp, the card's ink at 12 % (solid when [on]). [progress] (0..1) draws a peach ring round it, the
+ * share done (the Download button: how much of the list is saved).
+ */
 @Composable
-fun OrbitHeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, colors: OrbitCardColors, onClick: () -> Unit, modifier: Modifier = Modifier, on: Boolean = false) =
-    OrbitRoundButton(icon, label, colors.ink, onClick, modifier, size = 44.dp, on = on, onInk = colors.fill, touch = 48.dp)
+fun OrbitHeaderButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    colors: OrbitCardColors,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    on: Boolean = false,
+    progress: Float? = null,
+) {
+    if (progress == null) {
+        OrbitRoundButton(icon, label, colors.ink, onClick, modifier, size = 44.dp, on = on, onInk = colors.fill, touch = 48.dp)
+        return
+    }
+    Box(modifier.size(44.dp), contentAlignment = Alignment.Center) {
+        OrbitRoundButton(icon, label, colors.ink, onClick, size = 44.dp, on = on, onInk = colors.fill, touch = 48.dp)
+        androidx.compose.foundation.Canvas(Modifier.size(50.dp)) {
+            val stroke = 3.dp.toPx()
+            val inset = stroke / 2
+            drawArc(
+                PEACH, -90f, 360f * progress.coerceIn(0f, 1f), false,
+                topLeft = androidx.compose.ui.geometry.Offset(inset, inset),
+                size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+            )
+        }
+    }
+}
 
 // ---- the heading collapsed into the top bar ----------------------------------------------------------------------------------
 

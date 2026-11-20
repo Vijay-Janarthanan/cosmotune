@@ -269,7 +269,13 @@ internal fun OrbitSongRowFor(
             onLongClick = onLongClick.takeUnless { pending || missing },
             enabled = !missing,
             titleContent = { ExplicitSongTitle(song, style = fonts.title, color = if (now) look.accent else look.ink) },
-            subtitleLeading = quality?.let { badge -> { QualityPill(badge, compact = true) } },
+            // With a trailing of its own (one button), a downloaded song's mark leads the second line instead of ending the row.
+            subtitleLeading = if (quality != null || (downloadedTint != null && trailing != null)) {
+                {
+                    if (downloadedTint != null && trailing != null) DownloadedBadge(song.videoId, if (downloadedTint == Color.Unspecified) look.accent else downloadedTint)
+                    quality?.let { badge -> QualityPill(badge, compact = true) }
+                }
+            } else null,
             discContent = when {
                 selected != null -> { { OrbitCheckMark(selected, look) } }
                 pending -> { { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = look.dim) } }
@@ -337,7 +343,8 @@ internal fun OrbitPortrait(
 /** The two shapes of the colour tile: a playlist's tall card, and a mood's or genre's short tile. */
 internal enum class OrbitTile(val height: Dp, val radius: Dp, val disc: Dp, val discX: Dp, val discY: Dp, val titleTop: Dp, val titleLines: Int, val bareWithoutCover: Boolean) {
     CARD(224.dp, 28.dp, 124.dp, 30.dp, 30.dp, 18.dp, 3, false),
-    MOOD(110.dp, 26.dp, 76.dp, 20.dp, 22.dp, 14.dp, 2, true),
+    /** A mood or a genre: 56 dp (the Music board's 2a), so a phone shows all eight on its first screen. */
+    MOOD(56.dp, 18.dp, 46.dp, 12.dp, 14.dp, 18.dp, 1, true),
 }
 
 /**
@@ -361,7 +368,10 @@ internal fun OrbitColourTile(
     Box(modifier.height(kind.height).clip(RoundedCornerShape(kind.radius)).background(fill).longPressMenuClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick)) {
         // Above the disc: the words never stand on the cover.
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = kind.titleTop)) {
-            Text(title, style = fonts.section.copy(fontSize = 17.sp, lineHeight = 20.sp), color = ink, maxLines = kind.titleLines, overflow = TextOverflow.Ellipsis)
+            Text(
+                title, style = fonts.section.copy(fontSize = if (kind == OrbitTile.MOOD) 15.sp else 17.sp, lineHeight = 20.sp), color = ink, maxLines = kind.titleLines,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = if (kind == OrbitTile.MOOD) 40.dp else 0.dp),
+            )
             if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body.copy(fontSize = 12.sp), color = ink.copy(alpha = 0.72f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         }
         val disc = Modifier.align(Alignment.BottomEnd).offset(x = kind.discX, y = kind.discY)

@@ -60,15 +60,15 @@ import com.cosmotune.ui.bridge.DropdownMenu
 import com.cosmotune.ui.bridge.DropdownMenuItem
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.pages.ArtistSignatureMark
-import com.cosmotune.ui.pages.pageSkeleton
 import com.cosmotune.ui.pages.rememberArtistVisuals
 import com.cosmotune.ui.pages.rememberMotionAllowed
 import com.cosmotune.ui.theme.LocalReducedMotion
 
 /*
- * The artist page in Orbit (Canvas repo, design/cosmotune/pages-orbit/artist.html), one piece for both hosts: the artist card in the
- * artist's own colours with the moving portrait in its round portrait, then top songs (with About beside them on a wide window),
- * music videos, live performances, albums, singles and EPs, featured on, fans also like, and the signature.
+ * The artist page in Orbit (the Music board's 5), one piece for both hosts: the compact page header in the artist's own colours with
+ * the moving portrait in its round portrait inside the dashed orbit, then the top songs as flat rows (with About beside them on a wide
+ * window), music videos, live performances, albums, singles and EPs, featured on, fans also like, and the signature, all at the one
+ * section rhythm.
  */
 
 /** One line of a More menu. */
@@ -161,19 +161,20 @@ fun OrbitArtistPage(
             item(key = "artist:card", contentType = "card") {
                 ArtistCard(
                     name = name, photo = photo, clip = art?.videoUrl?.let { CanvasArtwork(it) }, hero = art?.heroUrl, listeners = listeners,
-                    blurb = blurb.takeIf { maxWidth >= 600.dp }, colors = colors, following = following, onToggleFollow = onToggleFollow,
+                    colors = colors, following = following, onToggleFollow = onToggleFollow,
+                    albums = shelves.firstOrNull { it.first == ArtistShelfKind.RECORDS }?.second?.items?.size ?: 0,
                     onRadio = onRadio.takeIf { songs.isNotEmpty() }, onShuffle = onShuffle.takeIf { songs.isNotEmpty() }, menu = menu,
                     playing = playing, onPlay = onPlay.takeIf { songs.isNotEmpty() }, fonts = fonts, look = look,
                     modifier = Modifier.padding(horizontal = side).fillMaxWidth().testTag("music:artist:card"),
                     identity = artistIdentity ?: name,
                 )
             }
-            if (loading) pageSkeleton("skeleton:artist", rowDp = 66f)
+            if (loading) orbitRowSkeletons("skeleton:artist", side, rows = 4)
             if (error != null) item(key = "artist:error") { MessageState(error, actionLabel = onRetry?.let { "Retry" }, onAction = onRetry) }
 
             val about: @Composable (Modifier) -> Unit = { m ->
                 Column(m) {
-                    OrbitSectionHeader("About", "From the artist's page", fonts, look, Modifier.padding(start = 6.dp, top = 34.dp, bottom = 14.dp))
+                    OrbitSectionHeader("About", "From the artist's page", fonts, look, Modifier.padding(start = 4.dp, top = OrbitSpace.section, bottom = OrbitSpace.sectionToContent))
                     OrbitAboutCard(blurb, stats, Modifier.fillMaxWidth())
                 }
             }
@@ -194,13 +195,13 @@ fun OrbitArtistPage(
                 Column {
                     val showAll = onShowAll?.takeIf { shelf.items.size > SHELF_PREVIEW }?.let { { it(shelf) } }
                     OrbitPageSection(
-                        localizeShelfTitle(shelf.title), Modifier.padding(start = side + 6.dp, end = side).padding(top = 34.dp, bottom = 14.dp),
+                        localizeShelfTitle(shelf.title), Modifier.padding(start = side + 4.dp, end = side).padding(top = OrbitSpace.section, bottom = OrbitSpace.sectionToContent),
                         subtitle = localizeShelfSubtitle(shelf.subtitle), action = "Show all".takeIf { showAll != null }, onAction = showAll,
                     )
                     when (kind) {
                         ArtistShelfKind.VIDEOS -> OrbitVideoRow(shelf.items, false, fonts, look, side, open, onItemLongPress, if (wide) 300.dp else 260.dp)
                         ArtistShelfKind.LIVE -> OrbitVideoRow(shelf.items, true, fonts, look, side, open, onItemLongPress, if (wide) 300.dp else 260.dp)
-                        ArtistShelfKind.RECORDS -> OrbitRecordRow(shelf.items, fonts, look, side, open, onItemLongPress, size = if (wide) 152.dp else 140.dp)
+                        ArtistShelfKind.RECORDS -> OrbitRecordRow(shelf.items, fonts, look, side, open, onItemLongPress)
                         ArtistShelfKind.CARDS -> OrbitColourCardRow(shelf.items, fonts, side, open, onItemLongPress)
                         ArtistShelfKind.ARTISTS -> OrbitPortraitRow(shelf.items, fonts, look, side, open, onItemLongPress, size = if (wide) 110.dp else 92.dp)
                     }
@@ -212,7 +213,7 @@ fun OrbitArtistPage(
             }
             if (visuals.signature != null) {
                 item(key = "artist:signature") {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = side).padding(top = 34.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = side).padding(top = OrbitSpace.section)) {
                         OrbitSectionHeader("Signature", "", fonts, look, Modifier.padding(start = 6.dp, bottom = 10.dp))
                         ArtistSignatureMark(visuals.signature, name, Modifier.align(Alignment.CenterHorizontally).padding(12.dp))
                     }
@@ -240,8 +241,8 @@ internal fun topSongLine(song: Song): String {
     }
 }
 
-/** The first top songs shown; the rest behind "Show all". */
-private const val TOP_SHOWN = 5
+/** The first top songs shown (the Music board's 5: four); the rest behind "Show all" in the heading. */
+private const val TOP_SHOWN = 4
 
 @Composable
 private fun TopSongs(
@@ -253,146 +254,73 @@ private fun TopSongs(
     // The row that was played lights, not every namesake: see [playingRowMatcher].
     val isCurrentRow = playingRowMatcher(songs, current)
     Column(modifier) {
-        OrbitSectionHeader("Top songs", "Most played", fonts, look, Modifier.padding(start = 6.dp, top = 34.dp, bottom = 10.dp).semantics { heading() })
+        OrbitPageSection(
+            "Top songs", Modifier.padding(start = 4.dp, top = OrbitSpace.section, bottom = OrbitSpace.sectionToContent),
+            action = (if (all) "Show less" else "Show all").takeIf { songs.size > TOP_SHOWN }, onAction = { all = !all },
+        )
         shown.forEachIndexed { index, song ->
             val now = isCurrentRow(song)
             val row: @Composable (Modifier) -> Unit = { m ->
-                OrbitRankedRow(
-                    rank = index + 1, title = song.title, subtitle = topSongLine(song),
-                    cover = song.thumbnailUrl, fonts = fonts, look = look, onClick = { onClick(index) }, modifier = m,
-                    now = now, playing = now && isPlaying, onLongClick = { onLongClick(song) },
+                OrbitSongRow(
+                    title = song.title, subtitle = topSongLine(song), cover = song.thumbnailUrl, fonts = fonts, look = look,
+                    onClick = { onClick(index) }, modifier = m.fillMaxWidth(), now = now, playing = now && isPlaying, onLongClick = { onLongClick(song) },
                     trailing = {
-                        song.durationText?.let { Text(it, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp)) }
-                        if (onMore != null) OrbitRoundButton(CosmoIcons.MoreVertical, "More", look.ink, { onMore(song) }, Modifier.padding(start = 8.dp), size = 36.dp)
+                        if (onMore != null) OrbitRoundButton(CosmoIcons.MoreVertical, "More", look.dim, { onMore(song) }, size = 40.dp, touch = 48.dp)
+                        else song.durationText?.let { Text(it, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp)) }
                     },
                 )
             }
             if (onSwipe != null) OrbitSwipeToQueue({ onSwipe(song) }, look, fonts, Modifier.testTag("music:artist:top:$index")) { row(Modifier) }
             else row(Modifier.testTag("music:artist:top:$index"))
         }
-        if (songs.size > TOP_SHOWN) OrbitShowAll(all, songs.size, fonts, look, onToggle = { all = !all }, modifier = Modifier.padding(top = 6.dp))
     }
 }
 
 /**
- * The artist card: the artist's colour, the round portrait (the moving portrait looping silently in it when Apple has one and the
- * motion rules allow, the photo otherwise) inside a dotted orbit, the mono count line with "Moving portrait" beside it while the
- * loop plays, the name, on a wide card the blurb, and Following, Radio, Shuffle and More; Play in the bite. From 600 dp the portrait
- * stands at the end; narrower it is on top and the rest stacks under it.
+ * The artist card: the compact page header ([OrbitPageHeader]) in the artist's colour, the round portrait (the moving portrait
+ * looping silently in it when Apple has one and the motion rules allow, the photo otherwise) at 104 dp inside the dashed 120 dp
+ * orbit, "ARTIST · 2.4M MONTHLY LISTENERS", the name, whether it is followed and how many albums, and one row of round actions:
+ * Shuffle, Radio, Follow (solid while following) and More; Play in the bite.
  */
 @Composable
 private fun ArtistCard(
-    name: String, photo: String?, clip: CanvasArtwork?, hero: String?, listeners: String?, blurb: String?, colors: OrbitCardColors,
+    name: String, photo: String?, clip: CanvasArtwork?, hero: String?, listeners: String?, colors: OrbitCardColors,
     following: Boolean?, onToggleFollow: (() -> Unit)?, onRadio: (() -> Unit)?, onShuffle: (() -> Unit)?, menu: List<OrbitMenuAction>,
     playing: Boolean, onPlay: (() -> Unit)?, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier,
-    identity: String,
+    identity: String, albums: Int,
 ) {
     val allowed = clip != null && rememberMotionAllowed()
-    var moving by remember(clip) { mutableStateOf(false) }
-    val ink = colors.ink
-    BoxWithConstraints(modifier) {
-        val wide = maxWidth >= 600.dp
-        val cardWidth = maxWidth
-        OrbitBiteCard(colors.fill, Modifier.fillMaxWidth(), bite = {
-            if (onPlay != null) OrbitPlayButton(playing, onPlay, look, Modifier.testTag("music:artist:play"))
-        }) {
-            val label: @Composable () -> Unit = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(listOfNotNull("Artist", listeners).joinToString(" · ").uppercase(), style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (moving) MovingTag(ink, fonts, Modifier.padding(start = 14.dp))
+    val subtitle = listOfNotNull(
+        when (following) { true -> "Following"; false -> "Not followed"; null -> null },
+        albums.takeIf { it > 0 }?.let { if (it == 1) "1 album" else "$it albums" },
+    ).joinToString(" · ")
+    OrbitPageHeader(
+        cover = photo, label = listOfNotNull("Artist", listeners).joinToString(" · "), title = name, subtitle = subtitle.ifBlank { null },
+        playing = playing, onPlay = onPlay, modifier = modifier, colors = colors,
+        lead = { c ->
+            Box(Modifier.size(OrbitHeaderSize.PAGE.disc), contentAlignment = Alignment.Center) {
+                OrbitMotionDisc(photo, 104.dp, clip, allowed, overStill = hero, identity = identity)
+                Canvas(Modifier.fillMaxSize()) {
+                    val r = this.size.minDimension / 2 - 1.dp.toPx()
+                    drawCircle(c.ink.copy(alpha = 0.6f), r, style = Stroke(1.5.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()))))
                 }
             }
-            val buttons: @Composable () -> Unit = {
-                ArtistButtons(colors, following, onToggleFollow, onRadio, onShuffle, menu, wide, Modifier.padding(end = if (wide) 0.dp else 76.dp))
-            }
-            val portrait: @Composable (Dp, Modifier) -> Unit = { size, m ->
-                Box(m.size(size + 40.dp), contentAlignment = Alignment.Center) {
-                    OrbitMotionDisc(photo, size, clip, allowed, overStill = hero, onMoving = { moving = it }, identity = identity)
-                    Canvas(Modifier.fillMaxSize()) {
-                        val r = this.size.minDimension / 2 - 2.dp.toPx()
-                        drawCircle(ink.copy(alpha = 0.22f), r, style = Stroke(1.5.dp.toPx()))
-                        drawCircle(ink.copy(alpha = 0.5f), r, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 9.dp.toPx()))))
-                    }
-                }
-            }
-            if (wide) {
-                val size = (cardWidth * 0.3f).coerceIn(180.dp, 278.dp)
-                Row(Modifier.fillMaxWidth().heightIn(min = 330.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f).padding(start = 30.dp, top = 36.dp, bottom = 30.dp, end = 24.dp)) {
-                        label()
-                        Text(name, style = fonts.greeting.copy(fontSize = 52.sp, lineHeight = 54.sp), color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.dp).semantics { heading() })
-                        if (blurb != null) Text(blurb, style = fonts.body.copy(fontSize = 15.sp, lineHeight = 21.sp), color = ink.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp).width(440.dp))
-                        Spacer(Modifier.size(26.dp))
-                        buttons()
-                    }
-                    portrait(size, Modifier.padding(end = 80.dp, top = 6.dp, bottom = 6.dp))
-                }
-            } else {
-                Column(Modifier.fillMaxWidth().padding(start = 22.dp, end = 20.dp, top = 22.dp, bottom = 22.dp)) {
-                    portrait((cardWidth - 120.dp).coerceIn(150.dp, 220.dp), Modifier.align(Alignment.CenterHorizontally))
-                    Spacer(Modifier.size(14.dp))
-                    label()
-                    Text(name, style = fonts.heroTitle.copy(fontSize = 30.sp, lineHeight = 32.sp), color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp).semantics { heading() })
-                    Spacer(Modifier.size(14.dp))
-                    buttons()
-                }
-            }
-        }
-    }
-}
-
-/** "● Moving portrait": a small breathing dot (still under reduced motion) and the words, while the loop is on screen. */
-@Composable
-private fun MovingTag(ink: androidx.compose.ui.graphics.Color, fonts: OrbitFonts, modifier: Modifier) {
-    val reduced = LocalReducedMotion.current
-    val pulse = if (reduced) null else rememberInfiniteTransition(label = "moving").animateFloat(1f, 0.2f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "dot")
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(6.dp).alpha(pulse?.value ?: 1f).clip(CircleShape).background(ink))
-        Spacer(Modifier.width(6.dp))
-        Text("MOVING PORTRAIT", style = fonts.label, color = ink.copy(alpha = 0.8f), maxLines = 1)
-    }
-}
-
-/** Following (solid) or Follow, Radio, Shuffle and More; on a narrow card Following has a line of its own. */
-@Composable
-private fun ArtistButtons(
-    colors: OrbitCardColors, following: Boolean?, onToggleFollow: (() -> Unit)?, onRadio: (() -> Unit)?, onShuffle: (() -> Unit)?,
-    menu: List<OrbitMenuAction>, wide: Boolean, modifier: Modifier,
-) {
-    val follow: @Composable () -> Unit = {
+        },
+    ) { c ->
+        if (onShuffle != null) OrbitHeaderButton(CosmoIcons.Shuffle, "Shuffle", c, onShuffle, Modifier.testTag("music:artist:shuffle"))
+        if (onRadio != null) OrbitHeaderButton(CosmoIcons.Radio, "Radio", c, onRadio, Modifier.testTag("music:artist:radio"))
         if (following != null && onToggleFollow != null) {
-            OrbitCardChip(if (following) "Following" else "Follow", colors, onToggleFollow, Modifier.testTag("music:artist:follow"),
-                icon = if (following) CosmoIcons.Check else CosmoIcons.Plus, solid = following)
-        }
-    }
-    val rest: @Composable () -> Unit = {
-        if (onRadio != null) OrbitCardChip("Radio", colors, onRadio, Modifier.testTag("music:artist:radio"), icon = CosmoIcons.Radio)
-        if (onShuffle != null) {
-            if (wide) OrbitCardChip("Shuffle", colors, onShuffle, Modifier.testTag("music:artist:shuffle"), icon = CosmoIcons.Shuffle)
-            else OrbitCardButton(CosmoIcons.Shuffle, "Shuffle", colors, onShuffle, Modifier.testTag("music:artist:shuffle"))
+            OrbitHeaderButton(
+                if (following) CosmoIcons.Check else CosmoIcons.Plus, if (following) "Following" else "Follow", c, onToggleFollow,
+                Modifier.testTag("music:artist:follow"), on = following,
+            )
         }
         if (menu.isNotEmpty()) {
             Box {
                 var open by remember { mutableStateOf(false) }
-                OrbitCardButton(CosmoIcons.MoreVertical, "More", colors, { open = true }, Modifier.testTag("music:artist:more"))
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    menu.forEach { action ->
-                        DropdownMenuItem(
-                            text = { Text(action.label) },
-                            leadingIcon = action.icon?.let { icon -> { Icon(icon, null) } },
-                            onClick = { open = false; action.onClick() },
-                        )
-                    }
-                }
+                OrbitHeaderButton(CosmoIcons.MoreVertical, "More", c, { open = true }, Modifier.testTag("music:artist:more"))
+                OrbitMenu(open = open, onDismiss = { open = false }, items = menu.map { OrbitMenuItem(it.label, icon = it.icon, onClick = it.onClick) }, fonts = fonts, look = look)
             }
-        }
-    }
-    if (wide) {
-        Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { follow(); rest() }
-    } else {
-        Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (following != null && onToggleFollow != null) follow()
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { rest() }
         }
     }
 }

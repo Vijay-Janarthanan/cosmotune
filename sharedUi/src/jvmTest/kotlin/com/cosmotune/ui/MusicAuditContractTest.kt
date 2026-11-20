@@ -21,9 +21,9 @@ class MusicAuditContractTest {
 
     @Test fun holdingTheHomeHeroOpensItsMenu() {
         val home = code("$ui/home/OrbitHome.kt")
-        assertTrue("onHold = heroHeld?.let { held -> onItemLongPress?.let { open -> { open(held) } } }" in home, "the hero is handed the feed's long press")
-        assertTrue(".longPressMenuClickable(onClick = onCard, onLongClick = onHold)" in home, "a hold on the card opens the menu")
-        assertTrue(".longPressMenuClickable(onClick = onBite, onLongClick = onHold)" in home, "a hold on the play button opens the menu")
+        // The pick-up card (the Music board's 1) is the compact header: a hold on it opens the menu of what it offers.
+        assertTrue("onClick = open, onLongClick = onItemLongPress?.let { held -> { held(item) } }," in home, "the card is handed the feed's long press")
+        assertTrue("onClick = elsewhere.onContinue, onLongClick = elsewhere.onPutAside," in home, "another device's song is put aside by a hold")
     }
 
     @Test fun theDrawersRoomCardClosesTheDrawer() {

@@ -21,7 +21,6 @@ import com.cosmotune.music.ui.LyricsProviderState
 import com.cosmotune.music.ui.haptics.rememberHaptics
 import com.cosmotune.ui.nowplaying.CosmoLyricsPanel
 import com.cosmotune.ui.nowplaying.LyricsStyle
-import com.cosmotune.ui.nowplaying.NowPlayingUpNext
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.LocalCosmoShell
@@ -127,9 +126,10 @@ val LocalSidePanelPlaying = compositionLocalOf { false }
 private val SIDE_LYRICS_STYLE = LyricsStyle(TypeScale.TITLE_S, 1.12f, 0.9f)
 
 /**
- * The live queue — the player's own, rows, drag and all — without the player. It is Up next: the playing row in
- * peach with its orbit ([isPlaying] circles its moon, [progress] moves it when given), the groups with Clear, and the AutoPlay
- * group's button when [onToggleAutoplay] is given.
+ * The live queue without the player: Up next in Orbit ([com.cosmotune.ui.orbit.OrbitQueueList]), the playing row in peach with its
+ * orbit ([isPlaying] circles its moon, [progress] moves it when given), flat rows with their drag handles, a swipe to the left to
+ * remove with Undo ([onRestore] puts a song back at its place), select mode ([onPlayNext], [onDownload]), the groups with Clear, and
+ * the AutoPlay group's button when [onToggleAutoplay] is given.
  */
 @Composable
 fun QueueSidePanel(
@@ -144,8 +144,11 @@ fun QueueSidePanel(
     isPlaying: Boolean = LocalSidePanelPlaying.current,
     progress: (() -> Float)? = null,
     onToggleAutoplay: (() -> Unit)? = null,
+    onRestore: ((Song, Int) -> Unit)? = null,
+    onPlayNext: ((List<Song>) -> Unit)? = null,
+    onDownload: ((List<Song>) -> Unit)? = null,
 ) {
-    NowPlayingUpNext(
+    com.cosmotune.ui.orbit.OrbitQueueList(
         queue = queue,
         queueIndex = queueIndex,
         autoplayEnabled = autoplayEnabled,
@@ -157,10 +160,12 @@ fun QueueSidePanel(
         onMove = onMove,
         onClear = onClear,
         onToggleAutoplay = onToggleAutoplay,
-        onDragActiveChange = {},
-        fonts = orbitFonts(),
-        look = orbitLook(),
         modifier = modifier,
-        header = false,
+        onRestore = onRestore,
+        onPlayNext = onPlayNext,
+        onDownload = onDownload,
+        // The side panel's own head says "Up next"; the chips and the groups stay.
+        header = true,
+        playingFrom = queue.getOrNull(queueIndex + 1)?.playbackSource?.takeIf { it.isNotBlank() },
     )
 }

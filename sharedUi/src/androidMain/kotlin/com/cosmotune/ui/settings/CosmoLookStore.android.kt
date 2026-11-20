@@ -15,6 +15,8 @@ private class SharedPreferencesStore(private val preferences: SharedPreferences)
     override fun putBoolean(key: String, value: Boolean) = preferences.edit().putBoolean(key, value).apply()
     override fun getInt(key: String, default: Int): Int = preferences.getInt(key, default)
     override fun putInt(key: String, value: Int) = preferences.edit().putInt(key, value).apply()
+    override fun getString(key: String, default: String): String = preferences.getString(key, default) ?: default
+    override fun putString(key: String, value: String) = preferences.edit().putString(key, value).apply()
 }
 
 private var processWide: CosmoLookSettings? = null
