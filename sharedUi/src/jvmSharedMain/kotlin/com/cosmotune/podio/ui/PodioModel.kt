@@ -13,6 +13,7 @@ import com.cosmotune.cache.CacheCodec
 import com.cosmotune.cache.FEED_FRESH_MS
 import com.cosmotune.cache.PageCache
 import com.cosmotune.cache.SLOW_FRESH_MS
+import com.cosmotune.ui.orbit.removeAfterUndo
 
 /** How many episodes of the followed shows Keep going lines up after the queue. */
 private const val KEEP_GOING = 10
@@ -132,8 +133,14 @@ internal class PodioModel(
     var playerSheet by mutableStateOf(false)
     /** The queue page (Up next) is open over the section. */
     var queueOpen by mutableStateOf(false)
-    /** The last removal from the queue or the inbox, with the way to put it back ("Removed · Undo"). */
-    var undo by mutableStateOf<PodioUndo?>(null)
+    /**
+     * The window's "Removed · Undo" snackbar ([com.cosmotune.ui.orbit.LocalOrbitUndo]), which Podio's removals (the queue, the inbox,
+     * an unfollow, a download) offer their way back on; null where no shell draws one, and a removal then offers no undo.
+     */
+    var undoBar: com.cosmotune.ui.orbit.OrbitUndoState? = null
+
+    /** Shows [offer] on the window's snackbar for its 10 s. */
+    fun offerUndo(offer: PodioUndo) { undoBar?.show(offer.message, offer.undo) }
 
     var inbox by mutableStateOf(emptyList<InboxEpisode>())
     var inboxLoading by mutableStateOf(false)
@@ -162,7 +169,7 @@ internal class PodioModel(
             } }
             // Following is an explicit freshness request, even when an older inbox cache is still fresh.
             if (added) loadInbox(library.state.value.shows, force = true, episodeLimit = library.state.value.inboxEpisodesPerShow)
-            else undo = PodioUndo("Unfollowed ${show.title.ifBlank { "the show" }}") { toggleFollow(show) }
+            else offerUndo(PodioUndo("Unfollowed ${show.title.ifBlank { "the show" }}") { toggleFollow(show) })
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { error = "Couldn't save or refresh your followed show. Retry from Following." }
     } }
@@ -222,7 +229,7 @@ internal class PodioModel(
         val index = state.entries.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: return
         val removed = state.entries[index]
         changeQueue { PodioQueueOrder.remove(it, id) }
-        undo = PodioUndo("Removed from the queue") { changeQueue { PodioQueueOrder.restore(it, removed, index) } }
+        offerUndo(PodioUndo("Removed from the queue") { changeQueue { PodioQueueOrder.restore(it, removed, index) } })
     }
 
     fun moveInQueue(from: Int, to: Int) = changeQueue { PodioQueueOrder.move(it, from, to) }
@@ -231,7 +238,7 @@ internal class PodioModel(
         val before = queue.state.value.entries
         if (before.isEmpty()) return
         changeQueue(PodioQueueOrder::clear)
-        undo = PodioUndo("Queue cleared") { changeQueue { it.copy(entries = before + it.entries) } }
+        offerUndo(PodioUndo("Queue cleared") { changeQueue { it.copy(entries = before + it.entries) } })
     }
     fun shuffleQueue() = changeQueue { PodioQueueOrder.shuffle(it) }
     fun setKeepGoing(on: Boolean) = changeQueue { it.copy(keepGoing = on) }
@@ -251,9 +258,9 @@ internal class PodioModel(
         val fresh = ids.filterNot { it in library.state.value.seenEpisodes }
         if (fresh.isEmpty()) return
         save { it.copy(seenEpisodes = it.seenEpisodes + fresh) }
-        if (undoable) undo = PodioUndo(if (fresh.size == 1) "Marked as seen" else "${fresh.size} marked as seen") {
+        if (undoable) offerUndo(PodioUndo(if (fresh.size == 1) "Marked as seen" else "${fresh.size} marked as seen") {
             save { it.copy(seenEpisodes = it.seenEpisodes - fresh.toSet()) }
-        }
+        })
     }
 
     fun setRefreshInBackground(on: Boolean) = save { it.copy(refreshInBackground = on) }
@@ -452,20 +459,25 @@ internal class PodioModel(
     fun stationCount(): String = "${radio.size} ${if (radio.size == 1) "station" else "stations"}" +
         if (country.isBlank()) " · Worldwide" else " · " + (REGIONS.firstOrNull { it.first == country }?.second ?: country)
 
-    var downloadToRemove by mutableStateOf<PodioItem?>(null)
+    /** Downloads taken off the lists while their Undo runs; each is deleted once its 10 s are up ([removeDownload]). */
+    var removingDownloads by mutableStateOf(emptySet<String>())
 
-    fun removeSelectedDownload() {
-        val item = downloadToRemove ?: return
+    /**
+     * Removes the downloaded [item] with "Removed · Undo" instead of asking first: it leaves the lists at once and its file is deleted
+     * only once Undo has run out, so Undo puts it back as it was.
+     */
+    fun removeDownload(item: PodioItem) {
         val remove = host.onRemoveDownload ?: return
-        downloadToRemove = null
-        scope.launch {
-            try {
-                if (!remove(item)) error = "Couldn't remove the downloaded episode."
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                error = "Couldn't remove the downloaded episode."
-            }
+        if (item.id in removingDownloads) return
+        undoBar.removeAfterUndo(item.title.ifBlank { "the episode" },
+            hide = { removingDownloads = removingDownloads + item.id },
+            restore = { removingDownloads = removingDownloads - item.id },
+        ) {
+            val removed = try { remove(item) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { false }
+            if (!removed) error = "Couldn't remove the downloaded episode."
+            // The host's list drops it as the file goes; once it has, the id may come back with a new download.
+            else delay(2_000)
+            removingDownloads = removingDownloads - item.id
         }
     }
 

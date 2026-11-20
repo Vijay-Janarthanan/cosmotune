@@ -205,7 +205,7 @@ private fun stationsLine(m: PodioModel): String {
             if (rows) items(m.radio.take(400), key = { "r-" + it.id }) { station ->
                 val current = env.playback.id == station.item().id
                 StationRow(station, env.saved.stations.any { it.id == station.id }, current, current && env.playback.playing, { m.playStation(station) },
-                    { m.toggleFavourite(station) }, fonts, look, Modifier.padding(horizontal = side).padding(bottom = 6.dp), onAir = if (current) onAir.song else null)
+                    { m.toggleFavourite(station) }, fonts, look, Modifier.padding(horizontal = side), onAir = if (current) onAir.song else null)
             } else stationGrid("s", m.radio.take(400), columns, cell, side, env, m, fonts, look)
             item(key = "credit") { PodioCredit("Stations: Radio Browser · Imagery: NASA GIBS", fonts, look, side) }
         }
@@ -290,7 +290,7 @@ private fun LazyListScope.stationsUnderRing(m: PodioModel, env: PodioEnv, onAir:
     items(m.nearby.take(400), key = { "n-" + it.id }) { station ->
         val current = env.playback.id == station.item().id
         StationRow(station, env.saved.stations.any { it.id == station.id }, current, current && env.playback.playing, { m.playStation(station) }, { m.toggleFavourite(station) },
-            fonts, look, Modifier.padding(horizontal = side).padding(top = 8.dp), onAir = if (current) onAir.song else null)
+            fonts, look, Modifier.padding(horizontal = side), onAir = if (current) onAir.song else null)
     }
     val favourites = env.saved.stations
     if (favourites.isNotEmpty()) {
@@ -301,7 +301,7 @@ private fun LazyListScope.stationsUnderRing(m: PodioModel, env: PodioEnv, onAir:
         items(favourites.take(8), key = { "f-" + it.id }) { station ->
             val current = env.playback.id == station.item().id
             StationRow(station, true, current, current && env.playback.playing, { m.playStation(station) }, { m.toggleFavourite(station) }, fonts, look,
-                Modifier.padding(horizontal = side).padding(top = 8.dp))
+                Modifier.padding(horizontal = side))
         }
     }
     item(key = "credit") { PodioCredit("Stations: Radio Browser · Imagery: NASA GIBS", fonts, look, side) }

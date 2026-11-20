@@ -187,11 +187,11 @@ private fun weatherIcon(w: PodioWeather) = when (w.code) {
     }
 }
 
-/** An article as a song row: its picture as the disc when it has one, else its first letter on the chip's fill. */
+/** An article as a flat row: its picture as the disc when it has one, else its first letter on the chip's fill. */
 @Composable private fun ArticleRow(place: PodioHighlight, catalogue: PodioCatalogue, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
     val bitmap = rememberPicture(catalogue, place.image)
-    OrbitSongRow(place.title, place.summary, null, fonts, look, onClick, Modifier.fillMaxWidth(), height = 72.dp, discContent = {
-        Box(Modifier.size(44.dp).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
+    OrbitSongRow(place.title, place.summary, null, fonts, look, onClick, Modifier.fillMaxWidth(), discContent = {
+        Box(Modifier.size(com.cosmotune.ui.orbit.orbitRowDisc()).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
             Text(place.title.take(1).uppercase(), style = fonts.title, color = look.dim)
             bitmap?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
         }

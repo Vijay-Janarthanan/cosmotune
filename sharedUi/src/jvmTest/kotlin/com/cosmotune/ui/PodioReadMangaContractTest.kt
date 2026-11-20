@@ -18,7 +18,9 @@ class PodioReadMangaContractTest {
 
     @Test fun theShowPageLeadsWithTheCompactCardAndRowsWithOneButton() {
         val show = body("$podio/PodioPages.kt", "ShowPage")
-        assertTrue(show.contains("OrbitCoverTitleCard(") && !show.contains("OrbitReleaseCard("), "the cover beside the title, not the album card")
+        assertTrue(show.contains("OrbitPageHeader(") && !show.contains("OrbitCoverTitleCard(") && !show.contains("OrbitReleaseCard("), "the shared compact header, the cover as its disc")
+        assertTrue(show.contains("playing = showsPause") && show.contains("val showsPause = loaded != null && env.playback.playing"), "Play shows pause while one of its episodes plays")
+        assertTrue(show.contains("OrbitCollapsingHeaderBar(list, OrbitCollapsedHeader("), "the heading collapses into a bar once scrolled away")
         assertTrue(show.contains("\"Unplayed\" + ") && show.contains("Oldest first") && show.contains("Newest first"), "the filters with a count, and the order")
         assertTrue(show.contains("fresh = episode.id in freshIds"), "new episodes carry the peach dot")
         val row = body("$podio/PodioKit.kt", "EpisodeRow")
@@ -47,7 +49,7 @@ class PodioReadMangaContractTest {
         assertTrue(page.contains("\"Play next\"") && page.contains("\"Shuffle\"") && page.contains("\"Keep going\""), "the groups of the board")
         assertTrue(page.contains("endLabel = \"Remove\", onEnd = remove"), "a swipe to the left removes")
         val model = code("$podio/PodioModel.kt")
-        assertTrue(model.contains("undo = PodioUndo(\"Removed from the queue\")"), "a removal can be undone")
+        assertTrue(model.contains("offerUndo(PodioUndo(\"Removed from the queue\")"), "a removal can be undone")
         assertTrue(model.contains("queuePlay(item, positionMs, upcoming())"), "an episode starts with what follows it")
         val app = code("$podio/PodioApp.kt")
         assertTrue(app.contains("replace(m.upcoming(queued))"), "a change of the queue reaches the player")

@@ -45,6 +45,7 @@ import com.cosmotune.ui.orbit.OrbitRoundButton
 import com.cosmotune.ui.orbit.OrbitSongRow
 import com.cosmotune.ui.orbit.OrbitStationRecord
 import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.orbit.orbitRowDisc
 import com.cosmotune.ui.theme.LocalReducedMotion
 import kotlinx.coroutines.launch
 
@@ -60,7 +61,7 @@ import kotlinx.coroutines.launch
 }
 
 /** A station's logo disc in a row's disc slot, wearing the orbit while it is the one on air. */
-@Composable internal fun StationRowDisc(station: RadioStation, onAir: Boolean, playing: Boolean, fonts: OrbitFonts, look: OrbitLook, size: Dp = 44.dp) {
+@Composable internal fun StationRowDisc(station: RadioStation, onAir: Boolean, playing: Boolean, fonts: OrbitFonts, look: OrbitLook, size: Dp = orbitRowDisc()) {
     Box(Modifier.size(size + 8.dp), contentAlignment = Alignment.Center) {
         OrbitLogoDisc(station.artwork, station.name, size, fonts)
         if (onAir) OrbitRing(size + 8.dp, look.accent, progress = null, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
@@ -68,7 +69,7 @@ import kotlinx.coroutines.launch
 }
 
 /**
- * A station in a list (the search, the stations under the globe's ring): the song row with the logo disc, the name over the place,
+ * A station in a list (the search, the stations under the globe's ring): the flat row with the logo disc, the name over the place,
  * language and stream, or over what is on air while it plays ([onAir]); the heart at the end. A tap plays it; the one that is on
  * is the peach row.
  */
@@ -76,7 +77,7 @@ import kotlinx.coroutines.launch
     fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, onAir: String? = null, showHeart: Boolean = true) {
     val line = if (current) onAir?.let { "On air: $it" } ?: "On air now"
         else PodioFormat.stationMeta(station.placeLine(), station.language, station.codec, station.bitrate)
-    OrbitSongRow(station.name, line, null, fonts, look, onPlay, modifier.fillMaxWidth(), now = current, playing = playing, endPadding = if (showHeart) 8.dp else 16.dp,
+    OrbitSongRow(station.name, line, null, fonts, look, onPlay, modifier.fillMaxWidth(), now = current, playing = playing,
         discContent = { StationRowDisc(station, current, playing, fonts, look) },
         trailing = if (showHeart) ({ HeartButton(saved, onSave, look) }) else null)
 }
@@ -115,7 +116,7 @@ internal fun LazyListScope.stationGrid(key: String, stations: List<RadioStation>
 internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
 
 /**
- * An episode as a row (board frame 2): the cover as a disc with how much is [heard] as its faint orbit, the title, "date · length ·
+ * An episode as a flat row (board frame 2, 60 dp or 52 with Compact rows): the cover as a disc with how much is [heard] as its faint orbit, the title, "date · length ·
  * 18 min left" under it with the peach dot in front when it is [fresh], and one button at the end: play and pause for the one that
  * is on ([now], the peach row, its orbit moving with [progress]), else the download (a ring while it runs, a filled mark once done).
  * A tap plays it (or resumes); a hold (or a right click) opens its sheet ([onMore]). [end] replaces the button (Downloads' remove).
@@ -124,9 +125,9 @@ internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
     download: DownloadMark, onPlay: () -> Unit, onDownload: () -> Unit, onMore: (() -> Unit)?, fonts: OrbitFonts, look: OrbitLook,
     modifier: Modifier = Modifier, fresh: Boolean = false, onToggle: (() -> Unit)? = null, end: (@Composable RowScope.() -> Unit)? = null) {
     val art = artUrl?.takeIf(String::isNotBlank)
-    OrbitSongRow(title, meta, art, fonts, look, onPlay, modifier.fillMaxWidth(), now = now, playing = playing, progress = progress, onLongClick = onMore, endPadding = 8.dp,
-        height = 60.dp,
-        discContent = if (now) null else ({ OrbitHeardDisc(art, 44.dp, heard, look) }),
+    val disc = orbitRowDisc()
+    OrbitSongRow(title, meta, art, fonts, look, onPlay, modifier.fillMaxWidth(), now = now, playing = playing, progress = progress, onLongClick = onMore,
+        discContent = if (now) null else ({ OrbitHeardDisc(art, disc, heard, look) }),
         subtitleLeading = if (fresh && !now) ({ Box(Modifier.size(7.dp).clip(CircleShape).background(look.accent).semantics { contentDescription = "New" }) }) else null,
         trailing = {
             when {
@@ -179,7 +180,7 @@ internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
         backgroundContent = {
             val toEnd = state.dismissDirection == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd
             val label = if (toEnd) startLabel else endLabel
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(22.dp)).background(look.accent.copy(alpha = 0.18f)).padding(horizontal = 20.dp),
+            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(look.accent.copy(alpha = 0.18f)).padding(horizontal = 20.dp),
                 contentAlignment = if (toEnd) Alignment.CenterStart else Alignment.CenterEnd) {
                 if (label != null) androidx.compose.material3.Text(label, style = fonts.chip, color = look.ink)
             }
