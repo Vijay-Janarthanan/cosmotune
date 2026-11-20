@@ -510,8 +510,9 @@ private fun ListLine(
 
 /**
  * Keeps a playlist downloaded while its page is open: on Wi-Fi (an unmetered connection), the songs of [songs] that are neither on the
- * device nor fetched by this switch before are handed to [download], the app's own downloads, and remembered for [playlistId]; so a
- * song the person removes from the device is not fetched again.
+ * device nor fetched by this switch before ([KeepDownloaded.fresh]) are handed to [download], the app's own downloads, and remembered
+ * for [playlistId]; so a song the person removes from the device is not fetched again. Away from the page the background pass
+ * ([KeepDownloaded.run]) does the same.
  */
 @Composable
 private fun KeepDownloadedEffect(playlistId: String, songs: List<Song>, downloadedIds: Set<String>, download: (List<Song>) -> Unit) {
@@ -521,7 +522,7 @@ private fun KeepDownloadedEffect(playlistId: String, songs: List<Song>, download
     LaunchedEffect(playlistId, songs, downloadedIds, metered) {
         if (metered != false) return@LaunchedEffect
         val kept = look.keptSongs(playlistId)
-        val fresh = songs.filter { !it.isMatchPending && !it.isMatchMissing && it.videoId !in downloadedIds && it.videoId !in kept }.distinctBy { it.videoId }
+        val fresh = KeepDownloaded.fresh(songs, { it in downloadedIds }, kept)
         if (fresh.isEmpty()) return@LaunchedEffect
         look.addKeptSongs(playlistId, fresh.map { it.videoId })
         current(fresh)

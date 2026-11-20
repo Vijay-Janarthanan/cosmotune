@@ -93,6 +93,11 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         writeSet(KEY_KEPT_PREFIX + playlistId, keptSongs(playlistId) + ids)
     }
 
+    /** When "Keep downloaded" last went over the kept playlists away from their pages (ms since the epoch; 0 for never). */
+    fun keepDownloadedCheckedMs(): Long = store.getString(KEY_KEEP_CHECKED, "").toLongOrNull() ?: 0L
+
+    fun setKeepDownloadedCheckedMs(ms: Long) = store.putString(KEY_KEEP_CHECKED, ms.toString())
+
     private fun readSet(key: String): Set<String> = store.getString(key, "").split(SET_SEPARATOR).filter { it.isNotBlank() }.toSet()
 
     /** At most the last [MAX_SET] entries: a preferences value has a length limit on the desktop (8 KiB). */
@@ -147,6 +152,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_COMPACT_ROWS = "compact_rows"
         const val KEY_KEEP_DOWNLOADED = "keep_downloaded"
         const val KEY_KEPT_PREFIX = "kept_songs:"
+        const val KEY_KEEP_CHECKED = "keep_downloaded_checked"
         private const val SET_SEPARATOR = ","
         private const val MAX_SET = 600
 

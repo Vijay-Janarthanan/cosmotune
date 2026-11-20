@@ -1271,6 +1271,39 @@ fun CosmotuneDesktopApp() {
         )
     }
 
+    // "Keep downloaded" with the playlist page closed: a pass on start and once a day while the app runs, and one for a playlist as
+    // soon as its switch is turned on, through the same downloads as Download all (a desktop is never on a metered link as far as
+    // this app can tell, see DesktopPlayerHost).
+    suspend fun keepDownloadedPass(playlists: Collection<String>? = null) {
+        val look = com.cosmotune.ui.settings.cosmoLookSettings()
+        if (look.keepDownloaded.value.isEmpty()) return
+        runCatching {
+            com.cosmotune.ui.pages.KeepDownloaded.run(
+                look,
+                songsOf = { id -> YtMusicRepository.completePlaylistSongs(id).getOrThrow() },
+                onDevice = { id -> downloads.any { it.videoId == id } },
+                download = { _, songs -> downloadAll(songs) },
+                playlists = playlists ?: look.keepDownloaded.value,
+            )
+        }
+    }
+    LaunchedEffect(Unit) {
+        // Clear of the start's own work (the session, the first pages), then the pass.
+        delay(30_000)
+        while (true) {
+            keepDownloadedPass()
+            delay(com.cosmotune.ui.pages.KeepDownloaded.DAY_MS)
+        }
+    }
+    LaunchedEffect(Unit) {
+        var before: Set<String>? = null
+        com.cosmotune.ui.settings.cosmoLookSettings().keepDownloaded.collect { kept ->
+            val added = before?.let { kept - it }.orEmpty()
+            before = kept
+            if (added.isNotEmpty()) keepDownloadedPass(added)
+        }
+    }
+
     /** Keeps a station queued ahead of whatever is playing. */
 
     /**

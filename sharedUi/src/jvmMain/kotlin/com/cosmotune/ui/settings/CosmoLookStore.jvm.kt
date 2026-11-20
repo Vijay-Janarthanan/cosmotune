@@ -20,5 +20,8 @@ private val processWide: CosmoLookSettings by lazy {
     CosmoLookSettings(PreferencesStore(Preferences.userRoot().node("com.cosmotune.desktop").node("look")))
 }
 
+/** The process's look settings outside composition (the desktop's "Keep downloaded" pass); the same one the screens use. */
+fun cosmoLookSettings(): CosmoLookSettings = processWide
+
 @Composable
 actual fun rememberCosmoLookSettings(): CosmoLookSettings = remember { processWide }
