@@ -27,38 +27,39 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
+import com.cosmotune.ui.theme.cosmoPlayerGroundEdges
 import com.cosmotune.ui.theme.cosmoAmbientGround
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
-/** What the phone's media slot holds, which decides how tall it is. */
+/** What the phone's picture slot holds, which decides its size. */
 internal enum class PhoneMedia {
-    /** The video shown whole: as tall as the page's width gives its shape, never more than the room. */
-    WHOLE,
-    /** The video cut to fill, or a panel: all the room above the card. */
-    ROOM,
-    /** The record: a square of the page's width at most. */
-    RECORD,
+    /** The song's video, Whole (its own shape in the middle, its glow round it) or Fill: the screen's width, all the room. */
+    VIDEO,
+    /** The square cover (Off, or a song without a video): the screen's width, as tall as it is wide, at most the room. */
+    COVER,
+    /** The panel a chip opened (the lyrics, Up next, Related): inside the page's margins, all the room. */
+    PANEL,
 }
 
 /**
- * The phone held upright (the Orbit board, section 5): the top row (close, "FROM · source", more), then the [media] across the
- * top (the whole video, the video cut to fill, the record, or the panel a chip opened), the song [card] right under it with play
- * in its bite, and Home's chips at the foot. How tall the media is depends on [mediaKind] ([PhoneMedia]); [aspect] is the
- * video's shape for [PhoneMedia.WHOLE]. The card is laid out first, so the media takes what it leaves. Everything keeps clear of
- * the status bar (its stable inset, so hiding it moves nothing), the navigation bar and the cutout.
+ * The phone held upright (the Now Playing board, section B): the top row (close, "FROM · source", more), then the [media] across
+ * the top (the video, the square cover, or the panel a chip opened), and the song [card] with Home's [chips] anchored at the foot,
+ * in the same place whatever the media is. How large the media is depends on [mediaKind] ([PhoneMedia]). The video and the cover
+ * run the full width of the screen and fade into the page at the top (under the top row) and at the bottom (above the card)
+ * instead of ending in a straight line. Everything keeps clear of the status bar (its stable inset, so hiding it moves nothing),
+ * the navigation bar and the cutout.
  */
 @Composable
 internal fun NowPlayingPhone(
     hazeState: HazeState,
     mediaKind: PhoneMedia,
-    aspect: Float,
     topRow: @Composable (Modifier) -> Unit,
     media: @Composable (Modifier) -> Unit,
     card: @Composable (Modifier) -> Unit,
     chips: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
-    recordDetails: @Composable () -> Unit = {},
 ) {
     Box(modifier.fillMaxSize().hazeSource(hazeState)) {
         Box(Modifier.fillMaxSize().cosmoAmbientGround(artwork = true))
@@ -69,7 +70,7 @@ internal fun NowPlayingPhone(
                 .padding(horizontal = PHONE_SIDE),
         ) {
             com.cosmotune.ui.shell.WindowCaptionArea(Modifier.fillMaxWidth()) { topRow(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp)) }
-            MediaOverCard(mediaKind, aspect, Modifier.weight(1f).fillMaxWidth(), media, card, chips, recordDetails)
+            MediaOverCard(mediaKind, Modifier.weight(1f).fillMaxWidth(), media, card, chips)
         }
     }
 }
@@ -77,27 +78,26 @@ internal fun NowPlayingPhone(
 /**
  * The media at the top, the card and the chips anchored at the foot (the redesign's "picture at the top, controls at the bottom"):
  * the card and the chips are measured first and placed at the bottom, so they stand in the same place whatever the media is; the
- * media starts right under the top row and takes the room above the card. A video ([PhoneMedia.WHOLE] or [PhoneMedia.ROOM])
- * runs the full width of the screen, past the page's side margins, and fills the room: Whole shows the video at its own shape in
- * the middle with its glow round it (a widescreen video has glow above and below, a tall one either side), Fill cuts it to the room.
- * The record keeps its square inside the margins, centred in the room.
+ * media starts right under the top row. The video takes all the room above the card (Whole sits in the middle of it with its glow
+ * round it, Fill is cut to it); the cover is a square of the screen's width at the top of the room, cut at the room's foot on a
+ * short screen. Both run past the page's side margins to the screen's edges, and over them the page's ground fades in at the top
+ * and the bottom ([cosmoPlayerGroundEdges]). The panel keeps the margins and has no fade.
  */
 @Composable
 private fun MediaOverCard(
     kind: PhoneMedia,
-    aspect: Float,
     modifier: Modifier,
     media: @Composable (Modifier) -> Unit,
     card: @Composable (Modifier) -> Unit,
     chips: @Composable (Modifier) -> Unit,
-    recordDetails: @Composable () -> Unit,
 ) {
+    val bleed = kind != PhoneMedia.PANEL
     Layout(
         content = {
             Box { media(Modifier.fillMaxSize()) }
             Box { card(Modifier.fillMaxWidth()) }
             Box { chips(Modifier.fillMaxWidth().padding(bottom = 18.dp)) }
-            if (kind == PhoneMedia.RECORD) Box { recordDetails() }
+            if (bleed) Box(Modifier.testTag("nowplaying:soft-edges").cosmoPlayerGroundEdges(top = SOFT_TOP, bottom = SOFT_BOTTOM))
         },
         modifier = modifier,
     ) { measurables, constraints ->
@@ -108,31 +108,27 @@ private fun MediaOverCard(
         val gap = PHONE_GAP.roundToPx()
         val chipsGap = PHONE_CHIPS_GAP.roundToPx()
         val room = (constraints.maxHeight - cardPlaced.height - gap - chipsGap - chipsPlaced.height).coerceAtLeast(0)
-        val bleed = kind != PhoneMedia.RECORD
         val mediaWidth = if (bleed) width + 2 * side else width
-        val wanted = when (kind) {
-            // The whole video gets all the room too: it sits in the middle of it at its own shape, and the space above and below is
-            // the video's glow (a soft blur of its own frames over the cover's colour), so there is no empty band.
-            PhoneMedia.WHOLE, PhoneMedia.ROOM -> room
-            PhoneMedia.RECORD -> (width * 0.9f).toInt()
+        val height = when (kind) {
+            PhoneMedia.COVER -> mediaWidth.coerceAtMost(room)
+            PhoneMedia.VIDEO, PhoneMedia.PANEL -> room
         }
-        val detailsGap = 8.dp.roundToPx()
-        val details = measurables.getOrNull(3)?.measure(Constraints(maxWidth = width, maxHeight = room))
-            ?.takeIf { it.height > 0 && room - wanted >= it.height + detailsGap }
-        val extra = details?.let { it.height + detailsGap } ?: 0
-        val height = wanted.coerceIn(0, room - extra)
         val mediaPlaced = measurables[0].measure(Constraints.fixed(mediaWidth, height))
-        // Fill takes all the room from the top; the whole video and the record sit in the middle of the room they have.
-        val top = if (kind == PhoneMedia.ROOM) 0 else (room - height - extra) / 2
+        val edgesPlaced = measurables.getOrNull(3)?.measure(Constraints.fixed(mediaWidth, height))
         val cardTop = constraints.maxHeight - chipsPlaced.height - chipsGap - cardPlaced.height
         layout(width, constraints.maxHeight) {
-            mediaPlaced.place(if (bleed) -side else 0, top)
-            details?.placeRelative((width - details.width) / 2, top + height + detailsGap)
+            val x = if (bleed) -side else 0
+            mediaPlaced.place(x, 0)
+            edgesPlaced?.place(x, 0)
             cardPlaced.place(0, cardTop)
             chipsPlaced.place(0, cardTop + cardPlaced.height + chipsGap)
         }
     }
 }
+
+/** How far the page's ground reaches into the picture: under the top row, and above the card. */
+internal val SOFT_TOP = 28.dp
+internal val SOFT_BOTTOM = 72.dp
 
 /**
  * The phone on its side, without Cinema (Cinema is what turning the phone shows a video as; leaving it lands here): the media or

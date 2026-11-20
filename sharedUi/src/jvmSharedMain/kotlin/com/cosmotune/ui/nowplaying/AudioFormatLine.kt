@@ -2,6 +2,10 @@ package com.cosmotune.ui.nowplaying
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -61,31 +65,23 @@ fun AudioFormatLine(modifier: Modifier = Modifier, onClick: (() -> Unit)? = Loca
     }
 }
 
-/** The portrait record's compact entry point into the actual playing signal path. */
+/**
+ * The measured quality of the song that plays ([mediaId]) in the song card's time row ("FLAC · 24/96", "AAC 256", "Dolby Atmos"),
+ * in the card's [ink] with a faint outline, for the cover and the video alike: the entry point into the audio details ([onClick]).
+ * Nothing until the decoder has measured this song, so a tier is never claimed for a stream that has not started.
+ */
 @Composable
-internal fun RecordAudioDetails(mediaId: String, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
+internal fun RecordAudioDetails(mediaId: String, fonts: OrbitFonts, ink: Color, onClick: () -> Unit) {
     val stats by NerdStats.current.collectAsStateWithLifecycle()
     val playing = stats?.takeIf { it.mediaId == mediaId } ?: return
-    val format = playing.audioFormatLabel() ?: return
-    val tier = when {
-        playing.isDolbyAtmos -> "Dolby Atmos"
-        playing.isHiRes -> stringResource(Res.string.hi_res_lossless)
-        playing.isLossless -> stringResource(Res.string.lossless)
-        else -> null
-    }
-    Row(
-        Modifier.heightIn(min = 44.dp).clip(CircleShape).background(look.chip)
-            .clickable(role = Role.Button, onClickLabel = stringResource(Res.string.audio_pipeline), onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(CosmoIcons.Equaliser, contentDescription = null, tint = look.accent, modifier = Modifier.size(16.dp))
-        if (tier != null) Text(tier, style = fonts.title, color = look.ink, maxLines = 1)
-        Text(format, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false))
-        Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = look.dim, modifier = Modifier.size(14.dp))
-    }
+    val badge = playing.measuredQualityBadge() ?: return
+    Text(
+        badge.text, style = fonts.label.copy(letterSpacing = 0.4.sp), color = ink, maxLines = 1,
+        modifier = Modifier.heightIn(min = 32.dp).clip(CircleShape)
+            .clickable(role = Role.Button, onClickLabel = "Audio details", onClick = onClick)
+            .semantics { contentDescription = badge.spoken }
+            .wrapContentHeight().border(1.dp, ink.copy(alpha = 0.3f), CircleShape).padding(horizontal = 9.dp, vertical = 3.dp),
+    )
 }
 
 /**

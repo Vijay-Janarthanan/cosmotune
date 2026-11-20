@@ -1,6 +1,8 @@
 package com.cosmotune.ui.nowplaying
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -66,10 +68,8 @@ internal fun NowPlayingTopRow(
             else "FROM · ${source.uppercase()}", style = fonts.label, color = look.ink.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onOpenOrigin).padding(vertical = 10.dp, horizontal = 4.dp),
         )
-        if (chips) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { status() }
-            PanelChips(panel, onPanel, fonts, look, closable = false)
-        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { status() }
+        if (chips) PanelChips(panel, onPanel, fonts, look, closable = false)
         Box {
             OrbitRoundButton(CosmoIcons.More, "More", look.ink, { moreOpen = true }, on = moreOpen, onInk = look.ground)
             OrbitMenu(moreOpen, { moreOpen = false }, more, fonts, look, header = "More")
@@ -83,7 +83,12 @@ internal fun NowPlayingTopRow(
  * it; otherwise one is always showing.
  */
 @Composable
-internal fun PanelChips(panel: NowPlayingPanel, onPanel: (NowPlayingPanel) -> Unit, fonts: OrbitFonts, look: OrbitLook, closable: Boolean, modifier: Modifier = Modifier, icons: Boolean = true) {
+internal fun PanelChips(
+    panel: NowPlayingPanel, onPanel: (NowPlayingPanel) -> Unit, fonts: OrbitFonts, look: OrbitLook, closable: Boolean, modifier: Modifier = Modifier,
+    icons: Boolean = true,
+    /** How many songs are up next, shown as a small peach badge on its chip (the wide page's tabs); null for none. */
+    upNextCount: Int? = null,
+) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         for ((which, title, icon) in listOf(
             Triple(NowPlayingPanel.LYRICS, "Lyrics", CosmoIcons.Lyrics),
@@ -94,7 +99,17 @@ internal fun PanelChips(panel: NowPlayingPanel, onPanel: (NowPlayingPanel) -> Un
             OrbitChip(
                 title, fonts, look, onClick = { onPanel(if (on && closable) NowPlayingPanel.NONE else which) }, selected = on,
                 leading = if (icons) ({ Icon(icon, null, modifier = Modifier.size(18.dp)) }) else null,
+                trailing = if (which == NowPlayingPanel.UP_NEXT && upNextCount != null && upNextCount > 0) ({ CountBadge(upNextCount, fonts, look) }) else null,
             )
         }
     }
+}
+
+/** A count on a chip: the number in a small peach badge. */
+@Composable
+private fun CountBadge(count: Int, fonts: OrbitFonts, look: OrbitLook) {
+    Text(
+        if (count > 99) "99+" else count.toString(), style = fonts.label.copy(letterSpacing = 0.sp), color = androidx.compose.ui.graphics.Color(0xFF2A100A), maxLines = 1,
+        modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50)).background(look.accent).padding(horizontal = 6.dp, vertical = 1.dp),
+    )
 }

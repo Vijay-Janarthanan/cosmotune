@@ -3,6 +3,8 @@ package com.cosmotune.ui.theme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.runtime.Composable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -124,6 +126,37 @@ fun Modifier.cosmoTopGround(shown: () -> Float, fade: Dp = 14.dp): Modifier {
                 brushes.forEach { drawRect(it, size = band) }
                 // Below the bar the ground fades out: the mask keeps the bar's own height whole.
                 drawRect(mask, topLeft = Offset(0f, size.height), size = Size(size.width, fadePx), blendMode = BlendMode.DstIn)
+                canvas.restore()
+            }
+        }
+    }
+}
+
+/**
+ * The player's ground ([cosmoAmbientGround] with `artwork`, exactly as it is painted on the whole window) over the top [top] and
+ * the bottom [bottom] of this box, fading from the ground at the edge to clear inside, so the picture under it (the song's video,
+ * its glow, the cover) melts into the page instead of ending in a straight line. Drawn over the picture by a box of its own, so
+ * nothing of the picture's (a video's surface) is put in a layer. Read in draw: where the box is in the window, the live colours.
+ */
+@Composable
+fun Modifier.cosmoPlayerGroundEdges(top: Dp, bottom: Dp): Modifier {
+    val colors = LocalCosmoColors.current
+    val wash by animateFloatAsState(if (colors.palette.isFallback) 0f else 1f, tween(600), label = "edgeWash")
+    val pageHeight = LocalWindowInfo.current.containerSize.height.toFloat()
+    val placedAt = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    return onGloballyPositioned { placedAt.floatValue = it.positionInWindow().y }.drawWithCache {
+        val brushes = groundBrushes(colors, wash, artwork = true, height = if (pageHeight > 0f) pageHeight else size.height * 2f)
+        val h = size.height.coerceAtLeast(1f)
+        val t = (top.toPx() / h).coerceIn(0f, 0.5f)
+        val b = (bottom.toPx() / h).coerceIn(0f, 0.5f)
+        val mask = Brush.verticalGradient(0f to Color.Black, t to Color.Transparent, (1f - b) to Color.Transparent, 1f to Color.Black)
+        onDrawBehind {
+            val y = placedAt.floatValue
+            drawIntoCanvas { canvas ->
+                canvas.saveLayer(Rect(Offset.Zero, size), Paint())
+                // The page's brushes are in the window's coordinates: this box shows the stretch of them it stands over.
+                withTransform({ translate(top = -y) }) { brushes.forEach { drawRect(it, topLeft = Offset(0f, y), size = size) } }
+                drawRect(mask, blendMode = BlendMode.DstIn)
                 canvas.restore()
             }
         }

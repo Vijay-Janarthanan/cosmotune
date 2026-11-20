@@ -29,9 +29,9 @@ class NowPlayingVolumeContractTest {
         assertTrue(oneColumn.contains("if (volume && roomBesideButtons)"), "beside the buttons where it fits: exactly one of the two places")
     }
 
-    @Test fun theSlimCardHasTheSpeakerAndEveryControlTurnsWithTheWheel() {
+    @Test fun everyControlTurnsWithTheWheel() {
         val src = card()
-        assertTrue(src.substringAfter("fun NowPlayingSlimCard").contains("OrbitVolumeButton(ink, fill, 40.dp"), "Cinema's card has the speaker")
+        assertTrue(!src.contains("fun NowPlayingSlimCard"), "Cinema's slim card went with the old Cinema: full screen is the plain player")
         assertTrue(Regex("volumeWheel\\(").findAll(src).count() >= 4, "the line, the button and its popover turn with the wheel")
     }
 }

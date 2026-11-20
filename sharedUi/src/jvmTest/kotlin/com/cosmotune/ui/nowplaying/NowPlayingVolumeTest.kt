@@ -65,20 +65,16 @@ class NowPlayingVolumeTest {
         CardButton(CosmoIcons.Lyrics, "How the video is shown", {}, movable = true),
     )
 
-    private fun render(name: String, widthDp: Int, wide: Boolean, volume: Boolean, slim: Boolean): Bitmap {
+    private fun render(name: String, widthDp: Int, wide: Boolean, volume: Boolean): Bitmap {
         val scene = ImageComposeScene(width = widthDp, height = 330, density = Density(1f)) {
             CompositionLocalProvider(LocalCosmoColors provides shell.colors) {
                 Box(Modifier.fillMaxSize().background(Color(0xFF14110F))) {
                     val fonts = orbitFonts()
                     val look = orbitLook()
-                    if (slim) {
-                        NowPlayingSlimCard(transport(), fonts, look, sixButtons.take(4), Modifier.width(widthDp.dp), volume = volume, volumeSource = FakeVolume())
-                    } else {
-                        NowPlayingSongCard(
-                            transport(), fonts, look, sixButtons, Modifier.width(widthDp.dp), wide = wide, showLine = wide, volume = volume,
-                            volumeSource = FakeVolume(),
-                        )
-                    }
+                    NowPlayingSongCard(
+                        transport(), fonts, look, sixButtons, Modifier.width(widthDp.dp), wide = wide, showLine = wide, volume = volume,
+                        volumeSource = FakeVolume(),
+                    )
                 }
             }
         }
@@ -97,9 +93,9 @@ class NowPlayingVolumeTest {
         return false
     }
 
-    private fun check(name: String, widthDp: Int, wide: Boolean, slim: Boolean = false) {
-        val with = render("$name-volume", widthDp, wide, true, slim)
-        val without = render("$name-novolume", widthDp, wide, false, slim)
+    private fun check(name: String, widthDp: Int, wide: Boolean) {
+        val with = render("$name-volume", widthDp, wide, true)
+        val without = render("$name-novolume", widthDp, wide, false)
         assertTrue(differs(with, without), "$name at $widthDp dp: the volume is drawn")
     }
 
@@ -110,6 +106,4 @@ class NowPlayingVolumeTest {
     @Test fun roomyCardKeepsTheLineBesideTheButtons() = check("roomy", 640, wide = false)
 
     @Test fun wideCardWithVideoShowsTheLineUnderTheButtons() = check("wide", 900, wide = true)
-
-    @Test fun cinemasSlimCardCarriesTheSpeaker() = check("slim", 760, wide = false, slim = true)
 }

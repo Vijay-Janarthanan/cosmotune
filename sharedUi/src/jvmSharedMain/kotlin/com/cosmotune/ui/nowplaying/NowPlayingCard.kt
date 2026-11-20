@@ -51,8 +51,6 @@ import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.ui.player.PlayerPlatform
 import com.cosmotune.music.ui.player.PlayerScrub
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.orbit.BiteShape
-import com.cosmotune.ui.orbit.Disc
 import com.cosmotune.ui.orbit.OrbitBiteCard
 import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitMenu
@@ -100,6 +98,8 @@ internal class NowPlayingTransport(
     val isLoading: Boolean = false,
     /** The playhead run on between readings, so the ring and moon glide; without one they follow the readings (previews, tests). */
     val live: LivePlayhead? = null,
+    /** Where the song is in the queue ("2 of 18"), for the card's eyebrow; null when there is no queue to count. */
+    val queueLabel: String? = null,
 ) {
     /** Where the playhead is drawn (0..1): the dragged handle while scrubbing, else the song. Read it in draw. */
     fun progress(): Float = scrub.shown(live?.positionMs() ?: position.positionMs, durationMs)
@@ -179,15 +179,29 @@ private fun CardButtons(buttons: List<CardButton>, ink: Color, fill: Color, size
     }
 }
 
-/** "NOW ORBITING · 0:58 / 4:19" (or PAUSED): the only text that reads the playhead, so it alone recomposes as the song moves. */
+/** "NOW ORBITING · 2 OF 18" (or PAUSED): the card's eyebrow. The time is the seek line's ([CardTimes]). */
 @Composable
 private fun OrbitingLabel(t: NowPlayingTransport, fonts: OrbitFonts, ink: Color, modifier: Modifier = Modifier) {
     val head = if (t.isPlaying) "NOW ORBITING" else "PAUSED"
-    val text = if (t.durationMs > 0) {
-        val ms = (t.scrub.shown(t.position.positionMs, t.durationMs) * t.durationMs).toLong()
-        "$head · ${clock(ms)} / ${clock(t.durationMs)}"
-    } else head
+    val text = t.queueLabel?.let { "$head · ${it.uppercase()}" } ?: head
     Text(text, style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+}
+
+/**
+ * The seek line's time row (the Now Playing board, B1 and D1): the time played at the start, the measured quality in the middle
+ * ([quality], "FLAC · 24/96"; a tap opens the audio details) and the song's length at the end. The only text that reads the
+ * playhead, so it alone recomposes as the song moves; while the line is dragged it shows where the drop will land.
+ */
+@Composable
+private fun CardTimes(t: NowPlayingTransport, fonts: OrbitFonts, ink: Color, quality: (@Composable (Color) -> Unit)?, modifier: Modifier = Modifier) {
+    val at = t.position.positionMs
+    val ms = if (t.durationMs > 0) (t.scrub.shown(at, t.durationMs) * t.durationMs).toLong() else at
+    Box(modifier.fillMaxWidth().testTag("nowplaying:card:times")) {
+        val style = fonts.label.copy(letterSpacing = 0.4.sp)
+        Text(clock(ms), style = style, color = ink.copy(alpha = 0.75f), modifier = Modifier.align(Alignment.CenterStart))
+        if (quality != null) Box(Modifier.align(Alignment.Center)) { quality(ink) }
+        if (t.durationMs > 0) Text(clock(t.durationMs), style = style, color = ink.copy(alpha = 0.75f), modifier = Modifier.align(Alignment.CenterEnd))
+    }
 }
 
 /** The stream's format in the label face ("FLAC · 44.1 KHZ"); a tap opens the audio details. Nothing until the decoder says. */
@@ -285,8 +299,10 @@ internal fun NowPlayingSongCard(
     buttonSize: Dp = 40.dp,
     /** The volume to drive; null is the host's own. For tests and hosts that bring their own. */
     volumeSource: SystemVolume? = null,
-    /** The phone's one live lyric line above the seek line, drawn in the card's ink; null for none. */
+    /** The one live lyric line above the seek line, drawn in the card's ink; null for none. */
     lyricLine: (@Composable (androidx.compose.ui.graphics.Color) -> Unit)? = null,
+    /** The measured quality in the time row under the seek line, in the card's ink; null for none. */
+    quality: (@Composable (Color) -> Unit)? = null,
 ) {
     val (fill, ink) = coverFill(t.coverUrl, t.song.title)
     OrbitBiteCard(fill, modifier, bite = { NowPlayingPlayButton(t, look, 66.dp, HERO_BITE_RING) }) {
@@ -297,7 +313,8 @@ internal fun NowPlayingSongCard(
                         OrbitingLabel(t, fonts, ink)
                         Spacer(Modifier.height(14.dp))
                         CardTitle(t, fonts, ink, fill, 30, maxLines = 1)
-                        if (format) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 8.dp))
+                        if (lyricLine != null) Box(Modifier.padding(top = 8.dp)) { lyricLine(ink) }
+                        else if (format && quality == null) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 8.dp))
                     }
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.padding(end = 64.dp, top = 12.dp), horizontalAlignment = Alignment.End) {
@@ -305,7 +322,10 @@ internal fun NowPlayingSongCard(
                         if (volume) OrbitVolume(ink, Modifier.padding(top = 14.dp), source = volumeSource)
                     }
                 }
-                OrbitProgressLine(t::progress, ink, Modifier.align(Alignment.BottomStart).padding(end = 64.dp), onSeek = t::seek)
+                Column(Modifier.align(Alignment.BottomStart).padding(end = 64.dp)) {
+                    OrbitProgressLine(t::progress, ink, onSeek = t::seek)
+                    CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
+                }
             }
         } else {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -326,7 +346,7 @@ internal fun NowPlayingSongCard(
                     }
                     Spacer(Modifier.height(12.dp))
                     CardTitle(t, fonts, ink, fill, 26, maxLines = 2)
-                    if (format) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 6.dp))
+                    if (format && quality == null) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 6.dp))
                     if (lyricLine != null) {
                         Spacer(Modifier.height(12.dp))
                         lyricLine(ink)
@@ -334,6 +354,7 @@ internal fun NowPlayingSongCard(
                     if (showLine) {
                         Spacer(Modifier.height(16.dp))
                         OrbitProgressLine(t::progress, ink, onSeek = t::seek)
+                        CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
                     }
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth().padding(end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -383,55 +404,11 @@ internal fun NowPlayingPlayButton(t: NowPlayingTransport, look: OrbitLook, size:
     }
 }
 
-/** The bites' diameters: [com.cosmotune.ui.orbit.HeroBite]'s 41 dp and [SlimBite]'s 38 dp radius. */
+/** The hero bite's diameter: [com.cosmotune.ui.orbit.HeroBite]'s 41 dp radius. */
 internal val HERO_BITE_RING = 82.dp
-internal val SLIM_BITE_RING = 76.dp
 
 /** What the volume takes beside the buttons: the speaker, the gap and the line. */
 private val VOLUME_WIDTH = 150.dp
 
 /** The card width (inside its padding) from which the short volume line fits on the label's row; below it the speaker is a button. */
 private val COMPACT_VOLUME_MIN_WIDTH = 300.dp
-
-/** The slim card's bite: in the middle of its end edge (Cinema, board section 2). */
-private val SlimBite = BiteShape(corner = 30.dp, bite = 38.dp, inset = 56.dp)
-
-/**
- * The slim song card of Cinema (board section 2): 112 dp, the cover's colour, the disc with its orbit (the progress), the label,
- * the title and the artists, [buttons] at the end and play / pause in the bite in the middle of the end edge.
- */
-@Composable
-internal fun NowPlayingSlimCard(
-    t: NowPlayingTransport, fonts: OrbitFonts, look: OrbitLook, buttons: List<CardButton>, modifier: Modifier = Modifier,
-    volume: Boolean = false, volumeSource: SystemVolume? = null,
-) {
-    val (fill, ink) = coverFill(t.coverUrl, t.song.title)
-    OrbitBiteCard(
-        fill.copy(alpha = 0.95f), modifier.height(112.dp), shape = SlimBite, biteInset = 24.dp,
-        bite = { NowPlayingPlayButton(t, look, 64.dp, SLIM_BITE_RING) },
-    ) {
-        Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 104.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {
-                Disc(t.coverUrl, 68.dp)
-                OrbitRing(84.dp, ink, progress = t::progress, spinning = t.isPlaying, stroke = 2.dp, moon = 4.5.dp)
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                OrbitingLabel(t, fonts, ink)
-                // Small title art in the slim card (the board's placement table), in the one line the plain title had.
-                AlbumTitleArt(
-                    TitleArtAlbum(t.song.title, t.coverUrl, artist = t.song.artist, album = t.song.albumName), ink = ink, ground = fill,
-                    modifier = Modifier.padding(top = 6.dp).fillMaxWidth(), place = TitleArt.Place.SLIM,
-                    maxSize = 26.sp, minSize = 16.sp, maxLines = 1, maxHeight = 26.dp,
-                )
-                Text(t.song.artist, style = fonts.body.copy(fontSize = 13.sp), color = ink.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            if (volume) {
-                OrbitVolumeButton(ink, fill, 40.dp, source = volumeSource)
-                Spacer(Modifier.width(6.dp))
-            }
-            CardButtons(buttons, ink, fill, 40.dp, 6.dp)
-        }
-    }
-}

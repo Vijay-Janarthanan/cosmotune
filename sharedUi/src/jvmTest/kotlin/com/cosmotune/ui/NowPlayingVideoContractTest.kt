@@ -6,13 +6,14 @@ import kotlin.test.assertTrue
 
 /**
  * The video views of Now Playing (the Orbit board, section 4), pinned by reading the source: Whole is the video's own shape in a
- * box of that shape (so nothing is cut), with a glow round it; nothing is drawn over the video; Cinema hides its chrome three
- * seconds after the pointer last moved; the kept view comes from the look settings.
+ * box of that shape (so nothing is cut), with a glow round it; nothing is drawn over the video; Cinema is the one plain
+ * full-screen player, shared with Video and Watch; the kept view comes from the look settings.
  */
 class NowPlayingVideoContractTest {
     private val dir = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/nowplaying"
     private val video get() = SourceContract.code(SourceContract.read("$dir/NowPlayingVideo.kt"))
     private val cinema get() = SourceContract.code(SourceContract.read("$dir/NowPlayingCinema.kt"))
+    private val player get() = SourceContract.code(SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/fullscreen/FullScreenPlayer.kt"))
     private val screen get() = SourceContract.code(SourceContract.read("$dir/CosmoNowPlaying.kt"))
 
     @Test fun wholeIsAFrameOfTheClipsOwnShapeSoCroppingItCutsNothing() {
@@ -33,11 +34,35 @@ class NowPlayingVideoContractTest {
         assertFalse(Regex("""Icon\(|OrbitRoundButton\(|Text\(""").containsMatchIn(body), "no buttons or text on the video")
     }
 
-    @Test fun cinemaHidesItsChromeThreeSecondsAfterThePointerLastMovedAndLeavesOnBackOrDoubleTap() {
-        assertTrue(cinema.contains("CINEMA_CHROME_MS = 3_000L"))
-        assertTrue(cinema.contains("PointerEventType.Move"), "a movement of the pointer brings the chrome back")
-        assertTrue(cinema.contains("onDoubleTap = onLeave"))
+    @Test fun cinemaIsTheSharedFullScreenPlayerInTheHostsFullWindow() {
+        val body = SourceContract.functionBody(cinema, "NowPlayingCinema")
+        assertTrue(body.contains("FullScreenWindow(onExit = onLeave)"), "the host's window: system bars hidden, the picture into the cutout")
+        assertTrue(body.contains("FullScreenPlayer("), "the one plain player Video and Watch use too")
+        assertTrue(body.contains("transport = FullScreenTransport.Tracks(t.onPrevious, t.onNext, hasPrevious, hasNext)"), "back / play-pause / next")
+        assertTrue(body.contains("view = if (fill) VideoView.FILL else VideoView.WHOLE"), "its own shape until a pinch fills the screen")
         assertTrue(screen.contains("PlayerBackHandler(enabled = cinemaShown) { leaveCinema() }"), "Esc and back leave Cinema")
+        assertTrue(screen.contains("(cinema || (landscape && !leftTurnedCinema)) && wantVideo"), "turning the phone sideways brings it")
+    }
+
+    @Test fun theFullScreenPlayerIsPlainAndHidesAfterThreeSeconds() {
+        assertTrue(player.contains("const val FULL_SCREEN_HIDE_MS = 3_000L"))
+        val body = SourceContract.functionBody(player, "FullScreenPlayer")
+        assertTrue(body.contains("if (!shown || scrubbing || menuOpen || holdControls) return@LaunchedEffect"), "not while the bar is dragged or a menu is open")
+        assertTrue(body.contains("PointerEventType.Move"), "a mouse that moves brings the controls back")
+        assertTrue(body.contains("onTap = { shown = !shown; stamp++ }"), "a tap toggles them")
+        assertTrue(body.contains("TapThird.LEFT -> if (canSkip) { skip(-FULL_SCREEN_SKIP_MS)") && body.contains("TapThird.RIGHT -> if (canSkip) { skip(FULL_SCREEN_SKIP_MS)"),
+            "a double tap on the left or right third skips 10 s")
+        assertTrue(body.contains(".pinchToFill { wanted -> setFill(wanted)"), "a pinch fills the screen or gives back the picture's shape")
+        assertTrue(body.contains("picture(fill, Modifier.fillMaxSize())"), "the picture takes the whole window, the cutout too")
+        assertTrue(body.contains("windowInsetsPadding(WindowInsets.safeDrawing)"), "the controls keep clear of it")
+        assertTrue(player.contains("settings.fullScreenFill.collectAsState()"), "the shape chosen is remembered")
+        assertTrue(player.contains("\"Leave full screen\""), "the ⋯ menu holds leaving")
+    }
+
+    @Test fun aDoubleTapSkipsOnlyFromTheOuterThirds() {
+        assertTrue(com.cosmotune.ui.fullscreen.tapThird(0.1f) == com.cosmotune.ui.fullscreen.TapThird.LEFT)
+        assertTrue(com.cosmotune.ui.fullscreen.tapThird(0.5f) == com.cosmotune.ui.fullscreen.TapThird.MIDDLE)
+        assertTrue(com.cosmotune.ui.fullscreen.tapThird(0.9f) == com.cosmotune.ui.fullscreen.TapThird.RIGHT)
     }
 
     @Test fun theKeptViewIsTheLookSettingsAndTheMenuOffersEveryView() {

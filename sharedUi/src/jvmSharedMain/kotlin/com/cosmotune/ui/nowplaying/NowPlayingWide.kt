@@ -30,28 +30,31 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.theme.cosmoAmbientGround
+import com.cosmotune.ui.theme.cosmoPlayerGroundEdges
+import androidx.compose.ui.layout.layout
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
 /**
- * Now Playing in a wide window (the desktop, or a tablet on its side; the Orbit board, sections 1 and 3), on the ambient ground
+ * Now Playing in a wide window (the desktop, or a tablet on its side; the Now Playing board, section D), on the ambient ground
  * that wears the cover:
- *  - the [topRow] across the top (close, "FROM · source", the Lyrics / Up next / Related chips, more), in the window's caption
- *    area so an empty stretch of it still moves the window;
- *  - on the left the [media] (the video, rounded 34, or without one the record) over the song [card];
- *  - on the right the [panel] the chips chose (Up next as Home's song rows, the lyrics in the wide face, or Related).
- * With a [video] the left column takes about two thirds and the card is the wide one (the title left, the buttons right, the line
- * across its foot) once the column is 640 dp or more; with the record the columns are about even and the card is the compact one.
+ *  - the [topRow] across the top (close, "FROM · source", what is switched on, more), in the window's caption area so an empty
+ *    stretch of it still moves the window;
+ *  - on the left the [media] (the video at its own shape, or the cover centred over a blurred copy of itself), running to the
+ *    window's start edge and fading into the page at its top and its foot, over the song [card];
+ *  - on the right the [tabs] (Lyrics, Up next with its count, Related) over the [panel] they chose.
+ * The left column takes about two thirds; its card is the wide one (the title left, the buttons right, the line and its times
+ * across the foot) once the column is 640 dp or more.
  *
  * Everything is marked as what the sheets blur ([hazeState]) and keeps clear of the system bars and the display cutout.
  */
 @Composable
 internal fun NowPlayingWide(
     hazeState: HazeState,
-    video: Boolean,
     topRow: @Composable (Modifier) -> Unit,
     media: @Composable (Modifier) -> Unit,
     card: @Composable (modifier: Modifier, wide: Boolean) -> Unit,
+    tabs: @Composable (Modifier) -> Unit,
     panel: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -63,7 +66,6 @@ internal fun NowPlayingWide(
     val top = with(density) { insets.getTop(density).toDp() }
     val right = with(density) { insets.getRight(density, direction).toDp() }
     val bottom = with(density) { insets.getBottom(density).toDp() }
-    val split by animateFloatAsState(if (video) VIDEO_SPLIT else RECORD_SPLIT, tween(420), label = "split")
     Box(modifier.fillMaxSize().hazeSource(hazeState)) {
         Box(Modifier.fillMaxSize().cosmoAmbientGround(artwork = true))
         Column(Modifier.fillMaxSize().padding(start = left + SIDE_START, end = right + SIDE_END, bottom = bottom + FOOT)) {
@@ -72,16 +74,24 @@ internal fun NowPlayingWide(
             }
             Spacer(Modifier.height(20.dp))
             Row(Modifier.weight(1f).fillMaxWidth()) {
-                BoxWithConstraints(Modifier.weight(split).fillMaxHeight()) {
-                    val wideCard = video && maxWidth >= WIDE_CARD_MIN
+                BoxWithConstraints(Modifier.weight(SPLIT).fillMaxHeight()) {
+                    val wideCard = maxWidth >= WIDE_CARD_MIN
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        media(Modifier.weight(1f).fillMaxWidth())
+                        // To the window's start edge, past the page's margin; the page's ground fades over its top and foot.
+                        Box(Modifier.weight(1f).fillMaxWidth().bleedStart(left + SIDE_START)) {
+                            media(Modifier.fillMaxSize())
+                            Box(Modifier.matchParentSize().cosmoPlayerGroundEdges(top = SOFT_TOP, bottom = SOFT_BOTTOM))
+                        }
                         Spacer(Modifier.height(18.dp))
                         card(Modifier.fillMaxWidth().then(if (wideCard) Modifier.height(WIDE_CARD_HEIGHT) else Modifier), wideCard)
                     }
                 }
                 Spacer(Modifier.width(COLUMN_GAP))
-                panel(Modifier.weight(1f - split).fillMaxHeight())
+                Column(Modifier.weight(1f - SPLIT).fillMaxHeight()) {
+                    tabs(Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(12.dp))
+                    panel(Modifier.weight(1f).fillMaxWidth())
+                }
             }
         }
     }
@@ -105,18 +115,16 @@ internal fun NowPlayingPanelSwitch(
     }
 }
 
-/** The record in a media box: as large as the box allows (the ring included), centred. */
-@Composable
-internal fun RecordBox(modifier: Modifier, maxDisc: Dp = 440.dp, record: @Composable (disc: Dp) -> Unit) {
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        val disc = (minOf(maxWidth, maxHeight) - RECORD_RING_GAP * 2 - 8.dp).coerceIn(0.dp, maxDisc)
-        if (disc > 0.dp) record(disc)
-    }
+/** Widens the box by [bleed] on its start side, so it runs past the page's margin to the window's edge. */
+private fun Modifier.bleedStart(bleed: Dp): Modifier = layout { measurable, constraints ->
+    val extra = bleed.roundToPx()
+    val wanted = if (constraints.hasBoundedWidth) constraints.maxWidth + extra else constraints.maxWidth
+    val placeable = measurable.measure(constraints.copy(minWidth = wanted, maxWidth = wanted))
+    layout(constraints.maxWidth, placeable.height) { placeable.placeRelative(-extra, 0) }
 }
 
-/** The left column's share with a video, and with the record. */
-private const val VIDEO_SPLIT = 0.68f
-private const val RECORD_SPLIT = 0.48f
+/** The left column's share of the width (the board's 860 of 1280). */
+private const val SPLIT = 0.68f
 
 private val SIDE_START = 40.dp
 private val SIDE_END = 28.dp

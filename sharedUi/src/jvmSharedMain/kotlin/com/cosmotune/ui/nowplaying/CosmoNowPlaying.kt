@@ -219,6 +219,7 @@ fun CosmoNowPlaying(
         // Waiting for the network is loading too, whichever host is playing.
         isLoading = isLoading || reconnecting == song.videoId,
         live = rememberLivePlayhead(position, isPlaying),
+        queueLabel = if (queue.size > 1 && queueIndex in queue.indices) "${queueIndex + 1} of ${queue.size}" else null,
     )
     val inParty = rememberInParty()
     val sheets = remember { NowPlayingSheetFlags() }
@@ -327,12 +328,27 @@ fun CosmoNowPlaying(
             orbitType, orbitInk,
         )
     }
+    val openCanvasOn by PlayerSettings.openCanvasEnabled.collectAsStateWithLifecycle()
+    var chooseVideoOpen by remember { mutableStateOf(false) }
+    PlayerBackHandler(enabled = chooseVideoOpen) { chooseVideoOpen = false }
+    val picks by com.cosmotune.music.data.canvas.CanvasVideoPicks.revision.collectAsStateWithLifecycle()
+    val chosenVideoLine = remember(song.title, song.artist, picks, musicVideo) {
+        val pick = com.cosmotune.music.data.canvas.CanvasVideoPicks.pick(song.title, song.artist)
+        when {
+            pick == com.cosmotune.music.data.canvas.CanvasVideoPicks.NO_VIDEO -> "No video"
+            pick != null -> "Your pick"
+            musicVideo -> "Found for this song"
+            else -> "None found yet"
+        }
+    }
     val sleepTimer = rememberSleepTimer()
     var sleepMenuOpen by remember { mutableStateOf(false) }
     val sleepMenu: @Composable () -> Unit = { SleepTimerMenu(sleepMenuOpen, { sleepMenuOpen = false }, orbitType, orbitInk) }
     // The rarer actions, in the top row's "more" (the phone adds shuffle and repeat, which its card has no room for).
     val moreItems: (Boolean) -> List<OrbitMenuItem> = { phone ->
         buildList {
+            // Choosing the song's video by hand (board E1), first: which video is in use, and the sheet of the ones found.
+            if (openCanvasOn) add(OrbitMenuItem("Choose the video", chosenVideoLine, CosmoIcons.Video) { chooseVideoOpen = true })
             add(OrbitMenuItem("Player options", "Lyrics, song speed and playback behavior", CosmoIcons.Equaliser) { playerOptionsOpen = true })
             add(OrbitMenuItem("Song options", "Playlists, sharing, quality and the rest", CosmoIcons.MoreVertical, onClick = onOpenMenu))
             // Says what is left while one runs ("23:41 left"), rather than going quiet once it is set.
@@ -391,22 +407,16 @@ fun CosmoNowPlaying(
             onJumpTo = onJumpTo, onToggleAutoplay = onToggleAutoplay, fonts = orbitType, look = orbitInk, modifier = m, header = header,
         )
     }
-    val record: @Composable (Dp) -> Unit = { disc ->
-        NowPlayingRecord(
-            coverUrl = remoteArt, disc = disc, ink = orbitInk.ink, moon = orbitInk.accent,
-            progress = transport::progress, playing = isPlaying, onSeek = transport::seek,
-            modifier = if (musicVideo) Modifier.fadedBy(reveal) else Modifier, onPlaced = coverPlaced,
-            loop = if (wantLoop && canvas != null) { m ->
-                NowPlayingCoverLoop(canvas, isPlaying, reveal, onRenderedChanged = { rendered = it }, modifier = m)
-            } else null,
-        )
-    }
-    // The video or the record in the box given. The page's video is not mounted while Cinema shows its own.
-    val pageMedia: @Composable (Modifier, Dp, Dp, Boolean) -> Unit = { m, radius, maxDisc, phone ->
+    // The video or the cover in the box given (the cover square at the top on the phone, centred over its blurred copy in a wide
+    // window). The page's video is not mounted while Cinema shows its own.
+    val pageMedia: @Composable (Modifier, Dp, Boolean) -> Unit = { m, radius, phone ->
         // Nothing on top of media (Orbit rule 9): the mobile-data note stands under the frame, the frame taking the rest.
         androidx.compose.foundation.layout.Column(m) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            RecordBox(Modifier.fillMaxSize(), maxDisc) { record(it) }
+            NowPlayingCover(
+                remoteArt, Modifier.fillMaxSize().then(if (musicVideo) Modifier.fadedBy(reveal) else Modifier), centred = !phone, onPlaced = coverPlaced,
+                loop = if (wantLoop && canvas != null) { lm -> NowPlayingCoverLoop(canvas, isPlaying, reveal, onRenderedChanged = { rendered = it }, modifier = lm) } else null,
+            )
             if (wantVideo && !cinemaShown && canvas != null) {
                 NowPlayingVideo(
                     canvas = canvas, isPlaying = isPlaying, view = keptView, aspect = videoAspect, onAspect = { videoAspect = it },
@@ -417,6 +427,13 @@ fun CosmoNowPlaying(
             }
         }
         if (blockedByMobileData) Box(Modifier.fillMaxWidth().padding(top = 8.dp)) { PlayerPlatform.host.CanvasMobileDataHint(Modifier) }
+        }
+    }
+    // The measured quality in the card's time row, for the video and the cover alike: a tap opens the audio details.
+    val cardQuality: @Composable (androidx.compose.ui.graphics.Color) -> Unit = { ink -> RecordAudioDetails(song.videoId, orbitType, ink) { sheets.details = true } }
+    val lyricLineOf: (Boolean) -> (@Composable (androidx.compose.ui.graphics.Color) -> Unit)? = { lyricsShown ->
+        lyrics?.takeIf { lines -> !lyricsShown && lines.any { it.timeMs > 0L && !it.isGap } }?.let { lines ->
+            { ink -> CurrentLyricLine(lines, lyricsPlayhead, orbitType, ink) { panels.panel = NowPlayingPanel.LYRICS } }
         }
     }
     val likeButton = CardButton(if (transport.liked) CosmoIcons.HeartFill else CosmoIcons.Heart, if (transport.liked) "Remove from liked" else "Like", onToggleLike, on = transport.liked)
@@ -434,19 +451,22 @@ fun CosmoNowPlaying(
     }
     val widePage: @Composable BoxScope.() -> Unit = {
         NowPlayingWide(
-            hazeState = playerHaze, video = musicVideo && !videoHidden,
+            hazeState = playerHaze,
             topRow = { m ->
                 NowPlayingTopRow(
                     source = sourceLabel, onOpenOrigin = openOrigin, panel = panels.widePanel, onPanel = { panels.panel = it },
-                    more = moreItems(false), fonts = orbitType, look = orbitInk, modifier = m,
+                    more = moreItems(false), fonts = orbitType, look = orbitInk, modifier = m, chips = false,
                     status = { statusChips(true) }, moreOverlay = sleepMenu,
                 )
             },
-            media = { m -> pageMedia(m, 34.dp, 440.dp, false) },
+            // Lyrics, Up next (with its count) and Related as the right column's tabs (board D).
+            tabs = { m -> PanelChips(panels.widePanel, { panels.panel = it }, orbitType, orbitInk, closable = false, modifier = m, upNextCount = (queue.size - queueIndex - 1).takeIf { it > 0 }) },
+            media = { m -> pageMedia(m, 0.dp, false) },
             card = { m, wideCard ->
                 Column(m) {
                 NowPlayingSongCard(
-                    transport, orbitType, orbitInk, modifier = Modifier.fillMaxWidth(), wide = wideCard, showLine = wideCard, format = true, volume = true,
+                    transport, orbitType, orbitInk, modifier = Modifier.fillMaxWidth(), wide = wideCard, format = true, volume = true,
+                    quality = cardQuality, lyricLine = lyricLineOf(panels.widePanel == NowPlayingPanel.LYRICS),
                     buttons = listOfNotNull(
                         CardButton(CosmoIcons.Shuffle, if (shuffleEnabled) "Shuffle on" else "Shuffle off", onToggleShuffle, on = shuffleEnabled, movable = true),
                         CardButton(if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, repeatLabel(repeatMode), onCycleRepeat, on = repeatMode != RepeatModes.OFF, movable = true),
@@ -489,11 +509,9 @@ fun CosmoNowPlaying(
     val phoneCard: @Composable (Modifier) -> Unit = { m ->
         Column(m) {
         NowPlayingSongCard(
-            transport, orbitType, orbitInk, modifier = Modifier.fillMaxWidth(), showLine = wantVideo || panelOpen, buttonSize = 44.dp,
+            transport, orbitType, orbitInk, modifier = Modifier.fillMaxWidth(), buttonSize = 44.dp,
             buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton),
-            lyricLine = lyrics?.takeIf { lines -> !panelOpen && lines.any { it.timeMs > 0L && !it.isGap } }?.let { lines ->
-                { ink -> CurrentLyricLine(lines, lyricsPlayhead, orbitType, ink) { panels.panel = NowPlayingPanel.LYRICS } }
-            },
+            lyricLine = lyricLineOf(panelOpen), quality = cardQuality,
         )
         if (inlineLyrics && !panelOpen && !landscape && windowHeight >= 620.dp && !lyrics.isNullOrEmpty()) inlinePreview(Modifier.fillMaxWidth().height(128.dp))
         }
@@ -503,25 +521,22 @@ fun CosmoNowPlaying(
         NowPlayingPhone(
             hazeState = playerHaze,
             mediaKind = when {
-                panelOpen -> PhoneMedia.ROOM
-                !wantVideo -> PhoneMedia.RECORD
-                keptView == VideoView.FILL -> PhoneMedia.ROOM
-                else -> PhoneMedia.WHOLE
+                panelOpen -> PhoneMedia.PANEL
+                wantVideo -> PhoneMedia.VIDEO
+                else -> PhoneMedia.COVER
             },
-            aspect = videoAspect,
             topRow = phoneTop,
-            // A video runs edge to edge across the top (no rounding at the screen's sides); the record keeps its round frame.
-            media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, if (wantVideo) 0.dp else 26.dp, 300.dp, true) },
+            // The video and the cover run edge to edge across the top (no rounding at the screen's sides).
+            media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, 0.dp, true) },
             card = phoneCard,
             chips = phoneChips,
-            recordDetails = { RecordAudioDetails(song.videoId, orbitType, orbitInk) { sheets.pipeline = true } },
         )
     }
     val phoneLandscapePage: @Composable BoxScope.() -> Unit = {
         NowPlayingPhoneLandscape(
             hazeState = playerHaze,
             topRow = phoneTop,
-            media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, 26.dp, 300.dp, true) },
+            media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, 26.dp, false) },
             card = phoneCard,
             chips = phoneChips,
         )
@@ -541,12 +556,12 @@ fun CosmoNowPlaying(
             }
             if (cinemaShown && canvas != null) {
                 NowPlayingCinema(
-                    canvas = canvas, isPlaying = isPlaying, view = keptView, aspect = videoAspect, onAspect = { videoAspect = it },
-                    reveal = reveal, onRenderedChanged = { rendered = it }, coverUrl = remoteArt, t = transport,
-                    fonts = orbitType, look = orbitInk, menuOpen = videoMenuOpen, onLeave = leaveCinema,
-                    buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton), volume = wide,
+                    canvas = canvas, isPlaying = isPlaying, aspect = videoAspect, onAspect = { videoAspect = it },
+                    reveal = reveal, onRenderedChanged = { rendered = it }, coverUrl = remoteArt, t = transport, onSeek = onSeek,
+                    hasPrevious = controlsLocked || hasPrevious || pastRestartPoint, hasNext = controlsLocked || hasNext, onLeave = leaveCinema,
                 )
             }
+            if (chooseVideoOpen) ChooseVideoSheet(song, canvas?.takeIf { musicVideo }?.videoId, playerHaze) { chooseVideoOpen = false }
             NowPlayingSheets(
                 song = song, flags = sheets, hazeState = playerHaze, accountName = accountName, isPlaying = isPlaying,
                 lyricsSource = lyricsSource, lyricsProviderStates = lyricsProviderStates, onSelectLyricsProvider = onSelectLyricsProvider,

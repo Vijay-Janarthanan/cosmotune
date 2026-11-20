@@ -101,7 +101,7 @@ class NowPlayingContractTest {
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
         assertTrue(screen.contains("val reveal = animateFloatAsState("), "reveal is the State itself, not a delegated value")
         assertFalse(screen.contains("reveal.value"), "the screen hands reveal on; it is read in layers and draws")
-        assertTrue(screen.contains("Modifier.fadedBy(reveal)"), "the record fades in its layer as the video comes in")
+        assertTrue(screen.contains("Modifier.fadedBy(reveal)"), "the cover fades in its layer as the video comes in")
         val video = code(nowPlaying("NowPlayingVideo.kt"))
         assertFalse(video.substringAfter("Modifier.offset(box[0].dp").substringBefore("CanvasArtworkPlayer(").contains("graphicsLayer"), "no Compose layer around the clip")
     }
@@ -125,7 +125,7 @@ class NowPlayingContractTest {
         assertTrue("remember(position) { derivedStateOf { position.positionMs > BACK_RESTARTS_AFTER_MS } }" in screen)
         val card = code(nowPlaying("NowPlayingCard.kt"))
         assertTrue(card.contains("fun progress(): Float = scrub.shown(live?.positionMs() ?: position.positionMs, durationMs)"), "the line and the ring read the interpolated playhead while drawing")
-        assertEquals(2, Regex("""position\.positionMs""").findAll(card).count(), "the progress and the NOW ORBITING label")
+        assertEquals(2, Regex("""position\.positionMs""").findAll(card).count(), "the progress and the seek line's time row")
     }
 
     @Test fun theRecordOrTheVideoTellsTheShellWhereTheCoverRests() {
@@ -136,14 +136,14 @@ class NowPlayingContractTest {
         assertTrue(screen.contains("onFramePlaced = { coverPlaced(it); pipBinding.bounds(it) }"))
     }
 
-    @Test fun aCoverLoopPlaysInsideTheRecordsDiscAndAMusicVideoIsShownAsItsViewSays() {
+    @Test fun aCoverLoopPlaysOverTheCoverAndAMusicVideoIsShownAsItsViewSays() {
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
         assertTrue(screen.contains("val musicVideo = canvas != null && canvas.syncMap != null"))
         assertTrue(screen.contains("val coverLoop = canvas != null && canvas.syncMap == null"))
-        assertTrue(screen.contains("NowPlayingCoverLoop(canvas, isPlaying, reveal"), "the loop is handed to the record")
-        val record = SourceContract.functionBody(code(nowPlaying("NowPlayingVideo.kt")), "NowPlayingRecord")
-        assertTrue(record.contains(".clip(CircleShape)") && record.indexOf("loop?.invoke(") > record.indexOf("Disc(coverUrl, disc)"), "inside the disc, cut round, over the still cover")
-        assertTrue(record.indexOf("OrbitRing(") > record.indexOf("loop?.invoke("), "the orbit still round it")
+        assertTrue(screen.contains("NowPlayingCoverLoop(canvas, isPlaying, reveal"), "the loop is handed to the cover")
+        val cover = SourceContract.functionBody(code(nowPlaying("NowPlayingVideo.kt")), "NowPlayingCover")
+        assertTrue(cover.indexOf("loop?.invoke(") > cover.indexOf("AsyncImage(coverUrl?.artworkAt(COVER_PX)"), "over the still cover, cut to it")
+        assertFalse(code(nowPlaying("NowPlayingVideo.kt")).contains("fun NowPlayingRecord("), "the record disc went: the phone shows the square cover")
     }
 
     @Test fun eachLayoutHasItsOwnPage() {

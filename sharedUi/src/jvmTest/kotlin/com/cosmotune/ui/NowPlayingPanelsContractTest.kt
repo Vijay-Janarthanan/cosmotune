@@ -17,6 +17,8 @@ class NowPlayingPanelsContractTest {
     private fun nowPlaying(name: String): String =
         File(root, "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/nowplaying/$name").readText().replace("\r\n", "\n")
 
+    private fun read(path: String): String = File(root, path).readText().replace("\r\n", "\n")
+
     /** The file without its comments (blocks and line comments), so a rule about code is not tripped by a sentence about it. */
     private fun code(src: String): String =
         src.replace(Regex("/\\*.*?\\*/", RegexOption.DOT_MATCHES_ALL), "").lines().joinToString("\n") { it.substringBefore("//") }
@@ -131,7 +133,7 @@ class NowPlayingPanelsContractTest {
         val handlers = Regex("""PlayerBackHandler\(enabled = ([\w.]+)""").findAll(src).map { it.groupValues[1] }.toList()
         // a later call is the one back reaches first: the lyrics, the queue, then the sheets
         assertEquals(
-            listOf("panels.lyricsOpen", "panels.queueOpen", "panels.relatedOpen", "cinemaShown", "flags.output", "flags.providers", "flags.members", "flags.details", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
+            listOf("panels.lyricsOpen", "panels.queueOpen", "panels.relatedOpen", "cinemaShown", "chooseVideoOpen", "flags.output", "flags.providers", "flags.members", "flags.details", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
             handlers,
         )
         assertTrue(src.indexOf("PlayerBackHandler(enabled = panels.queueOpen && !wide)") in 0 until src.indexOf("NowPlayingSheets(\n                song"), "the panels register before the sheets")
@@ -170,21 +172,58 @@ class NowPlayingPanelsContractTest {
 
     @Test fun onThePhoneAChipOpensItsPanelInTheMediasPlaceAndTheCardStays() {
         val src = code(nowPlaying("CosmoNowPlaying.kt"))
-        assertTrue(src.contains("media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, 26.dp, 300.dp, true) }"))
-        assertTrue(src.contains("panelOpen -> PhoneMedia.ROOM"), "a panel takes all the room above the card")
+        assertTrue(src.contains("media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, 0.dp, true) }"))
+        assertTrue(src.contains("panelOpen -> PhoneMedia.PANEL"), "a panel takes all the room above the card")
         assertTrue(src.contains("LyricsStyle.Portrait"))
-        assertTrue(src.contains("showLine = wantVideo || panelOpen"), "the seek line whenever the record's ring is not there")
         val phone = code(nowPlaying("NowPlayingPhone.kt"))
         assertTrue(phone.contains("closable = true"), "a tap on the open chip closes it")
         assertTrue(phone.contains("val cardPlaced = measurables[1].measure("), "the card is laid out first; the media takes the rest")
+        assertTrue(phone.contains("cardPlaced.place(0, cardTop)"), "the card is anchored at the foot, the same place in every state")
     }
 
-    @Test fun thePhonesVideoIsWholeAcrossTheTopFillTakesTheRoomAndAPinchSwitches() {
+    @Test fun thePhonesPictureIsTheVideoOrTheSquareCoverFullWidthAtTheTop() {
         val src = code(nowPlaying("CosmoNowPlaying.kt"))
-        assertTrue(src.contains("keptView == VideoView.FILL -> PhoneMedia.ROOM"))
-        assertTrue(src.contains("else -> PhoneMedia.WHOLE"))
-        assertTrue(src.contains("onPinch = if (phone) setView else null"), "a pinch on the phone's video switches Whole and Fill")
+        assertTrue(src.contains("wantVideo -> PhoneMedia.VIDEO"), "the video when it is wanted")
+        assertTrue(src.contains("else -> PhoneMedia.COVER"), "the cover when it is off or there is none")
         val phone = code(nowPlaying("NowPlayingPhone.kt"))
-        assertTrue(phone.contains("PhoneMedia.WHOLE -> (width / (if (aspect > 0f) aspect else com.cosmotune.design.VideoView.DEFAULT_ASPECT)).toInt()"), "whole: as tall as the width gives its shape")
+        assertTrue(phone.contains("PhoneMedia.COVER -> mediaWidth.coerceAtMost(room)"), "the cover is a square of the screen's width, never past the room")
+        assertTrue(phone.contains("PhoneMedia.VIDEO, PhoneMedia.PANEL -> room"), "the video takes all the room above the card")
+        assertTrue(phone.contains("val mediaWidth = if (bleed) width + 2 * side else width"), "the picture runs past the margins to the screen's edges")
+        assertTrue(phone.contains("mediaPlaced.place(x, 0)"), "from the top of the room, right under the top row")
+        val cover = SourceContract.functionBody(code(nowPlaying("NowPlayingVideo.kt")), "NowPlayingCover")
+        assertTrue(cover.contains("Modifier.fillMaxWidth().aspectRatio(1f).align(Alignment.TopCenter)"), "the phone's cover: a square at the top")
+    }
+
+    @Test fun thePictureFadesIntoThePageAtTheTopAndAboveTheCard() {
+        val phone = code(nowPlaying("NowPlayingPhone.kt"))
+        assertTrue(phone.contains("if (bleed) Box(Modifier.testTag(\"nowplaying:soft-edges\").cosmoPlayerGroundEdges(top = SOFT_TOP, bottom = SOFT_BOTTOM))"),
+            "the video, its glow, Fill and the cover all fade at both edges; the panel does not")
+        assertTrue(phone.contains("edgesPlaced?.place(x, 0)"), "laid over the picture exactly")
+        val ground = code(read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/theme/AmbientBackground.kt"))
+        val edges = ground.substring(ground.indexOf("fun Modifier.cosmoPlayerGroundEdges("))
+        assertTrue(edges.contains("groundBrushes(colors, wash, artwork = true"), "the page's own ground, so the fade has no seam")
+        assertTrue(edges.contains("blendMode = BlendMode.DstIn"), "kept only at the edges, clear in the middle")
+    }
+
+    @Test fun thePhonesPictureTakesAPinchForWholeOrFillAndADoubleTapForCinema() {
+        val src = code(nowPlaying("CosmoNowPlaying.kt"))
+        assertTrue(src.contains("onPinch = if (phone) setView else null"), "a pinch on the phone's video switches Whole and Fill")
+        assertTrue(src.contains("onDoubleTap = { cinema = true }"), "a double tap enters Cinema")
+        val video = SourceContract.functionBody(code(nowPlaying("NowPlayingVideo.kt")), "NowPlayingVideo")
+        assertTrue(video.contains("BoxWithConstraints(modifier.videoGestures(onDoubleTap, onPinch))"), "on the video and its glow alike")
+    }
+
+    @Test fun theCardsTimeRowHoldsTheTimesAndTheMeasuredQualityAndTheEyebrowTheQueue() {
+        val card = code(nowPlaying("NowPlayingCard.kt"))
+        val times = SourceContract.functionBody(card, "CardTimes")
+        val at = listOf("clock(ms)", "quality(ink)", "clock(t.durationMs)").map { times.indexOf(it).also { i -> assertTrue(i >= 0, "$it is in the time row") } }
+        assertEquals(at.sorted(), at, "played, the quality, the length")
+        val label = SourceContract.functionBody(card, "OrbitingLabel")
+        assertTrue(label.contains("t.queueLabel?.let { \"\$head · \${it.uppercase()}\" }"), "the eyebrow reads NOW ORBITING · 2 OF 18")
+        assertFalse(label.contains("clock("), "the time left the eyebrow")
+        val src = code(nowPlaying("CosmoNowPlaying.kt"))
+        assertTrue(src.contains("RecordAudioDetails(song.videoId, orbitType, ink) { sheets.details = true }"), "a tap on the quality opens the audio details")
+        assertTrue(src.contains("lyricLine = lyricLineOf(panelOpen), quality = cardQuality"), "the phone's card: the line being sung and the quality, for the video and the cover")
+        assertFalse(src.contains("showLine = wantVideo"), "the seek line is always there")
     }
 }
