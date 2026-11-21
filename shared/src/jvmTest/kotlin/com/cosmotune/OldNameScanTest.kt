@@ -35,6 +35,7 @@ class OldNameScanTest {
         Allowed("docs/UPSTREAM_REVIEW_2026-11-02.md", null, "the requested current pinned upstream comparison and integration decisions"),
         Allowed("docs/UPSTREAM_REVIEW_2026-11-09.md", null, "the pinned upstream audit and attribution for the imported fixes"),
         Allowed("docs/UPSTREAM_REVIEW_2026-11-16.md", "Unchanged against their last reviewed branches:", "the pinned audit records the unchanged upstream repository by its original name for provenance"),
+        Allowed("docs/UPSTREAM_IMPLEMENTATION_2026-11-21.md", null, "the per-project record of which upstream ideas were taken, naming each source for provenance"),
         Allowed("docs/UPSTREAM_REVIEW_AETHER_EUTHOPIAR_2026-11-11.md", null, "the pinned AETHER audit, which records that AETHER credits its lyric and alignment ports to upstream"),
         Allowed("tools/upstream-digest.sh", null, "reads the upstream repository by name"),
         Allowed("licenses/", null, "licence texts as their authors wrote them"),

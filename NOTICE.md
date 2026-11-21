@@ -16,7 +16,10 @@ Offline Korean romanisation rules and the 39-model measured-headphone catalogue 
 AETHER by GHOSTxASR and contributors, GPLv3, revision fd019594548e52be06f6339bb758ff5661f15f3d.
 The catalogue retains measurement-author attribution. See `licenses/AETHER-LICENSE.txt` and
 `docs/AETHER_EUTHOPIAR_INTEGRATION.md`. Desktop script transliteration uses Unicode ICU4J;
-Android uses its system ICU implementation.
+Android uses its system ICU implementation. The rule that keeps writers' credits at the head of a
+lyrics file from showing as sung lines (`LyricTitleHeader.isCredit`) is adapted from AETHER 3.0.0,
+GPLv3, revision 0117c6eb0deaca03a045d4feb2fdfc1bca90d046; see
+`docs/UPSTREAM_IMPLEMENTATION_2026-11-21.md`.
 
 The onset comparison used to line a better copy of a song up with the one playing
 (`shared/src/jvmSharedMain/kotlin/com/cosmotune/audio/AcousticAlignment.kt`) follows AETHER's
@@ -272,7 +275,7 @@ weights to the native installers. See `web/docs/automix.md` for storage and vali
 
 ## November 2026 upstream integration
 
-Reviewed revisions and attribution are recorded in `docs/UPSTREAM_SNAPSHOT_2026-11-16.json` and the associated implementation records. LastWave Native, AETHER, Lokal, Kotatsu-Redo and the podcast reference projects supplied reviewed behavior and compatible integration work under their recorded licenses. The Manga runtime dependency is Kotatsu-Redo `a90648aebdf61c47b9eed4bec351332306aeff6a`; signed parser publications include its source revision and license. Existing notices and dependency licenses remain applicable.
+Reviewed revisions and attribution are recorded in `docs/UPSTREAM_SNAPSHOT_2026-11-16.json` and the associated implementation records. LastWave Native, AETHER, Lokal, Kotatsu-Redo and the podcast reference projects supplied reviewed behavior and compatible integration work under their recorded licenses. The Manga runtime dependency is Kotatsu-Redo `9f1b46a9e0295ae1a36940b7e38e4ab32476f744`; signed parser publications include its source revision and license. Existing notices and dependency licenses remain applicable.
 
 Playback recovery (`shared/.../playback/recovery/`) follows reviewed behavior from two GPL-3.0 projects, written again for Cosmotune rather than copied: Metrolist (waiting out a lost network on a 1 s to 10 s backoff for up to two minutes; the 12-second progress watchdog) and LastWave Native `c3594b90a6` (stopping at the end of the queue when the last song fails; a new shuffle order for every repeat-all round).
 
