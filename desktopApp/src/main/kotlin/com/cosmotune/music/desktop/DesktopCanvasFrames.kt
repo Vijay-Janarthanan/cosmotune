@@ -87,7 +87,8 @@ private class RawBytes(address: Long, size: Long) : BytePointer() {
  * GPU uploads is the new one.
  *
  * [ensure], [present], [hidden] and [close] run on the UI thread; [write] runs its block on the decoder's thread. A bitmap is
- * freed only once no write is in flight, so a decode that outlives its screen never writes into freed memory.
+ * freed only once no write is in flight, so a decode that outlives its screen never writes into freed memory, and only on the
+ * UI thread once nothing draws it any more ([present] of the next frame, [hidden] or [close]).
  */
 internal class CanvasFrameRing {
     private class Slot(val bitmap: Bitmap, val image: ImageBitmap, val target: CanvasFrameTarget) {
@@ -162,7 +163,9 @@ internal class CanvasFrameRing {
         } finally {
             synchronized(lock) {
                 writing = false
-                if (closed) freeAll() else freeRetired()
+                // Bitmaps set aside by a new size are not freed here: the old frame is still the one on screen until
+                // [present] replaces it, and the screen may repaint before that. Freeing it now crashed the app.
+                if (closed) freeAll()
             }
         }
     }

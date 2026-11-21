@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import androidx.compose.ui.graphics.asSkiaBitmap
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -93,6 +94,28 @@ class DesktopCanvasFramesTest {
         // Closed: nothing more is written.
         assertNull(ring.write { it.address })
         assertNull(ring.present())
+    }
+
+    @Test
+    fun theFrameOnScreenIsNotFreedWhileTheNextOneIsDecodedAtANewSize() {
+        // Switching a video between Whole and Fill changes the size it is shown at, so the ring makes a new pair of bitmaps.
+        // The frame on screen is still drawn until the next one is presented; freeing it as soon as that next frame was
+        // decoded (on the decoder's thread) let a repaint read freed pixels, and Skia took the whole app down.
+        val ring = CanvasFrameRing()
+        try {
+            assertTrue(ring.ensure(64, 36))
+            assertNotNull(ring.write { })
+            val shown = assertNotNull(ring.present())
+            assertTrue(ring.ensure(128, 72))
+            assertNotNull(ring.write { })
+            assertFalse(shown.asSkiaBitmap().isClosed)
+            val next = assertNotNull(ring.present())
+            assertEquals(128, next.width)
+            // Once the new frame is the one on screen, the old pair goes.
+            assertTrue(shown.asSkiaBitmap().isClosed)
+        } finally {
+            ring.close()
+        }
     }
 
     @Test
