@@ -813,6 +813,8 @@
     <string name="pin">Pin</string>
     <string name="unpin">Unpin</string>
     <string name="rename">Rename</string>
+    <string name="change_cover" translatable="false">Change cover</string>
+    <string name="use_automatic_cover" translatable="false">Use the automatic cover</string>
     <string name="downloading">Downloading</string>
     <string name="delete_playlist">Delete playlist</string>
     <string name="delete_download">Delete download</string>

@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -108,6 +109,8 @@ fun OrbitCardChip(text: String, colors: OrbitCardColors, onClick: () -> Unit, mo
  *
  * [tall] is the tablet's left pane (the Music board's 9): the card as tall as its pane wants, a 176 dp disc in its top-end corner and
  * the words under it at 34 sp, with [below] (the quality the catalogue reports) under the credit.
+ *
+ * [onCover] makes the disc a button (one of the person's own playlists: it opens the cover picker); [coverLabel] is what it says.
  */
 @Composable
 fun OrbitReleaseCard(
@@ -123,16 +126,22 @@ fun OrbitReleaseCard(
     titleArt: TitleArtAlbum? = null,
     tall: Boolean = false,
     below: @Composable ColumnScope.(OrbitCardColors) -> Unit = {},
+    onCover: (() -> Unit)? = null,
+    coverLabel: String = "Change cover",
     buttons: @Composable RowScope.(OrbitCardColors) -> Unit,
 ) {
     val (fill, ink) = coverFill(cover, title)
+    val discButton = if (onCover != null) {
+        Modifier.clip(CircleShape).clickable(onClickLabel = coverLabel, role = androidx.compose.ui.semantics.Role.Button, onClick = onCover)
+            .semantics { contentDescription = coverLabel }
+    } else Modifier
     val colors = OrbitCardColors(fill, ink)
     val allowed = motion != null && rememberMotionAllowed()
     if (!tall) {
         OrbitPageHeader(
             cover = cover, label = label, title = title, subtitle = credit, playing = playing, onPlay = onPlay, modifier = modifier,
             colors = colors, onSubtitle = onCredit,
-            lead = { OrbitMotionDisc(cover, OrbitHeaderSize.PAGE.disc, motion, allowed) },
+            lead = { OrbitMotionDisc(cover, OrbitHeaderSize.PAGE.disc, motion, allowed, discButton.testTag("orbit:card:cover")) },
             titleContent = titleArt?.let { art ->
                 { c ->
                     AlbumTitleArt(
@@ -151,7 +160,7 @@ fun OrbitReleaseCard(
         if (onPlay != null) OrbitPlayButton(playing, onPlay, look, Modifier.testTag("orbit:card:play"), size = 60.dp)
     }) {
         Column(Modifier.fillMaxWidth().padding(24.dp)) {
-            OrbitMotionDisc(cover, 176.dp, motion, allowed, Modifier.align(Alignment.End))
+            OrbitMotionDisc(cover, 176.dp, motion, allowed, Modifier.align(Alignment.End).then(discButton).testTag("orbit:card:cover"))
             Spacer(Modifier.height(22.dp))
             Text(label.uppercase(), style = fonts.label, color = ink.copy(alpha = 0.74f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (titleArt != null) {

@@ -16,6 +16,7 @@ import com.cosmotune.cloud.LikeFile
 import com.cosmotune.cloud.SnapshotJournal
 import com.cosmotune.cloud.SyncArtists
 import com.cosmotune.cloud.SyncLikes
+import com.cosmotune.cloud.SyncPlaylistCovers
 import com.cosmotune.cloud.SyncPlaylists
 import com.cosmotune.cloud.signInThroughBrowser
 import com.cosmotune.desktop.desktopListeningFile
@@ -72,7 +73,16 @@ internal object DesktopCloud {
     fun configure(directory: File) {
         this.directory = directory
         SyncLikes.sourceTrack = com.cosmotune.providers.SourceLibraryStore::ownsTrack
+        // The covers picked for the account's own playlists, beside the cloud folder; a small file read once.
+        coverStore()
     }
+
+    /**
+     * The picked playlist covers, travelling as the "covers" kind (the small copy only; YouTube Music never gets it). Before
+     * [configure] there is no store, and a sync of the kind fails rather than read as "every cover put back".
+     */
+    private fun coverStore(): com.cosmotune.music.data.covers.PlaylistCoverStore =
+        com.cosmotune.music.data.covers.PlaylistCovers.install(File(checkNotNull(directory) { "cloud sync is not configured" }.parentFile, "playlist-covers"))
 
     /** Injected by the build from local.properties or the release environment; a blank id means sign-in is unavailable here. */
     val google = GoogleOAuthConfig(
@@ -125,6 +135,7 @@ internal object DesktopCloud {
                     SyncLikes.KIND -> likeSnapshot(persistence.likedIds()).also { lastSeenLikes = it }
                     // A listening store that cannot be read fails the sync, rather than reading as "every artist unfollowed".
                     SyncArtists.KIND -> artistSnapshot()
+                    SyncPlaylistCovers.KIND -> SyncPlaylistCovers.snapshot(coverStore().smallPictures())
                     // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
                     com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
                     com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
@@ -148,6 +159,9 @@ internal object DesktopCloud {
                             }
                         }
                         SyncArtists.KIND -> ListeningStore(desktopListeningFile()).update { SyncArtists.apply(it, upserts, deletes) }
+                        SyncPlaylistCovers.KIND -> coverStore().applyFromCloud(
+                            upserts.mapNotNull { (id, data) -> SyncPlaylistCovers.jpeg(data)?.let { id to it } }.toMap(), deletes,
+                        )
                         com.cosmotune.watch.SyncWatchPlugins.KIND ->
                             com.cosmotune.desktop.DesktopWatch.store.update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
                         com.cosmotune.watch.SyncWatchLibrary.KIND ->
@@ -189,7 +203,11 @@ internal object DesktopCloud {
     private val account: CloudAccount by lazy {
         CloudAccount(
             CosmotuneFirebase.config, Http.client, sessionStore, source, marks,
-            listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND), scope,
+            listOf(
+                SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND,
+                SyncPlaylistCovers.KIND,
+            ),
+            scope,
             log = { DesktopTrackLog.log(it) },
         )
     }
@@ -239,6 +257,11 @@ internal object DesktopCloud {
             }
         }
         scope.launch { com.cosmotune.watch.WatchSyncSignals.changes.collect { autoSync.changed() } }
+        // A cover picked (or put back to the automatic one) on this computer; the sync's own write of another device's is not one.
+        if (directory != null) scope.launch {
+            val covers = coverStore()
+            covers.covers.drop(1).collect { current -> if (current !== covers.lastCloudWrite) autoSync.changed() }
+        }
         scope.launch {
             enabledState.first { it }
             // A button's outcome ("Signed out...") gives way once a sync starts, so a later sync failure is not hidden behind it.

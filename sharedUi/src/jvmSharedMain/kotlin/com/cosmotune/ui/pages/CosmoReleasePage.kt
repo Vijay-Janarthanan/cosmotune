@@ -117,6 +117,7 @@ import org.jetbrains.compose.resources.stringResource
  * in the rows' shape (or the message of a failure) stand where the songs will be. [onToggleLibrary] and [page]'s `library` together
  * decide whether Save is offered; [onDownloadAll] whether Download (and Keep downloaded) is; [onMore] whether the overflow is. While
  * one of the page's songs is the one loaded, the bite is the player's play/pause ([onPlayPause]); otherwise it plays the list from the top.
+ * [onChangeCover] (one of the person's own playlists) makes the cover's disc open the cover picker.
  */
 @Composable
 fun CosmoReleasePage(
@@ -140,7 +141,13 @@ fun CosmoReleasePage(
     onDownloadAll: ((List<Song>) -> Unit)? = null,
     albumCanvas: CanvasArtwork? = null,
     onPlayPause: (() -> Unit)? = null,
+    onChangeCover: (() -> Unit)? = null,
 ) {
+    // One of the person's own playlists may wear a cover they picked: the card, its colour, the top bar and the rows that showed the
+    // automatic cover for want of their own all take it.
+    val covers = com.cosmotune.ui.covers.rememberPlaylistCovers()
+    val picked = com.cosmotune.music.data.covers.PlaylistCoverRules.key(page.browseId)?.let(covers::get)
+    val cover = picked ?: page.thumbnailUrl
     // Narrowing the running order in place. Off by default and reset with the page: a filter left on an album that was closed and
     // reopened would be a page that appears to have lost most of its tracks (`DetailScreen.kt`'s own reasoning).
     var searching by rememberSaveable(page.browseId) { mutableStateOf(false) }
@@ -223,7 +230,7 @@ fun CosmoReleasePage(
         }
     }
     val shuffle: (() -> Unit)? = if (songs.isNotEmpty()) ({ if (queue.isNotEmpty()) onShuffle(queue) }) else null
-    PublishCollapsedHeader(OrbitCollapsedHeader(page.thumbnailUrl, page.title, credit.ifBlank { null }, showsPause, play.takeIf { songs.isNotEmpty() }, shuffle))
+    PublishCollapsedHeader(OrbitCollapsedHeader(cover, page.title, credit.ifBlank { null }, showsPause, play.takeIf { songs.isNotEmpty() }, shuffle))
 
     // Keep downloaded (the Music board's 4d): a playlist's new songs come down on Wi-Fi with the downloads the app already has.
     val look = rememberCosmoLookSettings()
@@ -235,7 +242,7 @@ fun CosmoReleasePage(
 
     val card: @Composable (Boolean, Modifier) -> Unit = { tall, m ->
         OrbitReleaseCard(
-            cover = page.thumbnailUrl,
+            cover = cover,
             label = metaLine.ifBlank { typeWord.orEmpty() },
             title = page.title,
             credit = credit,
@@ -248,6 +255,7 @@ fun CosmoReleasePage(
             modifier = m.testTag("music:release:card"),
             tall = tall,
             below = { if (quality != null) QualityPill(quality, modifier = Modifier.padding(top = 8.dp)) },
+            onCover = onChangeCover,
         ) { colors ->
             if (shuffle != null) OrbitHeaderButton(CosmoIcons.Shuffle, shuffleLabel, colors, shuffle, Modifier.testTag("music:release:shuffle"))
             if (library != null) {
@@ -342,10 +350,11 @@ fun CosmoReleasePage(
                 ) { position, entry ->
                     val song = entry.value
                     val isCurrent = isCurrentRow(song)
+                    val remote = rememberRemoteArtworkUrl(song)
                     OrbitTrackRow(
                         song = song,
                         // A playlist's rows wear their own covers; an album's carry their track numbers instead of its cover again.
-                        cover = rememberRemoteArtworkUrl(song) ?: page.thumbnailUrl,
+                        cover = if (picked != null && (song.thumbnailUrl.isNullOrBlank() || song.thumbnailUrl == page.thumbnailUrl)) picked else remote ?: cover,
                         number = if (album) entry.index + 1 else null,
                         // The length joins the second line: the row's one trailing button is More.
                         subtitle = listOfNotNull(song.artist.takeIf { it.isNotBlank() }, song.durationText).joinToString(" · "),

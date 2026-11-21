@@ -19,6 +19,7 @@ import com.cosmotune.cloud.LikeFile
 import com.cosmotune.cloud.SnapshotJournal
 import com.cosmotune.cloud.SyncArtists
 import com.cosmotune.cloud.SyncLikes
+import com.cosmotune.cloud.SyncPlaylistCovers
 import com.cosmotune.cloud.SyncPlaylists
 import com.cosmotune.listening.ListeningStore
 import com.cosmotune.music.R
@@ -26,6 +27,8 @@ import com.cosmotune.music.auth.EncryptedPrefs
 import com.cosmotune.music.data.DebugLog
 import com.cosmotune.music.data.Http
 import com.cosmotune.music.data.LikeState
+import com.cosmotune.music.data.covers.PlaylistCoverStore
+import com.cosmotune.music.data.covers.PlaylistCovers
 import com.cosmotune.music.data.model.LikeStatus
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.spotify.LocalPlaylistStore
@@ -73,6 +76,12 @@ object AndroidCloud {
 
     private val folder: File get() = File(app.filesDir, "cloud")
 
+    /**
+     * The covers picked for the account's own playlists, in the app's own files: opened off the main thread the first time anything
+     * needs it (the screens follow [PlaylistCovers.covers], which fills in when it opens). They travel as the "covers" kind, the small copy only.
+     */
+    private fun covers(): PlaylistCoverStore = PlaylistCovers.install(File(app.filesDir, "playlist-covers"))
+
     /** The listening store's file: its followed artists (the release watch) travel as the "artists" kind. */
     private val listeningFile: File get() = File(app.filesDir, "cosmotune-listening.json")
 
@@ -93,7 +102,10 @@ object AndroidCloud {
             sessionStore = EncryptedSessionStore(app),
             source = LibrarySource(SnapshotJournal(File(folder, "journal.json"))),
             marks = FileSyncMarks(File(folder, "marks.json")),
-            kinds = listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND),
+            kinds = listOf(
+                SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND,
+                SyncPlaylistCovers.KIND,
+            ),
             scope = scope,
             log = { android.util.Log.i("Cosmotune", it) },
         )
@@ -168,6 +180,11 @@ object AndroidCloud {
         }
         scope.launch {
             likes.likes.drop(1).collect { current -> if (current !== likes.lastCloudWrite) autoSync.changed() }
+        }
+        // A cover picked (or put back to the automatic one) on this phone; the sync's own write of another device's is not one.
+        scope.launch {
+            val store = covers()
+            store.covers.drop(1).collect { current -> if (current !== store.lastCloudWrite) autoSync.changed() }
         }
         // Any listening-store save (a saved queue, a smart playlist, a follow) bumps this; only a change to the followed artists syncs.
         scope.launch {
@@ -305,6 +322,8 @@ object AndroidCloud {
             SyncPlaylists.KIND -> CloudPlaylists.snapshot(LocalPlaylistStore.playlists.value)
             SyncLikes.KIND -> CloudLikes.snapshot(likes.likes.value)
             SyncArtists.KIND -> artistSnapshot()
+            // The small copy of each picked playlist cover; YouTube Music never gets it.
+            SyncPlaylistCovers.KIND -> SyncPlaylistCovers.snapshot(covers().smallPictures())
             // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
             com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
             com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
@@ -322,6 +341,8 @@ object AndroidCloud {
                     CloudLikes.overrides(applied.first.keys, applied.second, LikeState.overrides.value).forEach(LikeState::set)
                 }
                 SyncArtists.KIND -> ListeningStore(listeningFile).update { SyncArtists.apply(it, upserts, deletes) }
+                SyncPlaylistCovers.KIND ->
+                    covers().applyFromCloud(upserts.mapNotNull { (id, data) -> SyncPlaylistCovers.jpeg(data)?.let { id to it } }.toMap(), deletes)
                 com.cosmotune.watch.SyncWatchPlugins.KIND ->
                     com.cosmotune.music.watch.AndroidWatch.store(app).update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
                 com.cosmotune.watch.SyncWatchLibrary.KIND ->
