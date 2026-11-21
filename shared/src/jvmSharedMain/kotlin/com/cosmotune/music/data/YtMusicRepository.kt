@@ -29,7 +29,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -673,7 +676,7 @@ object YtMusicRepository {
     suspend fun browseSongs(browseId: String): Result<SongPage> = call("browse:$browseId") {
         val response = Innertube.browse(browseId)
         val page = if (browseId.startsWith("MPREb")) {
-            albumPageOf(response)
+            withSongsForVideos(albumPageOf(response))
         } else {
             pageOf(response)
         }
@@ -703,6 +706,62 @@ object YtMusicRepository {
             description = metadata.description,
         )
     }
+
+    /**
+     * An album's songs, as songs. YouTube Music files some albums by their music videos (most of the tracks, on some hip-hop
+     * releases), and played as filed such an album is its videos' sound: intros, scenes and all. Each video row is swapped for
+     * the song it is, by the same strict match [resolveAudio] makes: first among the album's own songs on the Songs shelf (one
+     * search for all of them), then each one left on its own, a few at a time. The wait is short and only an album with video
+     * rows has one: what isn't found by then stays the video, and is asked again the next time the album opens. Found songs are
+     * remembered, so a second visit is immediate. An idea from AETHER 3.0.
+     */
+    private suspend fun withSongsForVideos(page: SongPage): SongPage {
+        val videos = page.songs.filter { it.isVideo }.distinctBy { it.videoId }
+        if (videos.isEmpty()) return page
+        val found = ConcurrentHashMap<String, Song>()
+        fun remember(video: Song, song: Song?) {
+            if (song != null && song.videoId != video.videoId && !song.isVideo) found[video.videoId] = song
+        }
+        videos.forEach { remember(it, audioVersionCache[it.videoId]) }
+        withTimeoutOrNull(ALBUM_SONGS_WAIT_MS) {
+            var open = videos.filter { !found.containsKey(it.videoId) && !audioVersionCache.containsKey(it.videoId) }
+            val albumTitle = page.header?.title?.takeIf { it.isNotBlank() }
+            if (open.isNotEmpty() && albumTitle != null) {
+                val shelf = search("$albumTitle ${TrackMatcher.primaryArtist(open.first().artist)}".trim(), SearchFilter.SONGS)
+                    .getOrNull()?.filterIsInstance<SearchResult.Track>()?.map { it.song }.orEmpty()
+                open.forEach { video ->
+                    val target = TrackMatcher.targetOf(video)
+                    val song = TrackMatcher.best(shelf, target) ?: TrackMatcher.bestOfficialAudioForVideo(shelf, target)
+                    if (song != null) audioVersionCache[video.videoId] = song
+                    remember(video, song)
+                }
+                open = open.filter { !found.containsKey(it.videoId) }
+            }
+            val gate = Semaphore(ALBUM_SONGS_AT_ONCE)
+            coroutineScope {
+                open.map { video -> async { remember(video, gate.withPermit { resolveAudio(video) }) } }.awaitAll()
+            }
+        }
+        if (found.isEmpty()) return page
+        Log.d(TAG, "album: ${found.size} of ${videos.size} music video row(s) played as their songs")
+        return page.copy(songs = albumRowsAsSongs(page.songs, found))
+    }
+
+    /**
+     * [rows] with each video row that has a song in [found] (by the video's id) replaced by that song, filed on the row's album.
+     * A song is taken once only: never one the album already lists, and never one song for two of its videos.
+     */
+    internal fun albumRowsAsSongs(rows: List<Song>, found: Map<String, Song>): List<Song> {
+        val taken = rows.filterNot { it.isVideo }.mapTo(HashSet()) { it.videoId }
+        return rows.map { row ->
+            val song = found[row.videoId]?.takeIf { row.isVideo && taken.add(it.videoId) } ?: return@map row
+            song.copy(albumId = row.albumId ?: song.albumId, albumName = row.albumName ?: song.albumName, setVideoId = null)
+        }
+    }
+
+    /** The longest an album with video rows waits for their songs before it shows. */
+    private const val ALBUM_SONGS_WAIT_MS = 3_000L
+    private const val ALBUM_SONGS_AT_ONCE = 4
 
     /**
      * The first response of the playlist backing an album, or null when the
