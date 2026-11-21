@@ -16,6 +16,7 @@ class MangaSourcePolicyTest {
     @Test fun namesIdsAndNormalizedSpellingAreExcludedFromTheCatalogue() {
         listOf("HENTai", "provider.heN-t", "ＨＥＮＴ", "He\u0301n t").forEach { assertTrue(MangaSourcePolicy.blocked(it), it) }
         assertFalse(MangaSourcePolicy.blocked("MANGA Plus English", "komga:home"))
+        listOf("DoujinDesu", "kotatsu:DOUJINDESU", "Doujin Desu").forEach { assertTrue(MangaSourcePolicy.blocked(it), it) }
         assertTrue(KotatsuSource.catalogue().none { MangaSourcePolicy.blocked(it.id, it.title) })
     }
 

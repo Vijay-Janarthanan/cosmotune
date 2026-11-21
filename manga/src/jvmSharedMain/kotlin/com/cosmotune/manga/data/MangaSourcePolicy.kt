@@ -6,9 +6,12 @@ import java.util.Locale
 /** The requested source-name exclusion applies to every catalogue and installation path. */
 object MangaSourcePolicy {
     fun blocked(vararg identities: String): Boolean = identities.any { value ->
-        Normalizer.normalize(value, Normalizer.Form.NFKD).lowercase(Locale.ROOT)
-            .filter(Char::isLetterOrDigit).contains("hent")
+        val plain = Normalizer.normalize(value, Normalizer.Form.NFKD).lowercase(Locale.ROOT).filter(Char::isLetterOrDigit)
+        "hent" in plain || byName.any { it in plain }
     }
+
+    /** Adult sources the parsers do not label as adult and whose names the word filter misses. */
+    private val byName = listOf("doujindesu")
 
     fun allowed(source: MangaSourceConfig): Boolean = !blocked(source.id, source.name, source.settings["package"].orEmpty())
 
