@@ -712,8 +712,8 @@ object YtMusicRepository {
      * releases), and played as filed such an album is its videos' sound: intros, scenes and all. Each video row is swapped for
      * the song it is, by the same strict match [resolveAudio] makes: first among the album's own songs on the Songs shelf (one
      * search for all of them), then each one left on its own, a few at a time. The wait is short and only an album with video
-     * rows has one: what isn't found by then stays the video, and is asked again the next time the album opens. Found songs are
-     * remembered, so a second visit is immediate. An idea from AETHER 3.0.
+     * rows has one: what isn't found by then stays the video, and is asked again the next time the album opens, unless the
+     * search came back with no song for it, which is remembered like a found one. Either way a second visit is immediate. An idea from AETHER 3.0.
      */
     private suspend fun withSongsForVideos(page: SongPage): SongPage {
         val videos = page.songs.filter { it.isVideo }.distinctBy { it.videoId }

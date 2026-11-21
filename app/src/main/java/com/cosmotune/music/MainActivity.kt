@@ -3086,10 +3086,6 @@ private fun CosmotuneApp(
                             contentPadding = listPadding,
                         )
                     } else if (page != null) {
-                        // A playlist with a cover the person picked: a song that showed the playlist's cover for want of its own
-                        // takes the picked one, so the player and the mini player show it too.
-                        val pageCovers = com.cosmotune.ui.covers.rememberPlaylistCovers()
-                        val pagePickedCover = com.cosmotune.music.data.covers.PlaylistCoverRules.key(page.browseId)?.let(pageCovers::get)
                         // An album page's rows carry no album name of their own â€” the
                         // release is billed once, in the header the rows hang under â€” so
                         // the page title is stamped on as they leave for the download
@@ -3097,12 +3093,11 @@ private fun CosmotuneApp(
                         // album arrives in the Downloads folder with nothing to group it
                         // under, and its Albums tab stays empty however much is in it.
                         val withAlbum: (Song) -> Song = { song ->
-                            val stamped = if (page.type == BrowseType.ALBUM) {
+                            if (page.type == BrowseType.ALBUM) {
                                 song.copy(albumName = song.albumName ?: page.title)
                             } else {
                                 song
                             }
-                            com.cosmotune.music.data.covers.PlaylistCoverRules.songsWithCover(listOf(stamped), page.thumbnailUrl, pagePickedCover).single()
                         }
                         // Whether this page is one of the account's own playlists, the same rule as the menu's Rename.
                         val pageOwnership by viewModel.playlistOwned.collectAsStateWithLifecycle()
@@ -3231,7 +3226,7 @@ private fun CosmotuneApp(
                                             id = id,
                                             title = page.title,
                                             subtitle = page.subtitle,
-                                            thumbnailUrl = page.thumbnailUrl,
+                                            thumbnailUrl = com.cosmotune.music.data.covers.PlaylistCoverRules.portable(page.thumbnailUrl),
                                             playlist = page.type == BrowseType.PLAYLIST,
                                         )
                                     },
@@ -4674,7 +4669,8 @@ private fun CosmotuneApp(
                                     id = id,
                                     title = target.title,
                                     subtitle = target.subtitle,
-                                    thumbnailUrl = target.thumbnailUrl,
+                                    // A picked cover is a file on this device only; the download keeps YouTube Music's.
+                                    thumbnailUrl = com.cosmotune.music.data.covers.PlaylistCoverRules.portable(target.thumbnailUrl),
                                     playlist = target.type == BrowseType.PLAYLIST,
                                 )
                             },
@@ -4737,7 +4733,7 @@ private fun CosmotuneApp(
                     ?.let { p ->
                         {
                             browseActions = null
-                            com.cosmotune.music.data.covers.PlaylistCovers.store?.clear(p.browseId)
+                            com.cosmotune.music.data.covers.PlaylistCovers.clearSoon(p.browseId)
                         }
                     },
                 onReorder = playlist?.let { p ->

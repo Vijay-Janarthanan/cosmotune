@@ -42,16 +42,10 @@ object PlaylistCoverRules {
     }
 
     /**
-     * The playlist's songs with [cover] where they showed the playlist's [automatic] cover for want of their own, so the rows, the
-     * player and the mini player show the picked one there. A song with its own picture keeps it. Null [cover]: the songs as they are.
+     * [url] as it may leave the page: a picture kept in the app's own files (a picked cover) is only good on this device, and is
+     * deleted when the cover changes, so it is never stored with a download or sent anywhere. Null for such a picture.
      */
-    fun songsWithCover(songs: List<Song>, automatic: String?, cover: String?): List<Song> {
-        if (cover == null || cover == automatic) return songs
-        return songs.map { song ->
-            val own = song.thumbnailUrl?.takeIf { it.isNotBlank() && it != automatic }
-            if (own != null) song else song.copy(thumbnailUrl = cover)
-        }
-    }
+    fun portable(url: String?): String? = url?.takeUnless { it.startsWith("file:") }
 
     /** The pictures the picker offers first: each song cover of the playlist once, in its order, at most [limit]. */
     fun songChoices(songs: List<Song>, limit: Int = 24): List<String> =

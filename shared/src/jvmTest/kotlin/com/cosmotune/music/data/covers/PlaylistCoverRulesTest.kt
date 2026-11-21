@@ -51,15 +51,10 @@ class PlaylistCoverRulesTest {
         assertTrue(PlaylistCoverRules.shelvesWithCovers(shelves, emptyMap()) === shelves, "nothing picked: the same list, nothing redrawn")
     }
 
-    @Test fun songsThatOnlyHadThePlaylistsCoverTakeTheNewOne() {
-        val songs = listOf(
-            Song("a", "A", "Band", "https://yt/a.jpg"),
-            Song("b", "B", "Band", "https://yt/auto.jpg"),
-            Song("c", "C", "Band", null),
-        )
-        val shown = PlaylistCoverRules.songsWithCover(songs, automatic = "https://yt/auto.jpg", cover = "file:/c.jpg")
-        assertEquals(listOf("https://yt/a.jpg", "file:/c.jpg", "file:/c.jpg"), shown.map { it.thumbnailUrl })
-        assertTrue(PlaylistCoverRules.songsWithCover(songs, "https://yt/auto.jpg", null) === songs)
+    @Test fun aPictureKeptOnThisDeviceNeverLeavesThePage() {
+        assertEquals(null, PlaylistCoverRules.portable("file:/data/covers/PLmine-ab.jpg"))
+        assertEquals("https://yt/auto.jpg", PlaylistCoverRules.portable("https://yt/auto.jpg"))
+        assertEquals(null, PlaylistCoverRules.portable(null))
     }
 
     @Test fun thePickerOffersEachSongCoverOnce() {

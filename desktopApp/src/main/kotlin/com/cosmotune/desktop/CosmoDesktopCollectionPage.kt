@@ -203,7 +203,7 @@ internal fun CosmoDesktopCollectionPage(
                     onReorder = onReorder,
                     cover = picked ?: automatic,
                     onChangeCover = { coverPicker = true }.takeIf { coverEditable },
-                    onUseAutomaticCover = { com.cosmotune.music.data.covers.PlaylistCovers.store?.clear(collection.browseId); Unit }
+                    onUseAutomaticCover = { com.cosmotune.music.data.covers.PlaylistCovers.clearSoon(collection.browseId); Unit }
                         .takeIf { coverEditable && picked != null },
                 )
             }

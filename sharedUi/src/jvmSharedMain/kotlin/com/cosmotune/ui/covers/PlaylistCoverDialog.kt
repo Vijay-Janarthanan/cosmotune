@@ -151,7 +151,7 @@ fun PlaylistCoverDialog(
                 hasCustom = custom != null, busy = busy, error = error,
                 onPhoto = { if (!busy) choosePhoto() },
                 onAutomatic = {
-                    PlaylistCovers.store?.clear(browseId)
+                    PlaylistCovers.clearSoon(browseId)
                     onDismiss()
                 },
                 onSave = {

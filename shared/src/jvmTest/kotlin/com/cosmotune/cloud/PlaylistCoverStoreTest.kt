@@ -97,6 +97,21 @@ class PlaylistCoverStoreTest {
         assertEquals(kept, SyncPlaylistCovers.snapshot(many), "the same covers every time")
     }
 
+    /**
+     * A bucket full of covers, and a new one whose id sorts before them all: it waits on this device rather than pushing out a cover
+     * the account already has, which the account would take for that cover's removal on every device.
+     */
+    @Test fun aNewCoverNeverPushesOutOneTheAccountAlreadyHas() {
+        val store = PlaylistCoverStore(File(temporary.root, "covers"))
+        for (i in 100..299) { store.set("PLz$i", jpeg(2_000, i), jpeg(SyncPlaylistCovers.MAX_PICTURE_BYTES, i)); Thread.sleep(1) }
+        val before = SyncPlaylistCovers.snapshot(store.smallPictures()).keys
+        assertTrue(before.size in 1 until 200, "some buckets are full")
+        Thread.sleep(2)
+        store.set("PLa000", jpeg(2_000, 7), jpeg(SyncPlaylistCovers.MAX_PICTURE_BYTES, 7))
+        val after = SyncPlaylistCovers.snapshot(store.smallPictures()).keys
+        assertTrue(after.containsAll(before), "no cover already sent dropped out: ${before - after}")
+    }
+
     @Test fun aBrokenEntryFromTheAccountIsLeftOut() {
         assertNull(SyncPlaylistCovers.jpeg(JsonObject(mapOf("jpeg" to JsonPrimitive("not base64!")))))
         assertNull(SyncPlaylistCovers.jpeg(JsonObject(emptyMap())))

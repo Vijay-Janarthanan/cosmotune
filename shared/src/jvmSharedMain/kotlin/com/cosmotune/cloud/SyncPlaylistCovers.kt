@@ -40,13 +40,15 @@ object SyncPlaylistCovers {
     }
 
     /**
-     * The covers as entries: only playlist ids, only pictures that are small enough, and, bucket by bucket in the order of their ids,
-     * only as many as the bucket has room for. The same pictures give the same entries every time, so the journal sees no change.
+     * The covers as entries: only playlist ids, only pictures that are small enough, and, bucket by bucket in the order [pictures]
+     * gives them (oldest cover first, see [com.cosmotune.music.data.covers.PlaylistCoverStore.smallPictures]), only as many as the
+     * bucket has room for. A cover added later therefore never pushes out one already sent, which the journal would read as that
+     * cover's removal. The same pictures give the same entries every time, so the journal sees no change.
      */
     fun snapshot(pictures: Map<String, ByteArray>): Map<String, JsonObject> {
         val used = HashMap<String, Int>()
         val out = LinkedHashMap<String, JsonObject>()
-        for (id in pictures.keys.sorted()) {
+        for (id in pictures.keys) {
             val bytes = pictures.getValue(id)
             if (PlaylistCoverRules.key(id) != id || bytes.size > MAX_PICTURE_BYTES || !CoverJpeg.looksLikeJpeg(bytes)) continue
             val data = data(bytes)

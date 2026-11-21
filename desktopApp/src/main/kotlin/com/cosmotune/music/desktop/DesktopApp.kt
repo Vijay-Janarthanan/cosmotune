@@ -3129,7 +3129,7 @@ fun CosmotuneDesktopApp() {
             DesktopSearchClient.deletePlaylist(collection.playlistId)
                 .onSuccess {
                     // A cover picked for it has nothing left to cover.
-                    com.cosmotune.music.data.covers.PlaylistCovers.store?.clear(collection.playlistId)
+                    com.cosmotune.music.data.covers.PlaylistCovers.clearSoon(collection.playlistId)
                     closePlaylistDialogs()
                     // Its page is the one open, and a deleted playlist has nothing left to show.
                     if (openedCollection?.browseId == collection.browseId) openedCollection = null
