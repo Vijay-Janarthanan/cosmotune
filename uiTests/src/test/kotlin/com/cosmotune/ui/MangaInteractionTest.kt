@@ -42,7 +42,7 @@ class MangaInteractionTest {
     @get:Rule val rules: RuleChain = RuleChain.outerRule(RetryOnComposeHarnessRace()).around(temporary).around(compose)
 
     private fun show(fontScale: Float = 1f, pageCount: Int = 3, imageHeight: Int = 240,
-        mode: MangaReaderMode = MangaReaderMode.PAGES_RTL, repositoryOverride: MangaRepository? = null): Pair<MangaRepository, MangaBook> {
+        mode: MangaReaderMode = MangaReaderMode.PAGES_RTL, repositoryOverride: MangaRepository? = null, width: androidx.compose.ui.unit.Dp = 400.dp): Pair<MangaRepository, MangaBook> {
         val repository = repositoryOverride ?: MangaRepository(MangaStore(temporary.newFolder()))
         val book = runBlocking {
             repository.store.update { it.copy(readerMode = mode) }
@@ -64,7 +64,7 @@ class MangaInteractionTest {
         compose.setContent {
             MaterialTheme(colorScheme = CosmoBrandPalettes.of(true).toColorScheme(darkColorScheme())) {
                 CompositionLocalProvider(LocalCosmoColors provides colors, LocalCosmoType provides rememberCosmoType(), LocalDensity provides Density(1f, fontScale)) {
-                    Box(Modifier.width(400.dp).fillMaxHeight()) {
+                    Box(Modifier.width(width).fillMaxHeight()) {
                         MangaApp(repository = repository)
                     }
                 }
@@ -82,18 +82,22 @@ class MangaInteractionTest {
 
     @Test fun theTabsHideForMangaPagesAndTheReaderReturnsToTheChapterList() {
         show()
-        compose.onNode(hasText("Library") and isSelectable()).assertExists()
+        compose.onNode(hasNavTab("Library")).assertIsSelected()
         compose.onNodeWithText("Evening story", substring = false).performClick()
-        compose.onNode(hasText("Library") and isSelectable()).assertDoesNotExist()
+        // A series' page stands under its tab (the board's series frame keeps the bar, Library chosen); the reader's pages have none.
+        compose.onNodeWithTag("manga:chapters").assertExists()
+        compose.onNode(hasNavTab("Library")).assertIsSelected()
         compose.onNode(hasText("Read", substring = false) and hasClickAction()).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Manga page").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("manga:reader").assertExists()
+        compose.onNode(hasNavTab("Library")).assertDoesNotExist()
+        compose.onNode(hasNavTab("Browse")).assertDoesNotExist()
         compose.onNodeWithTag("manga:reader:card").assertDoesNotExist()
         showReaderCard()
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("manga:chapters").assertExists()
         compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNode(hasText("Library") and isSelectable()).assertExists()
+        compose.onNode(hasNavTab("Library")).assertExists()
     }
 
     @Test fun globalSearchKeepsWorkingSourcesAndOpensTheSeriesOnItsOwnSource() {
@@ -115,7 +119,7 @@ class MangaInteractionTest {
             store.source(MangaSourceConfig("fixture:disabled", "mihon", "Disabled source", enabled = false))
         }
         show(repositoryOverride = repository)
-        compose.onNode(hasText("Browse") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Browse")).performClick()
         compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("manga:browse:search"))).performTextInput("Tamil")
         compose.waitUntil(10_000) { compose.onAllNodesWithText("A searched series").fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodesWithText("Working source", substring = false).onFirst().assertExists()
@@ -164,12 +168,12 @@ class MangaInteractionTest {
         compose.onNodeWithText("My library", substring = false).assertDoesNotExist()
         compose.onNodeWithText("Import comic").assertDoesNotExist()
         // Browse shows the enabled catalogue's first page: no search, no source to choose first.
-        compose.onNode(hasText("Browse") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Browse")).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("A story to discover").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(listOf(""), calls)
         compose.onNodeWithText("Enter at least two characters", substring = true).assertDoesNotExist()
         compose.onAllNodesWithText("Reading catalogue", substring = true).onFirst().assertIsDisplayed()
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Library")).performClick()
         compose.onNodeWithTag("manga:options").assertIsDisplayed()
     }
 
@@ -177,22 +181,23 @@ class MangaInteractionTest {
         val store = MangaStore(temporary.newFolder())
         runBlocking { store.source(MangaSourceConfig("fixture:disabled", "mihon", "Disabled catalogue", enabled = false)) }
         show(repositoryOverride = MangaRepository(store))
-        compose.onNode(hasText("Browse") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Browse")).performClick()
         compose.onNodeWithText("No sources are enabled.", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Manage sources").assertIsDisplayed().performClick()
         compose.onNodeWithTag("manga:sources:list").assertExists()
-        compose.onNode(hasText("Sources") and isSelectable()).assertIsSelected()
+        compose.onNode(hasNavTab("More")).assertIsSelected()
         assertFalse(store.state.value.sources.single().enabled)
     }
 
     @Test fun narrowLargeTextLibraryKeepsImportAndSourceControlsReachable() {
         show(1.5f)
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Library")).performClick()
         compose.onNodeWithTag("manga:options").assertIsDisplayed().performClick()
         compose.onNodeWithText("Import comic").assertIsDisplayed()
         compose.onNodeWithText("Image folder").assertIsDisplayed()
         compose.onNodeWithText("Manage sources").assertIsDisplayed().performClick()
-        compose.onNode(hasText("Library") and isSelectable()).performScrollTo().performClick()
+        // The bottom bar keeps every tab in reach at any text size: no scrolling to find Library.
+        compose.onNode(hasNavTab("Library")).assertIsDisplayed().performClick()
         compose.onNodeWithTag("manga:library").performScrollToNode(hasText("Evening story"))
         compose.onNodeWithText("Evening story").assertIsDisplayed()
         screenshot("library-narrow-large-text")
@@ -232,7 +237,8 @@ class MangaInteractionTest {
     private fun zoomOf(node: SemanticsNodeInteraction) = node.fetchSemanticsNode().config.getOrElseNullable(SemanticsProperties.StateDescription) { null }
 
     @Test fun fitWidthScrollsATallPageAndButtonsAndKeysZoomTheCurrentPage() {
-        val (repository, _) = show(pageCount = 3, imageHeight = 2_200, mode = MangaReaderMode.PAGES_LTR)
+        // The zoom buttons are a wide window's (a mouse, no pinch); a phone zooms by pinching.
+        val (repository, _) = show(pageCount = 3, imageHeight = 2_200, mode = MangaReaderMode.PAGES_LTR, width = 900.dp)
         compose.onNodeWithText("Evening story").performClick()
         compose.onNodeWithText("Read").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Manga page").fetchSemanticsNodes().isNotEmpty() }

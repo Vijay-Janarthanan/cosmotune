@@ -21,6 +21,8 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.unit.dp
 import com.cosmotune.manga.data.*
 import com.cosmotune.manga.ui.MangaApp
@@ -223,6 +225,8 @@ class ReadOrbitVisualReviewTest {
             compose.onAllNodesWithContentDescription("Back").onFirst().performClick()
             tab("Bookmarks"); waitFor("Chapter 3"); capture("read-bookmarks-$tag")
             tab("Library"); waitFor("Field notes")
+            // The grid starts under the colour card, the quick tiles and the shelves: on a phone its covers are below the window.
+            compose.onNodeWithTag("books:library").performScrollToNode(hasText("Field notes"))
             compose.onAllNodesWithText("Field notes").onFirst().performClick()
             waitFor("Mark finished")
             compose.onNodeWithTag("orbit:card:continue").performClick()
