@@ -70,7 +70,7 @@ import com.cosmotune.ui.library.CosmoLibraryGrid
 import com.cosmotune.ui.pages.CosmoShelfGridPage
 import com.cosmotune.ui.player.MiniPlayerPanel
 import com.cosmotune.ui.search.CosmoMoodPage
-import com.cosmotune.ui.search.SearchInChips
+import com.cosmotune.ui.search.SearchInChipsInRow
 import com.cosmotune.ui.search.SearchInChoice
 import com.cosmotune.ui.search.SearchInState
 import com.cosmotune.ui.search.SearchInStatus
@@ -270,14 +270,15 @@ class KitbaseVisualReviewTest {
             DiscoveryPreferences.configure(temporary.newFile("preferences-$tag.json").apply { delete() })
             page(dark) {
                 Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                    SearchInChips(
-                        SearchInState(
-                            listOf(SearchInChoice("all", "All", SearchInStatus.SEARCHING), SearchInChoice("yt", "YouTube Music", SearchInStatus.READY),
-                                SearchInChoice("sflx-bandcamp", "Bandcamp", SearchInStatus.NEEDS_VERIFICATION), SearchInChoice("sub", "Navidrome", SearchInStatus.ERROR)),
-                            selected = "all", onSelect = {},
-                        ),
-                        cosmo = true,
-                    )
+                    androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                        SearchInChipsInRow(
+                            SearchInState(
+                                listOf(SearchInChoice("all", "All", SearchInStatus.SEARCHING), SearchInChoice("yt", "YouTube Music", SearchInStatus.READY),
+                                    SearchInChoice("sflx-bandcamp", "Bandcamp", SearchInStatus.NEEDS_VERIFICATION), SearchInChoice("sub", "Navidrome", SearchInStatus.ERROR)),
+                                selected = "all", onSelect = {},
+                            ),
+                        )
+                    }
                     KitSectionHeader("Bandcamp", overline = "Needs verification", seeAllLabel = "Verify to search", onSeeAll = {})
                     KitSectionHeader("Navidrome", overline = "Searching…")
                     KitSkeletonRows(count = 2)
