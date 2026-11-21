@@ -43,7 +43,7 @@ internal fun PlayerOptions(songId: String, bluetoothSupported: Boolean, onDismis
             LyricTextAlignment.entries.forEach { option -> CosmoSettingsChip(if(option==LyricTextAlignment.AUTO) "Auto" else "Center",option==alignment,{settings.setLyricAlignment(option)}) }
         }
         if(bluetoothSupported) PlayerOptionSwitch("Bluetooth resume","Resume the same paused song after headphones disconnected. A manual pause cancels the pending resume.",reconnect,settings::setBluetoothResume)
-        PlayerOptionSwitch("Pause on mute",if(bluetoothSupported) "Pause music when media volume reaches zero. Unmuting keeps it paused." else "Pause music when Cosmotune volume reaches zero. Unmuting keeps it paused.",mute,settings::setPauseOnMute)
+        PlayerOptionSwitch("Pause on mute",if(bluetoothSupported) "Pause music when media volume reaches zero. Turn it back up and the song plays on." else "Pause music when Cosmotune volume reaches zero. Turn it back up and the song plays on.",mute,settings::setPauseOnMute)
     })
 }
 

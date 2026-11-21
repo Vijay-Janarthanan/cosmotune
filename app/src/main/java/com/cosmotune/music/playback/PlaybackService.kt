@@ -558,13 +558,27 @@ class PlaybackService : MediaLibraryService() {
     private var lastBluetoothPlayingId: String? = null
     private var lastBluetoothPlayingAt = 0L
     private var lastMediaVolume = -1
+    private val muteResume = com.cosmotune.settings.MuteResume()
     private fun bluetoothOutput(device: AudioDeviceInfo) = device.type in setOf(
         AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER)
     private val mediaVolumeObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) {
-            val level = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: return
-            if (lastMediaVolume > 0 && level == 0 && com.cosmotune.settings.Extras.settings.pauseOnMute.value &&
-                !speakers.active && com.cosmotune.settings.SongPlaybackMemory.isMusic(player?.currentMediaItem?.mediaId)) player?.pause()
+            val manager = audioManager ?: return
+            var level = manager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val muteOn = com.cosmotune.settings.Extras.settings.pauseOnMute.value
+            val id = player?.currentMediaItem?.mediaId
+            if (lastMediaVolume > 0 && level == 0 && muteOn && !speakers.active && com.cosmotune.settings.SongPlaybackMemory.isMusic(id)) {
+                val wasPlaying = player?.playWhenReady == true
+                player?.pause()
+                // After the pause, which the player reports as a request like any other and so clears the memory.
+                if (wasPlaying) muteResume.pausedForMute(id)
+            } else if (lastMediaVolume == 0 && level > 0 && muteOn &&
+                muteResume.unmuted(id, player?.playWhenReady == false) && !speakers.active && !ListenTogether.state.value.controlsLocked) {
+                // Back up from zero: the song paused for the mute plays on, loud enough to be heard.
+                val wanted = com.cosmotune.settings.MuteResume.resumeLevel(level, manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC))
+                if (wanted > level) runCatching { manager.setStreamVolume(AudioManager.STREAM_MUSIC, wanted, 0) }.onSuccess { level = wanted }
+                player?.play()
+            }
             lastMediaVolume = level
         }
     }
@@ -1075,6 +1089,8 @@ class PlaybackService : MediaLibraryService() {
                 lastBluetoothPlayingAt = SystemClock.elapsedRealtime()
             }
             if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) bluetoothReconnect.cancel()
+            // Play or pause pressed: a song paused for a mute is the listener's to start again now.
+            if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) muteResume.manual()
             // Play or pause pressed: a reconnect waiting for the network is no longer wanted after a
             // pause, and play after a give-up deserves a fresh outage rather than an instant refusal.
             if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {

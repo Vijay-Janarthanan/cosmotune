@@ -154,6 +154,7 @@ class DesktopPlaybackEngine(
     private fun audibleTuning() = if (fadeRemaining > 0) blendTuning else tuningFor(current?.song?.videoId)
     val playbackRate: Float get() = audibleTuning().speed
     @Volatile private var volume = 1f
+    private val muteResume = com.cosmotune.settings.MuteResume()
     @Volatile private var loudnessNormalization = true
 
     fun setLoudnessNormalization(enabled: Boolean) { loudnessNormalization = enabled }
@@ -785,6 +786,7 @@ class DesktopPlaybackEngine(
     }
 
     fun play() {
+        muteResume.manual()
         if (current?.directDsd == true && (volume != 1f || playbackRate != 1f || audibleTuning().pitchSemitones != 0)) {
             stopDirectDsd("Direct DSD requires player volume 100% and speed 1×. Use the DAC volume control, or disable direct DSD and replay.")
             return
@@ -806,6 +808,7 @@ class DesktopPlaybackEngine(
     }
 
     fun pause() {
+        muteResume.manual()
         paused = true
         // A reconnect the listener has paused is no longer wanted; play picks the song up again.
         if (reconnectJob?.isActive == true) {
@@ -831,8 +834,17 @@ class DesktopPlaybackEngine(
     fun setVolume(value: Float) {
         val previousVolume = volume
         volume = value.coerceIn(0f, 1f)
-        if (previousVolume > 0f && volume == 0f && com.cosmotune.settings.Extras.settings.pauseOnMute.value &&
-            com.cosmotune.settings.SongPlaybackMemory.isMusic(current?.song?.videoId)) pause()
+        val muteOn = com.cosmotune.settings.Extras.settings.pauseOnMute.value
+        val id = current?.song?.videoId
+        if (previousVolume > 0f && volume == 0f && muteOn && com.cosmotune.settings.SongPlaybackMemory.isMusic(id)) {
+            val wasPlaying = !paused
+            pause()
+            if (wasPlaying) muteResume.pausedForMute(id)
+        } else if (previousVolume == 0f && volume > 0f && muteOn && muteResume.unmuted(id, paused)) {
+            // Back up from zero: the song paused for the mute plays on, loud enough to be heard.
+            volume = volume.coerceAtLeast(com.cosmotune.settings.MuteResume.FLOOR)
+            play()
+        }
         sink.gain = outputGain()
         _state.update { it.copy(volume = volume) }
         if (current?.directDsd == true && volume != 1f) stopDirectDsd("Direct DSD paused: software volume cannot alter DSD. Use the DAC volume control, or disable direct DSD and replay.")
