@@ -315,7 +315,10 @@ private fun LyricsList(
     var placed by remember { mutableStateOf(false) }
     // While lines are being picked the list stays put: the reader needs it to, to tap the lines they want.
     val following = !browsing && !selection.picking
-    LaunchedEffect(synced, following, reduced) {
+    // Keyed on the anchor itself: another source's lyrics can replace these for the same song while it plays, and a follow
+    // left reading the old lines' anchor numbered its rows by them, falling a line further behind at each until no sung line
+    // was on screen.
+    LaunchedEffect(synced, following, reduced, anchor) {
         if (!synced || !following) return@LaunchedEffect
         snapshotFlow { anchor.value }.collectLatest { index ->
             if (index < 0) return@collectLatest
