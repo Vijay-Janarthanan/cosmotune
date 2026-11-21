@@ -26,7 +26,11 @@ import com.cosmotune.ui.theme.*
 }
 
 /**
- * A tab of Podio's dock or rail named [label]: the Orbit dock names its chosen tab in words and the others by their content
- * description (their icon alone), so a tab is found by either, and is selectable.
+ * A tab of Podio's bottom bar or rail named [label] (the shared CosmoNavShell): a selectable whose words or merged content
+ * description are the name, which a tab with a count carries as "Following, 2 new".
  */
-internal fun podioTab(label: String): SemanticsMatcher = (hasText(label) or hasContentDescription(label)) and isSelectable()
+internal fun podioTab(label: String): SemanticsMatcher = (hasText(label) or hasContentDescription(label) or
+    SemanticsMatcher("content description starts \"$label, \"") { node ->
+        val names: List<String> = node.config.getOrElse(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription) { emptyList() }
+        names.any { name -> name.startsWith("$label, ") }
+    }) and isSelectable()
