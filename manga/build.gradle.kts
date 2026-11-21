@@ -54,7 +54,7 @@ kotlin {
         implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
     }
     jvmSharedMain.dependencies {
-        api("com.github.Kotatsu-Redo:kotatsu-parsers-redo:a90648aebd")
+        api("com.github.Kotatsu-Redo:kotatsu-parsers-redo:9f1b46a9e0")
     }
     sourceSets.androidMain.dependencies {
         implementation("androidx.work:work-runtime-ktx:2.11.2")

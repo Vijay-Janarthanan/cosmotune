@@ -5,7 +5,7 @@ on:
       revision:
         description: Reviewed Kotatsu parser commit (full SHA)
         required: true
-        default: a90648aebdf61c47b9eed4bec351332306aeff6a
+        default: 9f1b46a9e0295ae1a36940b7e38e4ab32476f744
 permissions:
   contents: write
 concurrency:
@@ -30,7 +30,7 @@ jobs:
           INPUT_REVISION: ${{ inputs.revision }}
         shell: bash
         run: |
-          revision="${INPUT_REVISION:-a90648aebdf61c47b9eed4bec351332306aeff6a}"
+          revision="${INPUT_REVISION:-9f1b46a9e0295ae1a36940b7e38e4ab32476f744}"
           [[ "$revision" =~ ^[a-f0-9]{40}$ ]] || { echo 'A full reviewed commit SHA is required'; exit 1; }
           echo "sha=$revision" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
