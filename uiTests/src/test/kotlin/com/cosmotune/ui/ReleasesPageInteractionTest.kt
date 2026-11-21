@@ -77,12 +77,19 @@ class ReleasesPageInteractionTest {
         compose.onNodeWithText("THIS WEEK").assertExists()
         compose.onNodeWithText("LAST WEEK").assertExists()
         compose.onNodeWithText("EARLIER").assertExists()
-        compose.onNodeWithText("Album · Fixture Artist").assertExists()
-        compose.onNodeWithText("Single · Fixture Artist").assertExists()
+        // A flat row's line is "Album · Artist · day found".
+        compose.onNodeWithText("Album · Fixture Artist · ", substring = true).assertExists()
+        compose.onNodeWithText("Single · Fixture Artist · ", substring = true).assertExists()
 
-        compose.onNodeWithTag("music:releases:hide-singles").performClick()
+        // Singles are hidden by the Albums chip; a release the catalogue did not file stays under All only.
+        compose.onNodeWithTag("music:releases:filter:albums").performClick()
         compose.onNodeWithText("A single").assertDoesNotExist()
         compose.onNodeWithText("LAST WEEK").assertDoesNotExist()
+        compose.onNodeWithText("An album").assertExists()
+        compose.onNodeWithText("An old one").assertDoesNotExist()
+
+        compose.onNodeWithTag("music:releases:filter:all").performClick()
+        compose.onNodeWithText("A single").assertExists()
         compose.onNodeWithText("An album").assertExists()
         compose.onNodeWithText("An old one").assertExists()
     }
@@ -105,7 +112,12 @@ class ReleasesPageInteractionTest {
         compose.onNodeWithTag("music:releases:manage").performClick()
         assertEquals(1, managed)
         compose.onNodeWithTag("music:releases:check").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Check now").fetchSemanticsNodes().isNotEmpty() }
+        // The check is a round button whose name says "Checking…" until the check is done.
+        compose.waitUntil(5_000) {
+            ListeningStore(file).state.value.artists.single().checkedAt != null &&
+                compose.onAllNodesWithContentDescription("Check now").fetchSemanticsNodes().isNotEmpty()
+        }
         assertNotNull(ListeningStore(file).state.value.artists.single().checkedAt, "the check reached the store")
+        compose.onNodeWithText("checks failed", substring = true).assertDoesNotExist()
     }
 }

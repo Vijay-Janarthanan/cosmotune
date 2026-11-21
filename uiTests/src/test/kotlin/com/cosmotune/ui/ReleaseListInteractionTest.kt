@@ -98,19 +98,26 @@ class ReleaseListInteractionTest {
             assertEquals(listOf("middle", "first", "last"), played.map { it.setVideoId })
             assertEquals(2, start)
         }
-        compose.onNodeWithTag("music:list:select").performScrollTo().performClick()
+        // Select lives in the order menu; select mode's actions are the bar at the foot.
+        compose.onNodeWithTag("music:list:order").performScrollTo().performClick()
+        compose.onNodeWithTag("music:list:select").performClick()
         compose.onNodeWithTag("music:release:row:entry:last").performScrollTo().performTouchInput { click() }
-        compose.onNodeWithText("Play selected").performScrollTo().performClick()
+        compose.onNodeWithText("1 selected").assertExists()
+        compose.onNode(hasText("Play") and hasAnyAncestor(hasTestTag("orbit:selection-bar"))).performClick()
         compose.runOnIdle { assertEquals(listOf("last"), played.map { it.setVideoId }); assertEquals(0, start) }
-        compose.onNodeWithText("More", substring = false).performScrollTo().performClick()
+        compose.onNode(hasText("More") and hasAnyAncestor(hasTestTag("orbit:selection-bar"))).performClick()
         compose.runOnIdle { assertEquals(listOf("last"), more.map { it.setVideoId }) }
     }
 
     @Test fun downloadedFilteringAndHeaderActionsUseTheVisibleQueueAtTwoHundredPercentText() = hosts {
         show(fontScale = 2f)
-        compose.onNodeWithTag("music:list:downloaded").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        // "Downloaded only" is in the order menu, which stays open to show the new state; picking the order in force closes it.
+        compose.onNodeWithTag("music:list:order").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        compose.onNodeWithTag("music:list:downloaded").assertHeightIsAtLeast(48.dp).performClick()
+        compose.onNodeWithText("Default order", useUnmergedTree = true).performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("music:list:downloaded").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithTag("music:release:row:entry:middle").assertDoesNotExist()
-        compose.onNodeWithTag("orbit:card:play").performScrollTo().performClick()
+        compose.onNodeWithTag("orbit:header:play").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(listOf("first", "last"), played.map { it.setVideoId }) }
         compose.onNodeWithContentDescription("Shuffle").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(listOf("first", "last"), shuffled.map { it.setVideoId }) }

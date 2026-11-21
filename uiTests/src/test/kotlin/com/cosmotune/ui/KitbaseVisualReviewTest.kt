@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -226,7 +227,9 @@ class KitbaseVisualReviewTest {
                     CosmoShelf("Artists", items(art, artists = true), {}, circles = true)
                     KitSectionHeader("Loading", overline = "Search in · Bandcamp", onSeeAll = {}, seeAllLabel = "Verify to search")
                     KitSkeletonRows(count = 3)
-                    Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                    // The rail is the shell's full-height side rail and scrolls itself when the window is short, so in this scrolling
+                    // column it gets a window's height of its own.
+                    Row(Modifier.fillMaxWidth().padding(top = 12.dp).height(360.dp)) {
                         KitNavRail(
                             listOf(CosmoTab("Home", CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab("Search", CosmoIcons.Search, CosmoIcons.SearchFill), CosmoTab("Library", CosmoIcons.Library, CosmoIcons.LibraryFill)),
                             0, {}, Modifier.fillMaxHeight(),

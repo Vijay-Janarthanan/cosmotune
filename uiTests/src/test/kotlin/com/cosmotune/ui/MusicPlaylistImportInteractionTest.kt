@@ -52,6 +52,8 @@ class MusicPlaylistImportInteractionTest {
         compose.onNodeWithTag("listening:playlist:save").performScrollTo().performClick()
         compose.waitUntil(10_000) { saved != null }
         assertEquals(listOf("local", "dQw4w9WgXcQ"), saved!!.map { it.videoId })
+        // The host gets the playlist first; the reviewed import is written after it, and the button says so once it is.
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Playlist saved", substring = true).fetchSemanticsNodes().isNotEmpty() }
         val retained = ListeningStore(File(directory, "listening.json")).state.value.pendingPlaylistImports.single()
         assertEquals(listOf(1, 3, 4), retained.rows.map { it.number })
         assertEquals("https://untrusted.invalid/list.m3u8", retained.rows.last().location)

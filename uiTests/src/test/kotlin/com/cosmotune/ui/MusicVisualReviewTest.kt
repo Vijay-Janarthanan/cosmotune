@@ -129,7 +129,7 @@ class MusicVisualReviewTest {
     /** The top card offering another device's song (the phone's, on the desktop), dark and light, at phone and desktop width. */
     @Test fun homeOffersAnotherDevicesSong() = hosts {
         val art = listOf(cover("a", 142, 68, 58), cover("b", 44, 96, 120), cover("c", 90, 120, 60), cover("d", 110, 70, 130))
-        val phoneSong = Song("vPhone", "Kichchali Samba", "S. P. Balasubrahmanyam, K. S. Chithra", art[0], albumName = "Oor Mariyadai")
+        val phoneSong = Song("vPhone", "Fixture phone song", "Fixture Singer, Second Singer", art[0], albumName = "Fixture album")
         val offer = com.cosmotune.ui.home.ElsewhereOffer(phoneSong, "your phone", positionMs = 133_000, durationMs = 285_000, upNext = 24, onContinue = {}, onPutAside = {})
         for ((name, palette, dark) in listOf(Triple("dark", OneTestPalette.dark(), true), Triple("light", OneTestPalette.light(), false))) {
             for ((width, w, h) in listOf(Triple("phone", 390.dp, 700.dp), Triple("desktop", 1100.dp, 560.dp))) {
@@ -144,8 +144,9 @@ class MusicVisualReviewTest {
                         )
                     }
                 }
-                compose.onNodeWithText("ON YOUR PHONE").assertExists()
-                compose.onNodeWithText("2:13 / 4:45 · 24 UP NEXT").assertExists()
+                // The pick-up card's one mono line: where it plays, how far it got and what comes after it.
+                compose.onNode(hasTestTag("music:home:hero") and hasAnyDescendant(hasText("ON YOUR PHONE · 2:13 / 4:45 · 24 UP NEXT")), useUnmergedTree = true).assertExists()
+                compose.onNodeWithText("Fixture phone song", useUnmergedTree = true).assertExists()
                 capture("home-elsewhere-$width-$name")
             }
         }
