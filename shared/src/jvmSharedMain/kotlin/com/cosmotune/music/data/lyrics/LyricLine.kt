@@ -271,6 +271,22 @@ data class LyricLine(
     }
 
     /**
+     * How far letter [letter] of [letters] in word [index] has lifted, 0..1: the lift travelling through the word as it is
+     * sung, rather than the word going up as one block. Letter k starts at [LETTER_SPREAD] of the way through the word's rise
+     * times k / (n - 1), so the last starts at 65 %, and each rises over the time left; the first letter is [wordLift]
+     * exactly, and the word comes down as one, as today. Which words are cut this way at all is [LetterLift.cuts]'s call.
+     * An idea from LastWave Native.
+     */
+    fun letterLift(index: Int, letter: Int, letters: Int, positionMs: Long): Float {
+        val word = words.getOrNull(index) ?: return 0f
+        val riseMs = (word.endMs - word.startMs).toFloat().coerceIn(RISE_MIN_MS, RISE_MS)
+        val delay = if (letters <= 1) 0f else LETTER_SPREAD * riseMs * letter.coerceIn(0, letters - 1) / (letters - 1)
+        val rising = ((positionMs - word.startMs - delay) / (riseMs - delay)).coerceIn(0f, 1f)
+        val falling = (1f - (positionMs - word.endMs) / RISE_MS).coerceIn(0f, 1f)
+        return liftHeight(word) * smooth(minOf(rising, falling))
+    }
+
+    /**
      * Whether anything actually told us when the singing stops, rather than
      * only when it starts. Word timings carry it, and so does a provider that
      * stamps the line's own end ([sungUntilMs]).
@@ -527,6 +543,9 @@ private const val RISE_MS = 700f
 
 /** The quickest a word ever rises: a 90 ms syllable snapping up reads as a twitch. */
 private const val RISE_MIN_MS = 250f
+
+/** How far through a word's rise its last letter starts rising; see [LyricLine.letterLift]. */
+private const val LETTER_SPREAD = 0.65f
 
 /**
  * How far up a word goes, as a share of the full lift, from how long it is held.

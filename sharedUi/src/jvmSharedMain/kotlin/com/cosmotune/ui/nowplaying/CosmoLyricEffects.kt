@@ -22,6 +22,7 @@ import com.cosmotune.lyrics.LyricParticles
 import com.cosmotune.lyrics.WordFill
 import com.cosmotune.music.data.lyrics.CharGrowth
 import com.cosmotune.music.data.lyrics.GrowingWord
+import com.cosmotune.music.data.lyrics.LetterLift
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.ui.player.clipShiftedDown
 
@@ -157,6 +158,12 @@ internal fun ContentDrawScope.sweepWords(layout: TextLayoutResult?, line: LyricL
 internal class WordLifter(private val line: LyricLine) {
     private val growers: Array<GrowingWord?> = WordFill.growers(line)
 
+    /** Where each word's letters start, for those that rise a letter at a time ([LetterLift.cuts]); null for one that rises whole. */
+    private val letterCuts: Array<IntArray?> = Array(line.words.size) { index ->
+        val span = line.wordSpans.getOrNull(index)
+        if (span == null || span.first < 0 || span.last >= line.text.length) null else LetterLift.cuts(line.text.substring(span.first, span.last + 1))
+    }
+
     /** Whether any word of the line is held long enough to swell, which is what a bloom is for. */
     val hasHeldWords: Boolean = hasAny(growers)
 
@@ -222,12 +229,49 @@ internal class WordLifter(private val line: LyricLine) {
                 if (held != null) {
                     growEach(layout, held, positionMs, row, start, end, spans[index].first, top, bottom, peak, em)
                 } else {
+                    val cuts = letterCuts[index]
                     // Only what is off the floor gets room above the row to be off it in.
-                    clipShiftedDown(x0, top - peak, x1, bottom, -rise * peak, flat)
+                    if (cuts == null) {
+                        clipShiftedDown(x0, top - peak, x1, bottom, -rise * peak, flat)
+                    } else {
+                        liftEach(layout, index, cuts, positionMs, row, start, end, spans[index].first, top, bottom, peak)
+                    }
                 }
                 if (x1 > cursor) cursor = x1
             }
             if (cursor < right) clipShiftedDown(cursor, top, right, bottom, 0f, flat)
+        }
+    }
+
+    /**
+     * The word being sung, a letter at a time, each at its own height ([LyricLine.letterLift]): the lift travels through it
+     * instead of the word going up as one block. Cut only at whole letters ([LetterLift.cuts]), and drawn in reading order, so a
+     * right-to-left word rises from the right.
+     */
+    private fun ContentDrawScope.liftEach(
+        layout: TextLayoutResult,
+        index: Int,
+        cuts: IntArray,
+        positionMs: Long,
+        row: Int,
+        start: Int,
+        end: Int,
+        wordFirst: Int,
+        top: Float,
+        bottom: Float,
+        peak: Float,
+    ) {
+        val letters = cuts.size - 1
+        for (k in 0 until letters) {
+            val from = maxOf(wordFirst + cuts[k], start)
+            val to = minOf(wordFirst + cuts[k + 1], end)
+            if (from >= to) continue
+            val a = layout.xOn(from, row)
+            val b = layout.xOn(to, row)
+            val x0 = minOf(a, b)
+            val x1 = maxOf(a, b)
+            if (x1 <= x0) continue
+            clipShiftedDown(x0, top - peak, x1, bottom, -line.letterLift(index, k, letters, positionMs) * peak, flat)
         }
     }
 
