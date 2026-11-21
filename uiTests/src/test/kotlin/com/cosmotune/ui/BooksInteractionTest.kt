@@ -53,14 +53,15 @@ class BooksInteractionTest {
 
     @Test fun continueAndFinishedShelvesUpdateTheSavedLibrary() {
         val repository = library()
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Library")).performClick()
         // The shelves come from the library as it loads: wait for this one before scrolling to it.
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("books:shelf:Reading").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("books:shelf:Reading").performScrollTo().performClick()
-        compose.onNodeWithText("The illustrated atlas", substring = false).assertExists()
+        // The book being read leads the page as its colour card as well; the shelf is the grid under it.
+        compose.onNode(onTheShelf("The illustrated atlas")).assertExists()
         compose.onNodeWithText("Field notes", substring = false).assertDoesNotExist()
         // A book's actions are on its page.
-        compose.onNodeWithText("The illustrated atlas", substring = false).performClick()
+        compose.onNode(onTheShelf("The illustrated atlas")).performScrollTo().performClick()
         compose.onNodeWithText("Mark finished", substring = false).performScrollTo().performClick()
         compose.waitUntil { repository.state.value.finished.contains("atlas") }
         compose.onNodeWithContentDescription("Back").performClick()
@@ -74,7 +75,7 @@ class BooksInteractionTest {
 
     @Test fun commercialSavedBookHasSourceDetailsWithoutAnInventedDownload() {
         val repository = library()
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Library")).performClick()
         // The shelves come from the library as it loads: wait for this one before scrolling to it.
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("books:shelf:Saved").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("books:shelf:Saved").performScrollTo().performClick()
@@ -91,12 +92,20 @@ class BooksInteractionTest {
 
     @Test fun largeTextKeepsLibraryTilesAndShelvesUsable() {
         library(fontScale = 2f)
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Library")).performClick()
         // The library's search is the heading's; the quick tiles choose a shelf.
         compose.onNodeWithTag("books:tile:Downloaded").performScrollTo().performClick()
-        compose.onNodeWithText("Field notes", substring = false).performScrollTo().assertExists()
+        // At twice the text the grid's covers start below the window: the library scrolls them in.
+        compose.onNodeWithTag("books:library").performScrollToNode(hasText("Field notes", substring = false))
+        compose.onNodeWithText("Field notes", substring = false).assertExists()
         compose.onNodeWithTag("books:layout").performScrollTo().performClick()
-        compose.onNodeWithText("Field notes", substring = false).performScrollTo().assertExists()
-        compose.onNodeWithTag("books:import").assertExists()
+        compose.onNodeWithTag("books:library").performScrollToNode(hasText("Field notes", substring = false))
+        compose.onNodeWithText("Field notes", substring = false).assertExists()
+        compose.onNodeWithTag("books:library").performScrollToNode(hasTestTag("books:import"))
+        compose.onNodeWithTag("books:import").assertIsDisplayed()
     }
+
+    /** A book's cover on the library's shelf, not the colour card of the book being read above it. */
+    private fun onTheShelf(title: String) =
+        hasText(title, substring = false) and !hasTestTag("books:hero") and !hasAnyAncestor(hasTestTag("books:hero"))
 }

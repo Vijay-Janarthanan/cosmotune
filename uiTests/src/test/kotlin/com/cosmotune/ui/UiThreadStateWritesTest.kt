@@ -50,7 +50,7 @@ class UiThreadStateWritesTest {
         }.build()
         val repository = ReadingRepository(temporary.newFolder(), client = client)
         compose.setContent { PodioTestTheme { Box(Modifier.size(400.dp, 800.dp)) { ReadApp(repository = repository) } } }
-        compose.onNode(hasText("Browse") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Browse")).performClick()
         compose.waitUntil(20_000) {
             compose.onAllNodes(hasText("The illustrated atlas") and hasAnyAncestor(hasTestTag("books:discover"))).fetchSemanticsNodes().isNotEmpty()
         }

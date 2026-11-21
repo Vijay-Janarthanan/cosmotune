@@ -181,7 +181,8 @@ class CachedPagesInteractionTest {
         }
     }
 
-    @Test fun readLibraryShowsTodaysTrendingAtOnceOnReturn() {
+    // Today's trending books moved from the Library to Browse (the Read board's Library frame): Browse shows them at once on return.
+    @Test fun readBrowseShowsTodaysTrendingAtOnceOnReturn() {
         val calls = AtomicInteger()
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             calls.incrementAndGet()
@@ -194,10 +195,13 @@ class CachedPagesInteractionTest {
         compose.setContent { PodioTestTheme { Box(Modifier.size(900.dp, 800.dp)) {
             if (shown.value) ReadApp(repository = repository) else Text("Another mode")
         } } }
+        compose.onNode(hasNavTab("Browse")).performClick()
         waitForText("A cached atlas")
         val asked = calls.get()
 
         leaveAndReturn(shown)
+        compose.onNode(hasNavTab("Browse")).performClick()
+        compose.waitForIdle()
         assertShows("A cached atlas")
         assertEquals(asked, calls.get(), "no second fetch inside the freshness window")
     }
@@ -223,12 +227,12 @@ class CachedPagesInteractionTest {
             compose.setContent { PodioTestTheme { Box(Modifier.size(900.dp, 800.dp)) {
                 if (shown.value) MangaApp(repository = repository) else Text("Another mode")
             } } }
-            compose.onNode(hasText("Browse") and isSelectable()).performClick()
+            compose.onNode(hasNavTab("Browse")).performClick()
             waitForText("A cached series")
             val asked = seriesCalls.get()
 
             leaveAndReturn(shown)
-            compose.onNode(hasText("Browse") and isSelectable()).performClick()
+            compose.onNode(hasNavTab("Browse")).performClick()
             compose.waitForIdle()
             assertShows("A cached series")
             assertEquals(asked, seriesCalls.get(), "no second fetch inside the freshness window")

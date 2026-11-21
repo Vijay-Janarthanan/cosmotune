@@ -39,7 +39,7 @@ class MangaSourceManagementInteractionTest {
                 MaterialTheme { Box(Modifier.requiredWidth(400.dp)) { MangaApp(repository = repository) } }
             }
         }
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Library")).performClick()
         compose.onNodeWithTag("manga:options").performClick()
         compose.onNodeWithText("Manage sources", useUnmergedTree = true).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("manga:sources:list").fetchSemanticsNodes().isNotEmpty() }
@@ -51,7 +51,7 @@ class MangaSourceManagementInteractionTest {
         compose.onNodeWithTag("manga:source:${source.id}").assertContentDescriptionEquals("MANGA Plus English (en)").assertIsToggleable().performClick()
         compose.waitUntil(10_000) { repository.store.state.value.sources.any { it.id == source.id && it.enabled } }
         compose.onNodeWithTag("manga:source:${source.id}").assertIsOn()
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Library")).performClick()
         assertTrue(MangaStore(repository.store.root).state.value.sources.any { it.id == source.id && it.enabled })
     }
 }

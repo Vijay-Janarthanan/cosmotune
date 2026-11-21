@@ -72,7 +72,7 @@ class MangaLibraryInteractionTest {
             compose.waitUntil(10_000) { compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty() }
 
         compose.onNodeWithText("Check for updates").assertDoesNotExist()
-        compose.onNode(hasText("Browse") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Browse")).performClick()
         waitText("Net source", substring = true)
         compose.onNode(hasText("Net source", substring = true) and hasClickAction()).performClick()
         waitText("Network series")
@@ -88,14 +88,18 @@ class MangaLibraryInteractionTest {
         // Back from the series to the source's catalogue, then back to the tabs.
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
-        waitText("2 unread", substring = true)
+        compose.onNode(hasNavTab("Library")).performClick()
+        // A library cover counts its unread chapters in its corner.
+        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("2 unread").fetchSemanticsNodes().isNotEmpty() }
         // Updates checks the library: its refresh action, or a pull.
-        compose.onNode(hasText("Updates") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Updates")).performClick()
         compose.onNodeWithContentDescription("Check for updates").performClick()
         waitText("1 new chapter in 1 series")
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
-        compose.onNodeWithText("3 unread · 1 new", substring = true).assertExists()
+        // The new chapter is counted on the Updates tab; the Library's heading and the series' cover count it as unread.
+        compose.onNode(hasNavTab("Updates") and hasContentDescription("Updates, 1 new")).assertExists()
+        compose.onNode(hasNavTab("Library")).performClick()
+        compose.onNodeWithText("1 SERIES · 3 UNREAD", substring = true).assertExists()
+        compose.onNodeWithContentDescription("3 unread").assertExists()
         assertEquals(setOf("net:c3"), MangaStore(store.root).state.value.newChapters, "the mark survives a restart")
         // The new chapter's row comes first on the page; the series' cover is the last of its name.
         compose.onAllNodesWithText("Network series").onLast().performClick()

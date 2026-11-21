@@ -29,7 +29,7 @@ class MangaCollectionsInteractionTest {
         compose.setContent { MaterialTheme(colorScheme = CosmoBrandPalettes.of(true).toColorScheme(darkColorScheme())) {
             CompositionLocalProvider(LocalCosmoColors provides colors, LocalCosmoType provides rememberCosmoType()) { Box(Modifier.width(850.dp).fillMaxHeight()) { MangaApp(repository = MangaRepository(store)) } }
         } }
-        compose.onNode(hasText("Library") and isSelectable()).performClick()
+        compose.onNode(hasNavTab("Library")).performClick()
         compose.onNodeWithTag("manga:collection:manage").performClick()
         compose.onNodeWithTag("manga:collection:name").performTextInput("Favourites")
         compose.onNodeWithTag("manga:collection:save").performClick()
@@ -42,8 +42,8 @@ class MangaCollectionsInteractionTest {
         compose.waitUntil(5_000) { "one" in store.state.value.collections.single().bookIds }
         compose.onNodeWithText("Done").performClick()
         compose.onNodeWithContentDescription("Back").performClick()
-        // Collections are the library's chips.
-        compose.onNodeWithText("Favourites").performClick()
+        // Collections are the library's chips, each with its count.
+        compose.onNodeWithText("Favourites 1").performClick()
         compose.onNodeWithText("One").assertExists(); compose.onNodeWithText("Two").assertDoesNotExist()
         compose.onNodeWithTag("manga:collection:manage").performClick()
         compose.onNodeWithTag("manga:collection:rename:$id").performClick()
