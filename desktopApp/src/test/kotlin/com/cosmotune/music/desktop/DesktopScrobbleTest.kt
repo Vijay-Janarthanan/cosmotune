@@ -27,12 +27,13 @@ class DesktopScrobbleTest {
     }
 
     @Test
-    fun aBandWhoseOwnNameHoldsASeparatorIsCutToo() {
-        // The known cost of the heuristic, and Android's behaviour exactly: it
-        // cannot tell a joint credit from a band that has an ampersand in its
-        // name. Pinned rather than hidden, so a change here is a decision.
-        assertEquals("Simon", "Simon & Garfunkel".primaryArtist())
-        assertEquals("Earth", "Earth, Wind & Fire".primaryArtist())
+    fun aBandWhoseOwnNameHoldsASeparatorIsKeptWhole() {
+        // A known band whose own name has a comma or an ampersand is one artist, alone or with a guest, on Android and
+        // desktop alike; a joint credit of two people is still cut to the first.
+        assertEquals("Simon & Garfunkel", "Simon & Garfunkel".primaryArtist())
+        assertEquals("Earth, Wind & Fire", "Earth, Wind & Fire".primaryArtist())
+        assertEquals("Earth, Wind & Fire", "Earth, Wind & Fire & The Emotions".primaryArtist())
+        assertEquals("Anitta", "Anitta & Shakira".primaryArtist())
     }
 
     @Test

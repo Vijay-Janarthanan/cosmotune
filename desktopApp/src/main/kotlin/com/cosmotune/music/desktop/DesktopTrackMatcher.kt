@@ -44,7 +44,7 @@ internal object DesktopTrackMatcher {
 
     /** The first credited artist — who a catalogue is most likely to file the track under. */
     internal fun primaryArtist(artist: String): String =
-        artist.lowercase(Locale.ROOT).split(ARTIST_SEPARATOR).firstOrNull()?.trim().orEmpty()
+        com.cosmotune.music.data.model.ArtistIdentity.split(artist.lowercase(Locale.ROOT), ARTIST_SEPARATOR, keepEmpty = true).first()
 
     private fun score(candidate: Song, target: Song): Int? {
         val wanted = parseTitle(target.title, target.artist)

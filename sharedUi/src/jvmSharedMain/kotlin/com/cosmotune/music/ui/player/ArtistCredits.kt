@@ -55,7 +55,11 @@ private fun splitCreditLine(artist: String, primaryArtistId: String?): List<Arti
     val text = artist.trim()
     if (text.isEmpty()) return emptyList()
 
-    val cuts = CREDIT_SEPARATOR.findAll(text).toList()
+    // A band whose own name has a comma or an ampersand ("Earth, Wind & Fire") is one credit, as primaryArtist() keeps it.
+    val bands = com.cosmotune.music.data.model.ArtistIdentity.protectedRanges(text)
+    val cuts = CREDIT_SEPARATOR.findAll(text).filter { cut ->
+        bands.none { cut.range.first <= it.last && cut.range.last >= it.first }
+    }.toList()
     if (cuts.isEmpty()) {
         return listOf(ArtistCredit(name = text, browseId = primaryArtistId))
     }

@@ -13,6 +13,9 @@ object ArtistIdentity {
         "Florence + the Machine", "Of Monsters and Men", "Crosby, Stills, Nash & Young",
         "Coheed and Cambria", "Nick Cave & the Bad Seeds", "Emerson, Lake & Palmer",
         "Peter, Paul and Mary", "Love and Rockets", "A Tribe Called Quest",
+        "Earth, Wind and Fire", "Crosby, Stills & Nash", "Mumford & Sons", "Kool & the Gang", "Sly & the Family Stone",
+        "Brooks & Dunn", "Bob Marley & the Wailers", "Echo & the Bunnymen", "Hootie & the Blowfish", "Years & Years",
+        "Belle & Sebastian", "Iron & Wine", "Marina and the Diamonds", "Sam & Dave", "Ike & Tina Turner",
     )
     // Japanese ・ joins a transliterated name; Japanese 、 separates two credits.
     private val separators = Regex("""\s*[,/&;·|、，×]\s*|\s+x\s+|\s+(?:feat\.?|ft\.?|featuring)\s+""", RegexOption.IGNORE_CASE)
@@ -53,6 +56,29 @@ object ArtistIdentity {
         val album = folders.last().trim(); val artist = folders[folders.size - 2].trim()
         if (album.equals(artist, ignoreCase = true) || album.lowercase() in genericFolders) return null
         return artist.takeUnless { isPlaceholder(it) || it.lowercase() in genericFolders }
+    }
+
+    /** Where [display] names a protected artist ("Earth, Wind & Fire"), whose own commas and ampersands are not a split. */
+    fun protectedRanges(display: String): List<IntRange> = protected.flatMap { pattern ->
+        pattern.findAll(display).map { it.range }.toList()
+    }
+
+    /**
+     * [display] cut at [separator], never inside a protected name: "Earth, Wind & Fire & Friend" is the band and the friend,
+     * not "Earth", "Wind", "Fire" and the friend. Parts are trimmed; empty ones are dropped unless [keepEmpty] (a caller that
+     * reads the first part as the lead credit needs to see that there was none).
+     */
+    fun split(display: String, separator: Regex, keepEmpty: Boolean = false): List<String> {
+        val keep = protectedRanges(display)
+        val parts = ArrayList<String>()
+        var start = 0
+        for (cut in separator.findAll(display)) {
+            if (cut.range.isEmpty() || keep.any { cut.range.first <= it.last && cut.range.last >= it.first }) continue
+            parts += display.substring(start, cut.range.first)
+            start = cut.range.last + 1
+        }
+        parts += display.substring(start)
+        return parts.map { it.trim() }.filter { keepEmpty || it.isNotEmpty() }
     }
 
     fun names(display: String, structured: List<ArtistRef> = emptyList()): List<String> {

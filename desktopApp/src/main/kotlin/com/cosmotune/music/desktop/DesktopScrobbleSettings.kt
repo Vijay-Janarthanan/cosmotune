@@ -155,9 +155,10 @@ internal object DesktopScrobbleSettings {
 /**
  * The first credited artist, for services that handle joint credits badly.
  *
- * The original is kept when there is no separator, so "AC/DC" stays intact.
+ * The original is kept when there is no separator, so "AC/DC" stays intact, and a band whose own name has a comma or an
+ * ampersand ("Earth, Wind & Fire") is never cut.
  */
 internal fun String.primaryArtist(): String =
-    split(PRIMARY_ARTIST_SEPARATOR, limit = 2).first().trim().ifBlank { this }
+    com.cosmotune.music.data.model.ArtistIdentity.split(this, PRIMARY_ARTIST_SEPARATOR, keepEmpty = true).first().ifBlank { this }
 
 private val PRIMARY_ARTIST_SEPARATOR = Regex("""\s*,\s*|\s+&\s+|\s+＆\s+""")

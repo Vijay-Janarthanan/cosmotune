@@ -14,6 +14,17 @@ class ArtistIdentityTest {
         assertEquals(listOf("A, B & C", "Guest"), ArtistIdentity.names("Unreliable display", listOf(ArtistRef("A, B & C"), ArtistRef("Guest"))))
     }
 
+    @Test fun anyCutIsNeverMadeInsideABandsOwnName() {
+        val joiner = Regex("""\s*,\s*|\s+&\s+""")
+        assertEquals(listOf("Earth, Wind & Fire", "The Emotions"), ArtistIdentity.split("Earth, Wind & Fire & The Emotions", joiner))
+        assertEquals(listOf("Guest", "Mumford & Sons"), ArtistIdentity.split("Guest, Mumford & Sons", joiner))
+        assertEquals(listOf("Anitta", "Shakira"), ArtistIdentity.split("Anitta & Shakira", joiner))
+        assertEquals(listOf("Solo"), ArtistIdentity.split("  Solo  ", joiner))
+        // A protected name inside a longer word is not that band.
+        assertEquals(listOf("Years", "Yearsley"), ArtistIdentity.split("Years & Yearsley", joiner))
+        assertEquals(listOf(0..17), ArtistIdentity.protectedRanges("Earth, Wind & Fire feat. Guest"))
+    }
+
     @Test fun exactNameExceptionsCannotResolveToOnlyAPartOfTheArtist() {
         assertFalse(TrackMatcher.sharesArtist("Tyler, the Creator", "Tyler"))
         assertFalse(TrackMatcher.sharesArtist("Simon & Garfunkel", "Simon"))

@@ -321,9 +321,8 @@ fun completeArtistCredits(
  * has been seen writing — so a stretch is never split in the middle of a name.
  */
 private fun fragmentsOf(stretch: String, cutter: Regex): List<String> =
-    stretch.split(cutter)
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
+    // Never inside a band's own name ("Earth, Wind & Fire").
+    ArtistIdentity.split(stretch, cutter)
 
 /**
  * Everything a line is known to be joined by: the punctuation, plus the words
