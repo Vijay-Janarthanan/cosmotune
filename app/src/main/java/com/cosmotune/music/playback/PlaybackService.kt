@@ -224,6 +224,9 @@ const val ACTION_TOGGLE_FAVORITE = "com.cosmotune.music.action.TOGGLE_FAVORITE"
 /** Session command used by the media notification's and the 4×1 widget's Shuffle button. */
 const val ACTION_TOGGLE_SHUFFLE = "com.cosmotune.music.action.TOGGLE_SHUFFLE"
 
+/** Session command used by the media notification's Repeat button: off → all → one → off. */
+const val ACTION_CYCLE_REPEAT = "com.cosmotune.music.action.CYCLE_REPEAT"
+
 /** Session actions exposed to Android Auto for the track that is playing. */
 const val ACTION_START_STATION = "com.cosmotune.music.action.START_STATION"
 const val ACTION_REVERT_TO_ORIGINAL = "com.cosmotune.music.action.REVERT_TO_ORIGINAL"
@@ -901,6 +904,7 @@ class PlaybackService : MediaLibraryService() {
     private val favoriteCommand = SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY)
     private val autoplayCommand = SessionCommand(ACTION_TOGGLE_AUTOPLAY, Bundle.EMPTY)
     private val shuffleCommand = SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
+    private val repeatCommand = SessionCommand(ACTION_CYCLE_REPEAT, Bundle.EMPTY)
     private val startStationCommand = SessionCommand(ACTION_START_STATION, Bundle.EMPTY)
     private val revertToOriginalCommand = SessionCommand(ACTION_REVERT_TO_ORIGINAL, Bundle.EMPTY)
     private val swapToVersionCommand = SessionCommand(ACTION_SWAP_TO_VERSION, Bundle.EMPTY)
@@ -1252,6 +1256,8 @@ class PlaybackService : MediaLibraryService() {
             val previous = lastRepeatMode
             lastRepeatMode = repeatMode
             speakers.onLocalRepeatChanged(repeatMode)
+            // The notification's Repeat shows the mode, whichever surface changed it.
+            refreshCustomLayouts()
             player?.let { WearBridge.republish(this@PlaybackService, it) }
             // Repeat-one makes the "next" track this one again.
             player?.let { activeLoudness().nextMediaId = nextMediaIdOf(it) }
@@ -2082,30 +2088,52 @@ class PlaybackService : MediaLibraryService() {
             localFile = item.toSong().localUri != null,
         )
 
-    /** Favorite and Shuffle: the only actions shown on the phone notification. */
-    private fun notificationButtons(): List<CommandButton> {
-        val favorite = if (!canLike(player?.currentMediaItem)) null else CommandButton.Builder(
-            if (LikeState.overrides.value[player?.currentMediaItem?.mediaId] == LikeStatus.LIKE) {
-                CommandButton.ICON_HEART_FILLED
-            } else {
-                CommandButton.ICON_HEART_UNFILLED
-            },
-        )
-            .setSessionCommand(favoriteCommand)
-            .setDisplayName("Favorite")
-            .build()
-        val shuffleEnabled = QueueShuffle.enabled.value
-        val shuffle = CommandButton.Builder(
-            if (shuffleEnabled) {
-                CommandButton.ICON_SHUFFLE_ON
-            } else {
-                CommandButton.ICON_SHUFFLE_OFF
-            },
-        )
-            .setSessionCommand(shuffleCommand)
-            .setDisplayName(if (shuffleEnabled) "Shuffle off" else "Shuffle on")
-            .build()
-        return listOfNotNull(favorite, shuffle)
+    /** Like and Repeat, or Shuffle and Repeat: the two actions of Cosmotune's own on the phone notification. See [NotificationButtons]. */
+    private fun notificationButtons(): List<CommandButton> = buttons(NotificationButtons.pick(canLike(player?.currentMediaItem)))
+
+    private fun buttons(kinds: List<NotificationButtons.Kind>): List<CommandButton> =
+        kinds.map { kind ->
+            when (kind) {
+                NotificationButtons.Kind.LIKE -> CommandButton.Builder(
+                    if (LikeState.overrides.value[player?.currentMediaItem?.mediaId] == LikeStatus.LIKE) {
+                        CommandButton.ICON_HEART_FILLED
+                    } else {
+                        CommandButton.ICON_HEART_UNFILLED
+                    },
+                )
+                    .setSessionCommand(favoriteCommand)
+                    .setDisplayName("Favorite")
+                    .build()
+                NotificationButtons.Kind.SHUFFLE -> {
+                    val shuffleEnabled = QueueShuffle.enabled.value
+                    CommandButton.Builder(if (shuffleEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF)
+                        .setSessionCommand(shuffleCommand)
+                        .setDisplayName(if (shuffleEnabled) "Shuffle off" else "Shuffle on")
+                        .build()
+                }
+                NotificationButtons.Kind.REPEAT -> {
+                    val mode = player?.repeatMode ?: Player.REPEAT_MODE_OFF
+                    CommandButton.Builder(
+                        when (mode) {
+                            Player.REPEAT_MODE_ONE -> CommandButton.ICON_REPEAT_ONE
+                            Player.REPEAT_MODE_ALL -> CommandButton.ICON_REPEAT_ALL
+                            else -> CommandButton.ICON_REPEAT_OFF
+                        },
+                    )
+                        .setSessionCommand(repeatCommand)
+                        .setDisplayName(NotificationButtons.repeatLabel(mode))
+                        .build()
+                }
+            }
+        }
+
+    /** The notification's Repeat: the next mode, kept the way the app's own Repeat button keeps it. */
+    private fun cycleRepeatFromSession() {
+        val exoPlayer = player ?: return
+        val next = NotificationButtons.nextRepeat(exoPlayer.repeatMode)
+        AppSettings.setRepeatMode(next)
+        // [onRepeatModeChanged] does the queue work and redraws the buttons.
+        exoPlayer.repeatMode = next
     }
 
     /** Adds Radio/Revert for controllers with room for them, e.g. Android Auto. */
@@ -2131,7 +2159,9 @@ class PlaybackService : MediaLibraryService() {
                     .setDisplayName(getString(R.string.revert_to_original))
                     .build()
             }
-        return notificationButtons() + listOfNotNull(station, revert)
+        // Cars keep Like and Shuffle; Repeat is only the phone notification's.
+        val own = listOfNotNull(NotificationButtons.Kind.LIKE.takeIf { canLike(player?.currentMediaItem) }, NotificationButtons.Kind.SHUFFLE)
+        return buttons(own) + listOfNotNull(station, revert)
     }
 
     /** Android Auto / Automotive controllers currently connected to the session. */
@@ -2140,7 +2170,7 @@ class PlaybackService : MediaLibraryService() {
     /**
      * Pushes the current button state to every surface. The phone/lock-screen
      * notification is driven by Media3's own internal controller, so it gets
-     * an explicit override limited to Favorite/Shuffle; every other connected
+     * an explicit override limited to its two buttons; every other connected
      * controller falls back to the broadcast layout, which also carries
      * Radio/Revert.
      *
@@ -8609,6 +8639,7 @@ class PlaybackService : MediaLibraryService() {
                 .add(clearBoundedContextCommand)
                 .add(autoplayCommand)
                 .add(shuffleCommand)
+                .add(repeatCommand)
                 .add(startStationCommand)
                 .add(revertToOriginalCommand)
                 .add(swapToVersionCommand)
@@ -8646,6 +8677,7 @@ class PlaybackService : MediaLibraryService() {
                 ACTION_CLEAR_BOUNDED_CONTEXT -> clearBoundedContext()
                 ACTION_TOGGLE_AUTOPLAY -> toggleAutoplayFromNotification()
                 ACTION_TOGGLE_SHUFFLE -> toggleShuffleFromSession()
+                ACTION_CYCLE_REPEAT -> cycleRepeatFromSession()
                 ACTION_START_STATION -> startStationFromSession()
                 ACTION_REVERT_TO_ORIGINAL -> revertCurrentToOriginal()
                 ACTION_SWAP_TO_VERSION -> swapCurrentToVersion(args)
