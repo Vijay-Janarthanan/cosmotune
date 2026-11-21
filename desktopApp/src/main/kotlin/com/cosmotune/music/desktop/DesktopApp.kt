@@ -3128,6 +3128,8 @@ fun CosmotuneDesktopApp() {
         scope.launch {
             DesktopSearchClient.deletePlaylist(collection.playlistId)
                 .onSuccess {
+                    // A cover picked for it has nothing left to cover.
+                    com.cosmotune.music.data.covers.PlaylistCovers.store?.clear(collection.playlistId)
                     closePlaylistDialogs()
                     // Its page is the one open, and a deleted playlist has nothing left to show.
                     if (openedCollection?.browseId == collection.browseId) openedCollection = null
@@ -7288,7 +7290,7 @@ private fun DesktopCollectionPage(
     /** Opens the reorder dialog; only a playlist the account owns can be rearranged (BC-35). */
     onReorder: (() -> Unit)? = null,
 ) {
-    com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, nowPlaying = LocalNowPlaying.current)
+    com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, coverEditable = collection.owned == true && collection.type == BrowseType.PLAYLIST, nowPlaying = LocalNowPlaying.current)
 }
 
 

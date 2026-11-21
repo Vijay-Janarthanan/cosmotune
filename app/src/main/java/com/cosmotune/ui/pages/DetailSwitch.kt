@@ -72,6 +72,8 @@ fun DetailSwitch(
     // The Orbit pages' own actions, which the old screen never had: Download on a release's card, Radio on an artist's.
     onDownloadAll: ((List<Song>) -> Unit)? = null,
     onStartRadio: ((Song) -> Unit)? = null,
+    // The cover picker of one of the person's own playlists, opened by a tap on the card's disc; null everywhere else.
+    onChangeCover: (() -> Unit)? = null,
 ) {
     if (page.type == BrowseType.ARTIST) {
         CosmoArtistPage(
@@ -123,6 +125,7 @@ fun DetailSwitch(
             onDownloadAll = onDownloadAll,
             albumCanvas = albumCanvas,
             onPlayPause = onPlayPause,
+            onChangeCover = onChangeCover,
         )
     }
 }

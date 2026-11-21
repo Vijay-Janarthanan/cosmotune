@@ -192,7 +192,9 @@ fun CosmoLibrary(
     val fonts = orbitFonts()
     val look = orbitLook()
     val downloadedCount = AppUi.host.downloadedIds().size
-    val library = (state as? UiState.Success)?.data
+    // A playlist with a cover the person picked shows it on its card.
+    val shown = com.cosmotune.ui.covers.rememberLibraryWithCovers(state)
+    val library = (shown as? UiState.Success)?.data
     val playlists = remember(library) { library?.let { LibrarySegments.shelfFor(LibrarySegment.PLAYLISTS, it.shelves) }?.items.orEmpty() }
     val liked = remember(playlists, pinned) { LibrarySegments.playlistLayout(playlists, pinned).liked }
     val pinnedPlaylist = remember(playlists, pinned, liked) { playlists.firstOrNull { it.browseId != null && it.browseId in pinned && it != liked } }
@@ -260,11 +262,15 @@ fun CosmoLibrary(
                         is UiState.Error -> item(key = "message") {
                             MessageState(state.message, actionLabel = stringResource(Res.string.retry), onAction = onRetry)
                         }
-                        is UiState.Success -> when (chip) {
-                            LibraryChip.PLAYLISTS -> playlistsSegment(state.data.shelves, pinned, replay, onShelfItemClick, onShelfItemLongPress, onNewPlaylist, onImportSpotifyPlaylist, onShowAll, page)
-                            LibraryChip.ALBUMS -> albumsSegment(LibrarySegments.shelfFor(LibrarySegment.ALBUMS, state.data.shelves), onShelfItemClick, onShelfItemLongPress, page)
-                            LibraryChip.ARTISTS -> artistsSegment(LibrarySegments.shelfFor(LibrarySegment.ARTISTS, state.data.shelves), onShelfItemClick, onShelfItemLongPress, page)
-                            else -> songsSegment(state.data, currentSong, isPlaying, onSongClick, onSongLongPress, onShelfItemClick, page)
+                        is UiState.Success -> {
+                            // The same page with the picked playlist covers in (see `shown` above).
+                            val data = library ?: state.data
+                            when (chip) {
+                                LibraryChip.PLAYLISTS -> playlistsSegment(data.shelves, pinned, replay, onShelfItemClick, onShelfItemLongPress, onNewPlaylist, onImportSpotifyPlaylist, onShowAll, page)
+                                LibraryChip.ALBUMS -> albumsSegment(LibrarySegments.shelfFor(LibrarySegment.ALBUMS, data.shelves), onShelfItemClick, onShelfItemLongPress, page)
+                                LibraryChip.ARTISTS -> artistsSegment(LibrarySegments.shelfFor(LibrarySegment.ARTISTS, data.shelves), onShelfItemClick, onShelfItemLongPress, page)
+                                else -> songsSegment(data, currentSong, isPlaying, onSongClick, onSongLongPress, onShelfItemClick, page)
+                            }
                         }
                     }
                 }

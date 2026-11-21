@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -126,10 +128,22 @@ internal fun CosmoDesktopCollectionPage(
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
     onReorder: (() -> Unit)? = null,
+    /** One of the account's own playlists: its cover can be changed (More, or a click on the disc) and put back to the automatic one. */
+    coverEditable: Boolean = false,
     nowPlaying: Song? = null,
     isPlaying: Boolean = LocalCosmoPlaying.current,
 ) {
     val songs = collection.songs
+    // A cover the person picked for this playlist, kept in Cosmotune (never on YouTube Music), shows wherever its cover does.
+    val covers = com.cosmotune.ui.covers.rememberPlaylistCovers()
+    val picked = com.cosmotune.music.data.covers.PlaylistCoverRules.key(collection.browseId)?.let(covers::get)
+    val automatic = collection.thumbnailUrl ?: songs.firstOrNull()?.thumbnailUrl
+    var coverPicker by remember(collection.browseId) { mutableStateOf(false) }
+    if (coverPicker) {
+        com.cosmotune.ui.covers.PlaylistCoverDialog(
+            browseId = collection.browseId, title = collection.title, songs = songs, automatic = automatic, onDismiss = { coverPicker = false },
+        )
+    }
     val onPlayPause = LocalCosmoPlayPause.current
     // "Search this list": a filter over the rows already loaded.
     var searching by rememberSaveable(collection.browseId) { mutableStateOf(false) }
@@ -187,6 +201,10 @@ internal fun CosmoDesktopCollectionPage(
                     onRename = onRename,
                     onDelete = onDelete,
                     onReorder = onReorder,
+                    cover = picked ?: automatic,
+                    onChangeCover = { coverPicker = true }.takeIf { coverEditable },
+                    onUseAutomaticCover = { com.cosmotune.music.data.covers.PlaylistCovers.store?.clear(collection.browseId); Unit }
+                        .takeIf { coverEditable && picked != null },
                 )
             }
             item(key = "collection-controls") {
@@ -243,7 +261,8 @@ internal fun CosmoDesktopCollectionPage(
                 val song = entry.value
                 CollectionTrackRow(
                     song = song,
-                    cover = song.thumbnailUrl ?: collection.thumbnailUrl,
+                    cover = if (picked != null && (song.thumbnailUrl.isNullOrBlank() || song.thumbnailUrl == collection.thumbnailUrl)) picked
+                        else song.thumbnailUrl ?: collection.thumbnailUrl,
                     showAlbum = showAlbum,
                     isCurrent = isCurrentRow(song),
                     isPlaying = isPlaying,
@@ -291,7 +310,7 @@ internal fun CosmoDesktopCollectionPage(
         if (collapsed && songs.isNotEmpty()) {
             com.cosmotune.ui.orbit.OrbitCollapsedHeaderBar(
                 com.cosmotune.ui.orbit.OrbitCollapsedHeader(
-                    cover = collection.thumbnailUrl ?: songs.firstOrNull()?.thumbnailUrl, title = collection.title, subtitle = null,
+                    cover = picked ?: automatic, title = collection.title, subtitle = null,
                     playing = ArtistPlay.showsPause(songs, nowPlaying, isPlaying),
                     onPlay = {
                         when (ArtistPlay.tap(songs, nowPlaying, canToggle = onPlayPause != null)) {
@@ -327,6 +346,9 @@ private fun CollectionCard(
     onRename: (() -> Unit)?,
     onDelete: (() -> Unit)?,
     onReorder: (() -> Unit)?,
+    cover: String?,
+    onChangeCover: (() -> Unit)?,
+    onUseAutomaticCover: (() -> Unit)?,
 ) {
     val songs = collection.songs
     val parts = remember(collection.subtitle) {
@@ -350,7 +372,7 @@ private fun CollectionCard(
     val motion = remember(albumCanvas) { albumCanvas?.toShared() }
     var moreOpen by remember { mutableStateOf(false) }
     OrbitReleaseCard(
-        cover = collection.thumbnailUrl ?: songs.firstOrNull()?.thumbnailUrl,
+        cover = cover,
         label = facts,
         title = collection.title,
         credit = credit,
@@ -364,6 +386,8 @@ private fun CollectionCard(
             null
         },
         modifier = Modifier.fillMaxWidth(),
+        onCover = onChangeCover,
+        coverLabel = com.cosmotune.ui.covers.PlaylistCoverWords.CHANGE,
     ) { colors ->
         if (songs.isNotEmpty()) {
             OrbitCardButton(CosmoIcons.Shuffle, DesktopStrings["shuffle", "Shuffle"], colors, onShuffle)
@@ -372,7 +396,7 @@ private fun CollectionCard(
         if (songs.isNotEmpty()) {
             OrbitCardButton(CosmoIcons.Download, DesktopStrings["download_all", "Download all"], colors, onDownloadAll)
         }
-        if (onShare != null || onRename != null || onReorder != null || onDelete != null) {
+        if (onShare != null || onRename != null || onReorder != null || onDelete != null || onChangeCover != null) {
             Box {
                 OrbitCardButton(CosmoIcons.MoreVertical, DesktopStrings["more", "More"], colors, { moreOpen = true })
                 DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
@@ -393,6 +417,26 @@ private fun CollectionCard(
                             onClick = {
                                 moreOpen = false
                                 rename()
+                            },
+                        )
+                    }
+                    onChangeCover?.let { change ->
+                        DropdownMenuItem(
+                            text = { Text(com.cosmotune.ui.covers.PlaylistCoverWords.CHANGE) },
+                            leadingIcon = { Icon(Icons.Rounded.Image, null) },
+                            onClick = {
+                                moreOpen = false
+                                change()
+                            },
+                        )
+                    }
+                    onUseAutomaticCover?.let { automatic ->
+                        DropdownMenuItem(
+                            text = { Text(com.cosmotune.ui.covers.PlaylistCoverWords.AUTOMATIC) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Undo, null) },
+                            onClick = {
+                                moreOpen = false
+                                automatic()
                             },
                         )
                     }

@@ -1385,6 +1385,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             YtMusicRepository.deletePlaylist(playlist.playlistId).fold(
                 onSuccess = {
+                    // A cover picked for it has nothing left to cover.
+                    com.cosmotune.music.data.covers.PlaylistCovers.store?.clear(playlist.playlistId)
                     _playlists.value = _playlists.value
                         .filterNot { it.playlistId == playlist.playlistId }
                     // The card in the library tab, which is the surface the

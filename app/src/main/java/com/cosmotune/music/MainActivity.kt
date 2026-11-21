@@ -591,6 +591,19 @@ private fun CosmotuneApp(
     var browseMenuOrigin by remember { mutableStateOf<HeldItem?>(null) }
     /** Rename asked for from the popup, which hands it on to the sheet's form. */
     var browseRenameInSheet by remember { mutableStateOf(false) }
+    /** The playlist whose cover picker is open, or null while it is shut. */
+    var coverRequest by remember { mutableStateOf<com.cosmotune.ui.covers.PlaylistCoverRequest?>(null) }
+    /** Opens the cover picker for one of the account's own playlists, fetching its songs first when only a card was held. */
+    val openCoverPicker: (com.cosmotune.ui.covers.PlaylistCoverRequest) -> Unit = { request ->
+        coverRequest = request
+        if (request.songs.isEmpty()) {
+            viewModel.collectSongs(request.browseId, request.automatic) { result ->
+                result.onSuccess { songs ->
+                    coverRequest?.takeIf { it.browseId == request.browseId }?.let { coverRequest = it.copy(songs = songs) }
+                }
+            }
+        }
+    }
     /** The playlist being rearranged, or null when the reorder sheet is shut. */
     var reorderTarget by rootDialogs.reorderTarget
     /** Its entries as YouTube has them now â€” fetched fresh when the sheet opens. */
@@ -3073,6 +3086,10 @@ private fun CosmotuneApp(
                             contentPadding = listPadding,
                         )
                     } else if (page != null) {
+                        // A playlist with a cover the person picked: a song that showed the playlist's cover for want of its own
+                        // takes the picked one, so the player and the mini player show it too.
+                        val pageCovers = com.cosmotune.ui.covers.rememberPlaylistCovers()
+                        val pagePickedCover = com.cosmotune.music.data.covers.PlaylistCoverRules.key(page.browseId)?.let(pageCovers::get)
                         // An album page's rows carry no album name of their own â€” the
                         // release is billed once, in the header the rows hang under â€” so
                         // the page title is stamped on as they leave for the download
@@ -3080,12 +3097,18 @@ private fun CosmotuneApp(
                         // album arrives in the Downloads folder with nothing to group it
                         // under, and its Albums tab stays empty however much is in it.
                         val withAlbum: (Song) -> Song = { song ->
-                            if (page.type == BrowseType.ALBUM) {
+                            val stamped = if (page.type == BrowseType.ALBUM) {
                                 song.copy(albumName = song.albumName ?: page.title)
                             } else {
                                 song
                             }
+                            com.cosmotune.music.data.covers.PlaylistCoverRules.songsWithCover(listOf(stamped), page.thumbnailUrl, pagePickedCover).single()
                         }
+                        // Whether this page is one of the account's own playlists, the same rule as the menu's Rename.
+                        val pageOwnership by viewModel.playlistOwned.collectAsStateWithLifecycle()
+                        val ownPagePlaylist = page.browseId
+                            .takeIf { signedIn && page.type == BrowseType.PLAYLIST && pageOwnership[it] == true }
+                            ?.let { id -> playlists.firstOrNull { it.browseId == id } }
                         // A tap on an album or playlist page: the service's bounded context
                         // when it is one of the page's own rows, from the newest snapshot of the
                         // page (one the service may have grown), else the whole list (BC-05).
@@ -3215,6 +3238,18 @@ private fun CosmotuneApp(
                                 )
                             }.takeIf { !page.browseId.startsWith("local:") },
                             onStartRadio = startRadio,
+                            onChangeCover = ownPagePlaylist?.let { owned ->
+                                {
+                                    openCoverPicker(
+                                        com.cosmotune.ui.covers.PlaylistCoverRequest(
+                                            browseId = owned.browseId,
+                                            title = page.title,
+                                            songs = (page.songs as? UiState.Success)?.data.orEmpty(),
+                                            automatic = page.thumbnailUrl,
+                                        ),
+                                    )
+                                }
+                            },
                         )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> com.cosmotune.ui.home.HomeSwitch(
@@ -4586,6 +4621,7 @@ private fun CosmotuneApp(
                 ?.takeIf { signedIn && ownedPlaylists[it] == true }
                 ?.let { id -> playlists.firstOrNull { it.browseId == id } }
             val remote = target.browseId?.startsWith("local:") == false
+            val pickedCovers = com.cosmotune.ui.covers.rememberPlaylistCovers()
             val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
             val pinnableId = target.browseId?.takeIf { target.type == BrowseType.PLAYLIST }
             BrowseActionsSheet(
@@ -4690,6 +4726,20 @@ private fun CosmotuneApp(
                         viewModel.renamePlaylist(p, name)
                     }
                 },
+                onChangeCover = playlist?.let { p ->
+                    {
+                        browseActions = null
+                        openCoverPicker(com.cosmotune.ui.covers.PlaylistCoverRequest(p.browseId, target.title, target.songs, target.thumbnailUrl))
+                    }
+                },
+                onUseAutomaticCover = playlist
+                    ?.takeIf { com.cosmotune.music.data.covers.PlaylistCoverRules.hasCustom(pickedCovers, it.browseId) }
+                    ?.let { p ->
+                        {
+                            browseActions = null
+                            com.cosmotune.music.data.covers.PlaylistCovers.store?.clear(p.browseId)
+                        }
+                    },
                 onReorder = playlist?.let { p ->
                     {
                         browseActions = null
@@ -4754,6 +4804,16 @@ private fun CosmotuneApp(
                 browseMenuOrigin = null
                 browseRenameInSheet = false
             }
+        }
+        // ---- The cover picker of one of the account's own playlists ----
+        coverRequest?.let { request ->
+            com.cosmotune.ui.covers.PlaylistCoverDialog(
+                browseId = request.browseId,
+                title = request.title,
+                songs = request.songs,
+                automatic = request.automatic,
+                onDismiss = { coverRequest = null },
+            )
         }
 
         // ---- The reorder sheet, the sign-ins, the update sheets and the alerts over everything: PhoneRootDialogs ----

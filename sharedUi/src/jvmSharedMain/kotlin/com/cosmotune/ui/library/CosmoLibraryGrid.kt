@@ -76,8 +76,10 @@ fun CosmoLibraryGrid(
 ) {
     val pinnedPlaylists by AppUi.host.pinnedPlaylists.collectAsStateWithLifecycle()
     val librarySort by AppUi.host.librarySort.collectAsStateWithLifecycle()
-    val items = remember(shelf, pinnedPlaylists, librarySort) {
-        LibrarySegments.sorted(LibrarySegments.pinnedFirst(shelf.items, pinnedPlaylists), librarySort)
+    // A playlist with a cover the person picked shows it on its card.
+    val shown = com.cosmotune.ui.covers.rememberShelfWithCovers(shelf)
+    val items = remember(shown, pinnedPlaylists, librarySort) {
+        LibrarySegments.sorted(LibrarySegments.pinnedFirst(shown.items, pinnedPlaylists), librarySort)
     }
     val fonts = orbitFonts()
     val look = orbitLook()

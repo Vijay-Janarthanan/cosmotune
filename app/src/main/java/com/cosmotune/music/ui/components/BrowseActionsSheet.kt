@@ -16,9 +16,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SwapVert
@@ -158,6 +160,13 @@ fun BrowseActionsSheet(
     onTogglePin: (() -> Unit)? = null,
     onRename: ((String) -> Unit)? = null,
     /**
+     * Opens the cover picker for one of the account's own playlists — set under the same rule as [onRename]. The picture stays in
+     * Cosmotune (this device and the Cosmotune account); YouTube Music never gets it.
+     */
+    onChangeCover: (() -> Unit)? = null,
+    /** Puts back the cover YouTube Music makes: set only while a picked cover is showing. */
+    onUseAutomaticCover: (() -> Unit)? = null,
+    /**
      * Opens the reorder sheet for one of the account's own playlists — set
      * under the same rule as [onRename], since YouTube refuses to rearrange a
      * playlist the account only saved.
@@ -291,6 +300,12 @@ fun BrowseActionsSheet(
                         renaming = true
                     }
                 }
+            }
+            onChangeCover?.let {
+                ActionRow(Icons.Rounded.Image, stringResource(R.string.change_cover), onClick = it)
+            }
+            onUseAutomaticCover?.let {
+                ActionRow(Icons.AutoMirrored.Rounded.Undo, stringResource(R.string.use_automatic_cover), onClick = it)
             }
             onReorder?.let {
                 ActionRow(Icons.Rounded.SwapVert, stringResource(R.string.reorder_songs), onClick = it)

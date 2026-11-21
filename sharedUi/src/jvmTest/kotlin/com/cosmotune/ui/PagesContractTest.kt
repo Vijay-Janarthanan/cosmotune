@@ -86,8 +86,11 @@ class PagesContractTest {
         // Download and the artist card's Radio
         assertEquals(old, switch.take(old.size), "DetailSwitch starts with DetailScreen's parameters: same names, types, defaults and order")
         assertEquals(
-            listOf("onPlayPause: (() -> Unit)? = null", "onDownloadAll: ((List<Song>) -> Unit)? = null", "onStartRadio: ((Song) -> Unit)? = null"),
-            switch.drop(old.size), "and has the extras of P4-20 and Orbit",
+            listOf(
+                "onPlayPause: (() -> Unit)? = null", "onDownloadAll: ((List<Song>) -> Unit)? = null", "onStartRadio: ((Song) -> Unit)? = null",
+                "onChangeCover: (() -> Unit)? = null",
+            ),
+            switch.drop(old.size), "and has the extras of P4-20 and Orbit, and the cover picker of the person's own playlists",
         )
     }
 
@@ -126,7 +129,7 @@ class PagesContractTest {
             listOf(
                 "page", "songs", "currentSong", "isPlaying", "listState", "contentPadding", "onSongClick", "onSongLongPress",
                 "onSongSwipe", "onShuffle", "onMore", "onArtistClick", "onAddSuggested", "onToggleLibrary", "modifier", "initialOrder", "downloadedIds",
-                "onDownloadAll", "albumCanvas", "onPlayPause",
+                "onDownloadAll", "albumCanvas", "onPlayPause", "onChangeCover",
             ),
             names(page("CosmoReleasePage"), "CosmoReleasePage"),
         )
