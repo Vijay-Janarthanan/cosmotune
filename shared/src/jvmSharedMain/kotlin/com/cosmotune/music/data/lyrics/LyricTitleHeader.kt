@@ -10,10 +10,14 @@ import java.text.Normalizer
  * start, and only there. The rule is narrow so that real lyrics survive, including a line that sings the title: a line goes only
  * when it is the title itself, the artist and the title together, or the title with a video header such as "(Official Video)",
  * or when it is nothing but such a header.
+ *
+ * Some files also open with who wrote the song, timed as if sung: the writers' names run together with slashes ("Andrew Watt/Ali
+ * Tamposi", QQ Music's files) or a credit's own label ("Lyrics by: …", "作词：…"). Those go too, from the start only (an idea from
+ * AETHER 3.0).
  */
 object LyricTitleHeader {
-    /** How many lines at the start are looked at: a header and, at most, a second credit line under it. */
-    private const val LOOK = 2
+    /** How many lines at the start are looked at: a header and the credit lines under it (words, music, arrangement). */
+    private const val LOOK = 3
 
     private val header = Regex(
         """[(\[【「]?\s*(official|lyrics?|music|audio|live|hd|4k|mv|m/v)\b[^)\]】」]*(video|audio|mv|visuali[sz]er|version|clip)?\s*[)\]】」]?""",
@@ -31,7 +35,7 @@ object LyricTitleHeader {
         var seen = 0
         for (line in lines) {
             if (line.isGap || line.text.isBlank()) { drop++; continue }
-            if (seen >= LOOK || !isHeader(line.text, title, artist)) break
+            if (seen >= LOOK || !(isHeader(line.text, title, artist) || isCredit(line.text))) break
             seen++
             drop++
         }
@@ -54,6 +58,35 @@ object LyricTitleHeader {
         if (singer.length >= 2 && line.contains(singer)) return true
         return bracketed.findAll(raw).any { header.containsMatchIn(it.value) } || Regex("""\s[-–—|]\s""").containsMatchIn(raw) && header.containsMatchIn(raw)
     }
+
+    /**
+     * Whether [text] credits who wrote the song rather than being sung: a credit's own label ("Written by: …", "作词：…"), or names
+     * run together with slashes, at least one of them a whole name and every word a name's ("Mikky Ekko/Justin Parker", not
+     * "Love/hate" or "Up/Down").
+     */
+    fun isCredit(text: String): Boolean {
+        val raw = text.trim()
+        if (raw.isEmpty()) return false
+        if (creditLabel.matches(raw)) return true
+        val names = raw.split('/').map { it.trim() }
+        if (names.size < 2 || names.any { it.isEmpty() }) return false
+        val words = names.map { name -> name.split(' ').filter { it.isNotEmpty() } }
+        if (words.any { it.size !in 1..4 }) return false
+        return words.any { it.size >= 2 } && words.all { name -> name.all(::isNameWord) }
+    }
+
+    /** A word of a name: it starts with a capital (or a letter of a script without capitals), with only a name's marks. */
+    private fun isNameWord(word: String): Boolean {
+        val first = word.first()
+        if (!first.isLetter() || first.isLowerCase()) return false
+        return word.all { it.isLetter() || it in ".'’-&" }
+    }
+
+    private val creditLabel = Regex(
+        """^(?:lyrics(?:\s+by)?|lyricist|written\s+by|writers?|composed\s+by|composers?|music\s+by|produced\s+by|producers?|""" +
+            """arranged\s+by|arrangers?|作词|作曲|编曲|作詞|編曲|词|曲|制作人|监制|작사|작곡|편곡)\s*[:：]\s*\S.*$""",
+        RegexOption.IGNORE_CASE,
+    )
 
     private fun normal(text: String): String =
         Normalizer.normalize(text, Normalizer.Form.NFKC).lowercase()
