@@ -103,13 +103,13 @@
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSession.kt",
       "normalizeLf": true,
       "localAdaptation": "A candidate's preview frames (storyboard) decide whether it is a still picture when they can be read. Show someone else's upload that matches only part of the song only when no other candidate matches more of it; prefer the film's own channel.",
-      "sha256": "6375a3117eaa3d12e57b64105d4a30936b698555ecbaffd12119b4d4b42e5629"
+      "sha256": "0b18de5ee8485b749734bbe285ecf1ee5d0d48b8a14d9b1e348a3f80213836ef"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/OpenCanvas.kt",
       "normalizeLf": true,
-      "sha256": "49f07edbeb6123bb5826cbcc891d34365baecbe6316e92993dec2e0b83ad2f49"
+      "sha256": "6ee5e4eeb10cdf76223489a306144aa452f0d11b367c1f94d9a9eef13a376d28"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvasConfig.kt",
@@ -282,8 +282,14 @@
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SongIdentity.kt",
       "normalizeLf": true,
       "sha256": "f410937701d810829360ef4e3fd4605bc264498789f13ecaf362b782253238be"
+    },
+    {
+      "source": null,
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MeasurementShare.kt",
+      "normalizeLf": true,
+      "sha256": "837500129009283f1f374f48c93ebba6b4b3097cb3a87365310d6db227eb49f6"
     }
   ],
   "revisionStatus": "Published base revision; generic subtitle discovery and reciprocal publisher-channel proof staged in standalone checkout pending validation/publication",
-  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing, film abbreviation matching and signed-stream expiry handling are published in standalone OpenCanvas at the recorded revision. Cosmotune additionally retries a stalled search page on a fresh connection with its own request queue and logs each failed try, strips an album's soundtrack note before matching a film, rejects a teaser under half the song's length, and falls back to a full-length upload by anyone when no publisher has the video (the audio check still decides). The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module. Since 1.0.21 Cosmotune also lets a film song's label and TV-channel uploads qualify, refuses reaction, review, cover and podcast videos, searches for the playing song first with a longer wait, keeps a verified video under any track id of the same song (SongIdentity.kt) and does not remember a failed search as no video, lets a publisher's film video song keep its dialogue and scenes, keeps ads and promos out of the search results, and paces its searches (SearchTraffic.kt). SongIdentity.kt and SearchTraffic.kt are Cosmotune's own and have no OpenCanvas source."
+  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing, film abbreviation matching and signed-stream expiry handling are published in standalone OpenCanvas at the recorded revision. Cosmotune additionally retries a stalled search page on a fresh connection with its own request queue and logs each failed try, strips an album's soundtrack note before matching a film, rejects a teaser under half the song's length, and falls back to a full-length upload by anyone when no publisher has the video (the audio check still decides). The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module. Since 1.0.21 Cosmotune also lets a film song's label and TV-channel uploads qualify, refuses reaction, review, cover and podcast videos, searches for the playing song first with a longer wait, keeps a verified video under any track id of the same song (SongIdentity.kt) and does not remember a failed search as no video, lets a publisher's film video song keep its dialogue and scenes, keeps ads and promos out of the search results, and paces its searches (SearchTraffic.kt). SongIdentity.kt and SearchTraffic.kt are Cosmotune's own and have no OpenCanvas source. Since 1.0.31 Cosmotune shares a song's video measurements between its lookups (MeasurementShare.kt, Cosmotune's own, no OpenCanvas source) CanvasSession waits for a measurement another lookup is already making and gives a stalled device its time back, and OpenCanvas.videoChoices lists the search's videos for a song without measuring them, for picking one by hand."
 }
