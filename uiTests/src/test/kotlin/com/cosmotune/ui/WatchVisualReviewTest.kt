@@ -18,6 +18,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -226,8 +229,20 @@ class WatchVisualReviewTest {
         compose.onNodeWithContentDescription("Mute").assertIsDisplayed()
         compose.onNodeWithContentDescription("Jump to live").assertIsDisplayed()
         compose.onNodeWithContentDescription("Full screen").assertIsDisplayed().performClick()
-        compose.onNodeWithContentDescription("Exit full screen").assertIsDisplayed().performClick()
+        // The shared full-screen player: a live channel has play, its 10 s skips stand off and there is no seek bar.
+        compose.onNodeWithTag("fullscreen:player").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back 10 seconds").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Ahead 10 seconds").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Seek bar").assertDoesNotExist()
+        leaveFullScreen()
         compose.onNodeWithContentDescription("Full screen").assertIsDisplayed()
+    }
+
+    /** Leaves the shared full-screen player the way its controls offer: ⋯, then "Leave full screen". */
+    private fun leaveFullScreen() {
+        compose.onNodeWithTag("fullscreen:more").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("fullscreen:leave").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("fullscreen:player").assertDoesNotExist()
     }
 
     @Test fun adaptivePlayerKeepsFullscreenReachableOnShortLandscapeAndTablet() = hosts {
@@ -238,7 +253,8 @@ class WatchVisualReviewTest {
             WatchNav.open(WatchRoute.Play(PlayTarget.EpisodeOf(episode.key, series.ids, series.name, 2, 4, episodeName = episode.name), series, episode = episode))
             page(dark, size, repository, WatchPlayback(StillPlayer(repository)) { _, modifier -> Box(modifier.background(Color.Black)) })
             compose.onNodeWithContentDescription("Full screen").assertIsDisplayed().performClick()
-            compose.onNodeWithContentDescription("Exit full screen").assertIsDisplayed().performClick()
+            compose.onNodeWithTag("fullscreen:player").assertIsDisplayed()
+            leaveFullScreen()
             compose.onNodeWithContentDescription("Full screen").assertIsDisplayed()
             capture("player-${size.name}-${if (dark) "dark" else "light"}")
         }
@@ -251,10 +267,11 @@ class WatchVisualReviewTest {
         WatchNav.open(WatchRoute.Play(PlayTarget.Film(film.key, film.ids, film.name), film))
         page(true, phone, repository, WatchPlayback(player) { _, modifier -> Box(modifier.background(Color.Black)) })
         compose.onNodeWithContentDescription("Full screen").performClick()
-        val rewind = compose.onNodeWithContentDescription("Back 30 seconds")
-        val forward = compose.onNodeWithContentDescription("Forward 30 seconds")
+        // The shared full-screen player skips 10 s either way round play (the board's Watch frame), clamped to the video.
+        val rewind = compose.onNodeWithContentDescription("Back 10 seconds")
+        val forward = compose.onNodeWithContentDescription("Ahead 10 seconds")
         rewind.performClick()
-        assertEquals(1_470_000L, player.engine.positionMs())
+        assertEquals(1_490_000L, player.engine.positionMs())
         forward.performClick()
         assertEquals(1_500_000L, player.engine.positionMs())
         compose.runOnIdle { player.engine.seekTo(4_000L) }
@@ -263,15 +280,20 @@ class WatchVisualReviewTest {
         compose.runOnIdle { player.engine.seekTo(49 * 60_000L - 4_000L) }
         forward.performClick()
         assertEquals(49 * 60_000L, player.engine.positionMs())
-        val picture = compose.onNodeWithTag("watch:cinema:picture")
-        picture.performTouchInput { click(center) }
+        // A tap on the picture (clear of play in the middle) puts the controls away, another brings them back. A single tap waits
+        // out the double tap's window, and the controls fade.
+        val picture = compose.onNodeWithTag("fullscreen:gestures")
+        picture.performTouchInput { click(percentOffset(0.5f, 0.3f)) }
+        compose.mainClock.advanceTimeBy(1_000)
         rewind.assertDoesNotExist()
-        picture.performTouchInput { click(center) }
+        picture.performTouchInput { click(percentOffset(0.5f, 0.3f)) }
+        compose.mainClock.advanceTimeBy(1_000)
         rewind.assertIsDisplayed()
+        // The copies to play from are in ⋯ › Sources, each with what is known of it: the 4K copy's size.
+        compose.onNodeWithTag("fullscreen:more").performClick()
         compose.onNodeWithText("Sources").performClick()
-        compose.onNodeWithText("4K").performClick()
+        compose.onNodeWithText("My Jellyfin (home) · Direct play · HEVC").assertIsDisplayed()
         compose.onNodeWithText("58.0 GB", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("Plex · Free with ads").assertDoesNotExist()
     }
 
     @Test fun filmPlaybackShowsPlotRatingCastAndRelatedTitlesBelowTheControls() = hosts {
@@ -302,7 +324,8 @@ class WatchVisualReviewTest {
         val list = compose.onNodeWithTag("watch:title:page")
         compose.onNodeWithText("7.4", substring = true).assertIsDisplayed()
         list.performScrollToNode(hasText("Two sisters drive across", substring = true))
-        compose.onNodeWithText("About this film").assertIsDisplayed()
+        // A film's details are its first tab, chosen on opening.
+        compose.onNode(hasText("Details and cast") and hasClickAction()).assertIsDisplayed()
         list.performScrollToNode(hasText("Cast"))
         compose.onNodeWithText("Cast").assertIsDisplayed()
         list.performScrollToNode(hasText("Play from"))
@@ -312,8 +335,13 @@ class WatchVisualReviewTest {
             WatchNav.go(WatchTab.SERIES)
             WatchNav.openTitle(series)
         }
+        // A series opens on its episodes; its details are the Details tab.
+        list.performScrollToNode(hasText("Details") and hasClickAction())
+        compose.onNode(hasText("Details") and hasClickAction()).performClick()
         list.performScrollToNode(hasText("A fishing town", substring = true))
-        compose.onNodeWithText("About this series").assertIsDisplayed()
+        compose.onNodeWithText("A fishing town", substring = true).assertIsDisplayed()
+        list.performScrollToNode(hasText("Episodes", substring = true) and hasClickAction())
+        compose.onNode(hasText("Episodes", substring = true) and hasClickAction()).performClick()
         list.performScrollToNode(hasText("Season 1"))
         compose.onNodeWithText("Season 1").assertIsDisplayed()
     }

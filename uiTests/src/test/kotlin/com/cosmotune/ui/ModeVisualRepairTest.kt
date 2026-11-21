@@ -115,7 +115,7 @@ class ModeVisualRepairTest {
                 PodioApp(storage, PodioPlayback(), { item, _ -> played += item }, {}, {}, {}, {},
                     directory = catalogue)
             } } }
-            // Search is the heading's round button; its page lists the stations, the Globe is its own section.
+            // Search is the heading's round button; its page lists the stations. The Globe opens from its chip on Radio.
             compose.onNodeWithContentDescription("Search").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Tamil Two").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("All languages").performClick()
@@ -126,12 +126,14 @@ class ModeVisualRepairTest {
             snapshot("podio-desktop.png", "podio:root")
             compose.onNodeWithText("Find a station").assertIsDisplayed()
             compose.onNodeWithContentDescription("Close search").performClick()
-            compose.onNode(hasText("Globe") and isSelectable()).performClick()
+            compose.onNodeWithText("Globe").performClick()
+            // The Globe lights Radio in the rail.
+            compose.onNode(podioTab("Radio")).assertIsSelected()
             compose.onNodeWithTag("podio:globe").performTouchInput { click(center) }
             compose.onNodeWithContentDescription("Zoom in").performClick()
             snapshot("podio-map.png", "podio:root")
-            compose.onNode(hasText("Podcasts") and isSelectable()).performClick()
-            compose.onNode(hasText("Podcasts") and isSelectable()).assertIsSelected()
+            compose.onNode(podioTab("Podcasts")).performClick()
+            compose.onNode(podioTab("Podcasts")).assertIsSelected()
             try {
                 compose.waitUntil(20_000) { compose.onAllNodesWithText("A regional show").fetchSemanticsNodes().isNotEmpty() }
             } catch (error: Throwable) {

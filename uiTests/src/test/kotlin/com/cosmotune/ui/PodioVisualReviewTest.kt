@@ -15,6 +15,12 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasParent
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -24,6 +30,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
@@ -163,9 +170,31 @@ class PodioVisualReviewTest {
         }
     }
 
-    private fun waitFor(text: String) = compose.waitUntil(20_000) { compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitFor(text: String) = try {
+        compose.waitUntil(20_000) { compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() }
+    } catch (error: Throwable) {
+        println("Waiting for \"$text\" on: " + runCatching { compose.onNodeWithTag("podio:review").printToString() }.getOrNull())
+        throw error
+    }
 
     private fun waitTag(tag: String) = compose.waitUntil(20_000) { compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
+
+    /**
+     * Opens [title] from the Podcasts home's chart (its row carries the publisher, which the pick-up card and the episode rows do
+     * not), once the chart has loaded below the home's first screen.
+     */
+    private fun openFromChart(title: String, publisher: String) {
+        val row = hasText(title) and hasText(publisher) and hasClickAction()
+        // The page's own list (the shelves inside it scroll sideways).
+        val list = compose.onNode(hasScrollToIndexAction() and hasParent(hasTestTag("podio:podcasts")))
+        compose.waitUntil(20_000) { runCatching { list.performScrollToNode(row) }.isSuccess }
+        compose.onNode(row).performSemanticsAction(SemanticsActions.OnClick) { it() }
+    }
+
+    /** A show's page with its feed loaded: its episodes listed under its header (the oldest one is the last row). */
+    private fun waitShow() = compose.waitUntil(20_000) {
+        compose.onAllNodes(hasText("Night trains of the south", substring = true) and hasAnyAncestor(hasTestTag("podio:show"))).fetchSemanticsNodes().isNotEmpty()
+    }
 
     private fun capture(name: String) {
         compose.mainClock.advanceTimeBy(1_500)
@@ -215,12 +244,12 @@ class PodioVisualReviewTest {
                 }
                 waitTag("podio:detail"); capture("station-$tag")
 
-                reset(); page(dark, size, catalogue, file); tab(size, "Podcasts"); waitFor("Top charts"); capture("podcasts-$tag")
-                compose.onAllNodesWithText("The Long Read").onFirst().performSemanticsAction(SemanticsActions.OnClick) { it() }
-                waitFor("Latest:"); capture("show-$tag")
+                reset(); page(dark, size, catalogue, file); tab(size, "Podcasts"); waitFor("New episodes"); capture("podcasts-$tag")
+                openFromChart("The Long Read", "The Guardian")
+                waitShow(); capture("show-$tag")
                 val playing = PodioPlayback(heard.id, heard.title, "The Long Read", playing = true, positionMs = 30 * 60_000L, durationMs = heard.durationSeconds * 1000)
-                reset(); page(dark, size, catalogue, file, playing); tab(size, "Podcasts"); waitFor("Top charts")
-                compose.onAllNodesWithText("The Long Read").onFirst().performSemanticsAction(SemanticsActions.OnClick) { it() }
+                reset(); page(dark, size, catalogue, file, playing); tab(size, "Podcasts"); waitFor("New episodes")
+                openFromChart("The Long Read", "The Guardian")
                 waitFor("Playing:"); capture("show-playing-$tag")
 
                 reset(); page(dark, size, catalogue, file, downloaded = listOf(offline)); tab(size, "Following"); waitFor("Salt roads of Gujarat"); capture("following-$tag")

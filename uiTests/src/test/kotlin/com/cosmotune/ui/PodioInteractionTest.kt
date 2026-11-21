@@ -95,8 +95,9 @@ class PodioInteractionTest {
             compose.runOnIdle { assertEquals("https://audio.example/episode.mp3", played.last().url); assertFalse(played.last().live) }
             compose.onNodeWithText("1.5×").assertIsDisplayed()
             snapshot("podio-before-follow.png")
-            compose.onNodeWithText("Follow").assertHasClickAction().performSemanticsAction(SemanticsActions.OnClick) { it() }
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Follow").fetchSemanticsNodes().isEmpty() }
+            // Follow is the show header's round + button; once followed it reads "Following".
+            compose.onNodeWithContentDescription("Follow").assertHasClickAction().performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Follow").fetchSemanticsNodes().isEmpty() }
             assertEquals("Test podcast", PodioLibrary(file).state.value.shows.single().title)
             snapshot("podio-podcast.png")
         }
@@ -142,10 +143,11 @@ class PodioInteractionTest {
                 requests.any { it.contains("different%20podcast") || it.contains("different+podcast") }
             }
             compose.onNodeWithContentDescription("Close search").performClick()
+            // The page head's line names the chart again ("POPULAR · TOP CHARTS"), not the search.
             compose.waitUntil(10_000) {
-                compose.onAllNodesWithText("Popular ·", substring = true).fetchSemanticsNodes().isNotEmpty()
+                compose.onAllNodesWithText("Popular ·", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
             }
-            compose.onNodeWithText("Results for", substring = true).assertDoesNotExist()
+            compose.onNodeWithText("Results for", substring = true, ignoreCase = true).assertDoesNotExist()
         }
     }
 
@@ -170,7 +172,8 @@ class PodioInteractionTest {
             snapshot("podio-phone-episodes.png")
             compose.onNodeWithText("A real episode").performClick()
             compose.runOnIdle { assertEquals("https://audio.example/episode.mp3", played.single().url) }
-            // Following keeps the followed show as a record (its title over its publisher) under the new episodes.
+            // Following keeps the followed show as a record (its title over its publisher) in its Shows segment, beside New.
+            compose.onNodeWithTag("podio:following:shows").performClick()
             compose.onNode(hasText("Test podcast") and hasText("A host")).assertExists()
             snapshot("podio-phone-library.png")
         }
@@ -209,28 +212,35 @@ class PodioInteractionTest {
             compose.onNodeWithTag("podio:radio").assertIsDisplayed()
         }
     }
-    @Test fun downloadsCanBeRemovedOnlyAfterConfirmation() {
+    @Test fun downloadsAreRemovedOnlyOnceTheirUndoRunsOut() {
         Fixture().use { fixture ->
             val file = temporary.newFile("downloads.json")
             val episode = PodioItem("podio:episode:one", "Saved episode", "Test show", "https://audio.example/episode.mp3")
             val downloads = mutableStateOf(listOf(episode))
-            val removed = mutableListOf<String>()
+            val removed = java.util.concurrent.CopyOnWriteArrayList<String>()
             compose.setContent { PodioTestTheme { Box(Modifier.size(412.dp, 892.dp)) {
-                PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = fixture.catalogue,
-                    downloadedEpisodes = downloads.value, onRemoveDownload = {
-                        removed += it.id
-                        downloads.value = downloads.value.filter { downloaded -> downloaded.id != it.id }
-                        true
-                    })
+                // The window's "Removed · Undo" snackbar, as the app's shell provides it.
+                androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.orbit.LocalOrbitUndo provides com.cosmotune.ui.orbit.rememberOrbitUndo()) {
+                    PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = fixture.catalogue,
+                        downloadedEpisodes = downloads.value, onRemoveDownload = {
+                            removed += it.id
+                            downloads.value = downloads.value.filter { downloaded -> downloaded.id != it.id }
+                            true
+                        })
+                }
             } } }
             compose.onNode(podioTab("Downloads")).performClick()
+            // Remove takes the episode off the list at once and offers Undo; Undo puts it back and deletes nothing.
             compose.onNodeWithContentDescription("Remove downloaded episode").performClick()
-            compose.onNodeWithText("Cancel").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Saved episode").fetchSemanticsNodes().isEmpty() }
+            compose.onNodeWithText("Removed", substring = true).assertExists()
+            compose.onNodeWithText("Undo").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("Saved episode").fetchSemanticsNodes().isNotEmpty() }
             compose.runOnIdle { assertTrue(removed.isEmpty()) }
+            // Removed again and left alone, the file goes once Undo has run out (10 s), and only this once.
             compose.onNodeWithContentDescription("Remove downloaded episode").performClick()
-            compose.onNodeWithText("Remove download").performClick()
-            compose.waitUntil(5_000) { compose.onAllNodesWithText("No downloads").fetchSemanticsNodes().isNotEmpty() }
-            compose.runOnIdle { assertEquals(listOf(episode.id), removed) }
+            compose.waitUntil(20_000) { removed.isNotEmpty() && compose.onAllNodesWithText("No downloads").fetchSemanticsNodes().isNotEmpty() }
+            compose.runOnIdle { assertEquals(listOf(episode.id), removed.toList()) }
         }
     }
 
