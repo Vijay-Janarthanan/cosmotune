@@ -162,10 +162,12 @@ fun CosmoNavRail(
     footer: (@Composable () -> Unit)? = null,
 ) {
     val look = orbitLook()
-    Row(modifier.width(CosmoNav.RAIL_WIDTH_DP.dp).testTag(NAV_RAIL_TAG)) {
+    // The start inset (a camera cutout or the navigation bar on that side, a tablet turned sideways) is kept outside the rail's width,
+    // so the rail never loses its own room to it and its labels are never cut.
+    Row(modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)).width(CosmoNav.RAIL_WIDTH_DP.dp).testTag(NAV_RAIL_TAG)) {
         Column(
             Modifier.weight(1f).fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Bottom + WindowInsetsSides.Start))
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Bottom))
                 .verticalScroll(rememberScrollState())
                 .padding(top = 14.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

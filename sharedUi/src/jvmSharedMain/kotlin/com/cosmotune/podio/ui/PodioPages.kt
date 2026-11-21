@@ -134,8 +134,7 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
             }
             item(key = "discover") {
                 Column {
-                    OrbitPageSection("Discover", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp),
-                        subtitle = if (m.showsTitle.isNotBlank() && m.shows.isNotEmpty()) m.showsTitle else if (ranked) "Top charts" else "")
+                    OrbitPageSection("Discover", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp))
                     OrbitChipRow(side) {
                         OrbitSelectChip("Top shows", m.genre.isBlank(), fonts, look, { m.browse(); m.genre = "" }, haptic = false)
                         PODCAST_GENRES.forEach { (id, name) -> OrbitSelectChip(name, m.genre == id, fonts, look, { m.browse(); m.genre = id }, haptic = false) }

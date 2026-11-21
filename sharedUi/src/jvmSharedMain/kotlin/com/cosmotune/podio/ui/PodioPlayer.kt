@@ -237,7 +237,7 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
     val chapters = if (episode != null && catalogue != null) rememberEpisodeChapters(episode, catalogue) else null
     val list = chapters?.list.orEmpty()
     val index = PodioFormat.chapterAt(list, playback.positionMs)
-    KitSheet(onDismiss) {
+    KitSheet(onDismiss, expanded = true) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp).testTag("podio:episode-player"),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (show.isNotBlank()) OrbitLabel("From · $show", fonts, look.dim)
@@ -256,7 +256,9 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
                 val following = list.getOrNull(index + 1)
                 OrbitRoundButton(Icons.Outlined.SkipNext, "Next chapter", look.ink, { following?.let { onSeek(it.startMs) } }, size = 36.dp, onInk = look.ground, enabled = following != null)
             }
-            EpisodeLine(playback, onSeek, look.ink, fonts, Modifier.fillMaxWidth(), chapters = list, left = true)
+            // Until the player has opened the episode it does not know the length; the feed does, so the line shows from the start.
+            val known = episode?.durationSeconds?.takeIf { playback.durationMs <= 0 && it > 0 }?.let { playback.copy(durationMs = it * 1000) } ?: playback
+            EpisodeLine(known, onSeek, look.ink, fonts, Modifier.fillMaxWidth(), chapters = list, left = true)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 OrbitRoundButton(Icons.Outlined.Replay, "Back 15 seconds", look.ink, { onSeek((playback.positionMs - 15_000).coerceAtLeast(0)) }, size = 50.dp, onInk = look.ground)
                 OrbitPlayButton(playback.playing, onToggle, look, size = 68.dp)

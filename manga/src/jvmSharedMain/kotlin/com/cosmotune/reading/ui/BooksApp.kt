@@ -301,9 +301,10 @@ private fun BookLibrary(scope: ReadScope) {
         if (state.books.isNotEmpty() || state.saved.isNotEmpty()) item(key = "tiles", span = { GridItemSpan(maxLineSpan) }) {
             BookTiles(state, Modifier.padding(top = 4.dp), onBookmarks = { scope.navigation.select(BookTabs.BOOKMARKS) }, onShelf = { shelf = it })
         }
-        item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
+        // The shelves only once there is something on them: an empty library shows its welcome, not a row of noughts.
+        if (state.books.isNotEmpty() || state.saved.isNotEmpty()) item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
             Column(Modifier.readBleed(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReadSection("Your books", subtitle = shelf.label + " · " + order.label)
+                ReadSection("Your books")
                 ReadChipRow(Modifier.padding(vertical = 4.dp)) {
                     listOf(BookShelf.ALL, BookShelf.READING, BookShelf.UNREAD, BookShelf.FINISHED).forEach { item ->
                         ReadChip(item.label + " ${state.shelf(item, "").size}", shelf == item, { shelf = item }, Modifier.testTag("books:shelf:${item.label}"))

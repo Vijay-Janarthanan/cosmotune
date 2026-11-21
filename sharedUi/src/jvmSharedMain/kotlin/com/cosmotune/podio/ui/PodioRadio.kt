@@ -139,7 +139,7 @@ internal fun stationCells(width: Dp, side: Dp, wide: Boolean): Pair<Int, Dp> {
     if (m.filtered) PodioTextAction("Clear", look, fonts, m::clearFilters)
 }
 
-/** What the station list says of itself: the search and filters in force, and the count. */
+/** What the station list says of itself while searched or filtered (the heading above already gives the plain count): the search and filters in force, and the count. */
 private fun stationsLine(m: PodioModel): String {
     val typed = m.query.trim().takeIf(String::isNotBlank)?.let { "\"$it\"" }
     val language = LANGUAGES.firstOrNull { it.first == m.language && it.first.isNotBlank() }?.second
@@ -188,7 +188,8 @@ private fun stationsLine(m: PodioModel): String {
             }
             item(key = "stations-title") {
                 Row(Modifier.fillMaxWidth().padding(start = side + 4.dp, end = side).padding(top = 24.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OrbitPageSection("Stations", Modifier.weight(1f), subtitle = stationsLine(m))
+                    OrbitPageSection("Stations", Modifier.weight(1f),
+                        subtitle = if (m.query.isNotBlank() || m.language.isNotBlank()) stationsLine(m) else "")
                     OrbitPageButton(if (rows) CosmoIcons.Grid else CosmoIcons.List, if (rows) "Show as a grid" else "Show as a list", { rows = !rows },
                         Modifier.testTag("podio:stations:layout"))
                 }

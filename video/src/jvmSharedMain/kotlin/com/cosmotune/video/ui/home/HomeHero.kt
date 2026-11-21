@@ -65,7 +65,8 @@ internal fun HomeUpNextCard(
         val wide = maxWidth >= 600.dp
         OrbitBiteCard(fill, Modifier.fillMaxWidth().testTag("video:home:upnext"), onClick = onPlay, bite = { OrbitPlayButton(false, onPlay, look) }) {
             Column(Modifier.fillMaxWidth().padding(start = 14.dp, top = 14.dp, end = 14.dp, bottom = 16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // The words start level with the picture's top, so a two-line title ends well above Play's bite in the corner.
+                Row(verticalAlignment = Alignment.Top) {
                     ThumbnailFrame(item.thumbnailUrl, Modifier.width(if (wide) 240.dp else 150.dp).aspectRatio(16f / 9f), RoundedCornerShape(14.dp),
                         badge = badgeText(item), badgeLive = item.isLive)
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {

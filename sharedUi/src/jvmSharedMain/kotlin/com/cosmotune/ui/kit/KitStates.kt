@@ -133,15 +133,16 @@ fun KitNavRail(tabs: List<CosmoTab>, selectedIndex: Int, onSelect: (Int) -> Unit
  * A bottom sheet of the kit, in Orbit: [SurfaceSheetSwitch], so the sheet is [com.cosmotune.ui.sheets.CosmoSheetSurface] (a flat
  * sheet of its own ground with 32 dp top corners and the grabber, the 40 % scrim), with an optional [title] in the wide face. The
  * content is held to 85 % of the window's height, so a list inside it that fills its sheet (a lazy one) still has a height to fill.
- * Its rows are [KitSettingsRow]s or [KitMediaRow]s.
+ * Its rows are [KitSettingsRow]s or [KitMediaRow]s. [expanded] opens it at its full height rather than half way, for a sheet whose
+ * controls sit low in it (a player), so they are never left under the screen's foot.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KitSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable ColumnScope.() -> Unit) {
+fun KitSheet(onDismiss: () -> Unit, title: String? = null, expanded: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
-    SurfaceSheetSwitch(onDismissRequest = onDismiss) {
+    SurfaceSheetSwitch(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = expanded)) {
         Column(Modifier.fillMaxWidth().heightIn(max = windowHeight * 0.85f)) {
             if (!title.isNullOrBlank()) {
                 Text(
