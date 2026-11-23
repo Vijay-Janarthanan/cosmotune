@@ -16,6 +16,8 @@ internal object AndroidMangaLibrary {
     private var instance: MangaRepository? = null
     @Synchronized fun repository(context: Context): MangaRepository = instance ?: run {
         val app = context.applicationContext
+        val connectivity = app.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+        com.cosmotune.manga.data.MangaNetwork.metered = { connectivity?.isActiveNetworkMetered == true }
         val store = MangaStore(File(app.filesDir, "manga"), platformMangaFileProtection())
         MangaRepository(store) { config, parser -> com.cosmotune.manga.extensions.MangaExtensions(app, store, parser).source(config) }
     }.also { instance = it }

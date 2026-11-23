@@ -92,6 +92,15 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
                     ReadChip(mangaText(label), state.downloadAhead == count, { action { repository.store.update { it.copy(downloadAhead = count) } } }, Modifier.testTag("manga:ahead:$count"))
                 }
             }
+            Text(mangaText("Pages loaded ahead in the reader"), style = ReadType.rowTitle(), color = look.ink)
+            ReadChipRow(inset = 0.dp) {
+                listOf(0 to "None", 2 to "2", 4 to "4", 8 to "8").forEach { (count, label) ->
+                    ReadChip(mangaText(label), state.readerPreloadPages == count, { action { repository.store.update { it.copy(readerPreloadPages = count) } } }, Modifier.testTag("manga:preload:$count"))
+                }
+            }
+            OrbitSwitchRow(mangaText("Load ahead only on Wi-Fi"), state.aheadOnWifiOnly, { on -> action { repository.store.update { it.copy(aheadOnWifiOnly = on) } } }, plain = true,
+                detail = mangaText("Pages and chapters ahead wait while you are on mobile data"))
+            MangaCbzSettings(state) { block -> action { repository.store.update(block) } }
             OrbitSwitchRow(mangaText("Remove chapters once read"), state.deleteAfterRead, { on -> action { repository.store.update { it.copy(deleteAfterRead = on) } } }, plain = true,
                 detail = mangaText("Frees space after you finish a downloaded chapter"))
         }

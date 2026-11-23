@@ -169,6 +169,10 @@ data class MangaLibraryState(
     val hiddenImages: Map<String, MangaHiddenImage> = emptyMap(),
     /** Mihon's continuous vertical: the webtoon strip with a gap between pages. */
     val readerWebtoonGaps: Boolean = false,
+    /** Pages the reader fetches ahead of the one shown (Mihon's preload): 0, 2, 4 or 8. */
+    val readerPreloadPages: Int = 2,
+    /** Pages ahead and chapters ahead are fetched only on Wi-Fi or another unmetered network. */
+    val aheadOnWifiOnly: Boolean = false,
     /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
     val readLog: Map<String, Long> = emptyMap(),
     /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */
@@ -333,4 +337,12 @@ fun MangaBook.listedChapters(edition: String = "", newestFirst: Boolean = false,
     return (if (newestFirst) ordered.reversed() else ordered)
         .filter { edition.isBlank() || it.edition == edition }
         .filter { !unreadOnly || it.id !in read }
+}
+
+/** Whether the device is on a metered network (mobile data, a hotspot); the phone sets it, a computer never is. */
+object MangaNetwork {
+    @Volatile var metered: () -> Boolean = { false }
+
+    /** True when fetching ahead is allowed under [MangaLibraryState.aheadOnWifiOnly]. */
+    fun aheadAllowed(state: MangaLibraryState): Boolean = !state.aheadOnWifiOnly || !runCatching { metered() }.getOrDefault(false)
 }

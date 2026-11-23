@@ -109,7 +109,7 @@ class MangaDownloadQueue internal constructor(private val store: MangaStore, pri
             val moved = state.progress.filter { (book, saved) -> place[book] != saved.chapterId }
             fresh = state.newChapters; read = state.readChapters; place = state.progress.mapValues { it.value.chapterId }
             if (state.autoDownloadNew && added.isNotEmpty()) mangaNewToDownload(state, added).groupBy({ it.first }, { it.second }).forEach { (book, list) -> enqueue(book, list) }
-            if (state.downloadAhead > 0) moved.values.forEach { saved ->
+            if (state.downloadAhead > 0 && MangaNetwork.aheadAllowed(state)) moved.values.forEach { saved ->
                 val book = state.books.find { it.id == saved.bookId } ?: return@forEach
                 val chapter = book.chapters.find { it.id == saved.chapterId } ?: return@forEach
                 enqueue(book, mangaChaptersAhead(book, chapter, state, state.downloadAhead))

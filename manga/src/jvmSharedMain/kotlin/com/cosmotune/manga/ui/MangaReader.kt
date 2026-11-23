@@ -270,9 +270,10 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     val listDragged by scroll.interactionSource.collectIsDraggedAsState()
     LaunchedEffect(pagerDragged || listDragged) { if (pagerDragged || listDragged) hideControls() }
     LaunchedEffect(page) {
-        // Fetch the next two pages ahead of the reader; failures stay silent here and surface when the page itself is shown.
+        // Fetch the next pages ahead of the reader (none on mobile data when that is asked); failures surface when the page is shown.
         kotlinx.coroutines.delay(150)
-        for (index in page + 1..minOf(page + PREFETCH_PAGES, pages.lastIndex)) {
+        val ahead = if (com.cosmotune.manga.data.MangaNetwork.aheadAllowed(library)) library.readerPreloadPages.coerceIn(0, 8) else 0
+        for (index in page + 1..minOf(page + ahead, pages.lastIndex)) {
             try { repository.pageFile(pages[index], chapter.sourceId).let { file -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { learnSize(index, file) } } }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { }
@@ -483,8 +484,6 @@ internal fun readerLabel(chapter: MangaChapter, page: Int, pages: Int): String {
     return "$name · page ${page + 1} of $pages"
 }
 
-/** Pages fetched ahead of the reader: a small window, so a slow source never downloads a whole chapter just by being opened. */
-private const val PREFETCH_PAGES = 2
 
 /** E-ink pages: grey with the contrast raised, so text and screentone stay crisp on a slow screen. */
 private val readerEInkFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix(floatArrayOf(
