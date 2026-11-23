@@ -158,6 +158,7 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
             }
             MangaSuwayomiControls(repository, onError = { error = it })
             MangaWebDavSettings(repository)
+            MangaOpdsControls(state) { block -> action { repository.store.update(block) } }
             MangaTrackingSettings(repository)
             MangaExtensionControls(repository, onError = { error = it })
             MangaTemplateControls(repository)

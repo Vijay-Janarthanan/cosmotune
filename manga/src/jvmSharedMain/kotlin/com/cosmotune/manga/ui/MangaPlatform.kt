@@ -49,3 +49,5 @@ internal expect val mangaPlaysAnimation: Boolean
 /** Opens the computer's folder chooser for where CBZ archives go; null on a phone, whose archives stay in the app's Manga folder. */
 @Composable internal expect fun rememberMangaFolderPicker(onPicked: (String) -> Unit): (() -> Unit)?
 
+/** On a computer: Share with other readers (OPDS), with the address to type in; nothing on a phone. */
+@Composable internal expect fun MangaOpdsControls(state: com.cosmotune.manga.data.MangaLibraryState, update: ((com.cosmotune.manga.data.MangaLibraryState) -> com.cosmotune.manga.data.MangaLibraryState) -> Unit)

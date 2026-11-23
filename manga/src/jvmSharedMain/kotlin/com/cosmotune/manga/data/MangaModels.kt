@@ -185,6 +185,9 @@ data class MangaLibraryState(
     val pinnedSources: List<String> = emptyList(),
     /** Searches kept for each source, newest first, shown as chips under its search field. */
     val savedSearches: Map<String, List<String>> = emptyMap(),
+    /** A computer shares its downloaded chapters as an OPDS catalogue on the home network; [opdsKey] is the address's secret part. */
+    val opdsServer: Boolean = false,
+    val opdsKey: String? = null,
     /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
     val readLog: Map<String, Long> = emptyMap(),
     /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */

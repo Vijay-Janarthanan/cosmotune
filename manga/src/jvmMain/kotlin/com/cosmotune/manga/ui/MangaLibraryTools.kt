@@ -19,7 +19,7 @@ object DesktopMangaLibrary {
             "mac" in os -> File(home, "Library/Application Support/Cosmotune/manga")
             else -> File(System.getenv("XDG_DATA_HOME") ?: File(home, ".local/share").path, "Cosmotune/manga")
         }
-        MangaRepository(MangaStore(root, platformMangaFileProtection()))
+        MangaRepository(MangaStore(root, platformMangaFileProtection())).also { MangaOpdsServer.follow(it) }
     }
     @Volatile private var scheduler: Job? = null
     @Synchronized fun startUpdates() {

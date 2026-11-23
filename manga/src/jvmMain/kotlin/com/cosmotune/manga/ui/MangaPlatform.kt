@@ -2,6 +2,7 @@ package com.cosmotune.manga.ui
 
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.graphics.asComposeImageBitmap
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -181,3 +182,11 @@ private fun desktopFrames(file: File): List<Pair<androidx.compose.ui.graphics.Im
     }; Unit } }
 }
 
+@Composable internal actual fun MangaOpdsControls(state: com.cosmotune.manga.data.MangaLibraryState, update: ((com.cosmotune.manga.data.MangaLibraryState) -> com.cosmotune.manga.data.MangaLibraryState) -> Unit) {
+    val key = state.opdsKey
+    com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Share with other readers (OPDS)"), state.opdsServer, { on ->
+        update { it.copy(opdsServer = on, opdsKey = it.opdsKey ?: java.util.UUID.randomUUID().toString().replace("-", "").take(16)) }
+    }, plain = true, detail = if (state.opdsServer && key != null) mangaText("Downloaded chapters, on your home network at") + " " + MangaOpdsServer.address(key)
+        else mangaText("Lets KOReader, Panels and other OPDS readers on your network open your downloaded chapters"),
+        modifier = androidx.compose.ui.Modifier.testTag("manga:opds"))
+}
