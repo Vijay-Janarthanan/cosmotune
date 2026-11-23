@@ -311,4 +311,4 @@ the now-playing file for OBS (th-ch YouTube Music, MIT); DNS over HTTPS (`Privat
 as well, the history by days, weeks or months with source chips, Replay's weekday chart and time per source (`ListeningActivity.kt`),
 and the sleep timer button on the notification (`SleepButtonCycle.kt`); sharing a local song's file itself (`LocalFileShare.kt`, Kreate);
 AIFF on the phone (`AiffExtractor.kt`, written from Apple's AIFF and AIFF-C specifications) and AIFF and DSD in the desktop library
-(the idea from LastWave, GPL-3.0).
+(the idea from LastWave, GPL-3.0); each album and playlist page keeping its own order (`ListOrders.kt`, the idea from AETHER, GPL-3.0).

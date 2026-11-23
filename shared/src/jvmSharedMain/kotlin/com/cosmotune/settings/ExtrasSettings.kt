@@ -237,6 +237,16 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putString(KEY_SONG_TAGS, com.cosmotune.listening.SongTags.encode(value))
     }
 
+    private val listOrdersFlow = MutableStateFlow(com.cosmotune.listening.ListOrders.decode(store.getString(KEY_LIST_ORDERS, "")))
+
+    /** The order each album or playlist page was last put in, by its browse id; see [com.cosmotune.listening.ListOrders]. */
+    val listOrders: StateFlow<Map<String, String>> = listOrdersFlow.asStateFlow()
+    fun setListOrder(id: String, order: String?) {
+        val next = com.cosmotune.listening.ListOrders.with(listOrdersFlow.value, id, order)
+        listOrdersFlow.value = next
+        store.putString(KEY_LIST_ORDERS, com.cosmotune.listening.ListOrders.encode(next))
+    }
+
     private val notificationSleepFlow = MutableStateFlow(store.getBoolean(KEY_NOTIFICATION_SLEEP, false))
 
     /** The phone notification's second button is the sleep timer instead of Repeat. Off until turned on. */
@@ -274,6 +284,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_NOW_PLAYING_BROADCAST = "extras_now_playing_broadcast"
         const val KEY_NOW_PLAYING_FILE = "extras_now_playing_file"
         const val KEY_NOTIFICATION_SLEEP = "extras_notification_sleep"
+        const val KEY_LIST_ORDERS = "extras_list_orders"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"
