@@ -220,6 +220,20 @@ fun PhoneListeningTools(
             com.cosmotune.video.importers.AndroidSqliteRows(path)
         },
         likeSongs = likeSongs,
+        // Device sync: the camera reads the code the other device's Phone remote shows (Google's scanner, no camera permission).
+        scanPairingCode = {
+            val scanner = com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(context,
+                com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build())
+            kotlinx.coroutines.suspendCancellableCoroutine<String?> { answer ->
+                scanner.startScan()
+                    .addOnSuccessListener { if (answer.isActive) answer.resumeWith(Result.success(it.rawValue)) }
+                    .addOnCanceledListener { if (answer.isActive) answer.resumeWith(Result.success(null)) }
+                    .addOnFailureListener {
+                        if (answer.isActive) answer.resumeWith(Result.failure(IllegalStateException("The camera could not read the code. Paste the link instead.")))
+                    }
+            }
+        },
         importPlaylistFile = {
             check(pending == null) { "Finish the open file chooser first." }
             val answer = CompletableDeferred<Uri?>().also { pending = it }

@@ -3838,6 +3838,10 @@ fun CosmotuneDesktopApp() {
                 open = listeningToolsOpen,
                 onDismiss = { listeningToolsOpen = false; listeningToolsOpenOn = null },
                 likeSongs = { songs -> songs.filterNot { it.videoId in likedIds }.forEach { rate(it, LikeStatus.LIKE) } },
+                addHistory = { songs ->
+                    history = com.cosmotune.ui.listening.LibraryExchange.mergeHistory(history, songs, max = 50)
+                    persistence.saveHistory(history)
+                },
                 openOn = listeningToolsOpenOn,
                 syncPlaylists = com.cosmotune.desktop.desktopSyncPlaylists(playlists),
                 applySyncedPlaylists = { records, files ->

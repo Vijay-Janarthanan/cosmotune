@@ -69,9 +69,13 @@ import kotlinx.coroutines.ensureActive
     var confirmFileRemoval by remember { mutableStateOf<String?>(null) }
     var sharing by remember(host.remote?.controller) { mutableStateOf(host.remote?.controller?.librarySync != null) }
     val records = remember(store, revision) { store?.records().orEmpty() }
+    // Likes and recent plays go across too, as two lists beside the playlists.
+    val publishable = remember(host.library, host.syncPlaylists, store) {
+        store?.let { LibraryExchange.playlists(host.library, it.device) }.orEmpty() + host.syncPlaylists
+    }
     LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("listening:device-sync"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Heading("Device sync", "Exchange selected playlists and optional audio files on your local network. Order, edits and removal records are reconciled; account sessions and provider credentials stay on each device. Start Phone remote to show this device's current pairing link.")
+            Heading("Device sync", "Swap liked songs, recent plays, playlists and, if you like, audio files with your other device over your home network. Sign-ins stay on each device. Start Phone remote on the other device to show its code.")
             if (store == null) Text("Sync storage could not be opened. Its original journal was kept.")
             if (host.remote != null && store != null) {
                 ToggleRow("Allow paired devices to exchange the shared catalogue and files", sharing, enabled = !busy) { enabled ->
@@ -83,16 +87,16 @@ import kotlinx.coroutines.ensureActive
         item {
             ToolSection("Publish from this device")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 6.dp)) {
-                host.syncPlaylists.forEach { playlist -> ToolChip(playlist.title, playlist.id in selected,
+                publishable.forEach { playlist -> ToolChip(playlist.title, playlist.id in selected,
                     { selected = if (playlist.id in selected) selected - playlist.id else selected + playlist.id }, enabled = !busy) }
             }
-            if (host.syncPlaylists.isEmpty()) Text("Create a local playlist first. Linked/remote playlists can be saved locally from Linked playlists.")
+            if (publishable.isEmpty()) Text("Create a local playlist first. Linked/remote playlists can be saved locally from Linked playlists.")
             OrbitCheckRow("Include local audio files for the selected playlists (uses extra storage and network data)", includeFiles, { includeFiles = it }, enabled = !busy)
             ToolNote("Private sync storage allows 2 GB per file and 8 GB total, with a 64 MB free-space reserve.")
             ToolButton("Publish selected playlists", enabled = !busy && selected.isNotEmpty() && store != null, onClick = { run {
                 withContext(Dispatchers.IO) {
                     val transferContext = currentCoroutineContext()
-                    for (playlist in host.syncPlaylists.filter { it.id in selected }) {
+                    for (playlist in publishable.filter { it.id in selected }) {
                         val tracks = playlist.tracks.map { track ->
                             val local = host.library.songs.firstOrNull { it.videoId == track.id && (it.localPath != null || it.localUri != null) }
                             if (includeFiles && local != null) {
@@ -116,8 +120,18 @@ import kotlinx.coroutines.ensureActive
             } })
         }
         item {
+            host.scanPairingCode?.let { scan ->
+                ToolButton("Scan the other device's code", enabled = !busy && store != null, onClick = { run {
+                    val link = scan()?.trim()?.take(2048) ?: return@run null
+                    pairing = link; client = null
+                    val next = LibrarySyncClient(link)
+                    preview = next.preview(store!!); client = next
+                    "Paired. Check what goes each way, then sync."
+                } })
+                Spacer(Modifier.height(8.dp))
+            }
             ToolField(pairing, { pairing = it.trim().take(2048); preview = null; client = null },
-                "Other device's private pairing link", Modifier.fillMaxWidth(), secret = true)
+                if (host.scanPairingCode != null) "Or paste its pairing link" else "Other device's private pairing link", Modifier.fillMaxWidth(), secret = true)
             ToolButton("Preview exchange", enabled = !busy && pairing.isNotBlank() && store != null, onClick = { run {
                 val next = LibrarySyncClient(pairing)
                 preview = next.preview(store!!); client = next
@@ -153,7 +167,11 @@ import kotlinx.coroutines.ensureActive
                     require(applying.mapNotNull { it.playlist }.flatMap { it.tracks }.none { track ->
                         (track.id.startsWith("file:") || track.id.startsWith("local:")) && track.id !in alreadyLocal && (track.fileHash == null || files[track.fileHash] == null)
                     }) { "Transfer local audio files before applying playlists that need them." }
-                    host.applySyncedPlaylists!!(applying) { hash -> files[hash] }
+                    val received = LibraryExchange.split(applying)
+                    host.applySyncedPlaylists!!(received.playlists) { hash -> files[hash] }
+                    if (received.liked.isNotEmpty()) host.likeSongs?.invoke(received.liked)
+                    if (received.recent.isNotEmpty()) host.addHistory?.invoke(received.recent)
+                        ?: host.createPlaylist("Played on your other device", received.recent)
                     withContext(Dispatchers.IO) { store.bindReceived(applying) }
                     "Shared playlists and order applied to this device. Audio files were kept."
                 } })

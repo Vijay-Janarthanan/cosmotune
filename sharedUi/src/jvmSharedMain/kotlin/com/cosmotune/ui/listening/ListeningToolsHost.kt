@@ -82,6 +82,10 @@ data class ListeningToolsHost(
     val pickBackupFile: (suspend () -> ByteArray?)? = null,
     val openSqlite: com.cosmotune.video.importers.SqliteOpener? = null,
     val likeSongs: (suspend (List<Song>) -> Unit)? = null,
+    /** Adds recent plays received in Device sync to this device's history; null keeps them as a playlist instead. */
+    val addHistory: (suspend (List<Song>) -> Unit)? = null,
+    /** Reads the other device's pairing code with the camera, answering its link; null where there is no camera. */
+    val scanPairingCode: (suspend () -> String?)? = null,
 )
 
 private suspend fun findPlaylistRecording(row: com.cosmotune.listening.MusicPlaylistImportRow): Song? =

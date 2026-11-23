@@ -26,6 +26,8 @@ fun DesktopListeningTools(
     openOn: com.cosmotune.ui.listening.ListeningTab? = null,
     /** Likes the songs another music app's backup had liked (Backup > From another music app). */
     likeSongs: (suspend (List<Song>) -> Unit)? = null,
+    /** Adds recent plays from the other device (Device sync) to this computer's history. */
+    addHistory: (suspend (List<Song>) -> Unit)? = null,
 ) {
     ListeningTools(open, ListeningToolsHost(
         file = desktopListeningFile(), library = library, queue = queue,
@@ -57,6 +59,7 @@ fun DesktopListeningTools(
             File(System.getProperty("java.io.tmpdir"), "cosmotune-import"), ::JdbcSqliteRowsFor,
         ),
         likeSongs = likeSongs,
+        addHistory = addHistory,
         importPlaylistFile = {
             chooseCosmotuneFile("", saving = false, title = "Import music playlist")?.let { selected -> withContext(Dispatchers.IO) {
                 val file = selected.canonicalFile

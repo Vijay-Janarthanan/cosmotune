@@ -65,8 +65,11 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
         syncStore = withContext(Dispatchers.IO) { runCatching { com.cosmotune.remote.LibrarySyncStore(File(host.file.absoluteFile.parentFile, "device-sync")) }.getOrNull() }
         updates = withContext(Dispatchers.IO) { runCatching { PlaylistDownloadUpdates.open(File(host.file.absoluteFile.parentFile, "playlist-download-updates.json")) }.getOrNull() }
     }
-    LaunchedEffect(syncStore, host.syncPlaylists, host.syncLibraryReady) {
-        try { if (host.syncLibraryReady) withContext(Dispatchers.IO) { syncStore?.reconcilePublished(host.syncPlaylists) } }
+    LaunchedEffect(syncStore, host.syncPlaylists, host.library, host.syncLibraryReady) {
+        try { if (host.syncLibraryReady) withContext(Dispatchers.IO) { syncStore?.let { sync ->
+            // Likes and recent plays, once shared, keep up as they change; nobody's lists are taken for removals.
+            sync.reconcilePublished(LibraryExchange.published(host.syncPlaylists, host.library, sync.device, sync.records()))
+        } } }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { /* Keep the original journal; an explicit publish/exchange surfaces storage failures. */ }
     }
