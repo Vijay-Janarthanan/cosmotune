@@ -298,3 +298,5 @@ Read's Listen shelf talks to the listener's own Audiobookshelf server through it
 Read's Nearby sends and receives books with the LocalSend protocol v2 (https://github.com/localsend/protocol, MIT), so it finds Cosmotune on other devices and the LocalSend apps; the code is written for Cosmotune and no LocalSend code is included.
 
 Recorded narration in EPUB books (listening along) is read from the W3C EPUB 3 Media Overlays specification; matching a book's chapters to an audiobook's is Cosmotune's own.
+
+Read's Hardcover sync uses Hardcover's public GraphQL API (https://docs.hardcover.app/api/getting-started/) with the reader's own API key; no Hardcover code is included.

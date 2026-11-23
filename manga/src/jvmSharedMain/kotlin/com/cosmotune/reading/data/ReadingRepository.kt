@@ -243,9 +243,12 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         old.copy(audioPairs = if (audiobookId == null) old.audioPairs - bookId else old.audioPairs + (bookId to audiobookId))
     }
 
-    suspend fun markFinished(bookId: String, finished: Boolean = true) = store.update { old ->
-        require(old.books.any { it.id == bookId })
-        old.copy(finished = if (finished) old.finished + bookId else old.finished - bookId, finishedAt = old.finishedAt + (bookId to System.currentTimeMillis()))
+    suspend fun markFinished(bookId: String, finished: Boolean = true) {
+        store.update { old ->
+            require(old.books.any { it.id == bookId })
+            old.copy(finished = if (finished) old.finished + bookId else old.finished - bookId, finishedAt = old.finishedAt + (bookId to System.currentTimeMillis()))
+        }
+        if (state.value.hardcover != null) background.launch { runCatching { sendHardcover(bookId) } }
     }
     /** Sets [bookId]'s own tags (each 1–40 characters). */
     suspend fun setTags(bookId: String, tags: Set<String>) {
@@ -453,7 +456,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     private val background = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     /** [pushProgress] after the reader has closed, without holding the page up. */
     fun pushProgressLater(bookId: String, spine: List<String>) {
-        if (state.value.koSync == null && state.value.books.none { it.id == bookId && it.serverLink.isNotEmpty() }) return
+        if (state.value.koSync == null && state.value.hardcover == null && state.value.books.none { it.id == bookId && it.serverLink.isNotEmpty() }) return
         background.launch { runCatching { pushProgress(bookId, spine) } }
     }
     private val serverProgress = ReadingServerProgress(client)
@@ -467,6 +470,41 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         store.update { it.copy(koSync = account.copy(lastResult = "Signed in")) }
     }
     suspend fun disconnectKoSync() = store.update { it.copy(koSync = null) }
+
+    private val hardcoverClient = ReadingHardcoverClient(client)
+
+    /** Connects Hardcover with the reader's API key (from hardcover.app › Settings › Hardcover API); the key is kept, never shown. */
+    suspend fun connectHardcover(token: String) {
+        val key = token.trim().removePrefix("Bearer ").trim()
+        require(key.length in 20..4000 && key.none(Char::isWhitespace)) { "Paste the whole API key from hardcover.app › Settings › Hardcover API." }
+        val name = hardcoverClient.me(key)
+        store.update { it.copy(hardcover = ReadingHardcover(key, name, "Connected")) }
+    }
+    suspend fun disconnectHardcover() = store.update { it.copy(hardcover = null, hardcoverBooks = emptyMap()) }
+
+    /**
+     * Tells Hardcover where the reader is with [bookId]: Currently reading with the page reached, or Read once it is finished. The
+     * book is matched by its title and author the first time; the result is kept for Settings, never shown over the book.
+     */
+    suspend fun sendHardcover(bookId: String, spine: List<String> = emptyList()) {
+        val current = state.value
+        val account = current.hardcover ?: return
+        val book = current.books.find { it.id == bookId } ?: return
+        val finished = bookId in current.finished
+        val locator = current.progress[bookId]?.locator
+        if (!finished && locator == null) return
+        val result = try {
+            val known = current.hardcoverBooks[bookId] ?: hardcoverClient.find(account.token, book.title, book.authors.firstOrNull().orEmpty())
+                ?: error("“${book.title.take(60)}” is not on Hardcover.")
+            val fraction = if (finished) 1.0 else locator?.let { overall(book, it, spine) } ?: 0.0
+            val sent = hardcoverClient.send(account.token, known, if (finished) ReadingHardcoverClient.READ else ReadingHardcoverClient.READING, fraction,
+                java.time.LocalDate.now().toString())
+            store.update { old -> old.copy(hardcoverBooks = old.hardcoverBooks + (bookId to sent)) }
+            "Sent “${book.title.take(60)}” " + java.time.LocalTime.now().withNano(0).toString().take(5)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (failure: Exception) { "Not sent: " + (failure.message ?: "Hardcover could not be reached.") }
+        store.update { old -> old.copy(hardcover = old.hardcover?.copy(lastResult = result)) }
+    }
 
     private suspend fun koreaderHash(book: ReadingBook): String = book.koreaderHash.ifBlank {
         if (book.originalFormat.isNotBlank()) return "" // A converted book's own file is gone; KOReader would know it by that file.
@@ -492,6 +530,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
             catch (failure: Exception) { "Not synced: " + (failure.message ?: "the server could not be reached.") }
             store.update { old -> old.copy(koSync = old.koSync?.copy(lastResult = result)) }
         }
+        if (current.hardcover != null) sendHardcover(bookId, spine)
         ReadingServerProgress.target(book.serverLink)?.let { target ->
             runCatching {
                 serverProgress.send(target, current.sources.find { it.id == book.serverSource }, book, locator,

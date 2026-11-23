@@ -111,6 +111,8 @@ import kotlinx.serialization.Serializable
     val folders: List<ReadingFolder> = emptyList(), val folderFiles: Map<String, String> = emptyMap(),
     /** The KOReader sync account, when the reader signed in. */
     val koSync: ReadingKoSync? = null,
+    /** The Hardcover account, and the Hardcover book each library book was matched to (book id to it). */
+    val hardcover: ReadingHardcover? = null, val hardcoverBooks: Map<String, ReadingHardcoverBook> = emptyMap(),
     /** Reading time by book and by day ("2026-11-23"), and each book's pace, for time left and the statistics. */
     val readingMs: Map<String, Long> = emptyMap(), val readingDays: Map<String, Long> = emptyMap(), val paces: Map<String, ReadingPace> = emptyMap(),
     val profiles: List<ReadingProfile> = emptyList(),

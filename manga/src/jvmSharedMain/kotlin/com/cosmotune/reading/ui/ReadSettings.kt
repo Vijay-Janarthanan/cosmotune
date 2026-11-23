@@ -40,6 +40,7 @@ fun ReadSettingsSection(modifier: Modifier = Modifier) {
     var connecting by remember { mutableStateOf(false) }
     var syncSheet by remember { mutableStateOf(false) }
     var koSheet by remember { mutableStateOf(false) }
+    var hardcoverSheet by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val addDictionary = rememberReadingImport(ReadingPick.DICTIONARY) { name, open -> scope.launch {
         try { repository.importDictionary(name, open); error = null }
@@ -105,6 +106,15 @@ fun ReadSettingsSection(modifier: Modifier = Modifier) {
             if (ko == null) ReadChip("Sign in", false, { koSheet = true }, Modifier.testTag("settings:read:kosync"), icon = CosmoIcons.User)
             else ReadChip("Sign out", false, { scope.launch { repository.disconnectKoSync() } }, icon = CosmoIcons.Close)
         }
+        ReadOverline("Hardcover", inset = 16.dp)
+        val hardcover = state.hardcover
+        Text(if (hardcover == null) "Your Hardcover shelves follow your reading: books you open show as Currently reading with the page you reached, finished ones as Read."
+            else "${hardcover.username} · books you read and finish are sent to Hardcover." + (hardcover.lastResult.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: ""),
+            style = ReadType.body(), color = look.dim, modifier = Modifier.padding(horizontal = 20.dp))
+        ReadChipRow(Modifier.padding(top = 8.dp)) {
+            if (hardcover == null) ReadChip("Connect", false, { hardcoverSheet = true }, Modifier.testTag("settings:read:hardcover"), icon = CosmoIcons.User)
+            else ReadChip("Disconnect", false, { scope.launch { repository.disconnectHardcover() } }, Modifier.testTag("settings:read:hardcover:out"), icon = CosmoIcons.Close)
+        }
         ReadOverline("Dictionaries", inset = 16.dp)
         Text(if (state.dictionaries.isEmpty()) "Add a StarDict dictionary (a ZIP or .tar.gz) to look words up without a connection."
             else state.dictionaries.joinToString(" · ") { "${it.name} (${it.words} words)" },
@@ -133,6 +143,44 @@ fun ReadSettingsSection(modifier: Modifier = Modifier) {
     if (connecting) BookConnections(repository, onDismiss = { connecting = false }, onError = { error = it })
     if (syncSheet) ReadSyncSheet(repository, onDismiss = { syncSheet = false })
     if (koSheet) ReadKoSyncSheet(repository, onDismiss = { koSheet = false })
+    if (hardcoverSheet) ReadHardcoverSheet(repository, onDismiss = { hardcoverSheet = false })
+}
+
+/** Connecting Hardcover: the API key from its website, pasted in. */
+@Composable
+private fun ReadHardcoverSheet(repository: com.cosmotune.reading.data.ReadingRepository, onDismiss: () -> Unit) {
+    val scope = rememberUiCoroutineScope()
+    var key by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val look = orbitLook()
+    com.cosmotune.ui.kit.KitSheet(onDismiss = onDismiss) {
+        com.cosmotune.manga.ui.ReadSheetHeader("Hardcover", onDone = onDismiss, doneLabel = "Close")
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+            Text("Sign in on hardcover.app, open Settings › Hardcover API and copy your API key. It lasts a year; paste a new one when it runs out.",
+                style = ReadType.body(), color = look.dim)
+            androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
+            Text("API key", style = ReadType.caption(), color = look.dim)
+            androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+            com.cosmotune.ui.orbit.OrbitInputField(key, { key = it.take(4000) }, "API key", modifier = Modifier.fillMaxWidth().testTag("settings:read:hardcover:key"), secret = true)
+            message?.let { Text(it, style = ReadType.body(), color = look.dim, modifier = Modifier.padding(top = 12.dp)) }
+            androidx.compose.foundation.layout.Spacer(Modifier.height(16.dp))
+            ReadChipRow(inset = 0.dp) {
+                ReadChip(if (busy) "Connecting…" else "Connect", false, {
+                    if (!busy && key.isNotBlank()) {
+                        busy = true; message = null
+                        scope.launch {
+                            try { repository.connectHardcover(key); onDismiss() }
+                            catch (cancelled: CancellationException) { throw cancelled }
+                            catch (failure: Exception) { message = failure.message ?: "Could not connect." }
+                            finally { busy = false }
+                        }
+                    }
+                }, Modifier.testTag("settings:read:hardcover:connect"), icon = CosmoIcons.Check)
+            }
+            androidx.compose.foundation.layout.Spacer(Modifier.height(16.dp))
+        }
+    }
 }
 
 /** Connecting the WebDAV folder books sync through: its address, the user name and the password (an app password is best). */
