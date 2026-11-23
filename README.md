@@ -177,12 +177,14 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
     <td align="center"><img alt="The Live now sheet in the light theme on a phone: two live and seven coming up, filters for Cricket, Football and Shows, a live show on DD News and DD National, and football matches with Remind buttons" src="docs/images/phone-live-now-sheet-light.webp" width="230"></td>
     <td>
       <h3>Spotlight</h3>
-      <p>The top bar gives live matches you follow priority and otherwise rotates between regional Google News headlines and
-      recent releases from YouTube's podcast and music-video charts. Open it for live shows, upcoming matches with reminders
-      and recent scores. Watch is offered where a free stream carries a live event:
-      DD Sports, DD National or a broadcaster's own YouTube live stream. Cricket scores come from CricketData.org and football scores
-      from football-data.org, each with a free key; without one, TheSportsDB gives the next and last match only. Settings > Live now
-      turns the pill on or off, picks your sports and follows teams.</p>
+      <p>One line at the top of every mode shows what matters most right now: a live match you follow with its minute and latest
+      scorer, otherwise the world's biggest story. Open it for Top, World, your country's news, Football, Cricket and Coming up:
+      live scores with scorers, cards, half-time and full time, cricket's runs, wickets and overs, results of the last day, kick-off
+      times, world stories ranked by how many outlets carry them (BBC, The Guardian, Al Jazeera, France 24, DW), Wikipedia's "In
+      the news", and elections and summits of the next 60 days. Tap a match for its timeline, stats and line-ups, or cricket's
+      scorecard. Scores come from ESPN's public scoreboards, with no key. Watch is offered where a free stream carries a live
+      event: DD Sports, DD National or a broadcaster's own YouTube live stream. Settings > Spotlight turns it on or off, picks your
+      sports and follows teams and competitions.</p>
       <h3>Indian channels</h3>
       <p>Prasar Bharati (DD): DD News, DD India, DD National, DD Sports, DD Kisan, DD Urdu, DD Bharati, DD Tamil and the regional DD
       channels, played from Prasar Bharati's own YouTube channels. Live on YouTube: the broadcasters' own live news streams in
@@ -495,7 +497,7 @@ services, including every one that 1.0.4 added; the paragraphs below it say what
 | Manga sources and Komga | Official MANGA Plus on first Discover when no sources are configured, and sources/servers you add | When you browse, read or download | None added | Manga > Settings > Manage sources |
 | Podio radio and podcast discovery | Radio Browser mirrors, Apple/iTunes, fyyd; selected station/publisher media hosts; NASA GIBS (map imagery tiles), Open-Meteo (weather at a station) and Wikipedia (nearby articles and pictures), asked for when a station page or the map is open | When Podio is opened or used | No account | Podio > Radio / Podcasts |
 | Watch | `api.themoviedb.org` (TMDB) or `v3-cinemeta.strem.io` for film and series details; the built-in plugins you leave on (`iptv-org.github.io`, `raw.githubusercontent.com` for Free-TV/IPTV, `i.mjh.nz`, Pluto TV, Plex, `archive.org`, YouTube, the Stremio add-ons) and the sources you add | When you browse, search or play in Watch | Built-in plugins on | Watch > Plugins |
-| Spotlight | Google News, YouTube charts, `api.cricapi.com` (CricketData.org) and `api.football-data.org` with your free key, otherwise `www.thesportsdb.com` | While Spotlight is visible | On | Settings > Live now |
+| Spotlight | `site.api.espn.com` and `site.web.api.espn.com` (scores), `api.openligadb.de` (Bundesliga backup), the BBC, Guardian, Al Jazeera, France 24 and DW world feeds, `en.wikipedia.org` (In the news), `query.wikidata.org` (coming elections and summits), Google News for your country | While Spotlight is visible and the app is in front | On | Settings > Spotlight |
 | Torrent playback | Cosmotune’s bundled engine connects to BitTorrent peers and public UDP trackers | When you play a torrent offer | On | Watch > Plugins |
 | Spotify podcast link lookup | Spotify public web-client endpoints, public bootstrap metadata at `git.gay`, Apple/iTunes and fyyd | When you look up a Spotify podcast link; playback uses matched publisher RSS | Anonymous session in memory | Podio > Podcasts > Add link |
 | Cloud sync and shared rooms (optional) | `identitytoolkit.googleapis.com`, `securetoken.googleapis.com`, `firestore.googleapis.com`; for Google sign-in `accounts.google.com`, `oauth2.googleapis.com` (desktop) or Google Play services (Android) | Only after you turn it on: at start, after playlist changes and every 15 minutes (desktop) | Off | Settings > Account & sync |

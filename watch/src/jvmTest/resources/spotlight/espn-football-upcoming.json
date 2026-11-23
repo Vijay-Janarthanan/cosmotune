@@ -1,0 +1,408 @@
+{
+ "leagues": [
+  {
+   "id": "775",
+   "name": "UEFA Champions League",
+   "abbreviation": "UEFA Champions League",
+   "slug": "uefa.champions"
+  }
+ ],
+ "events": [
+  {
+   "id": "401915380",
+   "date": "2026-11-24T17:45Z",
+   "name": "LASK Linz at Bodo/Glimt",
+   "shortName": "LAS @ BODO",
+   "season": {
+    "year": 2026,
+    "type": 14534,
+    "slug": "league-phase"
+   },
+   "competitions": [
+    {
+     "id": "401915380",
+     "date": "2026-11-24T17:45Z",
+     "startDate": "2026-11-24T17:45Z",
+     "attendance": 0,
+     "timeValid": true,
+     "recent": false,
+     "status": {
+      "clock": 0.0,
+      "displayClock": "0'",
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "Tue, November 24th at 12:45 PM EST",
+       "shortDetail": "Scheduled"
+      }
+     },
+     "venue": {
+      "id": "1510",
+      "fullName": "Aspmyra Stadion",
+      "address": {
+       "city": "Bodø/Glimt",
+       "country": "Norway"
+      }
+     },
+     "format": {
+      "regulation": {
+       "periods": 2
+      }
+     },
+     "altGameNote": "UEFA Champions League, League Phase",
+     "notes": [],
+     "broadcast": "",
+     "competitors": [
+      {
+       "id": "2980",
+       "type": "team",
+       "order": 0,
+       "homeAway": "home",
+       "winner": false,
+       "form": "WWDWL",
+       "score": "0",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "1-1-2",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "2980",
+        "abbreviation": "BODO",
+        "displayName": "Bodo/Glimt",
+        "shortDisplayName": "Bodo/Glimt",
+        "name": "Bodo/Glimt",
+        "location": "Bodo/Glimt",
+        "color": "FCEE33",
+        "alternateColor": "ffffff",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/2980.png"
+       }
+      },
+      {
+       "id": "4411",
+       "type": "team",
+       "order": 1,
+       "homeAway": "away",
+       "winner": false,
+       "form": "WWWWL",
+       "score": "0",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "2-0-2",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "4411",
+        "abbreviation": "LAS",
+        "displayName": "LASK Linz",
+        "shortDisplayName": "LASK Linz",
+        "name": "LASK Linz",
+        "location": "LASK Linz",
+        "color": "ffffff",
+        "alternateColor": "000000",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/4411.png"
+       }
+      }
+     ],
+     "details": [],
+     "wasSuspended": false,
+     "playByPlayAvailable": true,
+     "playByPlayAthletes": true
+    }
+   ],
+   "status": {
+    "clock": 0.0,
+    "displayClock": "0'",
+    "type": {
+     "id": "1",
+     "name": "STATUS_SCHEDULED",
+     "state": "pre",
+     "completed": false,
+     "description": "Scheduled",
+     "detail": "Tue, November 24th at 12:45 PM EST",
+     "shortDetail": "Scheduled"
+    }
+   },
+   "venue": {
+    "displayName": "Aspmyra Stadion"
+   }
+  },
+  {
+   "id": "401915300",
+   "date": "2026-11-24T17:45Z",
+   "name": "Aston Villa at Galatasaray",
+   "shortName": "AVL @ GAL",
+   "season": {
+    "year": 2026,
+    "type": 14534,
+    "slug": "league-phase"
+   },
+   "competitions": [
+    {
+     "id": "401915300",
+     "date": "2026-11-24T17:45Z",
+     "startDate": "2026-11-24T17:45Z",
+     "attendance": 0,
+     "timeValid": true,
+     "recent": false,
+     "status": {
+      "clock": 0.0,
+      "displayClock": "0'",
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "Tue, November 24th at 12:45 PM EST",
+       "shortDetail": "Scheduled"
+      }
+     },
+     "venue": {
+      "id": "4987",
+      "fullName": "RAMS Park",
+      "address": {
+       "city": "Istanbul",
+       "country": "Türkiye"
+      }
+     },
+     "format": {
+      "regulation": {
+       "periods": 2
+      }
+     },
+     "altGameNote": "UEFA Champions League, League Phase",
+     "notes": [],
+     "broadcast": "",
+     "competitors": [
+      {
+       "id": "432",
+       "type": "team",
+       "order": 0,
+       "homeAway": "home",
+       "winner": false,
+       "form": "WWWWW",
+       "score": "0",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "2-0-2",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "432",
+        "abbreviation": "GAL",
+        "displayName": "Galatasaray",
+        "shortDisplayName": "Galatasaray",
+        "name": "Galatasaray",
+        "location": "Galatasaray",
+        "color": "aa0031",
+        "alternateColor": "ffffff",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/432.png"
+       }
+      },
+      {
+       "id": "362",
+       "type": "team",
+       "order": 1,
+       "homeAway": "away",
+       "winner": false,
+       "form": "DDLDL",
+       "score": "0",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "3-0-1",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "362",
+        "abbreviation": "AVL",
+        "displayName": "Aston Villa",
+        "shortDisplayName": "Aston Villa",
+        "name": "Aston Villa",
+        "location": "Aston Villa",
+        "color": "660e36",
+        "alternateColor": "000000",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/362.png"
+       }
+      }
+     ],
+     "details": [],
+     "wasSuspended": false,
+     "playByPlayAvailable": true,
+     "playByPlayAthletes": true
+    }
+   ],
+   "status": {
+    "clock": 0.0,
+    "displayClock": "0'",
+    "type": {
+     "id": "1",
+     "name": "STATUS_SCHEDULED",
+     "state": "pre",
+     "completed": false,
+     "description": "Scheduled",
+     "detail": "Tue, November 24th at 12:45 PM EST",
+     "shortDetail": "Scheduled"
+    }
+   },
+   "venue": {
+    "displayName": "RAMS Park"
+   }
+  },
+  {
+   "id": "401915295",
+   "date": "2026-11-24T20:00Z",
+   "name": "Borussia Dortmund at Arsenal",
+   "shortName": "DOR @ ARS",
+   "season": {
+    "year": 2026,
+    "type": 14534,
+    "slug": "league-phase"
+   },
+   "competitions": [
+    {
+     "id": "401915295",
+     "date": "2026-11-24T20:00Z",
+     "startDate": "2026-11-24T20:00Z",
+     "attendance": 0,
+     "timeValid": true,
+     "recent": false,
+     "status": {
+      "clock": 0.0,
+      "displayClock": "0'",
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "Tue, November 24th at 3:00 PM EST",
+       "shortDetail": "Scheduled"
+      }
+     },
+     "venue": {
+      "id": "2267",
+      "fullName": "Emirates Stadium",
+      "address": {
+       "city": "London",
+       "country": "England"
+      }
+     },
+     "tickets": [
+      {
+       "summary": "Tickets as low as $257",
+       "numberAvailable": 1602
+      }
+     ],
+     "format": {
+      "regulation": {
+       "periods": 2
+      }
+     },
+     "altGameNote": "UEFA Champions League, League Phase",
+     "notes": [],
+     "broadcast": "",
+     "competitors": [
+      {
+       "id": "359",
+       "type": "team",
+       "order": 0,
+       "homeAway": "home",
+       "winner": false,
+       "form": "DWWWL",
+       "score": "0",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "3-1-0",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "359",
+        "abbreviation": "ARS",
+        "displayName": "Arsenal",
+        "shortDisplayName": "Arsenal",
+        "name": "Arsenal",
+        "location": "Arsenal",
+        "color": "e20520",
+        "alternateColor": "003399",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/359.png"
+       }
+      },
+      {
+       "id": "124",
+       "type": "team",
+       "order": 1,
+       "homeAway": "away",
+       "winner": false,
+       "form": "WWWDW",
+       "score": "0",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "3-0-1",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "124",
+        "abbreviation": "DOR",
+        "displayName": "Borussia Dortmund",
+        "shortDisplayName": "Dortmund",
+        "name": "Borussia Dortmund",
+        "location": "Borussia Dortmund",
+        "color": "ffee00",
+        "alternateColor": "272726",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/124.png"
+       }
+      }
+     ],
+     "details": [],
+     "wasSuspended": false,
+     "playByPlayAvailable": true,
+     "playByPlayAthletes": true
+    }
+   ],
+   "status": {
+    "clock": 0.0,
+    "displayClock": "0'",
+    "type": {
+     "id": "1",
+     "name": "STATUS_SCHEDULED",
+     "state": "pre",
+     "completed": false,
+     "description": "Scheduled",
+     "detail": "Tue, November 24th at 3:00 PM EST",
+     "shortDetail": "Scheduled"
+    }
+   },
+   "venue": {
+    "displayName": "Emirates Stadium"
+   }
+  }
+ ]
+}

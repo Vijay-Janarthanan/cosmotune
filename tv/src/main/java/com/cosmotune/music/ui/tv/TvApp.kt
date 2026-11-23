@@ -371,6 +371,7 @@ private fun TvMainShell(
                 com.cosmotune.ui.watch.WatchNav.open(com.cosmotune.ui.live.liveRoute(event, option))
                 select(TvDestination.WATCH)
             },
+            detail = { event -> com.cosmotune.music.watch.AndroidWatch.repository(liveContext).matchDetail(event) },
         )
     }
     com.cosmotune.ui.live.LiveNowReminders(live)

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+    <channel>
+        <title><![CDATA[BBC News]]></title>
+        <description><![CDATA[BBC News - World]]></description>
+        <link>https://www.bbc.co.uk/news/world</link>
+        <image>
+            <url>https://news.bbcimg.co.uk/nol/shared/img/bbc_news_120x60.gif</url>
+            <title>BBC News</title>
+            <link>https://www.bbc.co.uk/news/world</link>
+        </image>
+        <generator>RSS for Node</generator>
+        <lastBuildDate>Mon, 23 Nov 2026 04:49:23 GMT</lastBuildDate>
+        <atom:link href="https://feeds.bbci.co.uk/news/world/rss.xml" rel="self" type="application/rss+xml"/>
+        <copyright><![CDATA[Copyright: (C) British Broadcasting Corporation, see https://www.bbc.co.uk/usingthebbc/terms-of-use/#15metadataandrssfeeds for terms and conditions of reuse.]]></copyright>
+        <language><![CDATA[en-gb]]></language>
+        <ttl>15</ttl>
+        <item>
+            <title><![CDATA[COP31 fails to reach major climate deal as talks expose deep divisions]]></title>
+            <description><![CDATA[Hopes for an agreement on tackling climate change collapsed after a row about mentioning fossil fuels]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cqwy06zrd26lo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cqwy06zrd26lo#0</guid>
+            <pubDate>Mon, 23 Nov 2026 00:50:35 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/afca/live/39aa8840-e69c-11f1-936e-1fd1d31671db.jpg"/>
+        </item>
+<item>
+            <title><![CDATA[What's next after no deal at COP31 climate talks?]]></title>
+            <description><![CDATA[The talks have been the longest-running in the summit's history, with negotiations breaking down two days after they had been due to end.]]></description>
+            <link>https://www.bbc.co.uk/news/videos/cr1ewge81q4qo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/cr1ewge81q4qo#0</guid>
+            <pubDate>Sun, 22 Nov 2026 18:57:24 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/3c66/live/ad00e440-e6b2-11f1-9607-338132fd22a0.jpg"/>
+        </item>
+<item>
+            <title><![CDATA[Boy, 7, pulled alive from rubble hours after Russian strike on Ukraine, rescuers say]]></title>
+            <description><![CDATA[Ten people are dead in the attack on Dymer, with rescue efforts ongoing to find those still missing from the residential building.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cqdr15l32d3go?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cqdr15l32d3go#0</guid>
+            <pubDate>Mon, 23 Nov 2026 04:44:00 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/cce0/live/b754c730-e6bd-11f1-a023-d502158f79f8.jpg"/>
+        </item>
+<item>
+            <title><![CDATA[San Francisco is enjoying an AI boom, but worries about a crash are growing]]></title>
+            <description><![CDATA[AI employees in the industry's epicentre - San Francisco - worry that the sector is overheated.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cqe9k09j9jv4o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cqe9k09j9jv4o#0</guid>
+            <pubDate>Mon, 23 Nov 2026 00:08:00 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/4d7f/live/712502a0-e2cd-11f1-99ed-7de3e5932968.jpg"/>
+        </item>
+<item>
+            <title><![CDATA[Burnham to tell MPs 'landmark' EU deal could make next decade 'much better']]></title>
+            <description><![CDATA[The prime minister will tell MPs the deal agreed on Friday is a "choice between a broken status quo or change".]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cmde1dy82lepo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cmde1dy82lepo#0</guid>
+            <pubDate>Sun, 22 Nov 2026 22:49:10 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/3431/live/0e8b4920-e6be-11f1-a023-d502158f79f8.jpg"/>
+        </item>
+<item>
+            <title><![CDATA[Russia-bound ship towed away after it was attacked in Gulf of Finland]]></title>
+            <description><![CDATA[Finnish defence forces say that Ukraine was likely behind the drone strike on Saturday. Kyiv has yet to comment.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cj752ddve27ko?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cj752ddve27ko#0</guid>
+            <pubDate>Sun, 22 Nov 2026 17:18:26 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/d6f9/live/a55b16b0-e66d-11f1-9e24-791c5321ff0f.jpg"/>
+        </item>
+<item>
+            <title><![CDATA[Three killed and dozens missing after fire at Indonesian factory]]></title>
+            <description><![CDATA[At least three people were killed and many more feared dead after a fire at a confectionary factory.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cw8dvg5pgm0eo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cw8dvg5pgm0eo#0</guid>
+            <pubDate>Sun, 22 Nov 2026 14:05:20 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/0675/live/85d2f2e0-e62c-11f1-b2ea-350d14ed1ad7.jpg"/>
+        </item>
+<item>
+            <title><![CDATA[Miley Cyrus marries Maxx Morando in California ceremony]]></title>
+            <description><![CDATA[The couple have been together for four years and were engaged in 2025.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cq8e0p87l89lo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cq8e0p87l89lo#1</guid>
+            <pubDate>Sun, 22 Nov 2026 21:22:40 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/623a/live/96a59510-e667-11f1-8ebd-1d2173202734.jpg"/>
+        </item>
+<item>
+            <title><![CDATA[South Korea education minister resigns over exam cheating scandal]]></title>
+            <description><![CDATA[Choi Kyo-jin admits last-minute measures to stop AI-assisted cheating during the college entrance exam caused chaos.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cw3dgk29d37no?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cw3dgk29d37no#1</guid>
+            <pubDate>Sun, 22 Nov 2026 09:20:45 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/dc28/live/9c42c760-e66a-11f1-99b6-a35a62fa4264.jpg"/>
+        </item>
+<item>
+            <title><![CDATA[Explosion on Russian ship at Libya port caused by suspected drone attack, officials say]]></title>
+            <description><![CDATA[Libya's eastern government says the ship had stopped for fuel and supplies on its way back to Russia.
+]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cr894gjz0j0yo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cr894gjz0j0yo#1</guid>
+            <pubDate>Mon, 23 Nov 2026 02:59:35 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/a198/live/5b2f71d0-e6ae-11f1-a094-5fdc692f3e33.jpg"/>
+        </item>
+    </channel>
+</rss>

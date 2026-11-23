@@ -40,13 +40,9 @@ import com.cosmotune.watch.plugins.servers.JellyfinPlugin
 import com.cosmotune.watch.plugins.servers.PlexPlugin
 import com.cosmotune.watch.plugins.stremio.StremioClient
 import com.cosmotune.watch.plugins.stremio.StremioPlugin
-import com.cosmotune.watch.live.CricketDataScores
-import com.cosmotune.watch.live.FootballDataScores
 import com.cosmotune.watch.live.LiveChannelNow
 import com.cosmotune.watch.live.LiveEventsHub
-import com.cosmotune.watch.live.LiveScoreKeys
 import com.cosmotune.watch.live.ScoreSource
-import com.cosmotune.watch.live.SportsDbScores
 import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.plugins.youtube.OfficialLivePlugin
 import com.cosmotune.watch.plugins.youtube.PrasarBharatiPlugin
@@ -108,8 +104,6 @@ data class WatchConfig(
     val timeoutMs: Long = 15_000,
     /** The viewer's country and language (Music's discovery preferences): their channels and chips come first. */
     val place: () -> WatchPlace = WatchPlace::current,
-    /** The free score services' keys for the Live now strip (`CRICKETDATA_API_KEY`, `FOOTBALL_DATA_API_KEY`); blank leaves one out. */
-    val scoreKeys: LiveScoreKeys = LiveScoreKeys(),
     val torrentExecutable: () -> File? = { null },
 )
 
@@ -127,9 +121,11 @@ data class Endpoints(
     val publicDomain: String = BuiltInPlugins.PUBLIC_DOMAIN_URL,
     val openSubtitles: String = BuiltInPlugins.OPENSUBTITLES_URL,
     val watchHub: String = BuiltInPlugins.WATCHHUB_URL,
-    val cricketData: String = "https://api.cricapi.com/v1",
-    val footballData: String = "https://api.football-data.org/v4",
-    val theSportsDb: String = "https://www.thesportsdb.com/api/v1/json",
+    /** The Spotlight's keyless sources: ESPN's football boards, its cricket header and summaries, and OpenLigaDB. */
+    val espnFootball: String = com.cosmotune.watch.live.EspnFootball.BASE,
+    val espnCricketHeader: String = com.cosmotune.watch.live.EspnCricket.HEADER,
+    val espnCricket: String = com.cosmotune.watch.live.EspnCricket.BASE,
+    val openLigaDb: String = "https://api.openligadb.de",
     val freeTvPlaylist: String = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
 )
 
@@ -590,17 +586,12 @@ class DefaultWatchRepository(
 
     // ── Live events ──────────────────────────────────────────────────────
 
-    /** The score services the keys allow: CricketData.org and football-data.org with a key, TheSportsDB for a sport without one. */
-    private fun scoreSources(): List<ScoreSource> {
-        val keys = config.scoreKeys
-        val e = config.endpoints
-        val fallback = (if (keys.cricket == null) SportsDbScores.CRICKET else emptyList()) + (if (keys.football == null) SportsDbScores.FOOTBALL else emptyList())
-        return listOfNotNull(
-            keys.cricket?.let { CricketDataScores(http, it, e.cricketData) },
-            keys.football?.let { FootballDataScores(http, it, e.footballData) },
-            fallback.takeIf { it.isNotEmpty() }?.let { SportsDbScores(http, keys.sportsDb, it, e.theSportsDb) },
-        )
-    }
+    /** The Spotlight's score sources, keyless: ESPN's football (OpenLigaDB standing in for its Bundesliga) and cricket. */
+    private val football = com.cosmotune.watch.live.EspnFootball(http, config.endpoints.espnFootball,
+        openLigaDb = com.cosmotune.watch.live.OpenLigaDb(http, config.endpoints.openLigaDb))
+    private val cricket = com.cosmotune.watch.live.EspnCricket(http, config.endpoints.espnCricketHeader, config.endpoints.espnCricket)
+
+    private fun scoreSources(): List<ScoreSource> = listOf(football, cricket)
 
     /** The DD and YouTube channels whose live videos can be a special or carry a match, of the plugins that are on. */
     private suspend fun eventChannels(): List<LiveChannelNow> = coroutineScope {
@@ -611,16 +602,27 @@ class DefaultWatchRepository(
         }.awaitAll().filterNotNull()
     }
 
-    private val spotlight = com.cosmotune.watch.live.SpotlightSources(http, config.videoSource)
+    private val spotlight = com.cosmotune.watch.live.SpotlightSources(http)
+    // News and coming events only in the real app: tests that bring their own plugins never reach the open web.
     private val liveEventsHub = LiveEventsHub(::scoreSources, ::eventChannels, config.place, config.now, config.timeoutMs,
-        spotlight = { place, now -> if (builtIns == null) spotlight.events(place, now) else emptyList() })
+        news = { place, now -> if (builtIns == null) spotlight.news(place, now) else emptyList() },
+        events = { now -> if (builtIns == null) spotlight.majorEvents(now) else emptyList() })
 
     override fun liveEvents(): Flow<List<LiveEvent>> = liveEventsHub.flow()
 
     override fun liveEvents(interest: com.cosmotune.watch.model.LiveInterest): Flow<List<LiveEvent>> = liveEventsHub.flow(interest)
 
-    /** The events once, without polling (tests and a pull-to-refresh). */
+    /** The events once, without polling (tests). */
     suspend fun liveEventsNow(): List<LiveEvent> = liveEventsHub.current()
+
+    override suspend fun matchDetail(event: LiveEvent): com.cosmotune.watch.model.MatchDetail? = runCatching {
+        val t = config.now()
+        when {
+            event.id.startsWith("football:espn:") -> football.detail(event, t)?.let { com.cosmotune.watch.model.MatchDetail(event.id, football = it, updatedAtMs = t) }
+            event.id.startsWith("cricket:espn:") -> cricket.detail(event)?.let { com.cosmotune.watch.model.MatchDetail(event.id, cricket = it, updatedAtMs = t) }
+            else -> null
+        }
+    }.getOrNull()
 
     // ── Pages ────────────────────────────────────────────────────────────
 

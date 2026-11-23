@@ -9,6 +9,22 @@ import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.LiveEventKind
 import com.cosmotune.watch.model.LiveEventStatus
 import com.cosmotune.watch.model.LiveTeam
+import com.cosmotune.watch.model.BatRow
+import com.cosmotune.watch.model.BowlRow
+import com.cosmotune.watch.model.CricketDetail
+import com.cosmotune.watch.model.FootballDetail
+import com.cosmotune.watch.model.IncidentType
+import com.cosmotune.watch.model.InningsCard
+import com.cosmotune.watch.model.Lineup
+import com.cosmotune.watch.model.LineupPlayer
+import com.cosmotune.watch.model.MatchClock
+import com.cosmotune.watch.model.MatchDetail
+import com.cosmotune.watch.model.MatchIncident
+import com.cosmotune.watch.model.MatchPhase
+import com.cosmotune.watch.model.PartnershipRow
+import com.cosmotune.watch.model.StatPair
+import com.cosmotune.watch.model.TimelineEntry
+import com.cosmotune.watch.model.TimelineKind
 import com.cosmotune.watch.model.MyListEntry
 import com.cosmotune.watch.model.Person
 import com.cosmotune.watch.model.PlayTarget
@@ -255,27 +271,81 @@ class FakeWatchRepository(
         wait()
         val t = now()
         val minute = 60_000L
+        val hour = 60 * minute
         emit(listOf(
-            LiveEvent("cricket:fake:ind-aus-t20-2", LiveEventKind.CRICKET, "India v Australia, 2nd T20I", "Australia tour of India",
-                listOf(LiveTeam("India", "IND", score = "176/4 (18.2 ov)", country = "in", batting = true), LiveTeam("Australia", "AUS", score = "179/8 (20 ov)", country = "au")),
-                scoreText = "IND 176/4 (18.2) · AUS 179/8 (20)", statusText = "India need 4 runs from 10 balls", status = LiveEventStatus.LIVE,
-                startMs = t - 190 * minute, countries = listOf("in", "au"),
-                watchOptions = listOf(WatchOption("DD Sports", PlayTarget.Live(ddSports), ddSports, "DD")), source = "CricketData.org", updatedAtMs = t),
+            LiveEvent("football:espn:eng.1:fake-ars-che", LiveEventKind.FOOTBALL, "Arsenal v Chelsea", "Premier League",
+                listOf(LiveTeam("Arsenal", "ARS", score = "2", id = "359", colour = "c8102e"), LiveTeam("Chelsea", "CHE", score = "1", id = "363", colour = "034694")),
+                scoreText = "2 – 1", status = LiveEventStatus.LIVE, startMs = t - 75 * minute, countries = listOf("gb"), source = "ESPN", updatedAtMs = t,
+                competitionId = "eng.1", clock = MatchClock(MatchPhase.SECOND_HALF, 3990.0, "67'", 2, t), venue = "Emirates Stadium", major = true,
+                incidents = listOf(MatchIncident(0, "12'", "Bukayo Saka", IncidentType.GOAL), MatchIncident(1, "33'", "Cole Palmer", IncidentType.PENALTY_GOAL),
+                    MatchIncident(0, "41'", "Declan Rice", IncidentType.YELLOW), MatchIncident(0, "54'", "Bukayo Saka", IncidentType.GOAL))),
+            LiveEvent("cricket:espn:24469:fake-ind-nz", LiveEventKind.CRICKET, "India v New Zealand, 2nd Test", "India tour of New Zealand",
+                listOf(LiveTeam("India", "IND", score = "312 & 287/6 (78.2 ov)", country = "in", batting = true, id = "6"), LiveTeam("New Zealand", "NZ", score = "402", country = "nz", id = "5")),
+                scoreText = "IND 312 & 287/6 (78.2 ov) · NZ 402", statusText = "India lead by 197 runs", status = LiveEventStatus.LIVE,
+                startMs = t - 50 * hour, countries = listOf("in", "nz"), source = "ESPN", updatedAtMs = t, competitionId = "24469", format = "Test · Day 3",
+                batting = "Gill 104*, Jadeja 38*", venue = "Eden Park, Auckland", major = true,
+                watchOptions = listOf(WatchOption("DD Sports", PlayTarget.Live(ddSports), ddSports, "DD"))),
             LiveEvent("show:yt:fakeLiveVid1", LiveEventKind.SHOW, "Chandrayaan-4 launch: live from Sriharikota", statusText = "Live",
                 status = LiveEventStatus.LIVE, startMs = t - 40 * minute, countries = listOf("in"), languages = listOf("eng", "hin"),
                 watchOptions = listOf(WatchOption("Live on YouTube · DD News",
                     PlayTarget.Item(WatchKey.item(BuiltInPlugins.YOUTUBE_LIVE, "fakeLiveVid1"), BuiltInPlugins.YOUTUBE_LIVE, "fakeLiveVid1", "Chandrayaan-4 launch"), badge = "YT LIVE")),
                 source = "YouTube", updatedAtMs = t),
-            LiveEvent("football:fake:pl-ars-che", LiveEventKind.FOOTBALL, "Arsenal v Chelsea", "Premier League",
-                listOf(LiveTeam("Arsenal", "ARS", score = "2"), LiveTeam("Chelsea", "CHE", score = "1")), scoreText = "2 – 1", statusText = "67'",
-                status = LiveEventStatus.LIVE, startMs = t - 75 * minute, countries = listOf("gb"), source = "football-data.org", updatedAtMs = t),
-            LiveEvent("cricket:fake:ipl-csk-mi", LiveEventKind.CRICKET, "Chennai Super Kings v Mumbai Indians", "IPL 2027",
-                listOf(LiveTeam("Chennai Super Kings", "CSK"), LiveTeam("Mumbai Indians", "MI")), statusText = "Starts 19:30 IST",
-                status = LiveEventStatus.UPCOMING, startMs = t + 150 * minute, countries = listOf("in"), source = "CricketData.org", updatedAtMs = t),
-            LiveEvent("football:fake:ll-rma-bar", LiveEventKind.FOOTBALL, "Real Madrid v Barcelona", "La Liga",
-                listOf(LiveTeam("Real Madrid", "RMA", score = "1"), LiveTeam("Barcelona", "BAR", score = "1")), scoreText = "1 – 1", statusText = "Full time",
-                status = LiveEventStatus.FINISHED, startMs = t - 300 * minute, countries = listOf("es"), source = "football-data.org", updatedAtMs = t),
+            LiveEvent("football:espn:uefa.champions:fake-rma-liv", LiveEventKind.FOOTBALL, "Real Madrid v Liverpool", "Champions League",
+                listOf(LiveTeam("Real Madrid", "RMA", id = "86"), LiveTeam("Liverpool", "LIV", id = "364")), status = LiveEventStatus.UPCOMING,
+                startMs = t + 150 * minute, source = "ESPN", updatedAtMs = t, competitionId = "uefa.champions", venue = "Santiago Bernabéu", major = true,
+                clock = MatchClock(MatchPhase.PRE, readAtMs = t)),
+            LiveEvent("football:espn:esp.1:fake-bar-sev", LiveEventKind.FOOTBALL, "Barcelona v Sevilla", "La Liga",
+                listOf(LiveTeam("Barcelona", "BAR", score = "3", id = "83"), LiveTeam("Sevilla", "SEV", score = "1", id = "243")), scoreText = "3 – 1", statusText = "Full time",
+                status = LiveEventStatus.FINISHED, startMs = t - 5 * hour, countries = listOf("es"), source = "ESPN", updatedAtMs = t, competitionId = "esp.1", major = true,
+                clock = MatchClock(MatchPhase.FULL_TIME, readAtMs = t),
+                incidents = listOf(MatchIncident(0, "9'", "Lamine Yamal", IncidentType.GOAL), MatchIncident(1, "28'", "Isaac Romero", IncidentType.GOAL),
+                    MatchIncident(0, "61'", "Robert Lewandowski", IncidentType.PENALTY_GOAL), MatchIncident(0, "88'", "Raphinha", IncidentType.GOAL))),
+            LiveEvent("news:fake-cop31", LiveEventKind.NEWS, "Climate talks end without a deal on fossil fuels", statusText = "Hopes for an agreement collapsed after a row about fossil fuels.",
+                status = LiveEventStatus.FEATURED, startMs = t - 40 * minute, source = "BBC", updatedAtMs = t, link = "https://www.bbc.co.uk/news/fake-cop31",
+                outlets = listOf("BBC", "Guardian", "Al Jazeera", "France 24", "DW"), major = true),
+            LiveEvent("news:fake-quake", LiveEventKind.NEWS, "Earthquake of magnitude 6.8 strikes off northern Japan", status = LiveEventStatus.FEATURED,
+                startMs = t - hour, source = "DW", updatedAtMs = t, link = "https://www.dw.com/en/fake-quake", outlets = listOf("DW", "France 24", "Guardian"), major = true),
+            LiveEvent("news:local:fake-rain", LiveEventKind.NEWS, "Heavy rain expected across Tamil Nadu this week", competition = "India",
+                status = LiveEventStatus.FEATURED, startMs = t - 2 * hour, source = "The Hindu", updatedAtMs = t, link = "https://news.google.com/rss/articles/fake",
+                outlets = listOf("The Hindu"), local = true),
+            LiveEvent("event:wd:fake-election", LiveEventKind.EVENT, "2026 Spanish general election", competition = "Spain", statusText = "Election",
+                status = LiveEventStatus.UPCOMING, startMs = t + 12 * 24 * hour, source = "Wikidata", updatedAtMs = t,
+                link = "https://en.wikipedia.org/wiki/2026_Spanish_general_election", major = true),
         ))
+    }
+
+    override suspend fun matchDetail(event: LiveEvent): MatchDetail? {
+        wait()
+        return when (event.kind) {
+            LiveEventKind.FOOTBALL -> MatchDetail(event.id, football = FootballDetail(
+                timeline = listOf(
+                    TimelineEntry("12'", TimelineKind.GOAL, 0, "Bukayo Saka", "Martin Ødegaard"),
+                    TimelineEntry("33'", TimelineKind.PENALTY_GOAL, 1, "Cole Palmer"),
+                    TimelineEntry("41'", TimelineKind.YELLOW, 0, "Declan Rice"),
+                    TimelineEntry("45'+2'", TimelineKind.HALF_TIME, text = "1–1"),
+                    TimelineEntry("54'", TimelineKind.GOAL, 0, "Bukayo Saka", "Gabriel Martinelli"),
+                    TimelineEntry("60'", TimelineKind.SUB, 1, "Nicolas Jackson", "Christopher Nkunku"),
+                ),
+                stats = listOf(StatPair("Possession", "58%", "42%", 0.58f), StatPair("Shots", "14", "9", 0.61f), StatPair("On target", "5", "3", 0.62f),
+                    StatPair("Corners", "6", "2", 0.75f)),
+                lineups = listOf(
+                    Lineup("Arsenal", "4-3-3", listOf(LineupPlayer("David Raya", "1", "G"), LineupPlayer("William Saliba", "2", "CD"), LineupPlayer("Bukayo Saka", "7", "RW")),
+                        listOf(LineupPlayer("Gabriel Jesus", "9", "F"))),
+                    Lineup("Chelsea", "4-2-3-1", listOf(LineupPlayer("Robert Sánchez", "1", "G"), LineupPlayer("Cole Palmer", "10", "AM")),
+                        listOf(LineupPlayer("Christopher Nkunku", "18", "F", subbedIn = true))),
+                ),
+            ), updatedAtMs = now())
+            LiveEventKind.CRICKET -> MatchDetail(event.id, cricket = CricketDetail(
+                innings = listOf(InningsCard(3, "India", "287 (6 wkts; 78.2 ovs)", "(b 4, lb 2)",
+                    listOf(BatRow("Shubman Gill", "not out", "104", "188", "12", "1"), BatRow("Ravindra Jadeja", "not out", "38", "61", "4", "0"),
+                        BatRow("Yashasvi Jaiswal", "caught", "41", "70", "6", "0")),
+                    listOf(BowlRow("Matt Henry", "18.0", "3", "61", "2", "3.38"), BowlRow("Mitchell Santner", "22.2", "4", "70", "1", "3.13")),
+                    listOf(PartnershipRow("7th", "Gill 31", "Jadeja 38", "72", "19.1")))),
+                recentBalls = listOf("78.2 Henry to Gill, FOUR", "78.1 Henry to Gill, no run"),
+                notes = listOf("India, elected to bat first"), batters = "Gill 104*, Jadeja 38*",
+            ), updatedAtMs = now())
+            else -> null
+        }
     }
 
     override suspend fun search(query: String): SearchResults {

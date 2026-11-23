@@ -1,0 +1,113 @@
+{
+ "news": [
+  {
+   "story": "<!--Nov 19-->The video game <i id=\"mwBw\"><b id=\"mwCA\"><a rel=\"mw:WikiLink\" href=\"./Grand_Theft_Auto_VI\" title=\"Grand Theft Auto VI\" id=\"mwCQ\">Grand Theft Auto VI</a></b></i> achieves US$3.79<span typeof=\"mw:Entity\" id=\"mwCg\">&nbsp;</span>billion in sales on its launch day, more than any other entertainment product in history.",
+   "links": [
+    {
+     "title": "Grand_Theft_Auto_VI",
+     "normalizedtitle": "Grand Theft Auto VI",
+     "description": "2026 video game",
+     "thumbnail": {
+      "source": "https://upload.wikimedia.org/wikipedia/en/4/46/Grand_Theft_Auto_VI.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled"
+     },
+     "content_urls": {
+      "desktop": {
+       "page": "https://en.wikipedia.org/wiki/Grand_Theft_Auto_VI"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "story": "<!--Nov 18-->The <a rel=\"mw:WikiLink\" href=\"./Space_probe\" title=\"Space probe\" id=\"mwDA\">space probe</a> <i id=\"mwDQ\"><b id=\"mwDg\"><a rel=\"mw:WikiLink\" href=\"./Voyager_1\" title=\"Voyager 1\" id=\"mwDw\">Voyager 1</a></b></i> <i id=\"mwEA\">(rendering shown)</i> becomes the first human-made object to reach one <a rel=\"mw:WikiLink\" href=\"./Light-second#Use_in_astronomy\" title=\"Light-second\" id=\"mwEQ\">light-day</a> from Earth.",
+   "links": [
+    {
+     "title": "Voyager_1",
+     "normalizedtitle": "Voyager 1",
+     "description": "NASA space probe launched in 1977",
+     "thumbnail": {
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Voyager_spacecraft_model.png/330px-Voyager_spacecraft_model.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
+     },
+     "content_urls": {
+      "desktop": {
+       "page": "https://en.wikipedia.org/wiki/Voyager_1"
+      }
+     }
+    },
+    {
+     "title": "Space_probe",
+     "normalizedtitle": "Space probe",
+     "description": "Unmanned robotic spacecraft",
+     "thumbnail": null,
+     "content_urls": {
+      "desktop": {
+       "page": "https://en.wikipedia.org/wiki/Space_probe"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "story": "<!--Nov 15-->In <a rel=\"mw:WikiLink\" href=\"./Canadian_football\" title=\"Canadian football\" id=\"mwEw\">Canadian football</a>, the <a rel=\"mw:WikiLink\" href=\"./Edmonton_Elks\" title=\"Edmonton Elks\" id=\"mwFA\">Edmonton Elks</a> defeat the <a rel=\"mw:WikiLink\" href=\"./Montreal_Alouettes\" title=\"Montreal Alouettes\" id=\"mwFQ\">Montreal Alouettes</a> to win <b id=\"mwFg\"><a rel=\"mw:WikiLink\" href=\"./113th_Grey_Cup\" title=\"113th Grey Cup\" id=\"mwFw\">the Grey Cup</a></b>.",
+   "links": [
+    {
+     "title": "113th_Grey_Cup",
+     "normalizedtitle": "113th Grey Cup",
+     "description": "2026 Canadian Football championship game",
+     "thumbnail": {
+      "source": "https://thumb.wikimedia.org/wikipedia/en/thumb/8/81/2026_Grey_Cup.png/330px-2026_Grey_Cup.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
+     },
+     "content_urls": {
+      "desktop": {
+       "page": "https://en.wikipedia.org/wiki/113th_Grey_Cup"
+      }
+     }
+    },
+    {
+     "title": "Canadian_football",
+     "normalizedtitle": "Canadian football",
+     "description": "Canadian team sport",
+     "thumbnail": {
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9f/JoffreyReynolds.jpg/330px-JoffreyReynolds.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
+     },
+     "content_urls": {
+      "desktop": {
+       "page": "https://en.wikipedia.org/wiki/Canadian_football"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "story": "<!--Nov 12--><a rel=\"mw:WikiLink\" href=\"./Nvidia\" title=\"Nvidia\" id=\"mwGQ\">Nvidia</a> CEO <b id=\"mwGg\"><a rel=\"mw:WikiLink\" href=\"./Jensen_Huang\" title=\"Jensen Huang\" id=\"mwGw\">Jensen Huang</a></b>  resigns amidst allegations of <b id=\"mwHA\"><a rel=\"mw:WikiLink\" href=\"./Jensen_Huang_scandal\" title=\"Jensen Huang scandal\" id=\"mwHQ\">being targeted by a Chinese spy</a></b> and of having extramarital affairs.",
+   "links": [
+    {
+     "title": "Jensen_Huang",
+     "normalizedtitle": "Jensen Huang",
+     "description": "Taiwanese-American businessman (born 1963)",
+     "thumbnail": {
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c8/Jensen_Huang_Stanford_2026-04-30_010_%28cropped%29.jpg/330px-Jensen_Huang_Stanford_2026-04-30_010_%28cropped%29.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
+     },
+     "content_urls": {
+      "desktop": {
+       "page": "https://en.wikipedia.org/wiki/Jensen_Huang"
+      }
+     }
+    },
+    {
+     "title": "Nvidia",
+     "normalizedtitle": "Nvidia",
+     "description": "American multinational technology company",
+     "thumbnail": {
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/75/2788-2888_San_Tomas_Expwy.jpg/330px-2788-2888_San_Tomas_Expwy.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail"
+     },
+     "content_urls": {
+      "desktop": {
+       "page": "https://en.wikipedia.org/wiki/Nvidia"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

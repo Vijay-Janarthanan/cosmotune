@@ -262,19 +262,22 @@ interface WatchRepository {
     suspend fun nowNext(channel: Channel): LiveNowItem
     suspend fun setFavouriteChannel(key: WatchKey, favourite: Boolean)
 
-    // Live now: matches and live specials
+    // Spotlight: matches, live specials, news and coming events
     /**
-     * The "Live now" strip's events: cricket and football matches in play, about to start (the next 24 hours) or just
-     * finished (started in the last 16 hours), and big live shows on DD or an official YouTube channel. Emits what is cached at once,
-     * then again after each poll for as long as it is collected (about every minute while something is live, every ten
-     * minutes otherwise). Ranked: live first, then upcoming by start, then finished; within each, the viewer's country and
-     * language first (`WatchPlace`). Each event's [LiveEvent.watchOptions] are free streams our plugins can play; a source
-     * that is not set up or does not answer is left out, never fails the flow.
+     * The Spotlight's events: football and cricket matches in play, coming up (the next week) or finished in the last day, big live
+     * shows on DD or an official YouTube channel, the world's news ranked by how many outlets carry a story, the viewer's own
+     * country's news, and elections and summits of the next 60 days. Emits what is cached at once, then again after each read for as
+     * long as it is collected (`SpotlightSchedule`: quickly while a match is live, every ten minutes and at the next kick-off
+     * otherwise). Matches come first (live, coming, finished; the big ones and the viewer's country first), then the news, then the
+     * events. A source that does not answer is left out, never fails the flow.
      */
     fun liveEvents(): Flow<List<LiveEvent>> = flowOf(emptyList())
 
-    /** [liveEvents] for what [interest] follows: the live channels are asked only when it can use them (see [LiveInterest]). */
+    /** [liveEvents] for what [interest] follows and how closely it looks (see [LiveInterest]). */
     fun liveEvents(interest: LiveInterest): Flow<List<LiveEvent>> = liveEvents()
+
+    /** A match's detail (the timeline, stats and line-ups of football; cricket's scorecard), read now; null when there is none. */
+    suspend fun matchDetail(event: LiveEvent): com.cosmotune.watch.model.MatchDetail? = null
 
     // Search
     suspend fun search(query: String): SearchResults

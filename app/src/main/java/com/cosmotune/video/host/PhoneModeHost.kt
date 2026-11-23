@@ -111,7 +111,7 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     val profileAction: (@Composable () -> Unit)? = if (shell != null && (mode == AppMode.MANGA || mode == AppMode.READ || mode == AppMode.PODIO || mode == AppMode.WATCH)) {
         { com.cosmotune.ui.chrome.PhoneModeProfileButton(shell.settings, mode) }
     } else null
-    // Live now, around every mode: the pill under each page's top bar, its sheet, and the reminders.
+    // The Spotlight, around every mode: the strip under each page's top bar, its sheet, the reminders and goals.
     val liveContext = LocalContext.current
     val liveSettings = com.cosmotune.ui.live.rememberLiveNowSettings()
     val live = remember(shell, liveSettings, liveContext) {
@@ -120,6 +120,7 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
                 events = { interest -> com.cosmotune.music.watch.AndroidWatch.repository(liveContext).liveEvents(interest) },
                 settings = liveSettings,
                 play = com.cosmotune.ui.live.watchModePlay(it.settings),
+                detail = { event -> com.cosmotune.music.watch.AndroidWatch.repository(liveContext).matchDetail(event) },
             )
         }
     }
