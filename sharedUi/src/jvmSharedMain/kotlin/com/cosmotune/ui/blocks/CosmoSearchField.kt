@@ -162,7 +162,9 @@ fun CosmoSearchField(
                     keyboard?.show()
                 },
                 style = CosmoIconButtonStyle.PLAIN,
-                size = 40.dp,
+                // A short field (the desktop sidebar's 40 dp) keeps 6 dp of its own fill round the button, which would fill it.
+                size = if (height < 48.dp) 28.dp else 40.dp,
+                modifier = if (height < 48.dp) Modifier.padding(end = 4.dp) else Modifier,
             )
         } else if (keyHint != null) {
             KeyCap(keyHint, Modifier.padding(start = 8.dp, end = 14.dp))
