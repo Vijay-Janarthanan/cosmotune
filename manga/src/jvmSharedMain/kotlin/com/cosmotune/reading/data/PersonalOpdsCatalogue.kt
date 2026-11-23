@@ -119,6 +119,7 @@ class PersonalOpdsCatalogue(
         if (parsed.username.isNotEmpty() || parsed.password.isNotEmpty() || (!parsed.isHttps && !(allowInsecureHttp && sameOrigin(parsed)))) return null
         val kind = when {
             relation == "search" -> ReadingLinkKind.SEARCH
+            relation == PAGE_STREAM && templated -> ReadingLinkKind.STREAM
             relation.endsWith("/sample") -> ReadingLinkKind.SAMPLE
             relation.endsWith("/borrow") -> ReadingLinkKind.BORROW
             relation.endsWith("/buy") -> ReadingLinkKind.BUY
@@ -165,7 +166,10 @@ class PersonalOpdsCatalogue(
     private fun Element.local() = tagName().substringAfter(':')
     private fun Element.childText(name: String) = children().firstOrNull { it.local() == name }?.text().orEmpty()
     private fun Element.links(base: HttpUrl) = children().filter { it.local() == "link" }.mapNotNull {
-        link(base, it.attr("href"), it.attr("title").ifBlank { childText("title") }, it.attr("type"), it.attr("rel"))
+        link(base, it.attr("href"), it.attr("title").ifBlank { childText("title") }, it.attr("type"), it.attr("rel"))?.let { found ->
+            if (found.kind != ReadingLinkKind.STREAM) found else found.copy(count = it.attr("pse:count").toIntOrNull()?.coerceIn(0, 10_000) ?: 0,
+                lastRead = it.attr("pse:lastRead").toIntOrNull()?.coerceAtLeast(0) ?: 0).takeIf { stream -> stream.count > 0 }
+        }
     }
 
     private fun parseJson(text: String, base: HttpUrl): ReadingCataloguePage {
@@ -211,3 +215,6 @@ class PersonalOpdsCatalogue(
 
     companion object { private const val MAX_BYTES = 2 * 1024 * 1024; private const val MAX_ITEMS = 200 }
 }
+
+/** The OPDS page-streaming relation Komga and Kavita advertise for comics. */
+internal const val PAGE_STREAM = "http://vaemendis.net/opds-pse/stream"

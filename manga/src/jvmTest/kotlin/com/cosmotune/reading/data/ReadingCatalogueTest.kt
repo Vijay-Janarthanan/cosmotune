@@ -25,6 +25,36 @@ class ReadingCatalogueTest {
         }
     }
 
+    @Test fun komgaPageStreamsGiveTheirCountAndPlaceAndPagesComeFromTheLibraryOnly() = runBlocking<Unit> {
+        MockWebServer().use { server ->
+            server.start()
+            val feed = """<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom" xmlns:pse="http://vaemendis.net/opds-pse/ns"><title>Komga</title>
+                <entry><id>b1</id><title>Saga 1</title><author><name>Vaughan</name></author>
+                <link rel="http://vaemendis.net/opds-pse/stream" type="image/jpeg" href="/opds/v1.2/books/b1/pages/{pageNumber}?convert=jpeg&amp;zero_based=true" pse:count="34" pse:lastRead="5"/>
+                <link rel="http://vaemendis.net/opds-pse/stream" type="image/jpeg" href="/opds/v1.2/books/b1/pages/1" pse:count="3"/>
+                </entry></feed>"""
+            server.enqueue(MockResponse().setBody(feed).setHeader("Content-Type", "application/atom+xml"))
+            val page = PersonalOpdsCatalogue("komga", server.url("/opds/v1.2/catalog").toString(), "me", "pw", allowInsecureHttp = true).browse()
+            val stream = page.publications.single().links.single { it.kind == ReadingLinkKind.STREAM }
+            assertEquals(34, stream.count); assertEquals(5, stream.lastRead)
+            assertEquals(1, page.publications.single().links.count { it.kind == ReadingLinkKind.STREAM }, "a stream without {pageNumber} is not one")
+            server.takeRequest()
+
+            val folder = kotlin.io.path.createTempDirectory("stream").toFile()
+            try {
+                val repository = ReadingRepository(folder)
+                repository.store.update { it.copy(sources = listOf(ReadingOpdsSource("komga", "Komga", server.url("/opds/v1.2/catalog").toString(), "me", "pw", allowInsecureHttp = true))) }
+                server.enqueue(MockResponse().setBody(okio.Buffer().write(byteArrayOf(1, 2, 3))))
+                assertContentEquals(byteArrayOf(1, 2, 3), repository.streamPage(page.publications.single(), stream, 7))
+                val asked = server.takeRequest()
+                assertEquals("/opds/v1.2/books/b1/pages/7?convert=jpeg&zero_based=true", asked.path)
+                assertEquals(Credentials.basic("me", "pw"), asked.getHeader("Authorization"))
+                val elsewhere = stream.copy(url = "https://elsewhere.example/pages/{pageNumber}")
+                assertFails { repository.streamPage(page.publications.single().copy(links = listOf(elsewhere)), elsewhere, 0) }
+            } finally { folder.deleteRecursively() }
+        }
+    }
+
     @Test fun standardEbooksOffersOnlyTheCompatibleEpubFromItsOwnSite() = runBlocking<Unit> {
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             assertEquals("https://standardebooks.org/feeds/atom/new-releases", chain.request().url.toString())

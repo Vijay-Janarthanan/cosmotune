@@ -21,10 +21,14 @@ import kotlinx.serialization.Serializable
     val publishedDate: String? = null,
 )
 
-@Serializable enum class ReadingLinkKind { BROWSE, SEARCH, ACQUIRE, SAMPLE, BORROW, BUY, DETAILS, OTHER }
+@Serializable enum class ReadingLinkKind { BROWSE, SEARCH, ACQUIRE, SAMPLE, BORROW, BUY, DETAILS, OTHER,
+    /** OPDS page streaming (Komga, Kavita): one page at a time, {pageNumber} in the address. */
+    STREAM }
 
 @Serializable data class ReadingLink(val title: String, val url: String, val mediaType: String = "", val relation: String = "",
-    val kind: ReadingLinkKind = ReadingLinkKind.OTHER) {
+    val kind: ReadingLinkKind = ReadingLinkKind.OTHER,
+    /** A page stream's page count, and the page the server says was read last (0 at the start). */
+    val count: Int = 0, val lastRead: Int = 0) {
     private val mime get() = mediaType.substringBefore(';').trim().lowercase()
 
     val downloadFormat: ReadingFormat? get() = when {

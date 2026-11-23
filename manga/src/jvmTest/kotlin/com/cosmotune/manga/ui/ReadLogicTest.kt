@@ -124,7 +124,7 @@ class ReadLogicTest {
 
     @Test fun tabsMapEveryChannelValueOntoTheirMode() {
         assertEquals(listOf("Library", "Updates", "Browse", "Sources", "History"), MangaTabs.all)
-        assertEquals(listOf("Library", "Browse", "Bookmarks"), BookTabs.all)
+        assertEquals(listOf("Library", "Browse", "Listen", "Bookmarks"), BookTabs.all)
         assertEquals(MangaTabs.BROWSE, MangaTabs.of("Discover"))
         assertEquals(MangaTabs.LIBRARY, MangaTabs.of("Bookmarks"))
         assertEquals(MangaTabs.LIBRARY, MangaTabs.of("Home"))

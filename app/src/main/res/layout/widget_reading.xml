@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Reading now widget: the cover at the left, the book's title over its author and place, and a thin line of how far you are.
+  The whole card opens the book in Read. 16dp inside the card, 12dp from the cover to the text, 8dp from the text to the line.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_reading"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_reading_background"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="16dp">
+
+    <ImageView
+        android:id="@+id/widget_reading_cover"
+        android:layout_width="56dp"
+        android:layout_height="80dp"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_reading_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/widget_reading_label"
+            android:textAllCaps="true"
+            android:textColor="#B3FFFFFF"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/widget_reading_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="#FFFFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_reading_line"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#CCFFFFFF"
+            android:textSize="13sp" />
+
+        <ProgressBar
+            android:id="@+id/widget_reading_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="8dp"
+            android:max="1000"
+            android:progressTint="#FFFFFFFF"
+            android:progressBackgroundTint="#40FFFFFF" />
+    </LinearLayout>
+</LinearLayout>

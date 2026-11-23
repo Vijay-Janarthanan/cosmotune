@@ -289,6 +289,20 @@ Desktop PDF pages use Apache PDFBox 3.0.7 (including FontBox and pdfbox-io), lic
 
 Book discovery identifies Open Library as its metadata/trending provider and the official Project Gutenberg OPDS catalogue as its public-domain transport: https://openlibrary.org/developers/api and https://www.gutenberg.org/ebooks/offline_catalogs.html . User-configured OPDS servers and individual publications retain their own access conditions and rights. No book catalogue or commercial book content is bundled in the app. Paperback's public toolchain was reviewed for compatibility; its source/runtime is not incorporated.
 
+Book formats Read converts on import (`manga/.../reading/data/ReadingConvert*.kt`, `ReadingMobi.kt`) are read from their public descriptions (MobileRead wiki for MOBI/PalmDOC and KF8, the FictionBook 2 schema, Office Open XML, the RTF 1.9 specification, RFC 2557 for saved web pages). The HUFF/CDIC decompressor follows calibre's `ebooks/mobi/huffcdic.py` (Kovid Goyal, GPL-3.0), written again in Kotlin. StarDict dictionaries are read from the StarDict file-format description. Look-ups use Wiktionary and Wikipedia (text CC BY-SA 4.0, credited in the sheet) and the MyMemory translation API (keyless free tier).
+
+CHM help books are unpacked with the CHM reader of Apache Tika 3.3.1 (`org.apache.tika.parser.microsoft.chm`, with Tika's two exception classes), licensed under Apache-2.0: https://tika.apache.org/ . Only those classes are taken from the released jars (unchanged) and packed by the build with Tika's licence and notice files; the rest of Tika is not included. It uses Apache Commons IO (Apache-2.0) and the SLF4J API (MIT). The CHM file in the tests, `manga/src/jvmTest/resources/chm/testChm.chm`, is Apache Tika's test document `testChm.chm` (from `tika-parsers/.../test-documents`, Copyright The Apache Software Foundation, Apache-2.0), kept unchanged.
+
+Read's Listen shelf talks to the listener's own Audiobookshelf server through its public REST API (https://api.audiobookshelf.org/), written for Cosmotune; Audiobookshelf (GPL-3.0) code is not included. LibriVox recordings (public domain, https://librivox.org/) are listed and streamed from the Internet Archive's public search and download addresses. Audiobook chapters and tags are read from the MP4 (Nero chpl and QuickTime chapter track) and ID3v2/Xing layouts as publicly described.
+
+Read's Nearby sends and receives books with the LocalSend protocol v2 (https://github.com/localsend/protocol, MIT), so it finds Cosmotune on other devices and the LocalSend apps; the code is written for Cosmotune and no LocalSend code is included.
+
+Read's calibre connection speaks calibre's wireless device (smart device app) protocol as calibre documents and implements it; calibre (GPL-3.0, https://calibre-ebook.com/) code is not included.
+
+Recorded narration in EPUB books (listening along) is read from the W3C EPUB 3 Media Overlays specification; matching a book's chapters to an audiobook's is Cosmotune's own.
+
+Read's Hardcover sync uses Hardcover's public GraphQL API (https://docs.hardcover.app/api/getting-started/) with the reader's own API key; no Hardcover code is included.
+
 ## BitChord 1.10 (November 2026)
 
 These are adapted from BitChord 1.10 by kushagrasinghx and its contributors (GPL-3.0), tag commit `7448b92e03`, written against

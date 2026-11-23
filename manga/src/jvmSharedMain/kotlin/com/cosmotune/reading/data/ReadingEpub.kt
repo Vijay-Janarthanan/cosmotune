@@ -13,7 +13,10 @@ import org.jsoup.parser.Parser
 internal object ReadingEpub {
     data class Package(val title: String, val authors: List<String>, val language: String, val description: String,
         val root: File, val spine: List<ReadingEpubSection>, val navigation: List<ReadingNavigation>,
-        val resources: Map<String, ReadingResource>, val cover: File?)
+        val resources: Map<String, ReadingResource>, val cover: File?, val series: String = "", val seriesIndex: Double? = null,
+        val subjects: List<String> = emptyList(),
+        /** Recorded narration (EPUB 3 media overlays) by chapter path, and the class the book asks the spoken words to wear. */
+        val overlays: Map<String, ReadingOverlay> = emptyMap(), val overlayClass: String = "")
 
     suspend fun open(archive: File, destination: File): Package {
         val staging = File(destination.parentFile, destination.name + ".staging-" + java.util.UUID.randomUUID()).apply { mkdirs() }
@@ -104,14 +107,32 @@ internal object ReadingEpub {
                 ReadingEpubSection(path, resource.file, resource.mediaType, navigation.firstOrNull { it.href.substringBefore('#') == path }?.title.orEmpty())
             }
             require(spine.isNotEmpty()) { "EPUB contains no readable chapters." }
+            // Media overlays: each chapter's manifest item names its SMIL file by id; damaged ones are left out, not fatal.
+            val itemsById = items.associateBy { it.attr("id") }
+            val overlays = spineNode.children().filter { it.local() == "itemref" }.mapNotNull { ref ->
+                val item = itemsById[ref.attr("idref")] ?: return@mapNotNull null
+                val chapter = ids[item.attr("id")] ?: return@mapNotNull null
+                val smilPath = item.attr("media-overlay").takeIf { it.isNotBlank() }?.let(ids::get) ?: return@mapNotNull null
+                val overlay = runCatching { ReadingOverlays.parse(xml(File(staging, smilPath)), smilPath, chapter, ::resolve) }.getOrNull()
+                    ?.takeIf { it.clips.isNotEmpty() && it.audio.all { href -> resources[href]?.mediaType?.startsWith("audio/") == true } } ?: return@mapNotNull null
+                chapter to overlay
+            }.toMap()
             val coverId = metadata?.children()?.firstOrNull { it.local() == "meta" && it.attr("name") == "cover" }?.attr("content")
             val coverPath = items.firstOrNull { "cover-image" in it.attr("properties").split(' ') }?.attr("id")?.let(ids::get)
                 ?: coverId?.let(ids::get)
             if (destination.exists()) deleteOwned(destination)
             ReadingStore.move(staging, destination)
             val relocated = resources.mapValues { (_, resource) -> resource.copy(file = File(destination, resource.href)) }
+            // Series: EPUB 3's belongs-to-collection (with its group-position), else calibre's own series metadata.
+            val metas = metadata?.children()?.filter { it.local() == "meta" }.orEmpty()
+            val collection = metas.firstOrNull { it.attr("property") == "belongs-to-collection" }
+            val series = collection?.text()?.trim().takeUnless { it.isNullOrBlank() } ?: metas.firstOrNull { it.attr("name") == "calibre:series" }?.attr("content")?.trim().orEmpty()
+            val seriesIndex = (collection?.attr("id")?.takeIf { it.isNotBlank() }?.let { id -> metas.firstOrNull { it.attr("refines") == "#$id" && it.attr("property") == "group-position" }?.text() }
+                ?: metas.firstOrNull { it.attr("name") == "calibre:series_index" }?.attr("content"))?.trim()?.toDoubleOrNull()
             return Package(title, texts("creator"), texts("language").firstOrNull().orEmpty(), texts("description").firstOrNull().orEmpty(),
-                destination, spine.map { it.copy(file = File(destination, it.href)) }, navigation, relocated, coverPath?.let { File(destination, it) })
+                destination, spine.map { it.copy(file = File(destination, it.href)) }, navigation, relocated, coverPath?.let { File(destination, it) },
+                series.take(200), seriesIndex, texts("subject").map { it.trim().take(80) }.filter { it.isNotBlank() }.distinct().take(20),
+                overlays, metas.firstOrNull { it.attr("property") == "media:active-class" }?.text()?.trim()?.takeIf { it.matches(Regex("[A-Za-z_-][A-Za-z0-9_-]{0,60}")) }.orEmpty())
         } finally { if (staging.exists()) deleteOwned(staging) }
     }
 

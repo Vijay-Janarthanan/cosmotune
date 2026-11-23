@@ -233,6 +233,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
     var detailsError by remember(initialPublication.id) { mutableStateOf<String?>(null) }
     var detailsRetry by remember(initialPublication.id) { mutableIntStateOf(0) }
     var transfer by remember { mutableStateOf<Job?>(null) }
+    var streaming by remember(initialPublication.id) { mutableStateOf<ReadingLink?>(null) }
     var progress by remember { mutableStateOf("") }
     var editions by remember(publication.id) { mutableStateOf(emptyList<ReadingPublication>()) }
     var editionsOffset by remember(publication.id) { mutableStateOf<Int?>(null) }
@@ -256,6 +257,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
         ?: publication.sourceLabel(emptyList()).substringBefore(" · ").takeUnless { it == "Personal library" }
         ?: publication.sourceId.ifBlank { "Personal library" }
     val (fill, _) = com.cosmotune.ui.orbit.coverFill(publication.coverUrl, publication.id)
+    streaming?.let { link -> BookPageStream(repository, publication, link, onBack = { streaming = null }); return }
     Box(Modifier.fillMaxSize()) {
         com.cosmotune.ui.orbit.OrbitPageWash(fill)
         LazyColumn(Modifier.fillMaxSize().testTag("books:details"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
@@ -295,6 +297,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
                 val format = link.downloadFormat
                 val downloadable = format != null
                 val label = when {
+                    link.kind == ReadingLinkKind.STREAM -> "Read page by page · ${link.count} pages"
                     format != null -> "Download ${format.name}" +
                         link.title.takeIf { it.isNotBlank() && it != publication.title }?.let { " · ${it.take(100)}" }.orEmpty()
                     link.kind == ReadingLinkKind.BORROW -> "Borrow from provider"
@@ -303,15 +306,17 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
                     link.requiresExternalReader -> "Open protected edition with provider"
                     else -> link.title.ifBlank { "View at source" }
                 }
-                ReadSheetRow(label, if (downloadable) CosmoIcons.Download else Icons.AutoMirrored.Rounded.OpenInNew, enabled = transfer?.isActive != true, onClick = {
-                    if (downloadable) transfer = action {
+                ReadSheetRow(label, if (link.kind == ReadingLinkKind.STREAM) CosmoIcons.Library else if (downloadable) CosmoIcons.Download else Icons.AutoMirrored.Rounded.OpenInNew,
+                    enabled = transfer?.isActive != true, onClick = {
+                    if (link.kind == ReadingLinkKind.STREAM) streaming = link
+                    else if (downloadable) transfer = action {
                         val book = repository.download(publication, link) { done, total -> progress = if (total != null && total > 0) "${done / 1024} / ${total / 1024} KB" else "${done / 1024} KB downloaded" }
                         scope.open(book)
                     } else runCatching { uri.openUri(link.url) }.onFailure { scope.onError("This source link could not be opened.") }
                 })
             }
             if (!detailsLoading && detailsError == null && publication.links.none { it.downloadFormat != null }) item(key = "no-download") {
-                Text("No downloadable edition was supplied by this catalogue. You can import an EPUB or PDF you already have.", style = ReadType.body(),
+                Text("No downloadable edition was supplied by this catalogue. You can import a copy you already have.", style = ReadType.body(),
                     color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = ReadMargin, vertical = 12.dp))
             }
             if (publication.sourceId == "openlibrary" || publication.id.startsWith("openlibrary:")) {
@@ -359,6 +364,7 @@ internal fun BookConnections(repository: ReadingRepository, onDismiss: () -> Uni
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var insecure by remember { mutableStateOf(false) }
+    var hint by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val palette = LocalCosmoColors.current.palette
@@ -375,6 +381,13 @@ internal fun BookConnections(repository: ReadingRepository, onDismiss: () -> Uni
                     com.cosmotune.manga.ui.ReadTextButton("Remove", { scope.launch { runCatching { repository.removeOpdsSource(source.id) }.onFailure { onError("The connection could not be removed.") } } })
                 }
             }
+            item {
+                // Presets for the common library servers: they fill the name and the address's shape, which is then completed by hand.
+                com.cosmotune.manga.ui.ReadChipRow(inset = 0.dp) {
+                    libraryPresets.forEach { (label, address) -> com.cosmotune.manga.ui.ReadChip(label, name == label, { name = label; url = address; hint = libraryHints[label] }) }
+                }
+            }
+            hint?.let { line -> item { Text(line, style = ReadType.caption(), color = Color(palette.textSecondary)) } }
             item { OrbitInputField(name, { name = it }, "Library name", modifier = Modifier.fillMaxWidth()) }
             item { OrbitInputField(url, { url = it }, "OPDS address", modifier = Modifier.fillMaxWidth()) }
             item { OrbitInputField(username, { username = it }, "Username (optional)", modifier = Modifier.fillMaxWidth()) }
@@ -397,3 +410,17 @@ internal fun BookConnections(repository: ReadingRepository, onDismiss: () -> Uni
         onDismiss = onDismiss,
     )
 }
+
+/** The library servers people run at home, with the shape of their OPDS address. */
+internal val libraryPresets = listOf(
+    "Calibre" to "http://192.168.1.2:8080/opds",
+    "Calibre-Web" to "https://books.example.com/opds",
+    "Kavita" to "https://kavita.example.com/api/opds/YOUR-API-KEY",
+    "Komga" to "https://komga.example.com/opds/v1.2/catalog",
+)
+internal val libraryHints = mapOf(
+    "Calibre" to "Calibre: Preferences › Sharing over the net › Start server. Put your computer's address and port; allow HTTP below for a home network.",
+    "Calibre-Web" to "Calibre-Web: your server's address with /opds at the end, and your Calibre-Web sign-in.",
+    "Kavita" to "Kavita: copy your OPDS address from User settings › 3rd Party Clients (it holds your API key); no password needed.",
+    "Komga" to "Komga: your server's address with /opds/v1.2/catalog, and your Komga sign-in. Collections and read lists show in Browse.",
+)

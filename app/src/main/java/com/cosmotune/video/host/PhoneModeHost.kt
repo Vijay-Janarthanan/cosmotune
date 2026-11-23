@@ -100,6 +100,11 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     LaunchedEffect(stationLink.value != null, shell) {
         if (stationLink.value != null && shell != null && AppModes.available(AppMode.PODIO)) shell.settings.setMode(AppMode.PODIO)
     }
+    // A book the Reading now widget opens ([com.cosmotune.reading.ReadingWidget]): Read becomes the mode and opens it.
+    val readBook = com.cosmotune.reading.ui.ReadingAndroidShelf.pendingBook.collectAsStateWithLifecycle()
+    LaunchedEffect(readBook.value != null, shell) {
+        if (readBook.value != null && shell != null && AppModes.available(AppMode.READ)) shell.settings.setMode(AppMode.READ)
+    }
     // A Watch item the room opens here ([com.cosmotune.music.watch.RoomWatch]): Watch becomes the mode, its player page attached.
     val roomWatch = com.cosmotune.music.watch.RoomWatch.opening.collectAsStateWithLifecycle()
     LaunchedEffect(roomWatch.value, shell) {
@@ -159,7 +164,10 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
             CompositionLocalProvider(com.cosmotune.ui.shell.LocalCosmoMusicMini provides rememberPhoneMusicMini(shell.settings)) {
-                com.cosmotune.ui.theme.ModeGround { com.cosmotune.reading.ui.ReadApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
+                // Audiobooks play on the app's own player, so they go on with the screen off and show in Music's small player.
+                CompositionLocalProvider(com.cosmotune.reading.ui.LocalReadingAudio provides com.cosmotune.reading.rememberPhoneReadingAudio()) {
+                    com.cosmotune.ui.theme.ModeGround { com.cosmotune.reading.ui.ReadApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
+                }
             }
         }
         else if (shell != null && mode == AppMode.PODIO) holder.SaveableStateProvider("podio") {

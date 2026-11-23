@@ -154,6 +154,8 @@ fun OrbitReaderCard(
     modifier: Modifier = Modifier,
     onSeek: ((Float) -> Unit)? = null,
     leading: (@Composable RowScope.() -> Unit)? = null,
+    /** Hears the place under a drag along the line (null when it ends); see [OrbitProgressLine]. */
+    onScrub: ((Float?) -> Unit)? = null,
     buttons: @Composable RowScope.() -> Unit,
 ) {
     val fonts = orbitFonts()
@@ -162,7 +164,7 @@ fun OrbitReaderCard(
             if (leading != null) { leading(); Spacer(Modifier.width(10.dp)) }
             Text(label.uppercase(), style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         }
-        OrbitProgressLine(progress, ink, Modifier.padding(top = 8.dp), onSeek = onSeek, moon = 5.dp)
+        OrbitProgressLine(progress, ink, Modifier.padding(top = 8.dp), onSeek = onSeek, moon = 5.dp, onScrub = onScrub)
         Row(Modifier.padding(top = 6.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically, content = buttons)
     }
 }

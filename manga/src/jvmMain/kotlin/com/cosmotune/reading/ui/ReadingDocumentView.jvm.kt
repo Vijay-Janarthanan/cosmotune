@@ -36,16 +36,16 @@ internal actual val readingCenterTap: Boolean = false
 
 @Composable actual fun ReadingDocumentView(document: ReadingDocument, locator: ReadingLocator,
     preferences: ReadingPreferences, searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit,
-    onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit) {
+    onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit, control: ReadingPageControl?) {
     when (document) {
-        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier, onCenterTap)
-        is ReadingDocument.Epub -> DesktopReadingEpub(document, locator, preferences, searchQuery, onLocatorChanged, onError, modifier)
+        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier, onCenterTap, preferences)
+        is ReadingDocument.Epub -> DesktopReadingEpub(document, locator, preferences, searchQuery, onLocatorChanged, onError, modifier, control)
     }
 }
 
 @Composable private fun DesktopReadingEpub(document: ReadingDocument.Epub, locator: ReadingLocator,
     preferences: ReadingPreferences, searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit,
-    onError: (String) -> Unit, modifier: Modifier) {
+    onError: (String) -> Unit, modifier: Modifier, control: ReadingPageControl?) {
     val dark = isSystemInDarkTheme()
     val latestLocator by rememberUpdatedState(onLocatorChanged)
     val latestError by rememberUpdatedState(onError)
@@ -53,7 +53,7 @@ internal actual val readingCenterTap: Boolean = false
     val latestSearch by rememberUpdatedState(searchQuery)
     val latestDark by rememberUpdatedState(dark)
     val scope = rememberCoroutineScope()
-    val controller = remember(document) { DesktopEpubController(document) }
+    val controller = remember(document) { DesktopEpubController(document, control) }
     var ready by remember(controller) { mutableStateOf(false) }
     var loaded by remember(controller) { mutableStateOf(false) }
     var matches by remember(controller) { mutableStateOf(0) }
@@ -61,6 +61,10 @@ internal actual val readingCenterTap: Boolean = false
     var lastEmitted by remember(controller) { mutableStateOf<ReadingLocator?>(null) }
     var requested by remember(controller) { mutableStateOf(locator) }
     DisposableEffect(controller) { onDispose { controller.close() } }
+    DisposableEffect(controller, control) {
+        control?.evaluator = { script -> if (!ready || !loaded) null else controller.fx { engine.executeScript(script) }?.toString()?.takeIf { it != "undefined" } }
+        onDispose { control?.evaluator = null }
+    }
     LaunchedEffect(controller) {
         try {
             controller.awaitReady()
@@ -73,10 +77,11 @@ internal actual val readingCenterTap: Boolean = false
                             val desired = requested.resourceHref?.substringBefore('#') ?: document.spine.first().href
                             if (actual != null && desired != loadedHref) requested = ReadingLocator(actual)
                             loaded = loadedHref != null
-                            controller.fx { engine.executeScript(ReadingEpubScripts.preferences(latestPrefs, latestDark)); engine.executeScript(ReadingEpubScripts.restore(requested)) }
+                            controller.fx { engine.executeScript(ReadingEpubScripts.preferences(latestPrefs, latestDark, controller.content.origin)); engine.executeScript(ReadingEpubScripts.restore(requested)) }
                             delay(200)
                             controller.fx { engine.executeScript(ReadingEpubScripts.restore(requested)) }
                             ready = true
+                            control?.loaded(loadedHref)
                             matches = (controller.fx { engine.executeScript(ReadingEpubScripts.search(latestSearch)) } as? Number)?.toInt() ?: 0
                         }
                     } else if (state == Worker.State.SCHEDULED) loaded = false
@@ -101,7 +106,7 @@ internal actual val readingCenterTap: Boolean = false
             controller.fx { engine.load(controller.content.url(locator.resourceHref?.takeIf { it.substringBefore('#') == href } ?: href)) }
         } else controller.fx { engine.executeScript(ReadingEpubScripts.restore(locator)) }
     }
-    LaunchedEffect(controller, preferences, dark) { if (ready && loadedHref != null) controller.fx { engine.executeScript(ReadingEpubScripts.preferences(preferences, dark)); engine.executeScript(ReadingEpubScripts.restore(lastEmitted ?: requested)) } }
+    LaunchedEffect(controller, preferences, dark) { if (ready && loadedHref != null) controller.fx { engine.executeScript(ReadingEpubScripts.preferences(preferences, dark, controller.content.origin)); engine.executeScript(ReadingEpubScripts.restore(lastEmitted ?: requested)) } }
     LaunchedEffect(controller, searchQuery) { if (ready && loadedHref != null) matches = (controller.fx { engine.executeScript(ReadingEpubScripts.search(searchQuery)) } as? Number)?.toInt() ?: 0 }
     LaunchedEffect(controller) {
         while (isActive) {
@@ -121,14 +126,14 @@ internal actual val readingCenterTap: Boolean = false
     Column(modifier) {
         if (searchQuery.isNotBlank()) Text("$matches matches in this section", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium)
         if (!preferences.scrollMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            ReadTextButton("Previous screen", { scope.launch { controller.fx { engine.executeScript("window.scrollBy(0,-window.innerHeight*0.88)") } } })
-            ReadTextButton("Next screen", { scope.launch { controller.fx { engine.executeScript("window.scrollBy(0,window.innerHeight*0.88)") } } })
+            ReadTextButton("Previous screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(false, preferences.slideTurn && !preferences.eInk, preferences.curlTurn && !preferences.eInk)) } } })
+            ReadTextButton("Next screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(true, preferences.slideTurn && !preferences.eInk, preferences.curlTurn && !preferences.eInk)) } } })
         }
         SwingPanel(factory = { controller.panel }, modifier = Modifier.fillMaxSize())
     }
 }
 
-private class DesktopEpubController(document: ReadingDocument.Epub) : AutoCloseable {
+private class DesktopEpubController(document: ReadingDocument.Epub, private val control: ReadingPageControl?) : AutoCloseable {
     val server = ReadingEpubServer(document)
     val content get() = server.content
     val panel = JFXPanel()
@@ -145,6 +150,15 @@ private class DesktopEpubController(document: ReadingDocument.Epub) : AutoClosea
                 web.engine.createPopupHandler = javafx.util.Callback { null }
                 web.engine.setOnAlert { }
                 web.engine.confirmHandler = javafx.util.Callback { false }
+                // Page Down, Page Up, space and the side arrows turn a screen (a page of two columns sideways), as a page-turn pedal sends them.
+                web.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED) { key ->
+                    val forward = when (key.code) {
+                        javafx.scene.input.KeyCode.PAGE_DOWN, javafx.scene.input.KeyCode.RIGHT, javafx.scene.input.KeyCode.SPACE -> true
+                        javafx.scene.input.KeyCode.PAGE_UP, javafx.scene.input.KeyCode.LEFT -> false
+                        else -> null
+                    }
+                    if (forward != null && !key.isShiftDown) { web.engine.executeScript(ReadingEpubScripts.page(forward, control?.slide == true, control?.curl == true)); key.consume() }
+                }
                 panel.scene = Scene(web)
                 started.complete(Unit)
             } catch (e: Throwable) { started.completeExceptionally(e) }
@@ -162,6 +176,12 @@ private class DesktopEpubController(document: ReadingDocument.Epub) : AutoClosea
 
 internal actual fun openReadingPdf(file: File): ReadingPdfEngine = DesktopReadingPdf(file)
 internal actual fun supportsReadingPdfSearch(): Boolean = true
+/** The text of each page of [file], read by PDFBox. */
+internal actual fun readingPdfText(file: File): List<String>? = Loader.loadPDF(file, org.apache.pdfbox.io.IOUtils.createTempFileOnlyStreamCache()).use { pdf ->
+    val stripper = PDFTextStripper()
+    (1..pdf.numberOfPages).map { page -> stripper.startPage = page; stripper.endPage = page; stripper.getText(pdf) }
+}
+
 internal class DesktopReadingPdf(file: File) : ReadingPdfEngine {
     private val pdf: PDDocument = Loader.loadPDF(file, org.apache.pdfbox.io.IOUtils.createTempFileOnlyStreamCache())
     private val renderer = PDFRenderer(pdf).apply { isSubsamplingAllowed = true }
@@ -189,16 +209,32 @@ internal class DesktopReadingPdf(file: File) : ReadingPdfEngine {
     @Synchronized override fun close() { pdf.close() }
 }
 
-@Composable actual fun rememberReadingImport(onPicked: (String, () -> InputStream) -> Unit): () -> Unit {
+@Composable actual fun rememberReadingSave(onError: (String) -> Unit): (String, String, ByteArray) -> Unit {
+    val scope = rememberCoroutineScope()
+    val latestError by rememberUpdatedState(onError)
+    return remember(scope) { { name, _, bytes -> scope.launch {
+        val target = withContext(Dispatchers.IO) {
+            var chosen: File? = null
+            SwingUtilities.invokeAndWait {
+                val picker = FileDialog(null as Frame?, "Save", FileDialog.SAVE)
+                try { picker.file = name; picker.isVisible = true; picker.file?.let { chosen = File(picker.directory, it) } } finally { picker.dispose() }
+            }
+            chosen
+        } ?: return@launch
+        try { withContext(Dispatchers.IO) { target.writeBytes(bytes) } } catch (_: Exception) { latestError("The file could not be saved there.") }
+    }; Unit } }
+}
+
+@Composable actual fun rememberReadingImport(kind: ReadingPick, onPicked: (String, () -> InputStream) -> Unit): () -> Unit {
     val scope = rememberCoroutineScope()
     val latest by rememberUpdatedState(onPicked)
     return remember(scope) { { scope.launch {
         val selected = withContext(Dispatchers.IO) {
             var chosen: File? = null
             SwingUtilities.invokeAndWait {
-                val picker = FileDialog(null as Frame?, "Import EPUB or PDF", FileDialog.LOAD)
+                val picker = FileDialog(null as Frame?, kind.title, FileDialog.LOAD)
                 try {
-                    picker.setFilenameFilter { _, name -> name.substringAfterLast('.').lowercase() in setOf("epub", "pdf") }
+                    picker.setFilenameFilter { _, name -> name.substringAfterLast('.').lowercase() in kind.extensions || (kind == ReadingPick.BOOK && ReadingConvert.kindOf(name) != null) }
                     picker.isVisible = true
                     picker.file?.let { chosen = File(picker.directory, it) }
                 } finally { picker.dispose() }

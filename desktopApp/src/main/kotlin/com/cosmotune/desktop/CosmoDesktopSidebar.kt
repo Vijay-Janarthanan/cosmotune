@@ -1,5 +1,6 @@
 package com.cosmotune.desktop
 
+import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Explore
@@ -160,6 +161,7 @@ internal fun CosmoDesktopSidebar(
                         OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.CollectionsBookmark, "Library", null, lit == "Library") { go("Library") }
                         if (!read) OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Bell, "Updates", null, lit == "Updates") { go("Updates") }
                         OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Explore, "Browse", null, lit == "Browse") { go("Browse") }
+                        if (read) OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Headphones, "Listen", null, lit == "Listen") { go("Listen") }
                         if (read) OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.BookmarkBorder, "Bookmarks", null, lit == "Bookmarks") { go("Bookmarks") }
                         else {
                             OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Settings, "Sources", null, lit == "Sources") { go("Sources") }

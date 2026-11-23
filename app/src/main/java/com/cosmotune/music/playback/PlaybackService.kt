@@ -1465,6 +1465,20 @@ class PlaybackService : MediaLibraryService() {
     override fun onCreate() {
         super.onCreate()
         registerNetworkCallback()
+        // An audiobook from Read that plays without Read open (in the car, or with the app closed) keeps its place on the shelf,
+        // every 15 seconds, and sends it to Audiobookshelf every minute.
+        scope.launch {
+            var tick = 0
+            while (true) {
+                kotlinx.coroutines.delay(15_000)
+                val current = player ?: continue
+                val id = current.currentMediaItem?.mediaId?.takeIf { it.startsWith("read:audio:") } ?: continue
+                if (!current.isPlaying) continue
+                val position = current.currentPosition
+                tick++
+                launch(Dispatchers.IO) { com.cosmotune.reading.ui.ReadingAndroidShelf.savePlace(this@PlaybackService, id, position, sendRemote = tick % 4 == 0) }
+            }
+        }
 
         if (com.cosmotune.music.data.innertube.Innertube.cookie == null) {
             // The active session of the account registry, and the channel it acts as, the way the application restores it. The
@@ -8894,6 +8908,7 @@ class PlaybackService : MediaLibraryService() {
                     createFolderItem(MEDIA_DOWNLOADS_ID, getString(R.string.downloads), folderType = MediaMetadata.FOLDER_TYPE_MIXED),
                     createFolderItem(MEDIA_LOCAL_MUSIC_ID, getString(R.string.local_music), folderType = MediaMetadata.FOLDER_TYPE_MIXED),
                     createFolderItem(MEDIA_PODIO_ID, "Podcasts and radio", folderType = MediaMetadata.FOLDER_TYPE_MIXED),
+                    createFolderItem(MEDIA_AUDIOBOOKS_ID, getString(R.string.auto_audiobooks), folderType = MediaMetadata.FOLDER_TYPE_MIXED),
                 )
                 MEDIA_PODIO_ID -> listOf(
                     createFolderItem(MEDIA_PODIO_FOR_YOU_ID, "For you", folderType = MediaMetadata.FOLDER_TYPE_MIXED),
@@ -8905,6 +8920,13 @@ class PlaybackService : MediaLibraryService() {
                     songs.forEach { songCache[it.videoId] = it }
                     if (songs.isNotEmpty()) songs.map { it.toMediaItem() } else listOf(
                         createInfoItem("msg:empty_podio", "Nothing here yet", "Follow shows and save stations in Podio on your phone"),
+                    )
+                }
+                // Read's Listen shelf: each audiobook plays from where the listener was.
+                MEDIA_AUDIOBOOKS_ID -> {
+                    val books = com.cosmotune.reading.ui.ReadingAndroidShelf.audiobooks(this@PlaybackService)
+                    if (books.isNotEmpty()) books.map { book -> audiobookItem(book) } else listOf(
+                        createInfoItem("msg:empty_audiobooks", getString(R.string.auto_audiobooks), getString(R.string.auto_empty_audiobooks)),
                     )
                 }
                 MEDIA_RECENTS_ID -> {
@@ -9103,6 +9125,7 @@ class PlaybackService : MediaLibraryService() {
                 MEDIA_PODIO_FOR_YOU_ID -> createFolderItem(MEDIA_PODIO_FOR_YOU_ID, "For you", folderType = MediaMetadata.FOLDER_TYPE_MIXED)
                 MEDIA_PODIO_STATIONS_ID -> createFolderItem(MEDIA_PODIO_STATIONS_ID, "Saved stations", folderType = MediaMetadata.FOLDER_TYPE_MIXED)
                 MEDIA_PODIO_RECENT_ID -> createFolderItem(MEDIA_PODIO_RECENT_ID, "Stations played lately", folderType = MediaMetadata.FOLDER_TYPE_MIXED)
+                MEDIA_AUDIOBOOKS_ID -> createFolderItem(MEDIA_AUDIOBOOKS_ID, getString(R.string.auto_audiobooks))
                 "msg:login_required" -> createLoginPromptItem()
                 else -> {
                     if (mediaId.startsWith("msg:")) {
@@ -9240,6 +9263,13 @@ class PlaybackService : MediaLibraryService() {
             startIndex: Int,
             startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future(Dispatchers.IO) {
+            // An audiobook chosen in the car starts at its own part and place, as Read left it.
+            mediaItems.singleOrNull()?.mediaId?.takeIf { it.startsWith(AUDIOBOOK_PREFIX) }?.let { id ->
+                com.cosmotune.reading.ui.ReadingAndroidShelf.queue(this@PlaybackService, id.removePrefix(AUDIOBOOK_PREFIX))?.let { (songs, index, position) ->
+                    songs.forEach { songCache[it.videoId] = it }
+                    return@future MediaSession.MediaItemsWithStartPosition(ImmutableList.copyOf(songs.map { it.toMediaItem() }), index, position)
+                }
+            }
             val resolved = resolveMediaItems(mediaItems)
             val validIndex = startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0))
             // A podcast episode the car (or another app) starts from the top goes on from where it was left; Podio itself seeks.
@@ -9350,6 +9380,11 @@ class PlaybackService : MediaLibraryService() {
                         val local = LocalMediaRepository.getLocalMusic(this@PlaybackService)
                         local.forEach { songCache[it.videoId] = it }
                         resolved.addAll(local.map { it.toMediaItem() })
+                    }
+                    id.startsWith(AUDIOBOOK_PREFIX) -> {
+                        val songs = com.cosmotune.reading.ui.ReadingAndroidShelf.queue(this@PlaybackService, id.removePrefix(AUDIOBOOK_PREFIX))?.first.orEmpty()
+                        songs.forEach { songCache[it.videoId] = it }
+                        resolved.addAll(songs.map { it.toMediaItem() })
                     }
                     songCache.containsKey(id) -> {
                         resolved.add(songCache[id]!!.toMediaItem())
@@ -9592,6 +9627,21 @@ class PlaybackService : MediaLibraryService() {
             )
             .build()
 
+    /** An audiobook of Read's Listen shelf as the car lists it: playable, with its cover and how far the listener is. */
+    private fun audiobookItem(book: com.cosmotune.reading.data.ReadingAudiobook): MediaItem = MediaItem.Builder()
+        .setMediaId(AUDIOBOOK_PREFIX + book.id)
+        .setMediaMetadata(
+            MediaMetadata.Builder()
+                .setTitle(book.title)
+                .setSubtitle(listOfNotNull(book.author.ifBlank { null }, if (book.finished) null else "${(book.fraction * 100).toInt()} %").joinToString(" · "))
+                .setArtist(book.author)
+                .setArtworkUri((book.coverPath?.let { android.net.Uri.fromFile(java.io.File(it)) } ?: book.coverUrl?.let(android.net.Uri::parse)))
+                .setIsBrowsable(false)
+                .setIsPlayable(true)
+                .setMediaType(MediaMetadata.MEDIA_TYPE_AUDIO_BOOK)
+                .build(),
+        ).build()
+
     private fun createInfoItem(mediaId: String, title: String, subtitle: String? = null): MediaItem =
         MediaItem.Builder()
             .setMediaId(mediaId)
@@ -9626,6 +9676,9 @@ class PlaybackService : MediaLibraryService() {
         const val MEDIA_PODIO_FOR_YOU_ID = "podio_for_you"
         const val MEDIA_PODIO_STATIONS_ID = "podio_stations"
         const val MEDIA_PODIO_RECENT_ID = "podio_recent"
+        const val MEDIA_AUDIOBOOKS_ID = "read_audiobooks"
+        /** A Listen shelf audiobook in the car's lists; its parts play as `read:audio:` items, like they do from Read. */
+        const val AUDIOBOOK_PREFIX = "readbook:"
         const val MAX_AUTO_PAGE_SIZE = 50
         const val MAX_AUTO_SEARCH_QUERY_CHARS = 200
         const val MAX_AUTO_SEARCH_CACHE_ENTRIES = 20
