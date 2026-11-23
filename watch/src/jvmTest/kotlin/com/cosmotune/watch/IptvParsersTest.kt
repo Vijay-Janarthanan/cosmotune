@@ -182,4 +182,19 @@ class IptvParsersTest {
             assertEquals(com.cosmotune.watch.model.Container.MKV, film.single().container)
         }
     }
+
+    @Test fun aPlaylistFileOnThisDeviceIsReadAgainWhenItChanges() = runBlocking {
+        val file = java.io.File.createTempFile("channels", ".m3u")
+        fun write(vararg names: String) = file.writeText((listOf("#EXTM3U") + names.flatMap { listOf("#EXTINF:-1,$it", "https://example.invalid/$it.m3u8") }).joinToString(NL))
+        try {
+            write("First")
+            val plugin = PlaylistPlugin("m3u-file", "Mine", "M3U", PluginKind.M3U, TestServer().use { it.http() }, { listOf(file.path) })
+            assertEquals(listOf("First"), plugin.channels().map { it.name })
+            write("First", "Second")
+            file.setLastModified(file.lastModified() + 5_000)
+            assertEquals(listOf("First", "Second"), plugin.channels().map { it.name })
+        } finally { file.delete() }
+    }
 }
+
+private const val NL = "\n"
