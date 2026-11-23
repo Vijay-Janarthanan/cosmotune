@@ -1,5 +1,7 @@
 package com.cosmotune.podio.ui
 
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -180,7 +182,17 @@ internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
         backgroundContent = {
             val toEnd = state.dismissDirection == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd
             val label = if (toEnd) startLabel else endLabel
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(look.accent.copy(alpha = 0.18f)).padding(horizontal = 20.dp),
+            // Drawn only in the strip the row has left: at rest the row stands on the page's own ground, untinted.
+            Box(Modifier.fillMaxSize().drawWithContent {
+                    val offset = runCatching { state.requireOffset() }.getOrDefault(0f)
+                    if (offset == 0f) return@drawWithContent
+                    val left = if (offset > 0f) 0f else size.width + offset
+                    val right = if (offset > 0f) offset else size.width
+                    clipRect(left = left, top = 0f, right = right, bottom = size.height) {
+                        drawRoundRect(look.accent.copy(alpha = 0.18f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(16.dp.toPx()))
+                        this@drawWithContent.drawContent()
+                    }
+                }.padding(horizontal = 20.dp),
                 contentAlignment = if (toEnd) Alignment.CenterStart else Alignment.CenterEnd) {
                 if (label != null) androidx.compose.material3.Text(label, style = fonts.chip, color = look.ink)
             }

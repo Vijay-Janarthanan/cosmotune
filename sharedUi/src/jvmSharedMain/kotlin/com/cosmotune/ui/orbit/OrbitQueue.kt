@@ -1,5 +1,15 @@
 package com.cosmotune.ui.orbit
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.hoverable
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
@@ -101,6 +111,11 @@ fun OrbitQueueList(
     onAddToPlaylist: ((List<Song>) -> Unit)? = null,
     onDownload: ((List<Song>) -> Unit)? = null,
     header: Boolean = true,
+    /**
+     * False where a panel's own head already says "Up next" (the desktop's side panel): the big title goes, and where the queue
+     * plays from, how many songs and how long stay as one line.
+     */
+    title: Boolean = true,
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -131,7 +146,11 @@ fun OrbitQueueList(
             if (selecting) {
                 OrbitSelectionHead(chosen.size, onClose = { selecting = false; chosen = emptySet() }, onSelectAll = { chosen = coming.map { it.key }.toSet() }, modifier = Modifier.padding(horizontal = 4.dp))
             } else if (header) {
-                Column(Modifier.padding(start = 4.dp, end = 4.dp, bottom = 12.dp)) {
+                if (!title) {
+                    val line = listOfNotNull(playingFrom?.takeIf { it.isNotBlank() }?.let { "Playing from $it" }, "$upcoming songs", minutes.takeIf { it > 0 }?.let { "$it min" })
+                    Text(line.joinToString(" · "), style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 12.dp))
+                } else Column(Modifier.padding(start = 4.dp, end = 4.dp, bottom = 12.dp)) {
                     if (!playingFrom.isNullOrBlank()) OrbitLabel("Playing from · $playingFrom", fonts, look.dim)
                     Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
                         Text(
@@ -151,7 +170,11 @@ fun OrbitQueueList(
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                LazyColumn(state = listState, contentPadding = PaddingValues(bottom = if (selecting) 96.dp else 16.dp), modifier = Modifier.testTag("orbit:queue")) {
+                LazyColumn(
+                    state = listState, contentPadding = PaddingValues(bottom = if (selecting) 96.dp else 16.dp), modifier = Modifier.testTag("orbit:queue"),
+                    // Rows stand apart, so a lit row's card or a swiped row's colour never runs into the next.
+                    verticalArrangement = Arrangement.spacedBy(QUEUE_ROW_GAP),
+                ) {
                     if (tracks.history.isNotEmpty()) {
                         item(key = "h:history") { GroupHead("Played before", fonts, look) }
                         items(tracks.history, key = { it.key }) { track ->
@@ -186,7 +209,12 @@ fun OrbitQueueList(
                 // The held row, drawn where the finger is (see QueueDrag): nothing the list does under it moves it.
                 drag.held?.let { held ->
                     Box(Modifier.matchParentSize()) {
-                        QueueRow(held, fonts, look, onClick = null, handle = Modifier, modifier = Modifier.offset { IntOffset(0, drag.heldTop.roundToInt()) }.background(look.ground))
+                        QueueRow(
+                            held, fonts, look, onClick = null, handle = Modifier,
+                            // The lifted row floats: a soft shadow under a rounded card of the menu's ground.
+                            modifier = Modifier.offset { IntOffset(0, drag.heldTop.roundToInt()) }
+                                .shadow(12.dp, RoundedCornerShape(16.dp), clip = false).clip(RoundedCornerShape(16.dp)).background(orbitFloatGround(look)),
+                        )
                     }
                 }
             }
@@ -260,10 +288,12 @@ private fun LazyListScope.group(
                     ) { change, amount -> change.consume(); drag.drag(amount.y) }
                 },
                 modifier = m,
+                // The desktop's pointer removes with a button on the row (shown under the pointer); a finger swipes the row away.
+                onRemove = if (orbitIsDesktop && !locked && !selecting) ({ onRemove(track) }) else null,
             )
         }
         val m = if (held) placed().alpha(0f) else placed()
-        if (locked || selecting) row(m) else SwipeToRemove(onRemove = { onRemove(track) }, look = look, fonts = fonts, modifier = m) { row(Modifier) }
+        if (locked || selecting || orbitIsDesktop) row(m) else SwipeToRemove(onRemove = { onRemove(track) }, look = look, fonts = fonts, modifier = m) { row(Modifier) }
     }
 }
 
@@ -290,7 +320,7 @@ private fun SwipeToRemove(onRemove: () -> Unit, look: OrbitLook, fonts: OrbitFon
                     val offset = runCatching { state.requireOffset() }.getOrDefault(0f)
                     if (offset >= 0f) return@drawWithContent
                     clipRect(left = size.width + offset, top = 0f, right = size.width, bottom = size.height) {
-                        drawRoundRect(if (look.dark) Color(0xFFE5675C) else Color(0xFFD2483C), cornerRadius = CornerRadius(16.dp.toPx()))
+                        drawRoundRect(swipeDanger(look), cornerRadius = CornerRadius(16.dp.toPx()))
                         this@drawWithContent.drawContent()
                     }
                 },
@@ -321,15 +351,29 @@ private fun QueueRow(
     progress: (() -> Float?)? = null,
     selected: Boolean? = null,
     handle: Modifier? = null,
+    onRemove: (() -> Unit)? = null,
 ) {
     val song = track.song
+    val hover = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hovered by hover.collectIsHoveredAsState()
+    var focusInside by remember { mutableStateOf(false) }
     OrbitSongRow(
-        song.title, song.artist, rememberRemoteArtworkUrl(song), fonts, look, onClick = onClick, onLongClick = onLongClick,
-        modifier = modifier.fillMaxWidth(), now = now, playing = playing, progress = progress,
+        song.title, song.artist, rememberRemoteArtworkUrl(song), fonts, look, onClick = onClick, onLongClick = onLongClick, height = QUEUE_ROW_HEIGHT,
+        modifier = modifier.fillMaxWidth().then(if (onRemove != null) Modifier.hoverable(hover).onFocusChanged { focusInside = it.hasFocus } else Modifier),
+        now = now, playing = playing, progress = progress,
         discContent = selected?.let { on -> { OrbitCheckMark(on, look) } },
         trailing = {
+            // The controls keep a column of their own: the words end 12 dp before it, ellipsized.
+            if (onRemove != null || handle != null) Spacer(Modifier.width(12.dp))
+            if (onRemove != null) {
+                // Its place is kept while hidden, so the handle does not move when the pointer comes onto the row.
+                Box(Modifier.size(36.dp).graphicsLayer { alpha = if (hovered || focusInside) 1f else 0f }) {
+                    OrbitRoundButton(CosmoIcons.Close, "Remove from queue", look.dim, onRemove, size = 32.dp)
+                }
+                Spacer(Modifier.width(4.dp))
+            }
             if (handle != null) {
-                Box(handle.size(44.dp), contentAlignment = Alignment.Center) {
+                Box(handle.size(40.dp), contentAlignment = Alignment.Center) {
                     Icon(CosmoIcons.Queue, "Hold to move", tint = look.dim, modifier = Modifier.size(20.dp))
                 }
             } else if (!now) OrbitRowTime(song.durationText, fonts, look)
@@ -349,3 +393,10 @@ private fun GroupHead(title: String, fonts: OrbitFonts, look: OrbitLook, modifie
 private fun GroupAction(title: String, fonts: OrbitFonts, look: OrbitLook, enabled: Boolean, onClick: () -> Unit) {
     OrbitSelectChip(title, false, fonts, look, { if (enabled) onClick() }, haptic = enabled)
 }
+
+/** A queue row's height and the air between two rows. */
+private val QUEUE_ROW_HEIGHT = 64.dp
+private val QUEUE_ROW_GAP = 8.dp
+
+/** What a swipe uncovers: the danger red, softened (no bright salmon), under a white glyph and word. */
+private fun swipeDanger(look: OrbitLook): Color = if (look.dark) Color(0xFFA9403A) else Color(0xFFC0443B)
