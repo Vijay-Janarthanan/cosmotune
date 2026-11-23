@@ -300,6 +300,11 @@ interface WatchRepository {
     suspend fun guide(channels: List<Channel>, fromMs: Long, toMs: Long): GuideWindow
     suspend fun nowNext(channel: Channel): LiveNowItem
     suspend fun setFavouriteChannel(key: WatchKey, favourite: Boolean)
+    /**
+     * A past [programme] of [channel] from the channel's catch-up archive (a playlist or Xtream account that keeps one), as an item
+     * that plays and seeks like a film; null when the channel keeps none for that time.
+     */
+    suspend fun catchup(channel: Channel, programme: EpgProgramme): Pair<PlayTarget, Stream>? = null
 
     // Spotlight: matches, live specials, news and coming events
     /**

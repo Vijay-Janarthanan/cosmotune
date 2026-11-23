@@ -848,6 +848,19 @@ class DefaultWatchRepository(
             if (!wantChannels) emptyList()
             else runCatching { channels(ChannelFilter(query = q.ifEmpty { null }, language = query.language?.code)) }.getOrDefault(emptyList())
         }
+    override suspend fun catchup(channel: Channel, programme: EpgProgramme): Pair<PlayTarget, Stream>? {
+        val owner = (listOf(channel) + channel.also).firstOrNull { it.catchup != null } ?: return null
+        val archive = owner.catchup ?: return null
+        val now = config.now()
+        if (programme.startMs >= now || programme.startMs < now - archive.days.coerceIn(1, 30) * 86_400_000L) return null
+        val live = sourcesNow(PlayTarget.Live(owner)).streams.firstOrNull { it.isPlayable && it.source.pluginId == owner.pluginId } ?: return null
+        val stop = minOf(programme.stopMs, now)
+        val url = com.cosmotune.watch.plugins.iptv.CatchupUrls.build(live.url, archive, programme.startMs, stop, now) ?: return null
+        val id = "${owner.key.id}:${programme.startMs / 1000}"
+        val target = PlayTarget.Item(WatchKey.item(CATCHUP, id), CATCHUP, id, programme.title.substringAfter(": ").take(200))
+        return target to live.copy(url = url, isLive = false, label = "Catch-up", description = owner.name, durationMs = stop - programme.startMs)
+    }
+
         val answers = asked.map { id ->
             async {
                 id to runCatching {
