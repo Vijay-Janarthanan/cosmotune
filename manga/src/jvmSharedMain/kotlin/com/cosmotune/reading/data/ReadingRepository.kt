@@ -21,7 +21,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 class ReadingRepository(val root: File, protection: MangaFileProtection = UnsealedMangaFiles,
-    private val client: OkHttpClient = OkHttpClient()) {
+    internal val client: OkHttpClient = OkHttpClient()) {
     val store = ReadingStore(root, protection)
     val state = store.state
     private val files = File(root, "books").apply { mkdirs() }

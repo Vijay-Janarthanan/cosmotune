@@ -365,6 +365,9 @@ private fun BookLibrary(scope: ReadScope) {
     var selecting by rememberSaveable { mutableStateOf(false) }
     var chosen by remember { mutableStateOf(emptySet<String>()) }
     var bulkTagging by remember { mutableStateOf(false) }
+    // Nearby: the books to send (none when it was opened to receive), or null while it is closed.
+    var nearby by remember { mutableStateOf<List<ReadingBook>?>(null) }
+    nearby?.let { BookNearbySheet(scope, it, onDismiss = { nearby = null }) }
     if (bulkTagging) BulkTagsSheet(state.books.filter { it.id in chosen }, tags, onSave = { add, remove ->
         scope.action { scope.repository.editTags(chosen, add, remove) }
     }, onDismiss = { bulkTagging = false })
@@ -386,6 +389,7 @@ private fun BookLibrary(scope: ReadScope) {
                         com.cosmotune.ui.orbit.OrbitMenuItem("Check folders for new books", icon = CosmoIcons.Repeat) { scope.scanFolders() }.takeIf { state.folders.isNotEmpty() },
                         com.cosmotune.ui.orbit.OrbitMenuItem("Save a web page", detail = "An article's text and pictures, to read later", icon = CosmoIcons.Explore) { clipping = "page" },
                         com.cosmotune.ui.orbit.OrbitMenuItem("Paste text", detail = "Text you copied becomes a book", icon = CosmoIcons.List) { clipping = "text" },
+                        com.cosmotune.ui.orbit.OrbitMenuItem("Send or receive nearby", detail = "Between your devices on the same Wi-Fi, or LocalSend", icon = CosmoIcons.Devices) { nearby = emptyList() },
                     ), orbitFonts(), orbitLook(), header = "Add books")
                 }
                 ReadRootActions(scope)
@@ -413,16 +417,20 @@ private fun BookLibrary(scope: ReadScope) {
                         ReadIconButton(CosmoIcons.Check, if (selecting) "Stop choosing books" else "Choose several books", { selecting = !selecting; chosen = emptySet() },
                             Modifier.testTag("books:select"), on = selecting)
                 }
-                if (selecting && shelf != BookShelf.SAVED) Row(Modifier.fillMaxWidth().clip(ReadShape.md).background(orbitLook().row).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
-                    .testTag("books:selection-bar"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // The count over its own row of actions, so no action is squeezed out on a narrow phone.
+                if (selecting && shelf != BookShelf.SAVED) Column(Modifier.fillMaxWidth().clip(ReadShape.md).background(orbitLook().row).padding(top = 10.dp, bottom = 8.dp)
+                    .testTag("books:selection-bar"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (chosen.isEmpty()) "Tap books to choose them" else "${chosen.size} chosen", style = ReadType.rowTitle(), color = orbitLook().ink, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp))
                     val all = books.map { it.id }.toSet()
-                    ReadPill(if (chosen.containsAll(all)) "None" else "All", onClick = { chosen = if (chosen.containsAll(all)) emptySet() else all }, modifier = Modifier.testTag("books:select-all"))
-                    if (chosen.isNotEmpty()) {
-                        ReadPill("Tags", icon = CosmoIcons.Pin, onClick = { bulkTagging = true }, modifier = Modifier.testTag("books:bulk-tags"))
-                        ReadPill("Finished", icon = CosmoIcons.Check, onClick = { val ids = chosen; scope.action { ids.forEach { scope.repository.markFinished(it) } } },
-                            modifier = Modifier.testTag("books:bulk-finished"))
+                    ReadChipRow(inset = 16.dp) {
+                        ReadPill(if (chosen.containsAll(all)) "None" else "All", onClick = { chosen = if (chosen.containsAll(all)) emptySet() else all }, modifier = Modifier.testTag("books:select-all"))
+                        if (chosen.isNotEmpty()) {
+                            ReadPill("Tags", icon = CosmoIcons.Pin, onClick = { bulkTagging = true }, modifier = Modifier.testTag("books:bulk-tags"))
+                            ReadPill("Finished", icon = CosmoIcons.Check, onClick = { val ids = chosen; scope.action { ids.forEach { scope.repository.markFinished(it) } } },
+                                modifier = Modifier.testTag("books:bulk-finished"))
+                            ReadPill("Send nearby", icon = CosmoIcons.Devices, onClick = { nearby = state.books.filter { it.id in chosen } }, modifier = Modifier.testTag("books:bulk-nearby"))
+                        }
                     }
                 }
                 if (tags.isNotEmpty()) ReadChipRow(Modifier.padding(bottom = 4.dp)) {
@@ -619,6 +627,8 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
     var more by remember { mutableStateOf(false) }
     var tagging by remember { mutableStateOf(false) }
     if (tagging) BookTagsSheet(book, state.books.flatMap { it.tags }.distinct(), onSave = { scope.action { scope.repository.setTags(book.id, it) } }, onDismiss = { tagging = false })
+    var sendingNearby by remember { mutableStateOf(false) }
+    if (sendingNearby) BookNearbySheet(scope, listOf(book), onDismiss = { sendingNearby = false })
     val undo = LocalOrbitUndo.current
     // Remove takes the book off the library at once, with "Removed · Undo"; its files are deleted only once Undo has run out.
     val remove: () -> Unit = {
@@ -662,6 +672,7 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
                                     }
                                 }.takeIf { book.format == ReadingFormat.PDF },
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Tags", detail = book.tags.joinToString(", ").ifBlank { null }, icon = CosmoIcons.Pin) { tagging = true },
+                                com.cosmotune.ui.orbit.OrbitMenuItem("Send nearby", detail = "To your other device or LocalSend on the same Wi-Fi", icon = CosmoIcons.Devices) { sendingNearby = true },
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Remove from this device", icon = CosmoIcons.Close) { remove() },
                             ), orbitFonts(), look, header = book.title)
                         }
