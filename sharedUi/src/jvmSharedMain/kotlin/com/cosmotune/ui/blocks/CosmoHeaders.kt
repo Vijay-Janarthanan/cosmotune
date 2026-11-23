@@ -88,20 +88,23 @@ fun CosmoPageHeader(
     overline: String? = null,
     subtitle: String? = null,
     large: Boolean = false,
-    actions: @Composable RowScope.() -> Unit = {},
+    actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    Column(modifier.fillMaxWidth().padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, top = 14.dp)) {
+    // On the shelves' edge (the margin and 4, as Home's greeting); with no label and no actions no empty row stands over the title.
+    Column(modifier.fillMaxWidth().padding(start = CosmoSpacing.margin + 4.dp, end = CosmoSpacing.margin, top = 14.dp)) {
         OrbitPageHeading(
             title = title,
             label = overline.orEmpty(),
             fonts = fonts,
             look = look,
             modifier = Modifier.semantics { heading() },
-            trailing = {
-                Spacer(Modifier.width(8.dp))
-                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
+            trailing = actions?.let { row ->
+                {
+                    Spacer(Modifier.width(8.dp))
+                    Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = row)
+                }
             },
             maxLines = 2,
         )
