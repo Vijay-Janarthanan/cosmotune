@@ -365,6 +365,10 @@ private fun BookLibrary(scope: ReadScope) {
     var selecting by rememberSaveable { mutableStateOf(false) }
     var chosen by remember { mutableStateOf(emptySet<String>()) }
     var bulkTagging by remember { mutableStateOf(false) }
+    var history by remember { mutableStateOf(false) }
+    var browsing by remember { mutableStateOf(false) }
+    if (history) BookHistorySheet(scope, onDismiss = { history = false })
+    if (browsing) BookFilesSheet(scope, onDismiss = { browsing = false })
     // Nearby: the books to send (none when it was opened to receive), or null while it is closed.
     var nearby by remember { mutableStateOf<List<ReadingBook>?>(null) }
     nearby?.let { BookNearbySheet(scope, it, onDismiss = { nearby = null }) }
@@ -400,7 +404,8 @@ private fun BookLibrary(scope: ReadScope) {
         }
         if (hero != null) item(key = "hero:${hero.id}", span = { GridItemSpan(maxLineSpan) }) { BookHero(scope, hero, state) }
         if (state.books.isNotEmpty() || state.saved.isNotEmpty()) item(key = "tiles", span = { GridItemSpan(maxLineSpan) }) {
-            BookTiles(state, Modifier.padding(top = 4.dp), onBookmarks = { scope.navigation.select(BookTabs.BOOKMARKS) }, onShelf = { shelf = it })
+            BookTiles(state, Modifier.padding(top = 4.dp), onBookmarks = { scope.navigation.select(BookTabs.BOOKMARKS) }, onShelf = { shelf = it },
+                onHistory = { history = true }, onFiles = { browsing = true })
         }
         // The shelves only once there is something on them: an empty library shows its welcome, not a row of noughts.
         if (state.books.isNotEmpty() || state.saved.isNotEmpty()) item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
@@ -486,12 +491,14 @@ private fun BookLibrary(scope: ReadScope) {
  * Finished (each chooses its shelf).
  */
 @Composable
-private fun BookTiles(state: ReadingState, modifier: Modifier, onBookmarks: () -> Unit, onShelf: (BookShelf) -> Unit) {
-    val tiles: List<Triple<String, Int, () -> Unit>> = listOf(
+private fun BookTiles(state: ReadingState, modifier: Modifier, onBookmarks: () -> Unit, onShelf: (BookShelf) -> Unit, onHistory: () -> Unit, onFiles: () -> Unit) {
+    val tiles: List<Triple<String, Int?, () -> Unit>> = listOf(
         Triple("Bookmarks", state.bookmarks.size, onBookmarks),
         Triple("Downloaded", state.books.size, { onShelf(BookShelf.DOWNLOADED) }),
         Triple("Saved for later", state.saved.size, { onShelf(BookShelf.SAVED) }),
         Triple("Finished", state.finished.count { id -> state.books.any { it.id == id } }, { onShelf(BookShelf.FINISHED) }),
+        Triple("History", state.opened.keys.count { id -> state.books.any { it.id == id } }, onHistory),
+        Triple("Files", null, onFiles),
     )
     var stats by remember { mutableStateOf(false) }
     val look = orbitLook()
@@ -504,7 +511,8 @@ private fun BookTiles(state: ReadingState, modifier: Modifier, onBookmarks: () -
                         .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = open).padding(horizontal = 16.dp, vertical = 10.dp)
                         .testTag("books:tile:$label"), verticalAlignment = Alignment.CenterVertically) {
                         Text(label, style = ReadType.rowTitle(), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Text(count.toString(), style = fonts.label, color = look.dim)
+                        if (count != null) Text(count.toString(), style = fonts.label, color = look.dim)
+                        else androidx.compose.material3.Icon(CosmoIcons.ChevronRight, null, tint = look.dim, modifier = Modifier.size(18.dp))
                     }
                 }
             }

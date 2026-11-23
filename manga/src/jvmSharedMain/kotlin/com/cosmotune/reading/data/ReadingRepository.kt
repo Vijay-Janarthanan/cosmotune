@@ -165,11 +165,16 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         val file = ownedFile(book)
         require(file.isFile && file.length() <= MAX_FILE_BYTES) { "The imported book file is missing or too large." }
         require(sha256(file) == book.fileSha.ifBlank { book.id }) { "The owned book file changed; import the replacement edition again." }
-        if (book.format == ReadingFormat.PDF) { validatePdf(file); ReadingDocument.Pdf(book, file) }
+        val document = if (book.format == ReadingFormat.PDF) { validatePdf(file); ReadingDocument.Pdf(book, file) }
         else ReadingEpub.open(file, File(documents, book.id)).let {
             ReadingDocument.Epub(book, it.root, it.spine, it.navigation, it.resources, it.overlays, it.overlayClass)
         }
+        store.update { old -> old.copy(opened = (old.opened + (bookId to System.currentTimeMillis())).entries.sortedBy { it.value }.takeLast(500).associate { it.key to it.value }) }
+        document
     } }
+
+    /** Takes [bookId] out of the history (all of it with null); the books and their places stay. */
+    suspend fun forgetOpened(bookId: String?) = store.update { old -> old.copy(opened = if (bookId == null) emptyMap() else old.opened - bookId) }
 
     suspend fun saveLocator(bookId: String, locator: ReadingLocator) {
         validateLocator(locator)
