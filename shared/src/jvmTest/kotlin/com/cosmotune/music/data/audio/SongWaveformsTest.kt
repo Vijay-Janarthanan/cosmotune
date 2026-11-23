@@ -1,6 +1,6 @@
 package com.cosmotune.music.data.audio
 
-import com.cosmotune.video.account.TimedComments
+import com.cosmotune.media.comments.TimedComments
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

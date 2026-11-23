@@ -142,6 +142,8 @@ private fun runDesktop() {
     // The player is the phone's, from the shared UI module; this is what it reads underneath.
     PlayerPlatform.install(DesktopPlayerHost)
     com.cosmotune.ui.sleep.SleepTimerUi.control = DesktopSleepTimerControl
+    // The waveform seek line's timed comments: Video mode reads them.
+    com.cosmotune.video.account.VideoTimedComments.install()
     // The music player's Comments: Video mode's sheet, over its own graph (built the first time it is opened).
     com.cosmotune.ui.nowplaying.MusicComments.sheet = { videoId, onDismiss ->
         com.cosmotune.video.graph.desktopVideoGraph(build = true)?.let { graph ->

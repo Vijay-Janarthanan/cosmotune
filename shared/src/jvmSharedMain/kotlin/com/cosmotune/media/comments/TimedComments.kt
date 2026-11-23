@@ -1,15 +1,17 @@
-package com.cosmotune.video.account
-
-import com.cosmotune.video.model.CommentSort
+package com.cosmotune.media.comments
 
 /** A listener's comment that names a moment in the song ("2:14 this part"), for the dots on the waveform seek line. */
 data class TimedComment(val atMs: Long, val text: String, val author: String)
 
 /**
  * The timed comments on a song's video: the first page of its top comments, each one that names a moment inside the song
- * kept once, at the first moment it names. Nothing is posted and nothing needs a sign-in.
+ * kept once, at the first moment it names. Nothing is posted and nothing needs a sign-in. The comments themselves come from
+ * [fetch], which Video mode sets when the app starts (`VideoTimedComments.install`); without it a song has none.
  */
 object TimedComments {
+    /** A video's top comments as (text, author, likes), or null when they cannot be read. */
+    @Volatile var fetch: (suspend (videoId: String) -> List<Triple<String, String, Long>>?)? = null
+
     private const val MAX = 40
     private const val MAX_TEXT = 140
     private val stamp = Regex("""(?<![\d:])(?:(\d{1,2}):)?(\d{1,2}):([0-5]\d)(?![\d:])""")
@@ -20,8 +22,9 @@ object TimedComments {
     /** [videoId]'s timed comments within [durationMs] (0 = unknown), in order; empty when there are none or they cannot be read. */
     suspend fun forSong(videoId: String, durationMs: Long): List<TimedComment> {
         synchronized(cache) { cache[videoId] }?.let { return within(it, durationMs) }
-        val page = runCatching { InnerTubeComments().first(videoId, CommentSort.TOP) }.getOrNull() ?: return emptyList()
-        val found = pick(page.items.map { Triple(it.text, it.authorName, it.likeCount ?: 0L) })
+        val read = fetch ?: return emptyList()
+        val comments = runCatching { read(videoId) }.getOrNull() ?: return emptyList()
+        val found = pick(comments)
         synchronized(cache) { cache[videoId] = found }
         return within(found, durationMs)
     }

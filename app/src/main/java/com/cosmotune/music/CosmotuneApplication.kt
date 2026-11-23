@@ -189,6 +189,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         // service alone: Video and Watch play on a service of their own.
         com.cosmotune.music.playback.SleepTimerWatcher.start(this)
         com.cosmotune.ui.sleep.SleepTimerUi.control = com.cosmotune.music.playback.AndroidSleepTimerControl
+        // The waveform seek line's timed comments: Video mode reads them.
+        com.cosmotune.video.account.VideoTimedComments.install()
         // The music player's Comments: Video mode's sheet, over its own graph (built the first time it is opened).
         val app = this
         com.cosmotune.ui.nowplaying.MusicComments.sheet = { videoId, onDismiss ->

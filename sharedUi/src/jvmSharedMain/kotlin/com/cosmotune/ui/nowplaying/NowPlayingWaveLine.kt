@@ -34,8 +34,8 @@ import com.cosmotune.music.data.audio.WaveShape
 import com.cosmotune.settings.Extras
 import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitProgressLine
-import com.cosmotune.video.account.TimedComment
-import com.cosmotune.video.account.TimedComments
+import com.cosmotune.media.comments.TimedComment
+import com.cosmotune.media.comments.TimedComments
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
