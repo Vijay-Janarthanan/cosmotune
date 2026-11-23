@@ -197,7 +197,7 @@ internal fun CosmoLyricsView(
     particles: State<Float>? = null,
 ) {
     if (lines.isEmpty()) {
-        NoLyrics(emptyText, modifier)
+        NoLyrics(emptyText, modifier, missing = emptyText == stringResource(Res.string.lyrics_not_available))
         return
     }
     // A new song is a new list, scrolled to its own place: the state of every line starts again.
@@ -206,9 +206,23 @@ internal fun CosmoLyricsView(
     }
 }
 
-/** "No lyrics", in the middle of the space the lyrics would have had. */
+/**
+ * "No lyrics": while they load, the line in the middle of the space the lyrics would have had; when there are none, Orbit's empty
+ * state at the top of that space (what happened and what to try: the source picker under it, or writing them in), not a lone grey
+ * line in the middle of a tall panel.
+ */
 @Composable
-private fun NoLyrics(text: String, modifier: Modifier) {
+private fun NoLyrics(text: String, modifier: Modifier, missing: Boolean = false) {
+    if (missing) {
+        Box(modifier.fillMaxSize().padding(top = 8.dp)) {
+            com.cosmotune.ui.states.CosmoEmptyState(
+                message = "None of the lyrics sources has words for this song. Try another source below, or search for them yourself.",
+                title = text,
+                icon = com.cosmotune.ui.components.CosmoIcons.Lyrics,
+            )
+        }
+        return
+    }
     val type = LocalCosmoType.current
     val ink = Color(LocalCosmoColors.current.palette.textSecondary)
     val textStyle = remember(type) { type.title(TypeScale.TITLE_S).copy(textAlign = TextAlign.Center) }

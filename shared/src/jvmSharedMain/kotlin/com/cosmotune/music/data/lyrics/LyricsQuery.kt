@@ -24,7 +24,9 @@ package com.cosmotune.music.data.lyrics
  * scrolling in time with the right song is not.
  */
 fun String.forLyricsSearch(): String {
-    var name = this
+    // A video upload's title carries its credits after pipes ("Rathinamo - Official Music Video | Singer | Composer | Label"): the
+    // song is the first part.
+    var name = this.split(" | ", "| ", " |").firstOrNull { it.isNotBlank() } ?: this
     CREDITS.forEach { pattern -> name = pattern.replace(name, " ") }
     return name.replace(WHITESPACE, " ").trim().trimEnd(',', '-', '–', '—').trim()
         // A title that was *only* packaging is no title at all; better to ask
@@ -56,4 +58,11 @@ private val CREDITS = listOf(
         RegexOption.IGNORE_CASE,
     ),
     Regex("""\s*[(\[]\s*official\s*[)\]]""", RegexOption.IGNORE_CASE),
+    // The same label unbracketed after a dash, to the end: "Naatu Naatu - Official Video", "Hukum – Official Lyric Video".
+    Regex(
+        """\s+[-–—]\s*(official\s*)?(music\s*)?(full\s*)?""" +
+            """(video(\s*song)?|audio(\s*song)?|visuali[sz]er|lyrics?\s*video|lyrical(\s*video)?|m/?v|full\s*song)\s*$""",
+        RegexOption.IGNORE_CASE,
+    ),
+    Regex("""\s+[-–—]\s*official\s*(music|lyric)?\s*video\s*$""", RegexOption.IGNORE_CASE),
 )
