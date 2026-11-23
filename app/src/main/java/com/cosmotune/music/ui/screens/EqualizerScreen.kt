@@ -5,7 +5,13 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.cosmotune.ui.nowplaying.EqBandValueDialog
+import com.cosmotune.ui.nowplaying.EqPresetTransferDialog
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -71,6 +77,7 @@ import com.cosmotune.music.playback.AudioOutputStatus
 import com.cosmotune.music.playback.EqLayout
 import com.cosmotune.music.playback.EqualizerPreset
 import com.cosmotune.music.playback.manualCurve
+import com.cosmotune.music.playback.EqPresetText
 import com.cosmotune.music.playback.toneCurve
 import com.cosmotune.music.playback.withFullHeadroom
 import com.cosmotune.music.ui.haptics.Haptic
@@ -121,6 +128,30 @@ fun EqualizerScreen(
     val haptics = rememberHaptics()
     // The switch (CosmoSwitch, through the bridge) ticks on its own: this screen adds no tick of its own.
     var pickingPreset by remember { mutableStateOf(false) }
+    var transferring by remember { mutableStateOf(false) }
+    var editingBand by remember { mutableStateOf<Int?>(null) }
+    val clipboard = LocalClipboardManager.current
+    var pendingOpen by remember { mutableStateOf<((String) -> Unit)?>(null) }
+    var pendingSave by remember { mutableStateOf("") }
+    val openPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val deliver = pendingOpen
+        pendingOpen = null
+        if (uri != null && deliver != null) {
+            val text = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    input.readNBytes(EqPresetText.MAX_TEXT_CHARS * 2).toString(Charsets.UTF_8)
+                }
+            }.getOrNull()
+            if (text != null) deliver(text)
+        }
+    }
+    val savePicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(pendingSave.toByteArray(Charsets.UTF_8)) }
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -225,6 +256,14 @@ fun EqualizerScreen(
                             onClick = { pickingPreset = true },
                             enabled = enabled,
                         )
+                        RowDivider()
+                        SettingsRow(
+                            icon = Icons.Rounded.GraphicEq,
+                            title = "Import or export a preset",
+                            subtitle = "AutoEQ text, from a file or pasted",
+                            onClick = { transferring = true },
+                            enabled = enabled,
+                        )
                     }
                     SettingsGroup(
                         header = stringResource(R.string.equalizer_bands),
@@ -233,6 +272,7 @@ fun EqualizerScreen(
                         BandSliders(
                             bands = bands,
                             onChange = { AppSettings.setEqualizerBands(it) },
+                            onEdit = { editingBand = it },
                             enabled = enabled,
                         )
                         RowDivider()
@@ -295,6 +335,40 @@ fun EqualizerScreen(
         }
 
         Spacer(Modifier.height(32.dp))
+    }
+
+    if (transferring) {
+        EqPresetTransferDialog(
+            bands = bands,
+            fullHeadroom = fullHeadroom,
+            openFile = { deliver ->
+                pendingOpen = deliver
+                openPicker.launch(arrayOf("text/plain", "application/octet-stream", "*/*"))
+            },
+            saveFile = { text ->
+                pendingSave = text
+                savePicker.launch("cosmotune-equaliser.txt")
+            },
+            copyText = { clipboard.setText(AnnotatedString(it)) },
+            pasteText = { clipboard.getText()?.text },
+            onApply = {
+                AppSettings.setEqualizerMode(EqualizerMode.MANUAL)
+                AppSettings.setEqualizerBands(it)
+                transferring = false
+            },
+            onDismiss = { transferring = false },
+        )
+    }
+    editingBand?.let { index ->
+        EqBandValueDialog(
+            frequencyLabel = formatFrequency(EqLayout.MANUAL_BANDS_HZ[index]),
+            current = bands.getOrElse(index) { 0f },
+            onSet = { value ->
+                AppSettings.setEqualizerBands(bands.toMutableList().also { it[index] = value })
+                editingBand = null
+            },
+            onDismiss = { editingBand = null },
+        )
     }
 
     if (pickingPreset) {
@@ -554,6 +628,7 @@ private fun BandSliders(
     bands: List<Float>,
     enabled: Boolean,
     onChange: (List<Float>) -> Unit,
+    onEdit: (Int) -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -576,8 +651,11 @@ private fun BandSliders(
                         MaterialTheme.colorScheme.primary
                     },
                     maxLines = 1,
+                    modifier = Modifier
+                        .clickable(enabled = enabled, onClickLabel = "Type an exact value") { onEdit(index) }
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(2.dp))
                 BandFader(
                     enabled = enabled,
                     value = value,

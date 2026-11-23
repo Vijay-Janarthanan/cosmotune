@@ -29,7 +29,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.cosmotune.desktop.chooseCosmotuneFile
+import com.cosmotune.ui.nowplaying.EqBandValueDialog
+import com.cosmotune.ui.nowplaying.EqPresetTransferDialog
+import com.cosmotune.music.playback.EqPresetText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -390,10 +401,15 @@ private fun stepAt(offset: Offset, size: Size, inset: Float, steps: Int): Pair<I
 private fun ManualTab() {
     val bands by DesktopEqualizerSettings.bands.collectAsState()
     val preset by DesktopEqualizerSettings.preset.collectAsState()
+    val fullHeadroom by DesktopEqualizerSettings.fullHeadroom.collectAsState()
+    var transferring by remember { mutableStateOf(false) }
+    var editingBand by remember { mutableStateOf<Int?>(null) }
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
 
     SectionLabel(DesktopStrings["equalizer_bands", "Bands"])
     Row(Modifier.fillMaxWidth().padding(horizontal = panelInset(18.dp))) {
-        BandSliders(bands, Modifier.weight(1f)) { DesktopEqualizerSettings.setBands(it) }
+        BandSliders(bands, Modifier.weight(1f), onEdit = { editingBand = it }) { DesktopEqualizerSettings.setBands(it) }
         Spacer(Modifier.width(14.dp))
         // Beside the bands rather than behind a sheet: a window has the width for the list, and
         // seeing the curve move as a preset is picked is the point of having them.
@@ -411,8 +427,53 @@ private fun ManualTab() {
         )
         Spacer(Modifier.width(12.dp))
         OrbitPillButton(
+            DesktopStrings["equalizer_import_export", "Import or export"], { transferring = true },
+            orbitFonts(), orbitLook(), height = 40.dp,
+        )
+        Spacer(Modifier.width(8.dp))
+        OrbitPillButton(
             DesktopStrings["equalizer_reset", "Reset all bands"], { DesktopEqualizerSettings.setPreset(EqualizerPreset.FLAT) },
             orbitFonts(), orbitLook(), height = 40.dp,
+        )
+    }
+    if (transferring) {
+        EqPresetTransferDialog(
+            bands = bands,
+            fullHeadroom = fullHeadroom,
+            openFile = { deliver ->
+                scope.launch {
+                    val file = chooseCosmotuneFile("", saving = false, title = "Open an equaliser preset") ?: return@launch
+                    val text = withContext(Dispatchers.IO) {
+                        runCatching { file.inputStream().use { it.readNBytes(EqPresetText.MAX_TEXT_CHARS * 2).toString(Charsets.UTF_8) } }.getOrNull()
+                    }
+                    if (text != null) deliver(text)
+                }
+            },
+            saveFile = { text ->
+                scope.launch {
+                    val file = chooseCosmotuneFile("cosmotune-equaliser.txt", saving = true, title = "Save equaliser preset") ?: return@launch
+                    withContext(Dispatchers.IO) { runCatching { file.writeText(text) } }
+                }
+            },
+            copyText = { clipboard.setText(AnnotatedString(it)) },
+            pasteText = { clipboard.getText()?.text },
+            onApply = {
+                DesktopEqualizerSettings.setMode(DesktopEqualizerMode.MANUAL)
+                DesktopEqualizerSettings.setBands(it)
+                transferring = false
+            },
+            onDismiss = { transferring = false },
+        )
+    }
+    editingBand?.let { index ->
+        EqBandValueDialog(
+            frequencyLabel = formatFrequency(EqLayout.MANUAL_BANDS_HZ[index]),
+            current = bands.getOrElse(index) { 0f },
+            onSet = { value ->
+                DesktopEqualizerSettings.setBands(bands.toMutableList().also { it[index] = value })
+                editingBand = null
+            },
+            onDismiss = { editingBand = null },
         )
     }
 }
@@ -426,7 +487,7 @@ private fun ManualTab() {
  * floor would draw them as a short one and a tall one.
  */
 @Composable
-private fun BandSliders(bands: List<Float>, modifier: Modifier = Modifier, onChange: (List<Float>) -> Unit) {
+private fun BandSliders(bands: List<Float>, modifier: Modifier = Modifier, onEdit: (Int) -> Unit, onChange: (List<Float>) -> Unit) {
     Row(modifier, horizontalArrangement = Arrangement.SpaceBetween) {
         EqLayout.MANUAL_BANDS_HZ.forEachIndexed { index, hz ->
             val value = bands.getOrElse(index) { 0f }
@@ -436,8 +497,9 @@ private fun BandSliders(bands: List<Float>, modifier: Modifier = Modifier, onCha
                     style = MaterialTheme.typography.labelSmall,
                     color = if (abs(value) < 0.05f) dimColor else DesktopAccent,
                     maxLines = 1,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onEdit(index) }.padding(horizontal = 6.dp, vertical = 3.dp),
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(3.dp))
                 BandFader(value) { updated ->
                     onChange(bands.toMutableList().also { it[index] = updated })
                 }
