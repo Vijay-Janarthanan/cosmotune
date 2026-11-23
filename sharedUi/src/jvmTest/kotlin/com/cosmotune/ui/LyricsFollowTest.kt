@@ -15,6 +15,7 @@ import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.ui.player.LyricPlayhead
 import com.cosmotune.ui.nowplaying.CosmoLyricsView
 import com.cosmotune.ui.nowplaying.LyricsStyle
+import com.cosmotune.ui.nowplaying.lyricsFollowPause
 import com.cosmotune.ui.theme.CosmoBrandPalettes
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.CosmoPaletteState
@@ -170,6 +171,15 @@ class LyricsFollowTest {
 
     @Test
     fun aLineSyncedTamilSongKeepsTheSungLineInView() = assertFollowed(sungRows(tamil))
+
+    /** What the desktop log says when the lyrics stand still: the first reason that holds, and nothing while they follow. */
+    @Test
+    fun theLogNamesWhyTheLyricsStandStill() {
+        kotlin.test.assertNull(lyricsFollowPause(synced = true, browsing = false, picking = false, playing = true, onScreen = true))
+        kotlin.test.assertEquals("the reader scrolled the lyrics", lyricsFollowPause(true, browsing = true, picking = false, playing = true, onScreen = true))
+        kotlin.test.assertEquals("the app is off screen", lyricsFollowPause(true, false, false, playing = true, onScreen = false))
+        kotlin.test.assertEquals("the lyrics have no timings", lyricsFollowPause(false, true, true, false, false))
+    }
 
     /**
      * The lyrics of the playing song are replaced by another source's (here a romanised file with two lines to each of these)

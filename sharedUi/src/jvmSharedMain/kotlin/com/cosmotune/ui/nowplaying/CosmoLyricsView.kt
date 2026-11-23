@@ -318,6 +318,7 @@ private fun LyricsList(
     // Keyed on the anchor itself: another source's lyrics can replace these for the same song while it plays, and a follow
     // left reading the old lines' anchor numbered its rows by them, falling a line further behind at each until no sung line
     // was on screen.
+    LyricsFollowLog(synced = synced, browsing = browsing, picking = selection.picking, playing = isPlaying)
     LaunchedEffect(synced, following, reduced, anchor) {
         if (!synced || !following) return@LaunchedEffect
         snapshotFlow { anchor.value }.collectLatest { index ->
@@ -395,6 +396,37 @@ internal fun currentLineAt(lines: List<LyricLine>, positionMs: Long): Int {
 }
 
 /** Counts the scrolls that come from a person (a finger, a wheel); the list's own scrolling to the next line is not one. */
+/**
+ * Why the list is not following the song, or null while it is: what the desktop log records whenever the following stops or
+ * starts again, so a session in which the lyrics stood still says why. In order: no timings to follow, the reader scrolled
+ * (following carries on two and a half seconds after), lines being picked for a card, the song not playing, the app off screen
+ * (the clock stops asking for frames; a desktop window counts as on screen until it is minimised).
+ */
+internal fun lyricsFollowPause(synced: Boolean, browsing: Boolean, picking: Boolean, playing: Boolean, onScreen: Boolean): String? = when {
+    !synced -> "the lyrics have no timings"
+    browsing -> "the reader scrolled the lyrics"
+    picking -> "lines are being picked for a card"
+    !playing -> "the song is not playing"
+    !onScreen -> "the app is off screen"
+    else -> null
+}
+
+/** Writes a line to the app's log each time the lyrics stop or start following the song, with the reason and the window's state. */
+@Composable
+private fun LyricsFollowLog(synced: Boolean, browsing: Boolean, picking: Boolean, playing: Boolean) {
+    val onScreen = com.cosmotune.music.ui.rememberIsForeground()
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
+    val pause = lyricsFollowPause(synced, browsing, picking, playing, onScreen)
+    LaunchedEffect(pause) {
+        val window = "window ${if (windowInfo.isWindowFocused) "focused" else "not focused"}, ${lifecycle.currentState}"
+        com.cosmotune.music.data.TrackLog.i(
+            "Lyrics",
+            if (pause == null) "lyrics follow the song ($window)" else "lyrics stand still: $pause ($window)",
+        )
+    }
+}
+
 private class UserScrollWatcher(private val count: MutableIntState) : NestedScrollConnection {
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
         if (source == NestedScrollSource.UserInput) count.intValue++
