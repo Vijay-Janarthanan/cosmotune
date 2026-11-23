@@ -105,11 +105,13 @@ class DesktopPagesContractTest {
 
     // ---- the numbers of the boards ----
 
-    @Test fun theRowsActionsAreTheBoardsThirtyTwoDpPlainButtons() {
+    @Test fun theRowsActionsAreSeparatePlainButtonsBeforeTheDuration() {
         val parts = SourceContract.code(SourceContract.read(rowFile))
-        assertTrue(Regex("""DESKTOP_ROW_ACTION: Dp = 32\.dp""").containsMatchIn(parts), "the actions are 32 dp")
-        assertTrue(Regex("""DESKTOP_DURATION_COLUMN: Dp = 60\.dp""").containsMatchIn(parts), "the duration column is 60 dp")
-        assertTrue("LocalMinimumInteractiveComponentSize provides DESKTOP_ROW_ACTION" in parts, "a 32 dp button is 32 dp in the row")
+        assertTrue(Regex("""DESKTOP_ROW_ACTION: Dp = 36\.dp""").containsMatchIn(parts), "the actions are 36 dp")
+        assertTrue(Regex("""DESKTOP_ROW_ACTION_GAP: Dp = 8\.dp""").containsMatchIn(parts) && "Arrangement.spacedBy(DESKTOP_ROW_ACTION_GAP, Alignment.End)" in parts, "8 dp between them: they never touch")
+        assertTrue(Regex("""DESKTOP_DURATION_GAP: Dp = 12\.dp""").containsMatchIn(parts), "12 dp before the duration")
+        assertTrue("Modifier.padding(start = DESKTOP_DURATION_GAP, end = 4.dp).width(DESKTOP_DURATION_COLUMN)" in SourceContract.code(SourceContract.read(collectionFile)), "the duration keeps its air")
+        assertTrue("LocalMinimumInteractiveComponentSize provides DESKTOP_ROW_ACTION" in parts, "a 36 dp button is 36 dp in the row")
         assertTrue(Regex("""style = CosmoIconButtonStyle\.PLAIN""").findAll(parts).count() >= 4, "like, download, add and remove are PLAIN")
     }
 
