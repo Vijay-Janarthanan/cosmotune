@@ -28,7 +28,13 @@ import java.io.InputStream
  * Shows [content] once the device's screen lock was passed (Mihon's app lock); until then a plain page with Unlock. The lock is
  * asked again after Manga has been away for five minutes. Where there is no screen lock, [content] shows at once.
  */
-@Composable internal expect fun MangaLockGate(enabled: Boolean, pin: String?, content: @Composable () -> Unit)
+@Composable internal expect fun MangaLockGate(
+    enabled: Boolean,
+    pin: String?,
+    /** Changes the library (a forgotten PIN's reset). */
+    update: ((com.cosmotune.manga.data.MangaLibraryState) -> com.cosmotune.manga.data.MangaLibraryState) -> Unit,
+    content: @Composable () -> Unit,
+)
 
 /** Keeps the window out of screenshots, recordings and the recent-apps preview while [enabled] (Mihon's secure screen). */
 @Composable internal expect fun MangaSecureScreen(enabled: Boolean)

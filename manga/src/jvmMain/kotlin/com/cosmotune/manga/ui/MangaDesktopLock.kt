@@ -6,6 +6,15 @@ import com.sun.jna.Memory
 import com.sun.jna.Native
 import com.sun.jna.NativeLibrary
 import com.sun.jna.Pointer
+import com.sun.jna.Structure
+import com.sun.jna.WString
+import com.sun.jna.platform.win32.Advapi32
+import com.sun.jna.platform.win32.Advapi32Util
+import com.sun.jna.platform.win32.Kernel32
+import com.sun.jna.platform.win32.Ole32
+import com.sun.jna.platform.win32.WinNT
+import com.sun.jna.ptr.IntByReference
+import com.sun.jna.ptr.PointerByReference
 import com.sun.jna.platform.win32.WinDef
 import com.sun.jna.win32.StdCallLibrary
 import java.awt.Window
@@ -44,6 +53,128 @@ internal object MangaDesktopLock {
                 MangaSystemLock.NONE -> false
             }
         }.getOrDefault(false)
+    }
+
+    private val isLinux = "linux" in os
+
+    /**
+     * What can vouch for the listener when the Manga PIN is forgotten, in their words: the system prompt where there is one,
+     * otherwise the computer's own password check (Windows' credential prompt for this account, or polkit on Linux). Null where
+     * there is none, so a reset has to clear what the lock guards.
+     */
+    val recovery: String? by lazy {
+        runCatching {
+            when {
+                system != MangaSystemLock.NONE -> system.label
+                isWindows && WindowsSignIn.available() -> "your Windows password"
+                isLinux && LinuxSignIn.available() -> "your computer's password"
+                else -> null
+            }
+        }.getOrNull()
+    }
+
+    /** Asks for [recovery]; true only once the computer said the listener passed it. [window] keeps the prompt in front of Manga. */
+    suspend fun askRecovery(window: Window?): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            when {
+                system != MangaSystemLock.NONE -> ask()
+                isWindows -> WindowsSignIn.ask(window)
+                isLinux -> LinuxSignIn.ask()
+                else -> false
+            }
+        }.getOrDefault(false)
+    }
+
+    /**
+     * Windows' own credential prompt for the signed-in account (CredUIPromptForWindowsCredentials, current user only). The
+     * password typed there is checked with LogonUser, the account it opens must be the one Cosmotune runs as, and it is wiped
+     * straight after.
+     */
+    private object WindowsSignIn {
+        private const val CURRENT_USER_ONLY = 0x200 // CREDUIWIN_ENUMERATE_CURRENT_USER
+        private const val LOGON_FAILURE = 1326
+        private const val NUL = '\u0000'
+
+        private interface Credui : StdCallLibrary {
+            fun CredUIPromptForWindowsCredentialsW(info: MangaCredUiInfo, authError: Int, authPackage: IntByReference, inBuffer: Pointer?, inSize: Int,
+                outBuffer: PointerByReference, outSize: IntByReference, save: Pointer?, flags: Int): Int
+            fun CredUnPackAuthenticationBufferW(flags: Int, buffer: Pointer, size: Int, user: CharArray, userLength: IntByReference,
+                domain: CharArray, domainLength: IntByReference, password: CharArray, passwordLength: IntByReference): Boolean
+            companion object { val INSTANCE: Credui by lazy { Native.load("credui", Credui::class.java) } }
+        }
+
+        fun available(): Boolean = runCatching { Credui.INSTANCE; true }.getOrDefault(false)
+
+        fun ask(window: Window?): Boolean {
+            var error = 0
+            repeat(3) {
+                val info = MangaCredUiInfo().apply {
+                    hwndParent = window?.let { runCatching { Native.getComponentPointer(it) }.getOrNull() }
+                    pszCaptionText = WString("Reset your Manga PIN")
+                    pszMessageText = WString("Sign in with this computer's account to choose a new Manga PIN.")
+                    cbSize = size()
+                }
+                val out = PointerByReference()
+                val outSize = IntByReference()
+                val result = Credui.INSTANCE.CredUIPromptForWindowsCredentialsW(info, error, IntByReference(0), null, 0, out, outSize, null, CURRENT_USER_ONLY)
+                if (result != 0) return false // cancelled, or the prompt could not open
+                val buffer = out.value ?: return false
+                val user = CharArray(514)
+                val domain = CharArray(338)
+                val password = CharArray(1024)
+                try {
+                    val userLength = IntByReference(user.size)
+                    val domainLength = IntByReference(domain.size)
+                    val passwordLength = IntByReference(password.size)
+                    if (!Credui.INSTANCE.CredUnPackAuthenticationBufferW(0, buffer, outSize.value, user, userLength, domain, domainLength, password, passwordLength)) return false
+                    if (opensThisAccount(text(user), text(domain), password)) return true
+                } finally {
+                    password.fill(NUL)
+                    buffer.clear(outSize.value.toLong())
+                    Ole32.INSTANCE.CoTaskMemFree(buffer)
+                }
+                error = LOGON_FAILURE // the prompt opens again, saying the password was not right
+            }
+            return false
+        }
+
+        private fun text(chars: CharArray) = String(chars, 0, chars.indexOf(NUL).let { if (it < 0) chars.size else it })
+
+        /** True when the password opens this very account: the signed-in token's account is the one Cosmotune runs as. */
+        private fun opensThisAccount(name: String, domainName: String, password: CharArray): Boolean {
+            val slash = '\\'
+            val (domain, user) = if (domainName.isEmpty() && slash in name) name.substringBefore(slash) to name.substringAfter(slash) else domainName to name
+            val api = Advapi32.INSTANCE
+            val kernel = Kernel32.INSTANCE
+            val token = WinNT.HANDLEByReference()
+            val secret = String(password)
+            // A network sign-in checks the password without starting a session; an interactive one covers accounts that refuse it.
+            if (listOf(3, 2).none { type -> api.LogonUser(user, domain.ifEmpty { null }, secret, type, 0, token) }) return false
+            return try {
+                val own = WinNT.HANDLEByReference()
+                if (!api.OpenProcessToken(kernel.GetCurrentProcess(), WinNT.TOKEN_QUERY, own)) return false
+                try {
+                    Advapi32Util.getTokenAccount(token.value).sidString == Advapi32Util.getTokenAccount(own.value).sidString
+                } finally { kernel.CloseHandle(own.value) }
+            } finally { kernel.CloseHandle(token.value) }
+        }
+    }
+
+    /** polkit's own password prompt (pkexec), where the desktop runs an agent for it. */
+    private object LinuxSignIn {
+        private val tool: String? by lazy {
+            System.getenv("PATH").orEmpty().split(java.io.File.pathSeparatorChar).map { java.io.File(it, "pkexec") }.firstOrNull { it.canExecute() }?.path
+        }
+        private val yes: String? get() = listOf("/usr/bin/true", "/bin/true").firstOrNull { java.io.File(it).canExecute() }
+
+        fun available(): Boolean = tool != null && yes != null && (System.getenv("DISPLAY") != null || System.getenv("WAYLAND_DISPLAY") != null)
+
+        fun ask(): Boolean {
+            val process = ProcessBuilder(tool ?: return false, "--disable-internal-agent", yes ?: return false).redirectErrorStream(true).start()
+            process.outputStream.close()
+            if (!process.waitFor(3, TimeUnit.MINUTES)) { process.destroyForcibly(); return false }
+            return process.exitValue() == 0
+        }
     }
 
     /** Where windows can be kept out of screenshots and screen sharing (Windows 10 2004 and later, macOS). */
@@ -165,4 +296,14 @@ internal object MangaDesktopLock {
             dispatch.dispatch_async_f(system.getGlobalVariableAddress("_dispatch_main_q"), null, work)
         }
     }
+}
+
+/** CREDUI_INFOW for Windows' credential prompt; public in the class file, as JNA reads its fields by reflection. */
+@Structure.FieldOrder("cbSize", "hwndParent", "pszMessageText", "pszCaptionText", "hbmBanner")
+internal class MangaCredUiInfo : Structure() {
+    @JvmField var cbSize: Int = 0
+    @JvmField var hwndParent: Pointer? = null
+    @JvmField var pszMessageText: WString? = null
+    @JvmField var pszCaptionText: WString? = null
+    @JvmField var hbmBanner: Pointer? = null
 }

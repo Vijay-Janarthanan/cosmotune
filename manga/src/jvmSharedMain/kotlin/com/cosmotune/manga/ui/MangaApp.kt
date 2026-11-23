@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -98,7 +99,8 @@ fun MangaApp(
             // Mihon's clear chapter cache on launch: once a run, when it is on.
             if (ready.store.state.value.clearCacheOnStart && MangaStartCleanup.pending) { MangaStartCleanup.pending = false; runCatching { ready.clearCache() } }
         }
-        MangaLockGate(locks.lockManga, locks.lockPin) {
+        val lockScope = rememberCoroutineScope()
+        MangaLockGate(locks.lockManga, locks.lockPin, { change -> lockScope.launch { ready.store.update(change) } }) {
             androidx.compose.runtime.CompositionLocalProvider(LocalMangaPages provides pages) {
                 MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
             }
@@ -607,16 +609,41 @@ internal fun MangaDiscoverShelf(scope: MangaScope, source: MangaSourceConfig) {
 }
 
 /**
+ * "Forgot PIN?" on the locked page: [plan] says whether the computer's own sign-in ([signIn]) vouches for the listener or the
+ * reset has to clear what the lock guards. [update] changes the library; [onDone] opens Manga.
+ */
+internal class MangaForgotPin(
+    val plan: MangaPinReset,
+    val signIn: suspend () -> Boolean,
+    val update: ((MangaLibraryState) -> MangaLibraryState) -> Unit,
+    val onDone: () -> Unit,
+)
+
+/**
  * What Manga shows while its lock waits: the mode's name and Unlock. With [onPin] (Manga's own PIN) it has a PIN field; [onPin]
- * answers whether the PIN was right. [onUnlock] null leaves only the PIN.
+ * answers whether the PIN was right. [onUnlock] null leaves only the PIN. [forgot] adds "Forgot PIN?" under the PIN.
  */
 @Composable
-internal fun MangaLockedPage(onUnlock: (() -> Unit)?, onPin: ((String) -> Boolean)? = null) {
+internal fun MangaLockedPage(onUnlock: (() -> Unit)?, onPin: ((String) -> Boolean)? = null, forgot: MangaForgotPin? = null) {
     var pin by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
+    var flow by remember { mutableStateOf(MangaPinRecoveryFlow()) }
+    val scope = rememberCoroutineScope()
     fun tryPin() { if (onPin != null && pin.isNotEmpty()) { wrong = !onPin(pin); pin = "" } }
     Column(Modifier.fillMaxSize().padding(24.dp).testTag("manga:locked"), verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally) {
+        if (forgot != null && flow.step != MangaPinStep.ENTER) {
+            MangaForgotPinSteps(forgot, flow, onFlow = { flow = it }, onConfirm = {
+                val next = flow.confirm(forgot.plan)
+                flow = next
+                when (next.step) {
+                    MangaPinStep.CHECKING -> scope.launch { flow = flow.checked(runCatching { forgot.signIn() }.getOrDefault(false)) }
+                    MangaPinStep.CLEARED -> { forgot.update(MangaPinRecovery::afterClear); forgot.onDone() }
+                    else -> Unit
+                }
+            })
+            return@Column
+        }
         androidx.compose.material3.Text(mangaText("Manga is locked"), style = ReadType.titleLarge(), color = orbitLook().ink)
         if (onPin != null) Column(Modifier.widthIn(max = 280.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             com.cosmotune.ui.orbit.OrbitInputField(pin, { typed -> pin = typed.filter(Char::isDigit).take(12); wrong = false }, mangaText("Manga PIN"), secret = true,
@@ -629,6 +656,48 @@ internal fun MangaLockedPage(onUnlock: (() -> Unit)?, onPin: ((String) -> Boolea
             if (onPin != null) ReadButton(mangaText("Unlock"), ::tryPin, enabled = pin.length >= 4, modifier = Modifier.testTag("manga:unlock:pin"))
             if (onUnlock != null) ReadButton(mangaText(if (onPin != null) "Use system sign-in" else "Unlock"), onUnlock,
                 kind = if (onPin != null) ReadKind.TONAL else ReadKind.FILLED, modifier = Modifier.testTag("manga:unlock"))
+        }
+        if (onPin != null && forgot != null) ReadTextButton(mangaText("Forgot PIN?"), { flow = flow.forgot() }, modifier = Modifier.testTag("manga:lock:forgot"))
+    }
+}
+
+/** The steps after "Forgot PIN?": what the reset does, the computer's sign-in running, then a new PIN. */
+@Composable
+private fun MangaForgotPinSteps(forgot: MangaForgotPin, flow: MangaPinRecoveryFlow, onFlow: (MangaPinRecoveryFlow) -> Unit, onConfirm: () -> Unit) {
+    val look = orbitLook()
+    val signIn = forgot.plan as? MangaPinReset.SignIn
+    Column(Modifier.widthIn(max = 360.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        when (flow.step) {
+            MangaPinStep.NEW_PIN -> {
+                var pin by remember { mutableStateOf("") }
+                val problem = pin.takeIf { it.isNotEmpty() }?.let(MangaLockPin::problem)
+                androidx.compose.material3.Text(mangaText("Choose a new Manga PIN"), style = ReadType.titleLarge(), color = look.ink)
+                com.cosmotune.ui.orbit.OrbitInputField(pin, { typed -> pin = typed.filter(Char::isDigit).take(12) }, mangaText("New Manga PIN"), secret = true,
+                    error = problem != null, modifier = Modifier.fillMaxWidth().testTag("manga:lock:reset:newpin"))
+                androidx.compose.material3.Text(mangaText(problem ?: "4 to 12 digits"), style = ReadType.meta(), color = look.dim)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReadButton(mangaText("Save PIN"), {
+                        val hashed = MangaLockPin.hash(pin)
+                        forgot.update { MangaPinRecovery.afterSignIn(it, hashed) }
+                        forgot.onDone()
+                    }, enabled = pin.isNotEmpty() && problem == null, modifier = Modifier.testTag("manga:lock:reset:save"))
+                    ReadTextButton(mangaText("Turn lock off"), { forgot.update { MangaPinRecovery.afterSignIn(it, null) }; forgot.onDone() },
+                        modifier = Modifier.testTag("manga:lock:reset:off"))
+                }
+            }
+            MangaPinStep.CHECKING -> {
+                androidx.compose.material3.Text(mangaText("Forgot your Manga PIN?"), style = ReadType.titleLarge(), color = look.ink)
+                androidx.compose.material3.Text(mangaText("Waiting for ") + (signIn?.prompt ?: mangaText("your sign-in")), style = ReadType.meta(), color = look.dim)
+            }
+            else -> {
+                androidx.compose.material3.Text(mangaText("Forgot your Manga PIN?"), style = ReadType.titleLarge(), color = look.ink)
+                androidx.compose.material3.Text(mangaText(MangaPinRecovery.explanation(forgot.plan)), style = ReadType.meta(), color = look.dim)
+                flow.message?.let { androidx.compose.material3.Text(mangaText(it), style = ReadType.meta(), color = look.ink) }
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReadButton(mangaText(if (signIn != null) "Sign in" else "Reset lock"), onConfirm, modifier = Modifier.testTag("manga:lock:reset"))
+                    ReadTextButton(mangaText("Cancel"), { onFlow(flow.cancel()) }, modifier = Modifier.testTag("manga:lock:reset:cancel"))
+                }
+            }
         }
     }
 }

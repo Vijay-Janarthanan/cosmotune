@@ -87,7 +87,13 @@ import com.cosmotune.manga.data.MangaImageImport
 /** When Manga last passed the lock, for the five-minute grace; per process, so a restart asks again. */
 private object DesktopLockClock { @Volatile var unlockedAtMs = 0L }
 
-@Composable internal actual fun MangaLockGate(enabled: Boolean, pin: String?, content: @Composable () -> Unit) {
+@Composable internal actual fun MangaLockGate(
+    enabled: Boolean,
+    pin: String?,
+    /** Changes the library (a forgotten PIN's reset). */
+    update: ((com.cosmotune.manga.data.MangaLibraryState) -> com.cosmotune.manga.data.MangaLibraryState) -> Unit,
+    content: @Composable () -> Unit,
+) {
     val prompt = rememberMangaLockPrompt()
     // Locked only once it is known what can unlock it; with neither a prompt nor a PIN there is nothing to ask, so it stays open.
     val needed = enabled && prompt != "" && (prompt != null || pin != null)
@@ -101,8 +107,14 @@ private object DesktopLockClock { @Volatile var unlockedAtMs = 0L }
     when {
         !enabled || prompt != "" && !needed || open -> content()
         prompt == "" -> Unit // still finding out what this computer has; a moment at most
-        else -> MangaLockedPage(onUnlock = if (prompt != null) ::ask else null,
-            onPin = if (pin != null) { typed -> com.cosmotune.manga.data.MangaLockPin.matches(typed, pin).also { if (it) pass() } } else null)
+        else -> {
+            val window = AwtWindowLocal?.current
+            val recovery = androidx.compose.runtime.produceState<String?>("") { value = withContext(Dispatchers.IO) { MangaDesktopLock.recovery } }.value // "" while finding out
+            MangaLockedPage(onUnlock = if (prompt != null) ::ask else null,
+                onPin = if (pin != null) { typed -> com.cosmotune.manga.data.MangaLockPin.matches(typed, pin).also { if (it) pass() } } else null,
+                forgot = if (recovery == "") null else MangaForgotPin(com.cosmotune.manga.data.MangaPinRecovery.plan(recovery),
+                    signIn = { MangaDesktopLock.askRecovery(window) }, update = update, onDone = ::pass))
+        }
     }
 }
 

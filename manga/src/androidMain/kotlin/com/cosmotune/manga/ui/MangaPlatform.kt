@@ -125,7 +125,14 @@ private tailrec fun android.content.Context.findActivity(): android.app.Activity
 private object MangaLockClock { @Volatile var unlockedAtMs = 0L }
 
 @Suppress("DEPRECATION")
-@Composable internal actual fun MangaLockGate(enabled: Boolean, pin: String?, content: @Composable () -> Unit) {
+// The phone's own screen lock has its own way back, so there is no Manga PIN to forget here.
+@Composable internal actual fun MangaLockGate(
+    enabled: Boolean,
+    pin: String?,
+    /** Changes the library (a forgotten PIN's reset). */
+    update: ((com.cosmotune.manga.data.MangaLibraryState) -> com.cosmotune.manga.data.MangaLibraryState) -> Unit,
+    content: @Composable () -> Unit,
+) {
     val context = LocalContext.current
     val keyguard = context.getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
     val needed = enabled && keyguard?.isDeviceSecure == true
