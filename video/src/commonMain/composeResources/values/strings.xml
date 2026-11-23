@@ -667,6 +667,8 @@
     <string name="video_settings_imported">Settings loaded</string>
     <string name="video_set_remember_speed">Remember the speed of each video</string>
     <string name="video_set_dl_embed">Put details in the file</string>
+    <string name="video_set_keys_seek">Headset buttons skip back and on</string>
+    <string name="video_set_keys_seek_note">Previous and next on headphones or in the car move by the double-tap step</string>
     <string name="video_tvcode_title">Link with TV code</string>
     <string name="video_tvcode_allow">Let phones cast here</string>
     <string name="video_tvcode_off">Turn this on, then type the code in the video app on your phone to play its videos here.</string>

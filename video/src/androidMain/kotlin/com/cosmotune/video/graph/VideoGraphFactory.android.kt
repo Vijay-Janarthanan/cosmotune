@@ -143,6 +143,13 @@ private object AndroidVideoProcess {
             override fun previous() = playback.playPrevious()
 
             override fun next() = playback.playNext()
+
+            override val keysSeek: Boolean get() = settings.settings.value.mediaKeysSeek
+
+            override fun seek(forward: Boolean) {
+                val step = settings.settings.value.doubleTapSeconds * 1_000L
+                playback.seekBy(if (forward) step else -step)
+            }
         }
         audio = ModeAudio(playback, scope)
     }

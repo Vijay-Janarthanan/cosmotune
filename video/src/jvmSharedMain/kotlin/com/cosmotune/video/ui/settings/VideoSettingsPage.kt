@@ -67,6 +67,8 @@ import com.cosmotune.video.resources.video_disclaimer_text
 import com.cosmotune.video.resources.video_disclaimer_title
 import com.cosmotune.video.resources.video_dl_audio_only
 import com.cosmotune.video.resources.video_set_dl_cut
+import com.cosmotune.video.resources.video_set_keys_seek
+import com.cosmotune.video.resources.video_set_keys_seek_note
 import com.cosmotune.video.resources.video_tvcode_on
 import com.cosmotune.video.resources.video_tvcode_state_off
 import com.cosmotune.video.resources.video_tvcode_title
@@ -295,6 +297,10 @@ private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pi
         SwitchRow(CosmoIcons.Waveform, stringResource(Res.string.video_set_voice_boost), settings.voiceBoost, subtitle = stringResource(Res.string.video_set_voice_boost_note)) { value -> update { it.copy(voiceBoost = value) } }
         if (skipSilenceSupported) {
             SwitchRow(CosmoIcons.Forward10, stringResource(Res.string.video_set_skip_silence), settings.skipSilence) { value -> update { it.copy(skipSilence = value) } }
+            // the headset keys reach Video through the phone's and the TV's media session only
+            SwitchRow(VideoIcons.Forward, stringResource(Res.string.video_set_keys_seek), settings.mediaKeysSeek, subtitle = stringResource(Res.string.video_set_keys_seek_note)) { value ->
+                update { it.copy(mediaKeysSeek = value) }
+            }
         }
         // Picture in picture is the phone's: the desktop (and a phone without it) is not asked.
         if (pipSupported) {

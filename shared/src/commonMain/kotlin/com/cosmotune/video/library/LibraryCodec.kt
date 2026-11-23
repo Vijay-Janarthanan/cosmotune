@@ -370,6 +370,7 @@ internal data class SettingsDocument(
     val cutSegments: Boolean = false,
     val phoneCasting: Boolean = false,
     val loungeScreenId: String? = null,
+    val mediaKeysSeek: Boolean = false,
     val smoothness: SmoothnessDto = SmoothnessDto(),
 )
 
@@ -448,6 +449,7 @@ internal fun VideoSettings.toDocument() = SettingsDocument(
     cutSegments = cutSegments,
     phoneCasting = phoneCasting,
     loungeScreenId = loungeScreenId,
+    mediaKeysSeek = mediaKeysSeek,
     smoothness = smoothness.toDto(),
 )
 
@@ -510,6 +512,7 @@ internal fun SettingsDocument.toSettings(): VideoSettings {
         cutSegments = cutSegments,
         phoneCasting = phoneCasting,
         loungeScreenId = loungeScreenId?.takeIf { it.isNotBlank() && it.length <= 64 },
+        mediaKeysSeek = mediaKeysSeek,
         smoothness = smoothness.toDomain(),
     )
 }

@@ -91,6 +91,8 @@ data class VideoSettings(
     val phoneCasting: Boolean = false,
     /** This screen's lounge id, so a linked phone finds it again. */
     val loungeScreenId: String? = null,
+    /** A headset's or a car's previous and next keys skip back and on instead of changing the video. */
+    val mediaKeysSeek: Boolean = false,
     val smoothness: SmoothnessSettings = SmoothnessSettings() /* frame smoothing: off, so frames are shown as they come */,
 ) {
     companion object {
