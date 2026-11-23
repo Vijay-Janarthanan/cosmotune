@@ -1,5 +1,7 @@
 package com.cosmotune.podio.ui
 
+import androidx.compose.material.icons.outlined.BarChart
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -393,6 +395,7 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = env.bottom + 16.dp)) {
             item(key = "head") {
                 PodioHead("Following", label, fonts, look, side, env.onMusic) {
+                    OrbitPageButton(androidx.compose.material.icons.Icons.Outlined.BarChart, "Your listening", { m.listeningOpen = true })
                     if (shows.isNotEmpty()) OrbitPageButton(CosmoIcons.Replay, "Refresh episodes", { if (!m.inboxLoading) onRefresh() })
                 }
             }

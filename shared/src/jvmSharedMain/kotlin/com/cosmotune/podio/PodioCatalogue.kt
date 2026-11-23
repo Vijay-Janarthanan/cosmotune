@@ -590,7 +590,9 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** Speech plays louder and clearer (a show can choose otherwise). */
     val voiceBoost: Boolean = false,
     /** When the saved stations were last checked against the directory ([PodioStationCheck]). */
-    val stationsCheckedMs: Long = 0)
+    val stationsCheckedMs: Long = 0,
+    /** Listening by day ("2026-11-23") and show id ([PodioStats]). */
+    val listened: Map<String, Map<String, Long>> = emptyMap())
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {

@@ -15,14 +15,31 @@ class PodioProgressTracker(private val library: PodioLibrary,
         val next = id?.takeIf { it.startsWith("podio:episode:") && !loading }
             ?.let { Position(it, positionMs.coerceAtLeast(0), playing, knownDuration) }
         val old = previous
-        if (old != null && old.id != next?.id) persist(old)
+        // Listening time: the playhead's own steps while it plays, never a seek.
+        if (old != null && next != null && old.id == next.id && old.playing) {
+            val step = next.positionMs - old.positionMs
+            if (step in 1..PodioStats.MAX_STEP_MS) heard += step
+        }
+        if (old != null && old.id != next?.id) { persist(old); flushHeard(old.id) }
         if (next != null && next.id != old?.id) runCatching { queue?.started(next.id) }
         // A decoder reset while the same episode is loading must not replace its saved position.
         if (loading && id == old?.id) return
         previous = next
         if (next == null) return
         val now = clockMs()
-        if (!next.playing || writtenAt == Long.MIN_VALUE || now - writtenAt >= 5_000) persist(next)
+        if (!next.playing || writtenAt == Long.MIN_VALUE || now - writtenAt >= 5_000) { persist(next); flushHeard(next.id) }
+    }
+
+    private var heard = 0L
+
+    private fun flushHeard(id: String) {
+        val ms = heard.takeIf { it > 0 } ?: return
+        heard = 0
+        runCatching {
+            library.update { saved ->
+                PodioStats.add(saved, java.time.LocalDate.now(), PodioShowRules.showOf(id, saved, runCatching { queue?.state?.value }.getOrNull()), ms)
+            }
+        }
     }
 
     private fun persist(position: Position) {
@@ -33,5 +50,5 @@ class PodioProgressTracker(private val library: PodioLibrary,
         }
     }
 
-    @Synchronized override fun close() { previous?.let(::persist); previous = null }
+    @Synchronized override fun close() { previous?.let { persist(it); flushHeard(it.id) }; previous = null }
 }

@@ -359,6 +359,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             onShareAt = playingEntry?.let { entry -> { m.shareEpisode(entry.episode, entry.show.title, playback.positionMs) } }) { m.playerSheet = false }
         m.episodeSheet?.let { entry -> EpisodeSheet(m, env, entry) { m.episodeSheet = null } }
         if (m.songsOpen) HeardSongsSheet(m, saved.heardSongs) { m.songsOpen = false }
+        if (m.listeningOpen) ListeningSheet(saved) { m.listeningOpen = false }
         m.showSettingsFor?.let { show -> ShowSettingsSheet(show, saved, m::save) { m.showSettingsFor = null } }
     }
     }

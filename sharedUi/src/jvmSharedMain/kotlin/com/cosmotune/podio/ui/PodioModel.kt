@@ -131,6 +131,8 @@ internal class PodioModel(
     var lastPlayed by mutableStateOf<PodioItem?>(null)
     /** The episode whose details sheet is open, and the show it belongs to. */
     var episodeSheet by mutableStateOf<InboxEpisode?>(null)
+    /** Your listening (the statistics) is open. */
+    var listeningOpen by mutableStateOf(false)
     /** Heard on the radio's full list is open. */
     var songsOpen by mutableStateOf(false)
 
