@@ -216,6 +216,8 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
     var filter by remember(requested?.id) { mutableIntStateOf(0) }
     var oldestFirst by remember(requested?.id) { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    val openLink: (String) -> Unit = { url -> PodioCatalogue.httpUrl(url)?.let { runCatching { uri.openUri(it) } } }
     BoxWithConstraints(Modifier.fillMaxSize().testTag("podio:show")) {
         val side = orbitPageSide(maxWidth)
         val episodes = feed?.episodes.orEmpty()
@@ -251,6 +253,16 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                         OrbitHeaderButton(CosmoIcons.MoreVertical, "More", colors, { more = true })
                         ShowMenu(m, env, show, feed, more, { more = false })
                     }
+                }
+            }
+            // Podcasting 2.0: the people behind the show, and where to support it (its own page; nothing is paid here).
+            val people = feed?.show?.people.orEmpty()
+            val funding = feed?.show?.funding.orEmpty()
+            if (people.isNotEmpty() || funding.isNotEmpty()) item(key = "people") {
+                OrbitChipRow(side, Modifier.padding(top = 12.dp)) {
+                    funding.firstOrNull()?.let { link -> OrbitSelectChip("Support the show", false, fonts, look, { openLink(link.url) }, icon = CosmoIcons.HeartFill, haptic = false,
+                        modifier = Modifier.testTag("podio:show:support")) }
+                    people.forEach { person -> PersonChip(person, fonts, look, openLink) }
                 }
             }
             if (feed == null) {
@@ -645,7 +657,8 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                             if (heard > 0f) OrbitRing(96.dp, ink.copy(alpha = 0.8f), progress = { heard }, spinning = false, stroke = 1.5.dp, moon = 3.dp)
                         }
                         Column(Modifier.weight(1f)) {
-                            OrbitLabel(PodioFormat.episodeMeta("Episode", PodioFormat.date(episode.published), PodioFormat.duration(episode.durationSeconds)), fonts, ink.copy(alpha = 0.75f))
+                            OrbitLabel(PodioFormat.episodeMeta(episodeNumber(episode).ifBlank { "Episode" }, PodioFormat.date(episode.published), PodioFormat.duration(episode.durationSeconds)),
+                                fonts, ink.copy(alpha = 0.75f))
                             if (episode.show.isNotBlank()) Text(episode.show, style = fonts.body.copy(fontSize = 14.sp), color = ink.copy(alpha = 0.85f), maxLines = 1,
                                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
                         }
@@ -680,6 +693,10 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                 // The episode for everyone in the room, each device fetching it itself; hidden where rooms are not offered.
                 RoomPlayButton(remember(item.id) { item.roomItem() })
             }
+            if (episode.people.isNotEmpty()) {
+                val uri = androidx.compose.ui.platform.LocalUriHandler.current
+                OrbitChipRow(0.dp) { episode.people.forEach { person -> PersonChip(person, fonts, look) { url -> PodioCatalogue.httpUrl(url)?.let { runCatching { uri.openUri(it) } } } } }
+            }
             val marks = PodioBookmarks.of(env.saved, item.id)
             if (marks.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OrbitLabel("Bookmarks · ${marks.size}", fonts, look.dim)
@@ -690,4 +707,13 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                 start = ExtrasTab.NOTES, listHeight = 360.dp, localPath = env.downloaded.firstOrNull { it.id == item.id }?.downloadedPath)
         }
     }
+}
+
+/** "S2 E14", "E14", or nothing when the feed numbers no episodes. */
+internal fun episodeNumber(episode: PodcastEpisode): String = listOfNotNull(episode.season?.let { "S$it" }, episode.number?.let { "E$it" }).joinToString(" ")
+
+/** A host or a guest the feed names: their name, and their role when it is not "host"; a tap opens their page where there is one. */
+@Composable internal fun PersonChip(person: PodcastPerson, fonts: OrbitFonts, look: OrbitLook, openLink: (String) -> Unit) {
+    val label = if (person.role == "host") person.name else "${person.name} · ${person.role.replaceFirstChar { it.uppercase() }}"
+    OrbitSelectChip(label, false, fonts, look, { if (person.href.isNotBlank()) openLink(person.href) }, icon = CosmoIcons.User, haptic = false)
 }

@@ -26,12 +26,24 @@ import kotlin.coroutines.resumeWithException
     val artwork: String = "", val latitude: Double? = null, val longitude: Double? = null,
     val codec: String = "", val bitrate: Int = 0, val state: String = "")
 @Serializable data class PodcastShow(val id: String, val title: String, val author: String,
-    val feed: String, val artwork: String = "", val website: String = "", val source: String = "Publisher feed")
+    val feed: String, val artwork: String = "", val website: String = "", val source: String = "Publisher feed",
+    /** Podcasting 2.0's "podcast:funding": where to support the show (a web page; nothing is paid in the app). */
+    val funding: List<PodcastLink> = emptyList(),
+    /** Podcasting 2.0's "podcast:person" for the whole show: its hosts and makers. */
+    val people: List<PodcastPerson> = emptyList())
+/** Someone the feed names (Podcasting 2.0 "podcast:person"): a host, a guest; [href] is their page, [image] their picture. */
+@Serializable data class PodcastPerson(val name: String, val role: String = "host", val href: String = "", val image: String = "")
+/** A link the feed gives with its words ("Support us on …"). */
+@Serializable data class PodcastLink(val url: String, val text: String)
 @Serializable data class PodcastEpisode(val id: String, val title: String, val show: String, val url: String,
     val artwork: String = "", val durationSeconds: Long = 0, val published: String = "", val description: String = "",
     val chaptersUrl: String? = null, val transcripts: List<PodcastTranscript> = emptyList(),
     /** Chapters the feed itself carries: Podlove Simple Chapters, else chapter times listed in the show notes. */
-    val inlineChapters: List<PodcastChapter> = emptyList())
+    val inlineChapters: List<PodcastChapter> = emptyList(),
+    /** Its season and number in the show (podcast:season / podcast:episode, or the iTunes tags), when the feed gives them. */
+    val season: Int? = null, val number: Int? = null,
+    /** The hosts and guests the feed names for this episode. */
+    val people: List<PodcastPerson> = emptyList())
 data class PodcastFeed(val show: PodcastShow, val episodes: List<PodcastEpisode>,
     /** Publisher-provided RSS/Atom archive link, rather than a guessed page number. */
     val nextPage: String? = null, val visitedPages: List<String> = emptyList())
@@ -442,7 +454,11 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
             val title = channel.field("title").takeIf { it.isNotBlank() } ?: error("The feed has no title")
             val image = channel.children().firstOrNull { it.local() == "image" }
             val artwork = image?.getAttribute("href")?.takeIf(String::isNotBlank) ?: image?.field("url").orEmpty()
-            val show = PodcastShow(identity(identityUrl), title, channel.field("author"), identityUrl, resolve(artwork), resolve(channel.field("link")))
+            val show = PodcastShow(identity(identityUrl), title, channel.field("author"), identityUrl, resolve(artwork), resolve(channel.field("link")),
+                funding = channel.children().filter { it.local() == "funding" }.take(4).mapNotNull { link ->
+                    resolve(link.getAttribute("url")).takeIf(String::isNotBlank)?.let { PodcastLink(it, link.textContent.trim().take(120).ifBlank { "Support the show" }) }
+                },
+                people = peopleOf(channel, ::resolve))
             val episodes = channel.children().asSequence().filter { it.local() in setOf("item", "entry") }.take(1000).mapNotNull { entry ->
                 val enclosure = entry.children().firstOrNull { it.local() == "enclosure" || it.local() == "link" && it.getAttribute("rel") == "enclosure" }
                     ?: return@mapNotNull null
@@ -463,7 +479,10 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                     }.sortedBy { transcriptRank(it.type) },
                     inlineChapters = podloveChapters(entry, ::resolve).ifEmpty {
                         PodcastExtras.notesChaptersOf(listOf("description", "encoded", "summary").map { entry.field(it) })
-                    })
+                    },
+                    season = entry.field("season").toIntOrNull()?.takeIf { it in 1..10_000 },
+                    number = entry.field("episode").toIntOrNull()?.takeIf { it in 1..100_000 },
+                    people = peopleOf(entry, ::resolve))
             }.distinctBy { it.id }.toList()
             val next = channel.children().firstOrNull { it.local() == "link" && it.getAttribute("rel").equals("next", true) }
                 ?.getAttribute("href")?.takeIf(String::isNotBlank)?.let(::resolve)?.takeIf { it.isNotBlank() && it != url }
@@ -479,6 +498,13 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                     val title = chapter.getAttribute("title").trim().take(300).takeIf(String::isNotEmpty) ?: return@mapNotNull null
                     PodcastChapter(start, title, chapter.getAttribute("image").takeIf(String::isNotBlank)?.let(resolve)?.takeIf(String::isNotBlank))
                 }?.distinctBy { it.startMs }?.sortedBy { it.startMs }.orEmpty()
+        /** Podcasting 2.0's "podcast:person" entries under [parent] (at most 12), each with its role, page and picture. */
+        private fun peopleOf(parent: Element, resolve: (String) -> String): List<PodcastPerson> =
+            parent.children().filter { it.local() == "person" }.take(12).mapNotNull { person ->
+                val name = person.textContent.trim().take(120).takeIf(String::isNotEmpty) ?: return@mapNotNull null
+                PodcastPerson(name, person.getAttribute("role").trim().lowercase().take(40).ifBlank { "host" },
+                    person.getAttribute("href").takeIf(String::isNotBlank)?.let(resolve).orEmpty(), person.getAttribute("img").takeIf(String::isNotBlank)?.let(resolve).orEmpty())
+            }.distinctBy { it.name.lowercase() to it.role }
         private fun Element.local(): String = localName ?: tagName.substringAfter(':')
         private fun Element.children(): List<Element> = (0 until childNodes.length).mapNotNull { childNodes.item(it) as? Element }
         private fun JsonObject.text(key: String): String = (get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
