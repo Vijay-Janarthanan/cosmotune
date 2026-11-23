@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.credits.SongCredit
 import com.cosmotune.music.data.credits.SongCredits
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.musicbrainz.RecordingFacts
+import com.cosmotune.music.data.musicbrainz.RecordingFactsLookup
 import com.cosmotune.ui.orbit.OrbitLabel
 import com.cosmotune.ui.orbit.OrbitPickerSheet
 import com.cosmotune.ui.orbit.OrbitSheetTitle
@@ -28,7 +30,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Song info (from upstream 1.10, GPL-3.0): a song's album and length, then its credits as YouTube Music lists them (who performed,
- * wrote and produced it). A song's menu calls [open] on the phone and the desktop alike; [SongInfoHost], once in each app's root,
+ * wrote and produced it), then what MusicBrainz knows (first release, ISRC, genres; see [RecordingFactsLookup]). A song's menu calls [open] on the phone and the desktop alike; [SongInfoHost], once in each app's root,
  * shows the sheet.
  */
 object SongInfo {
@@ -57,6 +59,20 @@ fun songInfoFacts(song: Song): List<Pair<String, String>> = listOfNotNull(
     song.durationText?.takeIf { it.isNotBlank() }?.let { "Length" to it },
 )
 
+/** What the MusicBrainz part shows: still asking, what was found, or nothing. */
+sealed interface RecordingFactsState {
+    data object Loading : RecordingFactsState
+    data class Found(val facts: RecordingFacts) : RecordingFactsState
+    data object None : RecordingFactsState
+}
+
+/** First released, ISRC and Genres, each only when MusicBrainz has it. */
+fun recordingFactRows(facts: RecordingFacts): List<Pair<String, String>> = listOfNotNull(
+    facts.firstRelease?.let { "First released" to it },
+    facts.isrcs.takeIf { it.isNotEmpty() }?.let { (if (it.size == 1) "ISRC" else "ISRCs") to it.take(3).joinToString("\n") },
+    facts.genres.takeIf { it.isNotEmpty() }?.let { "Genres" to it.joinToString(", ") },
+)
+
 @Composable
 fun SongInfoSheet(song: Song, onDismiss: () -> Unit) {
     val fonts = orbitFonts()
@@ -64,6 +80,10 @@ fun SongInfoSheet(song: Song, onDismiss: () -> Unit) {
     val credits by produceState<SongCreditsState>(SongCreditsState.Loading, song.videoId) {
         val found = SongCredits.forSong(song.videoId)
         value = if (found.isEmpty()) SongCreditsState.None else SongCreditsState.Found(found)
+    }
+    // MusicBrainz: asked once the sheet opens; a local file's own ids name the recording exactly.
+    val facts by produceState<RecordingFactsState>(RecordingFactsState.Loading, song.videoId) {
+        value = RecordingFactsLookup.forSong(song)?.let { RecordingFactsState.Found(it) } ?: RecordingFactsState.None
     }
     OrbitPickerSheet(onDismiss) {
         OrbitSheetTitle(title = song.title, label = "Song info", subtitle = song.artist)
@@ -81,6 +101,17 @@ fun SongInfoSheet(song: Song, onDismiss: () -> Unit) {
                 SongCreditsState.Loading -> Text("Looking up the credits…", style = fonts.body, color = look.dim, modifier = Modifier.padding(bottom = 16.dp))
                 SongCreditsState.None -> Text("YouTube Music has no credits for this song.", style = fonts.body, color = look.dim, modifier = Modifier.padding(bottom = 16.dp))
                 is SongCreditsState.Found -> state.credits.forEach { credit -> row(credit.role, credit.names.joinToString("\n")) }
+            }
+            when (val state = facts) {
+                RecordingFactsState.Loading -> Text("Looking it up on MusicBrainz…", style = fonts.body, color = look.dim, modifier = Modifier.padding(bottom = 16.dp))
+                RecordingFactsState.None -> Text("MusicBrainz has nothing more on this song.", style = fonts.body, color = look.dim, modifier = Modifier.padding(bottom = 16.dp))
+                is RecordingFactsState.Found -> {
+                    recordingFactRows(state.facts).forEach { (label, value) -> row(label, value) }
+                    Text(
+                        if (state.facts.fromTags) "From MusicBrainz, matched by the ids in the file's tags." else "From MusicBrainz, matched by title and artist.",
+                        style = fonts.body, color = look.dim, modifier = Modifier.padding(bottom = 16.dp).testTag("song-info:musicbrainz"),
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
         }

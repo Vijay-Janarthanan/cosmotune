@@ -303,4 +303,5 @@ imported-playlist edits (`fee962bf28`). Their tests are adapted the same way.
 ## Music ideas from other players (November 2026)
 
 These follow ideas seen in other players and are written for Cosmotune without taking their code: playlist folders in Library
-(`PlaylistFolders.kt`, the idea from OuterTune, GPL-3.0).
+(`PlaylistFolders.kt`, the idea from OuterTune, GPL-3.0); reading MusicBrainz and AcoustID ids from a song file's tags (`TrackIdentifiers.kt`,
+OuterTune) and the MusicBrainz part of Song info (`RecordingFacts.kt`, the idea from Kreate, GPL-3.0).
