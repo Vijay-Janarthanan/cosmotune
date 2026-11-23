@@ -169,8 +169,8 @@ fun OrbitReleaseCard(
                     playing = playing, maxSize = 34.sp, minSize = 22.sp, maxLines = 3, maxHeight = 110.dp, heading = true,
                 )
             } else {
-                Text(
-                    title, style = fonts.heroTitle.copy(fontSize = 34.sp, lineHeight = 36.sp), color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                OrbitFitTitle(
+                    title, style = fonts.heroTitle.copy(fontSize = 34.sp, lineHeight = 36.sp), color = ink, maxLines = 3,
                     modifier = Modifier.padding(top = 8.dp).semantics { heading() },
                 )
             }

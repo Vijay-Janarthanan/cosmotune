@@ -137,9 +137,9 @@ fun OrbitPageHeader(
                             Spacer(Modifier.height(if (size == OrbitHeaderSize.RESULT) 4.dp else 8.dp))
                         }
                         if (titleContent != null) titleContent(colors)
-                        else Text(
+                        else OrbitFitTitle(
                             title, style = fonts.heroTitle.copy(fontSize = size.title, lineHeight = size.titleLine), color = ink,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() },
+                            maxLines = 2, modifier = Modifier.semantics { heading() },
                         )
                         if (!subtitle.isNullOrBlank()) {
                             Text(
