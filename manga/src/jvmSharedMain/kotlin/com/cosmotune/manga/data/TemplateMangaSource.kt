@@ -20,7 +20,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /** Site-scoped HTML requests and declarative extraction, independent of Android APK extensions. */
-class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: OkHttpClient) : MangaSource, MangaImageTransport {
+class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: OkHttpClient) : MangaSource, MangaImageTransport, MangaTextSource {
     private val template = MangaHtmlTemplate.parse(requireNotNull(config.settings["template"]))
     private val origin = config.baseUrl.toHttpUrl()
     private val local = config.settings["allowLocalNetwork"] == "true"
@@ -89,7 +89,7 @@ class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: Ok
             val title = element(item, chaptersRule.titleSelector)?.text()?.trim().orEmpty().ifBlank { link.text().trim() }.take(500)
             if (title.isBlank()) return@mapNotNull null
             val number = Regex("\\d+(?:\\.\\d+)?").find(title)?.value?.toFloatOrNull() ?: 0f
-            MangaChapter(identity("chapter", target.toString()), book.id, config.id, title, target.toString(), number, config.language)
+            MangaChapter(identity("chapter", target.toString()), book.id, config.id, title, target.toString(), number, config.language, text = template.pageList.text)
         }.distinctBy { it.id }.let { if (chaptersRule.newestFirst) it.reversed() else it }
         require(chapters.isNotEmpty()) { "This template found no chapters. Check its selectors or complete the site's verification." }
         book.copy(title = text(doc, rule.titleSelector).ifBlank { book.title }.take(500),
@@ -98,8 +98,24 @@ class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: Ok
             authors = texts(doc, rule.authorSelector), tags = texts(doc, rule.genreSelector), chapters = chapters)
     }
 
+    override suspend fun chapterText(chapter: MangaChapter): MangaNovelChapter = withContext(Dispatchers.IO) {
+        require(chapter.sourceId == config.id && template.pageList.text) { "This site's chapters are pages, not text" }
+        val rule = template.pageList
+        val html = if (template.type == "json") {
+            val url = site(expand(rule.endpoint.ifBlank { "{link}" }, chapter.url))
+            json(url).at(rule.textSelector).text() ?: error("This template found no chapter text at ${rule.textSelector}")
+        } else {
+            val doc = document(site(chapter.url))
+            // The page's own style sheets stay with the text, so lines it hides stay hidden.
+            val styles = doc.select("style").joinToString("") { it.outerHtml() }
+            styles + (doc.select(rule.textSelector).firstOrNull()?.outerHtml() ?: error("This template found no chapter text. Check its text selector or complete the site's verification."))
+        }
+        MangaNovelText.parse(html, chapter.title, rule.textRemove).also { require(it.blocks.isNotEmpty()) { "This chapter has no text" } }
+    }
+
     override suspend fun pages(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
         require(chapter.sourceId == config.id)
+        require(!template.pageList.text) { "This chapter is text" }
         if (template.type == "json") {
             val url = site(expand(template.pageList.endpoint.ifBlank { "{link}" }, chapter.url))
             val images = json(url).at(template.pageList.imageSelector) as? JsonArray ?: error("This template found no page list at ${template.pageList.imageSelector}")
@@ -128,7 +144,8 @@ class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: Ok
             val link = item.at(chaptersRule.linkSelector).text()?.take(4_096) ?: return@mapNotNull null
             val title = item.at(chaptersRule.titleSelector).text()?.trim()?.take(500).orEmpty()
             val number = item.at(chaptersRule.numberSelector).text()?.toFloatOrNull() ?: Regex("\\d+(?:\\.\\d+)?").find(title)?.value?.toFloatOrNull() ?: 0f
-            MangaChapter(identity("chapter", link), book.id, config.id, title.ifBlank { "Chapter ${number.toString().removeSuffix(".0")}" }, link, number, config.language)
+            MangaChapter(identity("chapter", link), book.id, config.id, title.ifBlank { "Chapter ${number.toString().removeSuffix(".0")}" }, link, number, config.language,
+                text = template.pageList.text)
         }.distinctBy { it.id }.let { if (chaptersRule.newestFirst) it.reversed() else it }
         require(chapters.isNotEmpty()) { "This template found no chapters. Check its paths or complete the site's verification." }
         return book.copy(title = root.at(rule.titleSelector).text()?.trim()?.take(500)?.takeIf(String::isNotBlank) ?: book.title,

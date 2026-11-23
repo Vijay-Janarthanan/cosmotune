@@ -45,6 +45,8 @@ data class MangaChapter(
     val uploadDate: Long = 0,
     val branch: String? = null,
     val sourceMemo: JsonObject = JsonObject(emptyMap()),
+    /** A text chapter (a novel's): the reader lays out its words ([MangaTextSource]) instead of showing page images. */
+    val text: Boolean = false,
 )
 
 @Serializable
@@ -165,6 +167,8 @@ data class MangaLibraryState(
     val lockPin: String? = null,
     /** The listener's own WebDAV folder the library syncs with ([MangaWebDavSync]), or null. */
     val webDav: MangaWebDav? = null,
+    /** How text chapters look and turn ([MangaNovelStyle]). */
+    val novelStyle: MangaNovelStyle = MangaNovelStyle(),
     /** Page images blanked out in the reader, by their content ([MangaHiddenImages]). */
     val hiddenImages: Map<String, MangaHiddenImage> = emptyMap(),
     /** Mihon's continuous vertical: the webtoon strip with a gap between pages. */

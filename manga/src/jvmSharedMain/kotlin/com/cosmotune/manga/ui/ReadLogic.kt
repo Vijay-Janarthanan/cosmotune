@@ -108,7 +108,7 @@ internal fun chapterNumber(chapter: MangaChapter, fallback: Int): String = when 
 
 /** The line under a chapter's title: the reading position, else the upload date, the scanlator and the edition. */
 internal fun chapterSubtitle(chapter: MangaChapter, progress: MangaProgress?, read: Boolean, zone: ZoneId = ZoneId.systemDefault()): String {
-    val position = progress?.takeIf { it.chapterId == chapter.id && !read && it.pageCount > 0 }?.let { "Page ${it.page + 1} of ${it.pageCount}" }
+    val position = progress?.takeIf { it.chapterId == chapter.id && !read && it.pageCount > 0 }?.let { mangaPlace(it, chapter.text) }
     val date = chapter.uploadDate.takeIf { it > 0 }?.let { DATE.format(Instant.ofEpochMilli(it).atZone(zone)) }
     return listOfNotNull(position, date, chapter.scanlator?.takeIf { it.isNotBlank() }, chapter.language.takeIf { it.isNotBlank() }).joinToString(" · ")
 }
@@ -293,8 +293,12 @@ internal fun mangaContinueLine(book: MangaBook, state: MangaLibraryState): Strin
     val chapter = mangaContinue(book, state).chapter ?: return null
     val name = chapterName(chapter).takeIf { it != "reading" }?.replaceFirstChar(Char::uppercase) ?: chapter.title
     val progress = state.progress[book.id]?.takeIf { it.chapterId == chapter.id && !it.finished && it.pageCount > 0 }
-    return if (progress != null) "$name · Page ${progress.page + 1} of ${progress.pageCount}" else "Next: $name"
+    return if (progress != null) "$name · " + mangaPlace(progress, chapter.text) else "Next: $name"
 }
+
+/** Where a chapter was left: "Page 6 of 22", or for a text chapter how far through it is ("40% read"). */
+internal fun mangaPlace(progress: MangaProgress, text: Boolean): String =
+    if (text) "${((progress.page + 1) * 100 / progress.pageCount.coerceAtLeast(1)).coerceIn(1, 100)}% read" else "Page ${progress.page + 1} of ${progress.pageCount}"
 
 /** How many new chapters [days] hold in all, for the Updates tab's count and the mode switcher's line. */
 internal fun mangaNewCount(state: MangaLibraryState): Int = mangaUpdates(state).size

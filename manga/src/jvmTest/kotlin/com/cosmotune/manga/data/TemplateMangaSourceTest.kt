@@ -42,6 +42,22 @@ class TemplateMangaSourceTest {
             assertEquals(source.config, reopened.state.value.sources.single()); assertEquals(details, reopened.state.value.books.single())
         }
     }
+    @Test fun aNovelTemplateGivesTextChaptersWithoutTheSitesExtras() = runBlocking<Unit> {
+        MockWebServer().use { server ->
+            val novel = template.copy(pageList = MangaPageTemplate(textSelector = ".reading-content", textRemove = ".ad"))
+            val source = source(server, novel)
+            server.enqueue(MockResponse().setBody(catalogue)); val book = source.browse().books.single(); server.takeRequest()
+            server.enqueue(MockResponse().setBody("""<h1>A novel</h1><ul class="chapters"><li><a href="/chapter/1">Chapter 1</a></li></ul>"""))
+            val chapter = source.details(book).chapters.single(); server.takeRequest()
+            assertTrue(chapter.text)
+            server.enqueue(MockResponse().setBody("""<style>.hid{display:none}</style><div class="nav">Next</div>
+                <div class="reading-content"><p>First words.</p><div class="ad">Buy now</div><p class="hid">Stolen notice</p><p>Last words.</p></div>"""))
+            assertEquals(listOf("First words.", "Last words."), source.chapterText(chapter).blocks.map { it.text })
+            assertFailsWith<IllegalArgumentException> { source.pages(chapter) }
+            assertFailsWith<IllegalArgumentException> { novel.copy(pageList = MangaPageTemplate()).validate() }
+            assertTrue(MangaHtmlTemplate.presets.any { it.pageList.text })
+        }
+    }
     @Test fun ajaxChapterFallbackStaysOnTheSiteAndForeignRedirectsAreNotFetched() = runBlocking<Unit> {
         MockWebServer().use { server -> MockWebServer().use { foreign ->
             val model = template.copy(chapterList = template.chapterList.copy(endpoint = "{bookUrl}/ajax/chapters/", method = "POST", parameters = mapOf("action" to "chapters")))

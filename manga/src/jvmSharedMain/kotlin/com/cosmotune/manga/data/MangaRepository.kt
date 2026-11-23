@@ -143,6 +143,7 @@ class MangaRepository(val store: MangaStore,
             "komga" -> KomgaSource(config, context.httpClient)
             "suwayomi" -> SuwayomiSource(config, context.httpClient)
             "template" -> TemplateMangaSource(config, context.httpClient)
+            WikisourceNovelSource.KIND -> WikisourceNovelSource(config, context.httpClient)
             "mihon" -> platformSource?.invoke(config, context) ?: error("APK extension sources require the Android app")
             else -> error("Unknown manga source type: ${config.kind}")
         } }
@@ -169,6 +170,35 @@ class MangaRepository(val store: MangaStore,
             result
         }
     }
+
+    /**
+     * The words of a text chapter: a download first, then the copy kept from the last read (a week), then the source. The copy
+     * lives with the page storage, so it follows its limit and Clear page storage.
+     */
+    suspend fun chapterText(chapter: MangaChapter, refresh: Boolean = false): MangaNovelChapter = withContext(Dispatchers.IO) {
+        require(chapter.text) { "This chapter is pages, not text" }
+        store.state.value.downloads[chapter.id]?.firstNotNullOfOrNull { page -> page.localFile?.let(::File)?.takeIf { it.isFile } }?.let { file ->
+            runCatching { return@withContext MangaNovelText.decode(file.readText()) }
+        }
+        val file = textFile(chapter)
+        if (!refresh && file.isFile && cacheClock() - file.lastModified() in 0 until TEXT_TTL_MS)
+            runCatching { return@withContext MangaNovelText.decode(file.readText()).also { file.setLastModified(cacheClock()) } }
+        val config = enabledConfig(chapter.sourceId)
+        val text = parserRequest(chapter.sourceId) { sourceApi {
+            (source(chapter.sourceId) as? MangaTextSource ?: error("This source has no text chapters")).chapterText(chapter)
+        } }
+        check(enabledConfig(chapter.sourceId) == config) { "The source settings changed. Reload the chapter." }
+        val encoded = MangaNovelText.encode(text)
+        transfers.withLock {
+            trimCache(encoded.length.toLong(), setOf(file.path))
+            val temporary = File.createTempFile("text-", ".part", pageCache)
+            try { temporary.writeText(encoded); MangaArchive.move(temporary, file); file.setLastModified(cacheClock()) } finally { temporary.delete() }
+        }
+        text
+    }
+
+    private fun textFile(chapter: MangaChapter): File = File(pageCache, MessageDigest.getInstance("SHA-256")
+        .digest((chapter.sourceId + "\ntext\n" + chapter.id).toByteArray()).joinToString("") { "%02x".format(it) } + ".text")
 
     suspend fun browse(sourceId: String, query: String, offset: Int): MangaBrowsePage = withContext(Dispatchers.IO) {
         val config = enabledConfig(sourceId)
@@ -312,6 +342,16 @@ class MangaRepository(val store: MangaStore,
     /** Files already fetched have stable names, so retrying a cancelled download resumes without refetching them. */
     suspend fun download(chapter: MangaChapter, onProgress: (Int, Int) -> Unit) {
         require(chapter.sourceId != "local") { "Imported comics are already available offline" }
+        if (chapter.text) {
+            // A text chapter downloads as its words: one kept file, read by [chapterText].
+            onProgress(0, 1)
+            chapterText(chapter, refresh = true)
+            val file = textFile(chapter)
+            require(file.isFile) { "The chapter's text could not be kept" }
+            store.update { it.copy(downloads = it.downloads - "pending:${chapter.id}" + (chapter.id to listOf(MangaPage("${chapter.id}:text", localFile = file.path)))) }
+            onProgress(1, 1)
+            return
+        }
         val pages = pages(chapter)
         require(pages.isNotEmpty()) { "This chapter contains no pages" }
         val downloaded = ArrayList<MangaPage>()
@@ -445,5 +485,6 @@ class MangaRepository(val store: MangaStore,
         internal const val CATALOGUE_TTL_MS = 60_000L
         internal const val PAGE_LIST_TTL_MS = 60L * 60 * 1000
         internal const val IMAGE_TTL_MS = 24L * 60 * 60 * 1000
+        internal const val TEXT_TTL_MS = 7L * 24 * 60 * 60 * 1000
     }
 }

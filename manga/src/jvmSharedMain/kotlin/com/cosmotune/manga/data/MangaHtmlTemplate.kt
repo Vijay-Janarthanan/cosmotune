@@ -18,8 +18,16 @@ import org.jsoup.Jsoup
 @Serializable data class MangaChapterTemplate(val selector: String, val titleSelector: String = "a", val linkSelector: String = "a",
     val newestFirst: Boolean = true, val endpoint: String = "", val method: String = "GET", val parameters: Map<String, String> = emptyMap(),
     val numberSelector: String = "")
-/** [endpoint] and [imageField] are used by JSON templates only: the chapter's API address (`{link}`) and the address field of each image object. */
-@Serializable data class MangaPageTemplate(val imageSelector: String, val endpoint: String = "", val imageField: String = "")
+/**
+ * [endpoint] and [imageField] are used by JSON templates only: the chapter's API address (`{link}`) and the address field of each image
+ * object. A novel site gives [textSelector] instead of [imageSelector]: the chapter's text (a CSS selector, or for JSON the path to its
+ * HTML), with [textRemove] selecting what inside it is not the story (notes, buttons, adverts).
+ */
+@Serializable data class MangaPageTemplate(val imageSelector: String = "", val endpoint: String = "", val imageField: String = "",
+    val textSelector: String = "", val textRemove: String = "") {
+    /** Chapters are text, laid out by the novel reader. */
+    val text: Boolean get() = textSelector.isNotBlank()
+}
 
 /**
  * Declarative templates only: CSS selectors over HTML pages (`type` "html"), or dot-separated field paths over JSON API responses
@@ -35,9 +43,13 @@ import org.jsoup.Jsoup
         require(mangaList.method in setOf("GET", "POST") && chapterList.method in setOf("GET", "POST"))
         val selectors = listOf(mangaList.itemSelector, mangaList.titleSelector, mangaList.linkSelector, mangaList.coverSelector,
             mangaDetail.titleSelector, mangaDetail.coverSelector, mangaDetail.descriptionSelector, mangaDetail.authorSelector,
-            mangaDetail.genreSelector, chapterList.selector, chapterList.titleSelector, chapterList.linkSelector, pageList.imageSelector)
-        require(mangaList.itemSelector.isNotBlank() && chapterList.selector.isNotBlank() && pageList.imageSelector.isNotBlank())
-        if (type == "json") (selectors + listOf(chapterList.numberSelector, pageList.imageField)).forEach { path ->
+            mangaDetail.genreSelector, chapterList.selector, chapterList.titleSelector, chapterList.linkSelector, pageList.imageSelector, pageList.textRemove) +
+            listOf(pageList.textSelector).filter { type == "html" }
+        require(mangaList.itemSelector.isNotBlank() && chapterList.selector.isNotBlank() && (pageList.imageSelector.isNotBlank() || pageList.textSelector.isNotBlank()))
+        if (type == "json") require(pageList.textSelector.isBlank() || pageList.textSelector == "$" || pageList.textSelector.length <= 256 && JSON_PATH.matches(pageList.textSelector)) {
+            "JSON template paths are dot-separated field names, for example data.content"
+        }
+        if (type == "json") (selectors - pageList.textRemove + listOf(chapterList.numberSelector, pageList.imageField)).forEach { path ->
             require(path.isBlank() || path == "$" || path.length <= 256 && JSON_PATH.matches(path)) { "JSON template paths are dot-separated field names, for example data.items" }
         } else {
             val document = Jsoup.parse("<html></html>")
@@ -85,6 +97,14 @@ import org.jsoup.Jsoup
                 mangaDetail = MangaDetailTemplate(coverSelector = ".thumb img", descriptionSelector = ".entry-content, .desc"),
                 chapterList = MangaChapterTemplate("#chapterlist li, .eplister li", titleSelector = ".chapternum, .epl-num"),
                 pageList = MangaPageTemplate("#readerarea img, .reader-area img")),
+            // Madara's novel sites (the same WordPress theme) show a chapter's words where the manga sites show its pages.
+            MangaHtmlTemplate("WordPress Madara novels", mangaList = MangaListTemplate(endpoint = "/novel/", pagination = "wordpress", pageSize = 12,
+                itemSelector = ".page-item-detail, .c-tabs-item__content", titleSelector = ".post-title a", linkSelector = ".post-title a",
+                searchParams = mapOf("post_type" to "wp-manga")),
+                mangaDetail = MangaDetailTemplate(coverSelector = ".summary_image img", descriptionSelector = ".summary__content, .description-summary", authorSelector = ".author-content a", genreSelector = ".genres-content a"),
+                chapterList = MangaChapterTemplate("li.wp-manga-chapter", endpoint = "{bookUrl}/ajax/chapters/", method = "POST"),
+                pageList = MangaPageTemplate(textSelector = ".reading-content .text-left, .reading-content .entry-content, .reading-content",
+                    textRemove = ".code-block, .adsbygoogle, script, ins, .chapter-warning, .wp-dark-mode-ignore")),
         )
     }
 }

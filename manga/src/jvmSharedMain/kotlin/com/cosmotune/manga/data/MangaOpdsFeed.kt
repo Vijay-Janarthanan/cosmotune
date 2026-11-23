@@ -11,15 +11,15 @@ object MangaOpdsFeed {
     private const val ACQ = "application/atom+xml;profile=opds-catalog;kind=acquisition"
 
     fun root(books: List<MangaBook>, state: MangaLibraryState, base: String, updated: String): String = feed("cosmotune:manga", "Cosmotune Manga", base, updated, NAV,
-        books.filter { book -> book.chapters.any { state.downloads.containsKey(it.id) } }.sortedBy { it.title.lowercase() }.joinToString("") { book ->
-            val count = book.chapters.count { state.downloads.containsKey(it.id) }
+        books.filter { book -> book.chapters.any { !it.text && state.downloads.containsKey(it.id) } }.sortedBy { it.title.lowercase() }.joinToString("") { book ->
+            val count = book.chapters.count { !it.text && state.downloads.containsKey(it.id) }
             entry("cosmotune:series:${book.id}", book.title, updated, "$count downloaded " + if (count == 1) "chapter" else "chapters",
                 """<link rel="subsection" href="${xml("$base/series/${encode(book.id)}")}" type="$ACQ"/>""" +
                     """<link rel="http://opds-spec.org/image/thumbnail" href="${xml("$base/cover/${encode(book.id)}")}" type="image/jpeg"/>""")
         })
 
     fun series(book: MangaBook, state: MangaLibraryState, base: String, updated: String): String = feed("cosmotune:series:${book.id}", book.title, "$base/series/${encode(book.id)}", updated, ACQ,
-        book.listedChapters().filter { state.downloads.containsKey(it.id) }.joinToString("") { chapter ->
+        book.listedChapters().filter { !it.text && state.downloads.containsKey(it.id) }.joinToString("") { chapter ->
             entry("cosmotune:chapter:${chapter.id}", chapter.title, updated, book.authors.joinToString(", "),
                 """<link rel="http://opds-spec.org/acquisition" href="${xml("$base/chapter/${encode(chapter.id)}.cbz")}" type="application/vnd.comicbook+zip"/>""")
         })

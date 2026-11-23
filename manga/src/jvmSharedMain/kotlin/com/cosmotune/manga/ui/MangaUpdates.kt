@@ -216,7 +216,7 @@ internal fun MangaHistoryPage(scope: MangaScope) {
                 items(day.entries, key = { "history:${it.book.id}" }) { entry ->
                     val cover = rememberMangaCover(scope.repository, entry.book)
                     val at = time.format(Instant.ofEpochMilli(entry.progress.updatedAtMs).atZone(ZoneId.systemDefault()))
-                    val position = entry.progress.takeIf { it.pageCount > 0 && !it.finished }?.let { "page ${it.page + 1} of ${it.pageCount}" } ?: if (entry.progress.finished) "finished" else null
+                    val position = entry.progress.takeIf { it.pageCount > 0 && !it.finished }?.let { mangaPlace(it, entry.chapter?.text == true).replaceFirstChar(Char::lowercase) } ?: if (entry.progress.finished) "finished" else null
                     ReadCoverRow(entry.book.title, listOfNotNull(entry.chapter?.title, position, at).joinToString(" · "), cover, key = entry.book.id,
                         modifier = Modifier.padding(horizontal = ReadMargin),
                         onClick = {
