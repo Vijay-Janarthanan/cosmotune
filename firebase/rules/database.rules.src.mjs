@@ -12,7 +12,9 @@ const signedIn = 'auth != null'
 const alive = `(${room}.child('meta').child('createdAt').val() + ${DAY_MS} > now)`
 const member = `${room}.child('uids').child(auth.uid).exists()`
 const host = `${room}.child('meta').child('hostUid').val() === auth.uid`
-const control = `(${room}.child('meta').child('hostOnlyControl').val() !== true || ${host})`
+// a co-host the host named drives the music too, with host-only control on
+const coHost = `${room}.child('meta').child('coHosts').child(auth.uid).val() === true`
+const control = `(${room}.child('meta').child('hostOnlyControl').val() !== true || ${host} || ${coHost})`
 // the same checks on the data as it will be after this write, for the writes that make the room and join it in one update
 const postRoom = "newData.parent().parent()"
 const postAlive = `(${postRoom}.child('meta').child('createdAt').val() + ${DAY_MS} > now)`
@@ -115,6 +117,7 @@ const rules = {
           maxMembers: { '.validate': 'newData.isNumber() && newData.val() >= 2 && newData.val() <= 8' },
           hostOnlyControl: bool,
           autoplay: bool,
+          coHosts: { $uid: bool },
           $other: { '.validate': false },
         },
 

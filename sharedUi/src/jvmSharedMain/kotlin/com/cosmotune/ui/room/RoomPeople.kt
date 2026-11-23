@@ -81,6 +81,11 @@ internal fun RoomPeoplePage(state: RoomUiState, room: RoomState, actions: RoomAc
                     member = member,
                     isSelf = isSelf,
                     canRemove = state.isHost && !member.isHost && !isSelf,
+                    coHost = member.uid in room.meta.coHosts,
+                    // Co-hosts matter while only the host may drive the music: then the host can let someone else drive too.
+                    onToggleCoHost = if (state.isHost && room.meta.hostOnlyControl && !member.isHost && !isSelf) {
+                        { actions.setCoHost(member.uid, member.uid !in room.meta.coHosts) }
+                    } else null,
                     confirming = confirming == member.uid,
                     onAskRemove = { confirming = member.uid },
                     onCancel = { confirming = null },
@@ -172,6 +177,8 @@ private fun MemberRow(
     member: RoomMember,
     isSelf: Boolean,
     canRemove: Boolean,
+    coHost: Boolean,
+    onToggleCoHost: (() -> Unit)?,
     confirming: Boolean,
     onAskRemove: () -> Unit,
     onCancel: () -> Unit,
@@ -215,6 +222,7 @@ private fun MemberRow(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(member.name, style = fonts.title, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (member.isHost) Tag(stringResource(Res.string.cosmo_room_host), strong = true, fonts, look)
+                    if (coHost) Tag("Co-host", strong = true, fonts, look)
                     if (isSelf) Tag(stringResource(Res.string.cosmo_room_you), strong = false, fonts, look)
                 }
             },
@@ -223,6 +231,13 @@ private fun MemberRow(
             } else null,
             trailing = {
                 MemberMicIcon(member.micLive, voice, look)
+                if (onToggleCoHost != null) {
+                    com.cosmotune.ui.components.CosmoIconButton(
+                        com.cosmotune.ui.components.CosmoIcons.Play,
+                        if (coHost) "Stop ${member.name} driving the music" else "Let ${member.name} drive the music as a co-host",
+                        onToggleCoHost, Modifier.testTag("room:cohost:${member.uid}"), size = 36.dp, on = coHost,
+                    )
+                }
                 if (canRemove) {
                     OrbitRoundButton(
                         RoomIcons.RemovePerson,

@@ -176,6 +176,7 @@ object PhoneRooms {
     fun setHostOnlyControl(enabled: Boolean) = launchGuarded { it.setHostOnlyControl(enabled) }
 
     fun removeMember(uid: String) = launchGuarded { it.remove(uid) }
+    fun setCoHost(uid: String, coHost: Boolean) = launchGuarded { it.setCoHost(uid, coHost) }
 
     // Voice, off the main thread. One queue keeps the taps in the order they were made (separate launches on the IO pool could
     // reach the voice out of order), so a volume slider's last position is the one that stays and a mute right after an unmute is
