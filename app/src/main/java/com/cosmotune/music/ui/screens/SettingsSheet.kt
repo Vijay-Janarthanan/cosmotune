@@ -502,6 +502,8 @@ fun SettingsScreen(
                             onSignIn = onSignIn,
                             onClick = { selectedCategory = SettingsCategory.ACCOUNT },
                             syncLine = if (cloudEnabled) cloudStatusLine(cloudStatus) else stringResource(R.string.cloud_sync_off),
+                            // The hub's column already keeps the page's margin: the card's own would set it in twice as far as the rows.
+                            grouped = true,
                         )
                     },
                 )
