@@ -4395,6 +4395,7 @@ fun CosmotuneDesktopApp() {
                                     }
                                 }
                             },
+                            onPhoneSession = { cookie -> scope.launch { signIn(cookie, "Your phone") } },
                             onPaste = { pasted ->
                                 scope.launch {
                                     if (!DesktopBrowserCookies.hasSigningSecret(pasted)) {

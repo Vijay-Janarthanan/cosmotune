@@ -284,6 +284,14 @@
                 <data android:scheme="cosmotune" android:host="import" android:path="/playlist" />
             </intent-filter>
 
+            <!-- A computer's sign-in code, scanned with the camera: its page opens this link (see PhoneSignIn). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="cosmotune" android:host="signin" />
+            </intent-filter>
+
             <!-- Playlist shares and YouTube links can arrive with text around the URL. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

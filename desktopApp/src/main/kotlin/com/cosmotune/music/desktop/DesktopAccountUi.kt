@@ -270,6 +270,8 @@ internal fun DesktopSignInDialog(
     onWebSignIn: () -> Unit,
     onImport: (DesktopBrowserCookies.Profile) -> Unit,
     onPaste: (String) -> Unit,
+    /** A session the phone sent after its QR code was scanned; see [com.cosmotune.remote.PhoneSignIn]. */
+    onPhoneSession: (String) -> Unit,
     busy: String?,
     error: String?,
     onDismiss: () -> Unit,
@@ -277,6 +279,34 @@ internal fun DesktopSignInDialog(
     var profiles by remember { mutableStateOf<List<DesktopBrowserCookies.Profile>?>(null) }
     var pasting by remember { mutableStateOf(false) }
     var pasted by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf(false) }
+    var phonePage by remember { mutableStateOf<String?>(null) }
+    var phoneProblem by remember { mutableStateOf<String?>(null) }
+    if (phone) {
+        // One receiver per showing of the code: it takes a single session, and closing the code (or the dialog) stops it.
+        LaunchedEffect(Unit) {
+            phoneProblem = null
+            val address = withContext(Dispatchers.IO) { com.cosmotune.remote.PhoneSignIn.Receiver.homeAddress() }
+            if (address == null) {
+                phoneProblem = "This computer is not on a home network. Connect it to the same Wi-Fi as your phone."
+                return@LaunchedEffect
+            }
+            val receiver = withContext(Dispatchers.IO) { runCatching { com.cosmotune.remote.PhoneSignIn.Receiver.start(address) }.getOrNull() }
+            if (receiver == null) {
+                phoneProblem = "Could not get ready for your phone. Try again."
+                return@LaunchedEffect
+            }
+            try {
+                phonePage = receiver.pageUrl
+                val cookie = receiver.cookie.await()
+                onPhoneSession(cookie)
+                phone = false
+            } finally {
+                phonePage = null
+                withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { receiver.close() }
+            }
+        }
+    }
     LaunchedEffect(Unit) {
         profiles = withContext(Dispatchers.IO) {
             DesktopBrowserCookies.profiles().filterNot {
@@ -292,6 +322,8 @@ internal fun DesktopSignInDialog(
             overline = "Account",
             title = DesktopStrings["sign_in_youtube_music", "Sign in to YouTube Music"],
             message = when {
+                phone -> "Scan this code with your phone's camera, open Cosmotune when it asks and agree there. " +
+                    "Your phone must be signed in and on the same Wi-Fi as this computer."
                 pasting -> DesktopStrings["d_paste_the_cookie_header_for_music_youtube_com", "Paste the Cookie header for music.youtube.com."]
                 webSignIn -> "Sign in with Google in a Cosmotune window, then choose \"Use this profile\"."
                 else -> DesktopStrings[
@@ -304,13 +336,25 @@ internal fun DesktopSignInDialog(
             onConfirm = { onPaste(pasted.trim()) },
             confirmEnabled = pasted.isNotBlank() && busy == null,
             // Close alone would be the dialog's one peach action; it is a quiet button of its own below instead.
-            dismissLabel = if (pasting) DesktopStrings["back", "Back"] else null,
-            onDismiss = { pasting = false },
+            dismissLabel = if (pasting || phone) DesktopStrings["back", "Back"] else null,
+            onDismiss = { pasting = false; phone = false },
             extra = {
                 error?.let {
                     Text(it, style = fonts.body, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 10.dp))
                 }
                 when {
+                    phone -> Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        val page = phonePage
+                        when {
+                            phoneProblem != null -> Text(phoneProblem.orEmpty(), style = fonts.body, color = MaterialTheme.colorScheme.error)
+                            page == null || busy != null -> Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(color = look.accent, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(if (busy != null) "Signing in…" else "Getting ready…", style = fonts.body, color = look.dim)
+                            }
+                            else -> DesktopQrCode(page, size = 196.dp, description = "Sign-in code for your phone")
+                        }
+                    }
                     pasting -> BasicTextField(
                         value = pasted,
                         onValueChange = { pasted = it },
@@ -348,6 +392,11 @@ internal fun DesktopSignInDialog(
                         found.forEach { profile ->
                             SignInRow(profile.label, null, CosmoIcons.Explore, enabled = busy == null, working = busy == profile.label) { onImport(profile) }
                         }
+                        SignInRow(
+                            "Sign in with your phone",
+                            "Scan a code with the phone you already use Cosmotune on",
+                            CosmoIcons.Devices, enabled = busy == null, working = false,
+                        ) { phone = true }
                         SignInRow(DesktopStrings["d_paste_a_cookie_instead", "Paste a cookie instead"], null, Icons.Rounded.ContentPaste, enabled = true, working = false) {
                             pasting = true
                         }
@@ -355,7 +404,7 @@ internal fun DesktopSignInDialog(
                 }
             },
         )
-        if (!pasting) {
+        if (!pasting && !phone) {
             Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 8.dp), horizontalArrangement = Arrangement.End) {
                 OrbitPillButton(DesktopStrings["close", "Close"], onDismiss, fonts, look)
             }

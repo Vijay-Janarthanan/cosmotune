@@ -587,6 +587,7 @@ private fun CosmotuneApp(
     var creatingPlaylist by remember { mutableStateOf(false) }
     var showSpotifyImportDialog by remember { mutableStateOf(false) }
     var sharedPlaylistLink by rememberSaveable { mutableStateOf<String?>(null) }
+    var computerSignIn by remember { mutableStateOf<com.cosmotune.remote.PhoneSignIn.Link?>(null) }
     // Which album or playlist the collection menu is open on, or null when it
     // is shut. One slot for every surface that can open it â€” the shelves on
     // three tabs, the search rows, the artist page's carousels, the release
@@ -1815,6 +1816,11 @@ private fun CosmotuneApp(
             MusicLink.handled()
             return@LaunchedEffect
         }
+        if (request is LinkRequest.SignInComputer) {
+            computerSignIn = request.link
+            MusicLink.handled()
+            return@LaunchedEffect
+        }
         // Nothing here can be served without somewhere to play it â€” even the
         // branches that only push a page are a beat away from a tap on one of
         // its rows, and half-serving a request would spend it.
@@ -1874,7 +1880,7 @@ private fun CosmotuneApp(
                     play(listOf(song), 0)
                 }
             }
-            is LinkRequest.ImportPlaylist -> Unit
+            is LinkRequest.ImportPlaylist, is LinkRequest.SignInComputer -> Unit
         }
         MusicLink.handled()
     }
@@ -4667,6 +4673,9 @@ private fun CosmotuneApp(
             }
         }
 
+        computerSignIn?.let { link ->
+            com.cosmotune.music.ui.ComputerSignInDialog(link, hazeState = hazeState, onDone = { computerSignIn = null })
+        }
         if (showSpotifyImportDialog || sharedPlaylistLink != null) {
             androidx.compose.runtime.key(sharedPlaylistLink) {
                 SpotifyImportAlert(
