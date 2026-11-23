@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Tune
@@ -315,6 +316,13 @@ internal fun DesktopSongMenu(
             }
             if (artistId != null && onOpenArtist != null) {
                 DesktopMenuRow(Icons.Rounded.Person, DesktopStrings["open_artist", "Open artist"]) { onOpenArtist(artistId) }
+            }
+        }
+        // Keeps this artist out of AutoPlay, radio and Home (Settings, Look and colours, Blocked artists lets them back).
+        com.cosmotune.music.data.recommendations.MusicBlocks.artistsOf(song).firstOrNull()?.takeIf { song.localPath == null && song.localUri == null }?.let { artist ->
+            DesktopMenuRow(Icons.Rounded.Block, "Don't play $artist") {
+                com.cosmotune.ui.settings.cosmoLookSettings().setArtistBlocked(artist, true)
+                DesktopPlayerHost.showMessage("$artist won't play in AutoPlay, radio or Home")
             }
         }
 

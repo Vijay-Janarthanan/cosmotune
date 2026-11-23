@@ -568,7 +568,13 @@ object YtMusicRepository {
      * What YouTube Music would play on after [videoId]. Feeds AutoPlay; the
      * seed track itself comes back first, so callers filter what they have.
      */
-    suspend fun radio(videoId: String, seedSong: Song? = null): Result<List<Song>> {
+    suspend fun radio(videoId: String, seedSong: Song? = null): Result<List<Song>> =
+        // Blocked artists and (when hidden) explicit songs are left out; the seed itself was asked for, so it stays.
+        unblockedRadio(videoId, seedSong).map { songs ->
+            songs.filter { it.videoId == videoId || com.cosmotune.music.data.recommendations.MusicBlocks.allows(it) }
+        }
+
+    private suspend fun unblockedRadio(videoId: String, seedSong: Song? = null): Result<List<Song>> {
         val remote = call("radio:$videoId") { InnertubeParser.parseWatchQueue(Innertube.next(videoId)) }
         val seed = seedSong ?: remote.getOrNull()?.firstOrNull { it.videoId == videoId } ?: return remote
         return try {

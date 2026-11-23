@@ -126,6 +126,36 @@ class CosmoLookSettings(private val store: KeyValueStore) {
 
     private fun readLines(key: String): List<String> = store.getString(key, "").split('\n').filter { it.isNotBlank() }
 
+    private val blockedArtistsFlow = MutableStateFlow(readLines(KEY_BLOCKED_ARTISTS).toSet())
+    private val hideExplicitFlow = MutableStateFlow(store.getBoolean(KEY_HIDE_EXPLICIT, false))
+
+    /** The artists the listener blocked (a song menu's "Don't play this artist"), as they were named. */
+    val blockedArtists: StateFlow<Set<String>> = blockedArtistsFlow.asStateFlow()
+
+    /** Whether explicit songs are kept out of AutoPlay, radio and Home. */
+    val hideExplicit: StateFlow<Boolean> = hideExplicitFlow.asStateFlow()
+
+    init { publishBlocks() }
+
+    fun setArtistBlocked(name: String, blocked: Boolean) {
+        val clean = name.replace('\n', ' ').trim().ifEmpty { return }
+        val key = com.cosmotune.music.data.recommendations.MusicBlocks.key(clean)
+        val without = blockedArtistsFlow.value.filterNot { com.cosmotune.music.data.recommendations.MusicBlocks.key(it) == key }.toSet()
+        val next = if (blocked) without + clean else without
+        store.putString(KEY_BLOCKED_ARTISTS, next.joinToString("\n"))
+        blockedArtistsFlow.value = next
+        publishBlocks()
+    }
+
+    fun setHideExplicit(hide: Boolean) {
+        store.putBoolean(KEY_HIDE_EXPLICIT, hide)
+        hideExplicitFlow.value = hide
+        publishBlocks()
+    }
+
+    private fun publishBlocks() =
+        com.cosmotune.music.data.recommendations.MusicBlocks.update(blockedArtistsFlow.value, hideExplicitFlow.value)
+
     private val hiddenHomeFlow = MutableStateFlow(readLines(KEY_HOME_HIDDEN).toSet())
 
     /**
@@ -221,6 +251,8 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_KEEP_DOWNLOADED = "keep_downloaded"
         const val KEY_SMART_DOWNLOADS = "smart_downloads"
         const val KEY_HOME_HIDDEN = "home_hidden_sections"
+        const val KEY_BLOCKED_ARTISTS = "blocked_artists"
+        const val KEY_HIDE_EXPLICIT = "hide_explicit"
         const val KEY_HOME_SEEN = "home_seen_shelves"
         const val HOME_PICK_UP = "@pick-up"
         const val HOME_CHIPS = "@chips"

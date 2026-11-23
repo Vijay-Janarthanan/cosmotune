@@ -92,6 +92,8 @@ internal fun CosmoLookSettingsRows() {
         RowDivider()
         com.cosmotune.ui.settings.HomeSectionsSetting()
         RowDivider()
+        com.cosmotune.ui.settings.MusicBlocksRows()
+        RowDivider()
         SettingsRow(
             icon = Icons.Rounded.Visibility,
             title = stringResource(SharedRes.string.cosmo_look_preview),

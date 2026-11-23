@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ThumbDown
@@ -320,6 +321,19 @@ fun SongActionsSheet(
             accent = palette.accent,
             onClick = onStartRadio,
         )
+        // Keeps this artist out of AutoPlay, radio and Home (Settings, Look and colours, Blocked artists lets them back).
+        val blockContext = androidx.compose.ui.platform.LocalContext.current
+        com.cosmotune.music.data.recommendations.MusicBlocks.artistsOf(song).firstOrNull()?.takeIf { song.localUri == null }?.let { artist ->
+            ActionRow(
+                icon = Icons.Rounded.Block,
+                label = "Don't play $artist",
+                accent = palette.accent,
+                onClick = {
+                    com.cosmotune.ui.settings.cosmoLookSettings(blockContext).setArtistBlocked(artist, true)
+                    android.widget.Toast.makeText(blockContext, "$artist won't play in AutoPlay, radio or Home", android.widget.Toast.LENGTH_SHORT).show()
+                },
+            )
+        }
         if (!orbitChips) {
             ActionRow(
                 icon = Icons.AutoMirrored.Rounded.PlaylistPlay,

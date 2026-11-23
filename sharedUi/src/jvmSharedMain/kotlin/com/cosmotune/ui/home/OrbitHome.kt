@@ -198,7 +198,15 @@ fun OrbitHome(
     val hiddenHome = lookSettings?.hiddenHome?.collectAsState()?.value.orEmpty()
     val allShelves = (state as? UiState.Success)?.data.orEmpty()
     LaunchedEffect(allShelves) { if (allShelves.isNotEmpty()) lookSettings?.rememberHomeShelves(allShelves.filter { it.items.isNotEmpty() }.map { it.title }) }
-    val shelves = remember(allShelves, hiddenHome) { allShelves.filter { it.title !in hiddenHome } }
+    // Songs by an artist the listener blocked, and explicit songs when hidden, are left off the shelves too.
+    val blockedArtists = lookSettings?.blockedArtists?.collectAsState()?.value.orEmpty()
+    val hideExplicit = lookSettings?.hideExplicit?.collectAsState()?.value ?: false
+    val shelves = remember(allShelves, hiddenHome, blockedArtists, hideExplicit) {
+        allShelves.filter { it.title !in hiddenHome }.map { shelf ->
+            if (blockedArtists.isEmpty() && !hideExplicit) shelf
+            else shelf.copy(items = shelf.items.filter { item -> item.song?.let(com.cosmotune.music.data.recommendations.MusicBlocks::allows) ?: true })
+        }
+    }
     val moods = remember(browse?.state) { (browse?.state as? UiState.Success)?.let { BrowseSplit.moods(it.data) }.orEmpty() }
     val room = LocalRoomLauncher.current
     // Another device's song, while this one plays nothing.
