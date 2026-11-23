@@ -46,6 +46,7 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         com.cosmotune.diagnostics.CrashNotes.configure(filesDir)
+        com.cosmotune.podio.PodioFeedLogins.install(java.io.File(filesDir, "podio/library.json"))
         val uncaught = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, failure ->
             runCatching { com.cosmotune.diagnostics.CrashNotes.record(failure) }

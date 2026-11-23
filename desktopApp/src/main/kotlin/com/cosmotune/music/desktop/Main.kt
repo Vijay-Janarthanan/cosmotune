@@ -44,6 +44,7 @@ private fun offerDesktopLink(link: String) {
 
 fun main(args: Array<String>) {
     if (args.contentEquals(arrayOf("--provider-auth-browser"))) { ProviderVerificationBrowserMain.run(); return }
+    com.cosmotune.podio.PodioFeedLogins.install(com.cosmotune.podio.PodioLibrary.desktopFile())
     // A Watch add-on link the system opened Cosmotune with (stremio://..., cosmotune://watch/...): its Install sheet waits.
     val openLink = args.firstOrNull {
         com.cosmotune.watch.InstallLinks.isInstallLink(it) || com.cosmotune.watch.InstallLinks.isPackLink(it) ||

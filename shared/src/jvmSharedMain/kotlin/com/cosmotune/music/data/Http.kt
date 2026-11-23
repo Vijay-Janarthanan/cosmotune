@@ -137,6 +137,8 @@ object Http {
         .dispatcher(Dispatcher().apply { maxRequestsPerHost = 16 })
         .connectionPool(ConnectionPool(16, 5, TimeUnit.MINUTES))
         .addInterceptor(webDavInterceptor)
+        // A private podcast feed's login goes to that feed's server only, so its episodes play and download.
+        .addInterceptor(com.cosmotune.podio.PodioFeedLogins.interceptor)
         // The listener's proxy and offline mode, read on every request; see [NetworkPolicy].
         .addInterceptor(NetworkPolicy.offlineInterceptor)
         .proxySelector(NetworkPolicy.selector)
