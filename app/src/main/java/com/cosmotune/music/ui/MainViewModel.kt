@@ -2798,6 +2798,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 R.string.smb_empty,
                 com.cosmotune.music.data.smb.SmbRepository::getSongs,
             )
+        com.cosmotune.music.data.jellyfin.JellyfinLibrary.BROWSE_ID ->
+            RemoteLibrary(R.string.jellyfin_empty) {
+                AppSettings.jellyfinSession.value?.let { com.cosmotune.music.data.jellyfin.JellyfinLibrary.songs(it).getOrThrow() }.orEmpty()
+            }
         else -> null
     }
 

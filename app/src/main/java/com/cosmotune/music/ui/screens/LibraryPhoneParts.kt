@@ -41,6 +41,7 @@ fun libraryLinks(): List<LibraryLink> {
     val webdavConfigured by AppSettings.webdavUrl.collectAsStateWithLifecycle()
     val smbHost by AppSettings.smbHost.collectAsStateWithLifecycle()
     val smbShare by AppSettings.smbShare.collectAsStateWithLifecycle()
+    val jellyfin by AppSettings.jellyfinSession.collectAsStateWithLifecycle()
     val showCacheFolder by AppSettings.showCacheFolder.collectAsStateWithLifecycle()
     val spotifyConnected by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
     fun link(icon: ImageVector, title: String, subtitle: String, browseId: String) = LibraryLink(
@@ -87,6 +88,12 @@ fun libraryLinks(): List<LibraryLink> {
             stringResource(R.string.smb_subtitle),
             com.cosmotune.music.data.smb.SmbConfig.BROWSE_ID,
         ).takeIf { smbHost.isNotBlank() && smbShare.isNotBlank() },
+        link(
+            Icons.Rounded.Cloud,
+            "Jellyfin",
+            "Music on your Jellyfin server",
+            com.cosmotune.music.data.jellyfin.JellyfinLibrary.BROWSE_ID,
+        ).takeIf { jellyfin != null },
         // Only while signed in to Spotify in Settings → Accounts; it opens that
         // account's playlists rather than a browse page.
         link(

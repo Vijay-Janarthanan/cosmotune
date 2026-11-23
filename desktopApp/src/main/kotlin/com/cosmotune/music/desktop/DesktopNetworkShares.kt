@@ -37,6 +37,14 @@ internal object DesktopNetworkShares {
     private const val SMB_FOLDER = "share_smb_folder"
     private const val SMB_USER = "share_smb_user"
     private const val SMB_PASSWORD = "share_smb_password"
+    private const val JELLYFIN = "share_jellyfin_session"
+
+    /** The Jellyfin server signed in to (Settings > Local music > Jellyfin server), or null. */
+    fun jellyfin(persistence: DesktopPersistence = DesktopPersistence()): com.cosmotune.music.data.jellyfin.JellyfinSession? =
+        com.cosmotune.music.data.jellyfin.JellyfinSession.decode(persistence.string(JELLYFIN))
+
+    fun saveJellyfin(value: com.cosmotune.music.data.jellyfin.JellyfinSession?, persistence: DesktopPersistence = DesktopPersistence()) =
+        persistence.saveString(JELLYFIN, value?.encode().orEmpty())
 
     fun webDav(persistence: DesktopPersistence = DesktopPersistence()) =
         WebDav(persistence.string(WEBDAV_URL), persistence.string(WEBDAV_USER), persistence.string(WEBDAV_PASSWORD))
@@ -82,7 +90,7 @@ internal object DesktopNetworkShares {
     /** Lists every configured share again; a share that cannot be reached adds nothing. */
     suspend fun refresh(): List<Song> = withContext(Dispatchers.IO) {
         publish()
-        (webDavSongs() + smbSongs()).also { cached = it }
+        (webDavSongs() + smbSongs() + jellyfinSongs()).also { cached = it }
     }
 
     private suspend fun webDavSongs(): List<Song> {
@@ -96,6 +104,9 @@ internal object DesktopNetworkShares {
         }
     }
 
+    private suspend fun jellyfinSongs(): List<Song> =
+        jellyfin()?.let { com.cosmotune.music.data.jellyfin.JellyfinLibrary.songs(it).getOrNull() }.orEmpty()
+
     private suspend fun smbSongs(): List<Song> {
         val smb = smb()
         if (!smb.configured) return emptyList()
@@ -106,10 +117,16 @@ internal object DesktopNetworkShares {
         }
     }
 
-    fun owns(song: Song): Boolean = song.videoId.startsWith("webdav:") || SmbConfig.isSmbId(song.videoId)
+    fun owns(song: Song): Boolean = song.videoId.startsWith("webdav:") || SmbConfig.isSmbId(song.videoId) ||
+        com.cosmotune.music.data.jellyfin.JellyfinLibrary.owns(song.videoId)
 
     /** The stream for a share's song: WebDAV with its sign-in header, SMB as a copy in the cache. */
     suspend fun stream(song: Song): DesktopStream = withContext(Dispatchers.IO) {
+        if (com.cosmotune.music.data.jellyfin.JellyfinLibrary.owns(song.videoId)) {
+            val session = requireNotNull(jellyfin()) { "Sign in to your Jellyfin server in Settings, Local music" }
+            val url = requireNotNull(com.cosmotune.music.data.jellyfin.JellyfinLibrary.streamUrl(session, song.videoId))
+            return@withContext DesktopStream(url, sourceId = "jellyfin")
+        }
         val address = requireNotNull(song.localUri) { "This song has no address on its share" }
         if (song.videoId.startsWith("webdav:")) {
             val dav = webDav()

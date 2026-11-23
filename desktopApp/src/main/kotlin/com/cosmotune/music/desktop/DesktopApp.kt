@@ -6371,8 +6371,16 @@ private fun DesktopSettingsScreen(
                     SettingsRow(Icons.Rounded.Folder, "SMB share", if (smb.configured) "${smb.host}/${smb.share}" else "Play the songs in a shared folder on Windows, Samba or a NAS") {
                         shareDialog = "smb"
                     }
+                    val jellyfin = remember(shareRevision) { DesktopNetworkShares.jellyfin() }
+                    SettingsRow(Icons.Rounded.Cloud, "Jellyfin server", jellyfin?.url ?: "Play the music on your own Jellyfin server") {
+                        shareDialog = "jellyfin"
+                    }
                     val shareChanged = { shareRevision++; onLocalMusicFolderChanged() }
                     when (shareDialog) {
+                        "jellyfin" -> com.cosmotune.ui.providers.JellyfinServerDialog(jellyfin,
+                            onSignedIn = { DesktopNetworkShares.saveJellyfin(it); shareChanged(); shareDialog = null },
+                            onSignOut = { DesktopNetworkShares.saveJellyfin(null); shareChanged(); shareDialog = null },
+                            onDismiss = { shareDialog = null })
                         "webdav" -> DesktopWebDavDialog(onChanged = shareChanged, onDismiss = { shareDialog = null })
                         "smb" -> DesktopSmbDialog(onChanged = shareChanged, onDismiss = { shareDialog = null })
                     }

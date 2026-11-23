@@ -618,6 +618,13 @@ object AppSettings {
     val webdavUsername = MutableStateFlow("")
     val webdavPassword = MutableStateFlow("")
 
+    /** The Jellyfin server signed in to, kept in [AuthStore]; null when none. Its songs open from Local music. */
+    val jellyfinSession = MutableStateFlow<com.cosmotune.music.data.jellyfin.JellyfinSession?>(null)
+    fun setJellyfinSession(value: com.cosmotune.music.data.jellyfin.JellyfinSession?) {
+        jellyfinSession.value = value
+        authStore.jellyfinSession = value?.encode()
+    }
+
     // ── SMB ───────────────────────────────────────────────────────────────
 
     /**
@@ -965,6 +972,7 @@ object AppSettings {
         webdavUrl.value = prefs.getString(KEY_WEBDAV_URL, "").orEmpty()
         webdavUsername.value = prefs.getString(KEY_WEBDAV_USERNAME, "").orEmpty()
         webdavPassword.value = authStore.webdavPassword.orEmpty()
+        jellyfinSession.value = authStore.jellyfinSession?.let(com.cosmotune.music.data.jellyfin.JellyfinSession::decode)
         smbHost.value = prefs.getString(KEY_SMB_HOST, "").orEmpty()
         smbShare.value = prefs.getString(KEY_SMB_SHARE, "").orEmpty()
         smbBasePath.value = prefs.getString(KEY_SMB_BASE_PATH, "").orEmpty()

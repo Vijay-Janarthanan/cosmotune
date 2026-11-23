@@ -786,6 +786,7 @@
     <string name="webdav_subtitle">Music on your server</string>
     <string name="webdav_not_configured">Connect a server under Sources</string>
     <string name="webdav_empty">No audio files found on the WebDAV server. Check the URL in Settings.</string>
+    <string name="jellyfin_empty" translatable="false">No songs found on your Jellyfin server. Sign in again in Settings, Sources.</string>
     <string name="webdav_description">Point Cosmotune at a WebDAV music folder — your Nextcloud Music directory or any server speaking WebDAV.</string>
     <string name="webdav_server_url">Server URL</string>
     <string name="webdav_server_url_hint">https://cloud.example.com/remote.php/dav/files/user/Music</string>
