@@ -33,7 +33,7 @@ class ReadLogicTest {
         assertEquals(listOf("a", "b"), mangaLibrarySearch(books, "a", "action", "").map { it.id }, "a genre is matched whatever its case")
         assertEquals(listOf("b"), mangaLibrarySearch(books, "a", "Action", "PAUSED").map { it.id })
         assertEquals(emptyList(), mangaLibrarySearch(books, "local", "", "ONGOING"), "a series with no status is never one of a status")
-        assertEquals(listOf("Action", "Comedy", "Dark fantasy", "Historical"), mangaLibraryGenres(books))
+        assertEquals(listOf("Action", "Comedy", "Dark fantasy", "Historical"), mangaSearchGenres(books))
     }
 
     @Test fun aSeriesNeverReadStartsAtItsFirstChapter() {

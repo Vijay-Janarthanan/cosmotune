@@ -86,7 +86,7 @@ internal fun mangaLibrarySearch(books: List<MangaBook>, query: String, genre: St
 }
 
 /** The genres the library's series carry, each once (the first spelling), in order, for Search's Genre. */
-internal fun mangaLibraryGenres(books: List<MangaBook>): List<String> =
+internal fun mangaSearchGenres(books: List<MangaBook>): List<String> =
     books.flatMap { it.tags }.map(String::trim).filter(String::isNotEmpty).distinctBy(String::lowercase).sortedBy(String::lowercase).take(60)
 
 /** What the series page's main button does: open [chapter] (null when the series has no chapters yet), labelled [label]. */

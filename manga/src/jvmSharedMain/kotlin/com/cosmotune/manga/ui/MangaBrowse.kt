@@ -402,7 +402,7 @@ internal fun MangaSearchPage(scope: MangaScope) {
     }
     val any = com.cosmotune.ui.search.CosmoSearchChoice("", mangaText("Any"))
     val filters = if (inLibrary) listOfNotNull(
-        mangaLibraryGenres(state.books).takeIf { it.isNotEmpty() }?.let { genres ->
+        mangaSearchGenres(state.books).takeIf { it.isNotEmpty() }?.let { genres ->
             com.cosmotune.ui.search.CosmoSearchFilter("genre", mangaText("Genre"), listOf(any) + genres.map { com.cosmotune.ui.search.CosmoSearchChoice(it, it) }, genre) { genre = it }
         },
         com.cosmotune.ui.search.CosmoSearchFilter("status", mangaText("Status"), listOf(any) + MANGA_STATUSES.map { (id, name) -> com.cosmotune.ui.search.CosmoSearchChoice(id, mangaText(name)) }, status) { status = it },
