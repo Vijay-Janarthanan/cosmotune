@@ -29,6 +29,7 @@ import com.cosmotune.video.ui.VideoHostLinks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
@@ -132,6 +133,13 @@ private object DesktopVideoProcess {
                 runCatching { settings.flush() }
             }, "cosmotune-video-flush"),
         )
+        // An output going away pauses playing video, as it does music; one coming back never starts it.
+        scope.launch {
+            com.cosmotune.music.playback.AudioRouteEvents.changes.collect { change ->
+                val playing = playback.engine.snapshot.value.playing
+                if (com.cosmotune.music.playback.AudioRoutePolicy.decide(change, playing).action == com.cosmotune.music.playback.RouteAction.PAUSE) playback.engine.pause()
+            }
+        }
         audio = ModeAudio(playback, scope)
         // The sleep timer pauses this player too, when it holds a video (mpv keeps its pause across files, so pausing an
         // idle player would leave the next video starting paused).

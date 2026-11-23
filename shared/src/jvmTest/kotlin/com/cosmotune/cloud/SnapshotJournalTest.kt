@@ -59,11 +59,35 @@ class SnapshotJournalTest {
         val store = MapStore()
         store.data["p1"] = playlist("Mix", "a")
         store.entries("playlists") // remembered
-        store.apply("playlists", listOf(SyncEntry("p1", 4_000, deleted = true)))
+        val deletedAt = System.currentTimeMillis() - 1_000
+        store.apply("playlists", listOf(SyncEntry("p1", deletedAt, deleted = true)))
         assertFalse("p1" in store.data)
         val after = store.entries("playlists").single()
         assertTrue(after.deleted)
-        assertEquals(4_000L, after.updatedAt)
+        assertEquals(deletedAt, after.updatedAt)
+    }
+
+    @Test fun aRemovedItemIsRememberedAsDeletedUntilNinetyDaysHavePassed() {
+        val day = 24L * 60 * 60 * 1000
+        val journal = SnapshotJournal(null) { clock }
+        journal.reconcile("watch", mapOf("a" to playlist("Mix", "a")))
+        clock = 5_000
+        assertTrue(journal.reconcile("watch", emptyMap()).single().deleted)
+        clock = 5_000 + 89 * day
+        assertEquals(1, journal.reconcile("watch", emptyMap()).size)
+        clock = 5_000 + 91 * day
+        assertTrue(journal.reconcile("watch", emptyMap()).isEmpty(), "an old delete is no longer remembered or sent")
+    }
+
+    @Test fun anItemAddedBackAfterBeingRemovedGetsANewerTimeThanTheDelete() {
+        val journal = SnapshotJournal(null) { clock }
+        journal.reconcile("watch", mapOf("a" to playlist("Mix", "a")))
+        clock = 5_000
+        val deletedAt = journal.reconcile("watch", emptyMap()).single().updatedAt
+        clock = 9_000
+        val back = journal.reconcile("watch", mapOf("a" to playlist("Mix", "a"))).single()
+        assertFalse(back.deleted)
+        assertTrue(back.updatedAt > deletedAt)
     }
 
     @Test fun theJournalSurvivesARestart() {

@@ -44,6 +44,8 @@ class SnapshotJournal(private val file: File?, private val now: () -> Long = Sys
         }
         for ((id, record) in known.toMap()) {
             if (id in current) continue
+            // A delete older than the cloud keeps its own is forgotten here too, so this file does not grow for ever.
+            if (record.deleted && stamp - record.updatedAt > CloudSync.TOMBSTONE_MS) { known.remove(id); continue }
             val gone = if (record.deleted) record else Record("", stamp, true).also { known[id] = it }
             out += SyncEntry(id, gone.updatedAt, true)
         }

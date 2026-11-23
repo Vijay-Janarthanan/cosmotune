@@ -52,16 +52,22 @@ class DlnaDiscovery(
     private val devicesFlow = MutableStateFlow<List<DlnaDevice>>(emptyList())
     val devices: StateFlow<List<DlnaDevice>> = devicesFlow.asStateFlow()
     private var job: Job? = null
+    private var hold: AutoCloseable? = null
 
     @Synchronized
     fun start() {
-        if (job?.isActive != true) job = scope.launch { search() }
+        if (job?.isActive == true) return
+        // Phones drop multicast replies to save power unless the app holds a multicast lock while it searches.
+        hold = runCatching { multicastHold?.invoke() }.getOrNull()
+        job = scope.launch { search() }
     }
 
     @Synchronized
     fun stop() {
         job?.cancel()
         job = null
+        runCatching { hold?.close() }
+        hold = null
     }
 
     private suspend fun search() {
@@ -107,6 +113,9 @@ class DlnaDiscovery(
     }
 
     companion object {
+        /** The phone app sets this to take Wi-Fi's multicast lock; the closeable it returns lets go of it. Null on a computer. */
+        @Volatile var multicastHold: (() -> AutoCloseable)? = null
+
         fun searchRequest(group: String = "239.255.255.250", port: Int = 1900) =
             "M-SEARCH * HTTP/1.1\r\n" +
                 "HOST: $group:$port\r\n" +

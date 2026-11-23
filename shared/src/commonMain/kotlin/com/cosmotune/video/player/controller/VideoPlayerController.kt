@@ -205,6 +205,9 @@ class VideoPlayerController(
 
     override fun positionMs(): Long = engine.positionMs()
 
+    @Synchronized
+    override fun streamsForCast(): StreamSet? = load?.streams
+
     // ------------------------------------------------------------------ opening a video
 
     @Synchronized

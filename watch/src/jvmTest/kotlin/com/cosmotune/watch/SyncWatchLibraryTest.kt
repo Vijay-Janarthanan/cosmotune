@@ -41,6 +41,28 @@ class SyncWatchLibraryTest {
         val removed = SyncWatchLibrary.apply(restored, emptyMap(), snapshot.keys)
         assertTrue(removed.progress.isEmpty() && removed.myList.isEmpty() && removed.settings.isEmpty())
     }
+    @Test fun removingFromMyListAndContinueWatchingTravelsAsDeletesAndStaysRemovedOnTheOtherDevice() {
+        var clock = 1_000L
+        val journal = com.cosmotune.cloud.SnapshotJournal(null) { clock }
+        val both = WatchState(progress = mapOf(title.key.value to WatchProgress(title.key, 80_000, 9_000_000, 5, title)),
+            myList = listOf(MyListEntry(title.key, 3, title)))
+        journal.reconcile(SyncWatchLibrary.KIND, SyncWatchLibrary.snapshot(both))
+        clock = 5_000
+        val removed = both.copy(progress = emptyMap(), myList = emptyList())
+        val entries = journal.reconcile(SyncWatchLibrary.KIND, SyncWatchLibrary.snapshot(removed))
+        val deletes = entries.filter { it.deleted }
+        assertEquals(setOf("list:default:${title.key.value}", "progress:default:${title.key.value}"), deletes.map { it.id }.toSet())
+        assertTrue(deletes.all { it.updatedAt == 5_000L })
+        val other = SyncWatchLibrary.apply(both, emptyMap(), deletes.map { it.id }.toSet())
+        assertTrue(other.progress.isEmpty() && other.myList.isEmpty())
+    }
+    @Test fun aTitleAddedBackWhileADeleteArrivesIsKept() {
+        val entry = MyListEntry(title.key, 9, title)
+        val snapshot = SyncWatchLibrary.snapshot(WatchState(myList = listOf(entry)))
+        val id = "list:default:${title.key.value}"
+        val state = SyncWatchLibrary.apply(WatchState(), snapshot, setOf(id))
+        assertEquals(listOf(entry), state.myList)
+    }
     @Test fun malformedRemoteItemsCannotReplaceLocalProgressOrInjectSettings() {
         val p = WatchProgress(title.key, 40_000, 500_000, 5, title)
         val original = WatchState(progress = mapOf(title.key.value to p))

@@ -40,15 +40,19 @@ class DlnaMediaRelay(private val windowBytes: Long = WINDOW_BYTES) {
 
     /** The URL a renderer at [rendererHost] can fetch [source] from. Starts the server on first use. */
     fun publish(source: Source, rendererHost: String): String {
-        val socket = ensureServer()
+        val host = localAddressFacing(rendererHost)
+        // Bound to the address the renderer's network sees, not to every interface of this device.
+        val socket = ensureServer(host)
         val token = UUID.randomUUID().toString().replace("-", "")
         // Only the last few songs need serving; a renderer that comes back for an old token gets a 404.
         if (sources.size > 8) sources.keys.take(sources.size - 8).forEach(sources::remove)
         sources[token] = source
-        val host = localAddressFacing(rendererHost)
         val printed = if (':' in host) "[$host]" else host
         return "http://$printed:${socket.localPort}/m/$token"
     }
+
+    /** Stops serving one published address (a cast that ended); the server stays for the others. */
+    fun revoke(url: String) { sources.remove(url.substringAfterLast('/')) }
 
     fun close() {
         runCatching { server?.close() }
@@ -57,11 +61,12 @@ class DlnaMediaRelay(private val windowBytes: Long = WINDOW_BYTES) {
     }
 
     @Synchronized
-    private fun ensureServer(): ServerSocket {
-        server?.takeIf { !it.isClosed }?.let { return it }
+    private fun ensureServer(host: String): ServerSocket {
+        server?.takeIf { !it.isClosed && it.inetAddress.hostAddress == InetAddress.getByName(host).hostAddress }?.let { return it }
+        runCatching { server?.close() }
         val socket = ServerSocket()
         socket.reuseAddress = true
-        socket.bind(InetSocketAddress(0))
+        socket.bind(InetSocketAddress(runCatching { InetAddress.getByName(host) }.getOrNull(), 0))
         server = socket
         thread(name = "dlna-relay", isDaemon = true) {
             while (!socket.isClosed) {

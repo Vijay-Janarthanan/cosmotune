@@ -133,6 +133,11 @@ class DesktopPlaybackEngine(
                     ) {
                         // The stored device is gone: fall back to the system default rather than
                         // leaving playback pointed at a mixer that no longer exists.
+                        // Playing music pauses (the speakers are not what the listener chose); paused music stays
+                        // paused. Nothing here ever resumes it.
+                        val decision = com.cosmotune.music.playback.AudioRoutePolicy.decide(
+                            com.cosmotune.music.playback.RouteChange.CHOSEN_OUTPUT_GONE, playing = !paused)
+                        if (decision.action == com.cosmotune.music.playback.RouteAction.PAUSE) pause()
                         DesktopAudioDevices.select(DesktopAudioDevices.SYSTEM_DEFAULT)
                         observedOutputDevice = DesktopAudioDevices.SYSTEM_DEFAULT
                         commands += Command.Reconfigure

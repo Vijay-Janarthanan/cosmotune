@@ -39,7 +39,7 @@ data class SyncReport(val sent: Int, val received: Int, val documentsRead: Int, 
  *
  * Entries are grouped into a few documents ("buckets") per kind instead of one document each, because the free Firestore plan counts
  * writes per document, per project, per day: sending a thousand likes costs a handful of writes, not a thousand.
- * Two devices that change the same entry settle by the newer time; a delete is an entry marked deleted and is forgotten after 30 days.
+ * Two devices that change the same entry settle by the newer time; a delete is an entry marked deleted and is forgotten after 90 days.
  * A bucket is written only if it is still the version that was read, so two devices syncing at once cannot overwrite each other.
  */
 class CloudSync(
@@ -123,7 +123,7 @@ class CloudSync(
         const val COLLECTION = "library"
         const val BUCKETS = 8
         const val MAX_ATTEMPTS = 3
-        const val TOMBSTONE_MS = 30L * 24 * 60 * 60 * 1000
+        const val TOMBSTONE_MS = 90L * 24 * 60 * 60 * 1000
 
         fun bucketName(kind: String, id: String): String = "$kind-${(id.hashCode() and Int.MAX_VALUE) % BUCKETS}"
         fun bucketOf(path: String): String = path.substringAfterLast('/')
