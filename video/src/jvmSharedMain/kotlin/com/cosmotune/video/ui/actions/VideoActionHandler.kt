@@ -98,6 +98,12 @@ class VideoActionHandler internal constructor(
                 graph.settings.update { it.copy(hiddenChannels = it.hiddenChannels + (id to (video.channelName ?: id))) }
                 state.showToast(ActionToastKind.CHANNEL_HIDDEN)
             }
+            VideoAction.MoveToTop, VideoAction.MoveToBottom -> if (context == VideoSheetContext.YOUR_PLAYLIST && playlistId != null) {
+                val items = graph.library.playlists.value.firstOrNull { it.id == playlistId }?.items.orEmpty()
+                val from = items.indexOfFirst { it.id == video.id }
+                val to = if (action == VideoAction.MoveToTop) 0 else items.lastIndex
+                if (from >= 0 && from != to) graph.library.moveInPlaylist(playlistId, from, to)
+            }
             VideoAction.RemoveFromPlaylist -> if (context == VideoSheetContext.YOUR_PLAYLIST && playlistId != null) {
                 graph.library.removeFromPlaylist(playlistId, video.id)
             }

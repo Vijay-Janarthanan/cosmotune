@@ -122,7 +122,7 @@ class VideoBlocksStructureTest {
         assertEquals(listOf("DEFAULT", "HISTORY", "YOUR_PLAYLIST"), VideoSheetContext.entries.map { it.name })
         val declared = Regex("""data object (\w+) : VideoAction""").findAll(src).map { it.groupValues[1] }.toList()
         assertEquals(
-            listOf("Play", "AddToQueue", "PlayAsSong", "SaveToPlaylist", "WatchLater", "Download", "Share", "OpenChannel", "RemoveFromHistory", "RemoveFromPlaylist", "HideChannel"),
+            listOf("Play", "AddToQueue", "PlayAsSong", "SaveToPlaylist", "WatchLater", "Download", "Share", "OpenChannel", "RemoveFromHistory", "RemoveFromPlaylist", "HideChannel", "MoveToTop", "MoveToBottom"),
             declared,
         )
         assertTrue("sealed interface VideoAction {" in src)
@@ -384,7 +384,7 @@ class VideoBlocksStructureTest {
         )
         assertEquals(common + VideoAction.HideChannel, videoActionsFor(video, VideoSheetContext.DEFAULT))
         assertEquals(common + VideoAction.RemoveFromHistory, videoActionsFor(video, VideoSheetContext.HISTORY))
-        assertEquals(common + VideoAction.RemoveFromPlaylist, videoActionsFor(video, VideoSheetContext.YOUR_PLAYLIST))
+        assertEquals(common + VideoAction.MoveToTop + VideoAction.MoveToBottom + VideoAction.RemoveFromPlaylist, videoActionsFor(video, VideoSheetContext.YOUR_PLAYLIST))
     }
 
     @Test fun aLiveStreamAndAPremiereHaveNoPlayAsASongAndNoDownload() {

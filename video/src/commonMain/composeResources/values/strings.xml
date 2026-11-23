@@ -659,4 +659,6 @@
     <string name="video_history_month">This month</string>
     <string name="video_dl_resume_all">Resume all</string>
     <string name="video_dl_search">Search your downloads</string>
+    <string name="video_move_top">Move to the top</string>
+    <string name="video_move_bottom">Move to the bottom</string>
 </resources>
