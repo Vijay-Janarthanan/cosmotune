@@ -1151,6 +1151,8 @@ private fun CosmotuneApp(
     // Looked up only while the app is on screen.
     val elsewhereHandoff by com.cosmotune.music.data.cloud.AndroidCloud.handoff.elsewhere.collectAsState()
     val elsewhereLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    // Settings, Player, Keep the screen on: "Whenever music plays" holds it anywhere in the app.
+    com.cosmotune.music.ui.player.PlaybackKeepsScreenOn(player.isPlaying)
     LaunchedEffect(player.isPlaying) {
         if (player.isPlaying) {
             com.cosmotune.music.data.cloud.AndroidCloud.handoff.look(isPlaying = true)

@@ -303,8 +303,14 @@ fun CosmoNowPlaying(
     StatusBarIcons(dark = shell != null && !colors.dark && !cinemaShown)
     // The lyrics keep the screen on while they show, and so does Cinema, and so does the song's video while it shows and play is
     // wanted: a video that stalls to buffer (play pressed, frames not moving yet) keeps the screen on too.
-    KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||
-        nowPlayingVideoKeepsScreenOn(videoShowing = wantVideo && rendered, isPlaying = isPlaying, isLoading = isLoading))
+    // Settings, Player, Keep the screen on can also hold it while the player is open and a song plays.
+    val screenOnPolicy by com.cosmotune.settings.Extras.settings.screenOn.collectAsStateWithLifecycle()
+    KeepScreenOn(enabled = screenOnPolicy.keepsOn(
+        playerOpen = true,
+        lyricsOrVideo = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||
+            nowPlayingVideoKeepsScreenOn(videoShowing = wantVideo && rendered, isPlaying = isPlaying, isLoading = isLoading),
+        isPlaying = isPlaying,
+    ))
 
     // ---- the Orbit pieces: the look of the colours above, the screen button's menu, the more menu ------------------------
     val orbitType = orbitFonts()

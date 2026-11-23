@@ -7,6 +7,14 @@ import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.cosmotune.settings.ScreenOnPolicy
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.cosmotune.settings.Extras
 import com.cosmotune.settings.ExtrasSettings
@@ -20,6 +28,8 @@ object PlayerExtrasText {
         "and applies from the next song."
     const val SLEEP_FADE = "Fade out before the sleep timer stops"
     const val SLEEP_FADE_LINE = "The volume goes down over the last 30 seconds."
+    const val SCREEN_ON = "Keep the screen on"
+    const val SCREEN_ON_LINE = "The lyrics and videos always keep it on. Choose to keep it on while the player is open, or whenever music plays."
     const val BEST_PART = "Best part button"
     const val BEST_PART_LINE = "A button on the player that skips to the part of the song people replay most, or else to the chorus in its lyrics."
 }
@@ -43,6 +53,30 @@ fun SleepFadeOutRow(settings: ExtrasSettings = Extras.settings) {
 fun BestPartRow(settings: ExtrasSettings = Extras.settings) {
     val on by settings.bestPart.collectAsState()
     ExtrasSwitchRow(Icons.Rounded.Whatshot, PlayerExtrasText.BEST_PART, PlayerExtrasText.BEST_PART_LINE, on, settings::setBestPart)
+}
+
+/** When the screen stays on ([ExtrasSettings.screenOn]): a short pill in the row's own column, the full choices in its menu. */
+@Composable
+fun ScreenOnRow(settings: ExtrasSettings = Extras.settings) {
+    val policy by settings.screenOn.collectAsState()
+    var open by remember { mutableStateOf(false) }
+    CosmoSettingsRow(
+        icon = Icons.Rounded.LightMode,
+        title = PlayerExtrasText.SCREEN_ON,
+        subtitle = PlayerExtrasText.SCREEN_ON_LINE,
+        trailing = {
+            com.cosmotune.ui.orbit.OrbitMenuPill(
+                text = policy.short,
+                open = open,
+                onOpen = { open = true },
+                onDismiss = { open = false },
+                items = ScreenOnPolicy.entries.map { choice ->
+                    com.cosmotune.ui.orbit.OrbitMenuItem(choice.label, selected = choice == policy) { settings.setScreenOn(choice); open = false }
+                },
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        },
+    )
 }
 
 @Composable

@@ -174,6 +174,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val premiumAudioFlow = MutableStateFlow(store.getBoolean(KEY_PREMIUM_AUDIO, false))
     private val sleepFadeOutFlow = MutableStateFlow(store.getBoolean(KEY_SLEEP_FADE_OUT, true))
     private val bestPartFlow = MutableStateFlow(store.getBoolean(KEY_BEST_PART, true))
+    private val screenOnFlow = MutableStateFlow(ScreenOnPolicy.named(store.getString(KEY_SCREEN_ON, ScreenOnPolicy.DEFAULT.name)))
 
     /**
      * The listener's word that their YouTube account has Premium: a signed-in account then asks for Premium's ~256 kbps Opus
@@ -191,11 +192,16 @@ class ExtrasSettings(private val store: KeyValueStore) {
     fun setSleepFadeOut(value: Boolean) { sleepFadeOutFlow.value = value; store.putBoolean(KEY_SLEEP_FADE_OUT, value) }
     fun setBestPart(value: Boolean) { bestPartFlow.value = value; store.putBoolean(KEY_BEST_PART, value) }
 
+    /** When the player keeps the screen on; see [ScreenOnPolicy]. */
+    val screenOn: StateFlow<ScreenOnPolicy> = screenOnFlow.asStateFlow()
+    fun setScreenOn(value: ScreenOnPolicy) { screenOnFlow.value = value; store.putString(KEY_SCREEN_ON, value.name) }
+
     companion object {
         const val KEY_SONG_PLAYBACK="extras_song_playback"
         const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
         const val KEY_SLEEP_FADE_OUT = "extras_sleep_fade_out"
         const val KEY_BEST_PART = "extras_best_part"
+        const val KEY_SCREEN_ON = "extras_screen_on"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"

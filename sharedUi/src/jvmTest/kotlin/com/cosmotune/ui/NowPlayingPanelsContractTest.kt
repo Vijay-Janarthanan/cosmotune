@@ -150,8 +150,9 @@ class NowPlayingPanelsContractTest {
             assertTrue(call.contains("hazeState = hazeState"), "$sheet takes the player's haze state")
         }
         assertTrue(src.contains("currentSource = lyricsSource") && src.contains("states = lyricsProviderStates") && src.contains("onSelect = onSelectLyricsProvider"))
-        assertTrue(src.contains("KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||"))
-        assertTrue(src.contains("nowPlayingVideoKeepsScreenOn(videoShowing = wantVideo && rendered, isPlaying = isPlaying, isLoading = isLoading))"),
+        assertTrue(src.contains("KeepScreenOn(enabled = screenOnPolicy.keepsOn("), "the player follows Keep the screen on")
+        assertTrue(src.contains("lyricsOrVideo = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||"))
+        assertTrue(src.contains("nowPlayingVideoKeepsScreenOn(videoShowing = wantVideo && rendered, isPlaying = isPlaying, isLoading = isLoading),"),
             "the song's video keeps the screen on while it shows and play is wanted")
         assertFalse(src.contains("(wantVideo && rendered && isPlaying))"), "not only while its frames advance")
         assertTrue(src.contains("flags.providers = true") || src.contains("sheets.providers = true"), "the lyrics status opens the provider sheet")

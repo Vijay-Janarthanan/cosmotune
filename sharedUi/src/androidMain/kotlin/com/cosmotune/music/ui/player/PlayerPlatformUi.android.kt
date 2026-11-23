@@ -22,12 +22,25 @@ internal actual fun uptimeMillis(): Long = SystemClock.uptimeMillis()
 internal actual val renderEffectBlurSupported: Boolean
     get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
+/** How many places hold each view's screen on: the player and the whole app (Keep the screen on) can both, and one letting go must not drop the other's. */
+private val screenHolds = java.util.WeakHashMap<View, Int>()
+
 @Composable
 internal actual fun KeepScreenOn(enabled: Boolean) {
     val view = LocalView.current
     DisposableEffect(view, enabled) {
-        view.keepScreenOn = enabled
-        onDispose { view.keepScreenOn = false }
+        if (!enabled) return@DisposableEffect onDispose { }
+        screenHolds[view] = (screenHolds[view] ?: 0) + 1
+        view.keepScreenOn = true
+        onDispose {
+            val left = (screenHolds[view] ?: 1) - 1
+            if (left <= 0) {
+                screenHolds.remove(view)
+                view.keepScreenOn = false
+            } else {
+                screenHolds[view] = left
+            }
+        }
     }
 }
 

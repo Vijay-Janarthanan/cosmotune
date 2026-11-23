@@ -2225,6 +2225,10 @@ fun CosmotuneDesktopApp() {
     LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed) {
         DesktopDiscordRpc.onPlaybackStateChanged(playback, playbackEngine.playbackRate)
     }
+    // Settings, Player, Keep the screen on: past lyrics or a video, the display stays awake while the player is open or while music plays.
+    val screenOnPolicy by com.cosmotune.settings.Extras.settings.screenOn.collectAsState()
+    val keepAwake = screenOnPolicy.keepsOn(playerOpen = overlays.nowPlaying, lyricsOrVideo = false, isPlaying = playback.isPlaying)
+    LaunchedEffect(keepAwake) { DesktopKeepAwake.hold(keepAwake) }
     // The account's own history on YouTube Music, which is what the home feed is built out of.
     DisposableEffect(playback.song?.videoId) {
         val previous = playbackEngine.state.value.positionMs / 1_000
@@ -6169,6 +6173,9 @@ private fun DesktopSettingsScreen(
                 SettingsGroup(com.cosmotune.ui.settings.PlayerExtrasText.GROUP) {
                     if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART, com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART_LINE)) {
                         com.cosmotune.ui.settings.BestPartRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON, com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON_LINE)) {
+                        com.cosmotune.ui.settings.ScreenOnRow()
                     }
                     if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE, com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE_LINE)) {
                         com.cosmotune.ui.settings.SleepFadeOutRow()
