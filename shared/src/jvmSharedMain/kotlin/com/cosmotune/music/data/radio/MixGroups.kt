@@ -23,9 +23,12 @@ data class MixGroups(val stations: List<ShelfItem>, val yours: List<ShelfItem>, 
          * YouTube Music lists every mix in one run; Radio (from upstream 1.10, GPL-3.0) sorts them by name: the named mixes become
          * the stations, a mood's mixes ("Feel Good Supermix", "Feel Good Mix 1") gather under the mood in the order the page first
          * names it, and the rest are the listener's own ("Modern Punjabi Beats", "My Mix 1"). The names are read as YouTube sends
-         * them; in another language every card that is not recognised falls to the listener's own, so none is ever lost.
+         * them. In another language [englishTitles] (each card's English title by its browse id, from the same page asked for in
+         * English) does the sorting while the cards keep the listener's titles; a mood is headed by its English name when the
+         * listener's titles carry it, else by its first card's title. A card with no English title is sorted by its own, and one
+         * that is not recognised falls to the listener's own, so none is ever lost.
          */
-        fun of(mixes: List<ShelfItem>): MixGroups {
+        fun of(mixes: List<ShelfItem>, englishTitles: Map<String, String> = emptyMap()): MixGroups {
             val stations = mutableListOf<Pair<Int, ShelfItem>>()
             val yours = mutableListOf<ShelfItem>()
             val moods = LinkedHashMap<String, Pair<String, MutableList<Pair<Int, ShelfItem>>>>()
@@ -33,7 +36,7 @@ data class MixGroups(val stations: List<ShelfItem>, val yours: List<ShelfItem>, 
                 moods.getOrPut(name.lowercase()) { name to mutableListOf() }.second += order to item
             }
             mixes.distinctBy { it.browseId ?: it.title }.forEach { item ->
-                val key = item.title.trim()
+                val key = (item.browseId?.let(englishTitles::get) ?: item.title).trim()
                 val rank = STATIONS.indexOf(key.lowercase())
                 val supermix = MOOD_SUPERMIX.matchEntire(key)
                 val numbered = NUMBERED_MIX.matchEntire(key)
@@ -48,7 +51,11 @@ data class MixGroups(val stations: List<ShelfItem>, val yours: List<ShelfItem>, 
             return MixGroups(
                 stations = stations.sortedBy { it.first }.map { it.second },
                 yours = yours,
-                moods = moods.values.map { (name, members) -> MoodMixes(name, members.sortedBy { it.first }.map { it.second }) },
+                moods = moods.values.map { (name, members) ->
+                    val items = members.sortedBy { it.first }.map { it.second }
+                    val heading = if (englishTitles.isEmpty() || items.any { it.title.contains(name, ignoreCase = true) }) name else items.first().title
+                    MoodMixes(heading, items)
+                },
             )
         }
     }
