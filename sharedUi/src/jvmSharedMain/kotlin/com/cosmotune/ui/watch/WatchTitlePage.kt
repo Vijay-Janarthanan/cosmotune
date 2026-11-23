@@ -471,12 +471,20 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
     LaunchedEffect(nextUp, seasons) { if (season == null) season = nextUp?.episode?.season ?: seasons.firstOrNull { it.number > 0 }?.number ?: seasons.firstOrNull()?.number }
     val chosen = season ?: return
     val episodes by produceState<List<Episode>?>(null, page.key, chosen) { value = null; value = runCatching { repository.episodes(page.key, chosen) }.getOrDefault(emptyList()) }
-    val progress by produceState<Map<WatchKey, WatchProgress>>(emptyMap(), episodes) {
+    // Read again after Mark as watched changes one.
+    var marks by remember { mutableStateOf(0) }
+    val progress by produceState<Map<WatchKey, WatchProgress>>(emptyMap(), episodes, marks) {
         value = episodes.orEmpty().mapNotNull { e -> runCatching { repository.progress(e.key) }.getOrNull()?.let { e.key to it } }.toMap()
     }
     if (batchOpen) WatchBatchSheet(page, chosen, episodes.orEmpty(), actions, fonts, look) { batchOpen = false }
     Column(Modifier.padding(top = 12.dp)) {
         Row(Modifier.fillMaxWidth().padding(end = side), verticalAlignment = Alignment.CenterVertically) {
+    val mark: (List<Episode>, Boolean) -> Unit = { list, watched ->
+        actions.launch {
+            list.forEach { e -> repository.setWatched(e.key, page.summary, watched, System.currentTimeMillis(), e.name) }
+            marks++
+        }
+    }
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(start = side), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 seasons.forEach { s -> OrbitSelectChip(if (s.number == 0) "Specials" else s.name, s.number == chosen, fonts, look, onClick = { season = s.number }, haptic = false) }
             }
@@ -486,20 +494,30 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
         }
         Column(Modifier.padding(horizontal = side).padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             val list = episodes
+            if (!episodes.isNullOrEmpty()) Box(Modifier.padding(start = 8.dp)) {
+                var seasonMenu by remember { mutableStateOf(false) }
+                WatchRoundButton(CosmoIcons.More, "More for this season", look, onClick = { seasonMenu = true })
+                val aired = episodes.orEmpty().filter { e -> e.airDate.let { it == null || it <= java.time.LocalDate.now().toString() } }
+                OrbitMenu(seasonMenu, { seasonMenu = false }, fonts = fonts, look = look, header = if (chosen == 0) "Specials" else "Season $chosen", items = listOf(
+                    OrbitMenuItem("Mark season as watched", "${aired.size} episodes", CosmoIcons.Check, enabled = aired.isNotEmpty()) { mark(aired, true) },
+                    OrbitMenuItem("Mark season as not watched", null, CosmoIcons.Close) { mark(episodes.orEmpty(), false) },
+                ))
+            }
             if (list == null) repeat(4) { WatchSkeleton(look, Modifier.fillMaxWidth().height(81.dp), radius = 14.dp) }
             else if (list.isEmpty()) Text("No episodes listed for this season.", style = fonts.body, color = look.dim, modifier = Modifier.padding(6.dp))
             else list.forEach { e ->
                 val next = nextUp?.episode?.key == e.key
                 val p = progress[e.key]
                 val before = nextUp != null && nextUp.episode.season == e.season && e.number < nextUp.episode.number
-                EpisodeRow(e, p, next, watched = p?.completed == true || (p == null && before), fonts, look) { actions.playEpisode(page, e) }
+                val watched = p?.completed == true || (p == null && before)
+                EpisodeRow(e, p, next, watched, fonts, look, onMark = { mark(listOf(e), !watched) }) { actions.playEpisode(page, e) }
             }
         }
     }
 }
 
 @Composable
-private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watched: Boolean, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
+private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watched: Boolean, fonts: OrbitFonts, look: OrbitLook, onMark: () -> Unit, onClick: () -> Unit) {
     WatchRowFrame(look, height = 97.dp, highlighted = next, onClick = onClick) {
         Box(Modifier.size(144.dp, 81.dp)) {
             WatchPicture(e.stillUrl, e.key.value, Modifier.fillMaxSize(), radius = 14.dp)
@@ -519,3 +537,16 @@ private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watc
         }
     }
 }
+        WatchRoundButton(CosmoIcons.Check, if (watched) "Mark episode ${e.number} as not watched" else "Mark episode ${e.number} as watched", look,
+            onClick = onMark, on = watched, size = 34.dp)
+    }
+}
+
+/** A random episode of [page] that has aired, from a random numbered season (specials left out); null when none is listed. */
+internal suspend fun randomEpisode(page: Title, repository: com.cosmotune.watch.WatchRepository, random: kotlin.random.Random = kotlin.random.Random.Default): Episode? {
+    val today = java.time.LocalDate.now().toString()
+    val seasons = page.seasons.filter { it.number > 0 && it.episodeCount > 0 }.shuffled(random)
+    for (season in seasons) {
+        val aired = runCatching { repository.episodes(page.key, season.number) }.getOrDefault(emptyList())
+            .filter { e -> e.airDate.let { it == null || it <= today } }
+        if (aired.isNotEmpty()) return aired.random(random)

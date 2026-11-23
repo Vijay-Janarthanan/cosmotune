@@ -315,6 +315,14 @@ private fun ContinueCard(item: ContinueItem, wide: Boolean, fonts: OrbitFonts, l
     )
 }
 
+        menu = listOf(
+            com.cosmotune.ui.orbit.OrbitMenuItem(if (item.episode != null) "Mark ${item.episodeLabel} as watched" else "Mark as watched", "It leaves Continue watching", CosmoIcons.Check) {
+                actions.launch { actions.repository.setWatched(item.key, item.summary, watched = true, atMs = System.currentTimeMillis(), episodeName = item.episode?.name) }
+            },
+            com.cosmotune.ui.orbit.OrbitMenuItem("Remove from Continue watching", "Forgets where you were", CosmoIcons.Close) {
+                actions.launch { actions.repository.clearProgress(item.key) }
+            },
+        ),
 /** Live now: three across on a wide page, stacked on the phone; a tap plays the channel. */
 @Composable
 private fun LiveNow(items: List<LiveNowItem>, wide: Boolean, fonts: OrbitFonts, look: OrbitLook, actions: WatchActions, clock: () -> Long, modifier: Modifier) {

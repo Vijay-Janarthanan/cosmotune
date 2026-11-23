@@ -359,3 +359,15 @@ data class WatchScriptEntry(val id: String, val name: String, val url: String, v
 data class WatchScriptUpdate(val id: String, val name: String, val url: String, val installedSha256: String, val availableSha256: String, val sizeBytes: Int) {
     val available: Boolean get() = installedSha256 != availableSha256
 }
+    /**
+     * Marks [key] (a film or an episode) as watched to the end at [atMs], or as not watched (its progress cleared): it leaves
+     * Continue watching, the episode rows show it, and Trakt or Simkl, when connected, are told it was watched.
+     */
+    suspend fun setWatched(key: WatchKey, summary: TitleSummary?, watched: Boolean, atMs: Long, episodeName: String? = null) {
+        if (!watched) { clearProgress(key); return }
+        val old = progress(key)
+        val duration = old?.durationMs?.takeIf { it > 0 } ?: 0L
+        val done = WatchProgress(key, duration, duration, atMs, summary ?: old?.summary, episodeName ?: old?.episodeName, old?.lastHint, watched = true)
+        saveProgress(done)
+        runCatching { tracking?.report(done, "stop") }
+    }
