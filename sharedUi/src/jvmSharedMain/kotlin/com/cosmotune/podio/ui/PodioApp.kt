@@ -95,6 +95,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     /** The native file dialog for "Import from another app" (OPML), where the host has one; export and share are in Settings › Podio. */
     onImportOpmlFile: (suspend () -> String?)? = null,
     remoteGlobeControls: Boolean = false,
+    /** Scrobbles a song a station played (Settings › Podio, off by default) to the listener's Last.fm or ListenBrainz. */
+    onRadioListen: ((PodioRadioListen) -> Unit)? = null,
     /**
      * Plays an episode followed by what is queued after it, so the player goes on by itself; null where the host plays one item at
      * a time ([onPlay]), and the queue then waits for the page.
@@ -224,7 +226,9 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     // stream again every half minute while it plays.
     var song by remember(playback.id) { mutableStateOf<String?>(null) }
     val heardLive by PodioLiveTitle.current.collectAsUiState()
+    val radioScrobble = remember { PodioRadioScrobble() }
     fun heard(title: String?, station: RadioStation) {
+        if (saved.scrobbleRadio && onRadioListen != null) radioScrobble.heard(station.id, title?.takeIf { it != station.name }, System.currentTimeMillis())?.let(onRadioListen)
         song = title?.takeIf { it != station.name }
         // Each song the station names is kept in Heard on the radio.
         song?.let { named -> m.save { PodioHistory.heard(it, named, station, System.currentTimeMillis()) } }
@@ -235,6 +239,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         if (live.title != song) heard(live.title, station)
     }
     LaunchedEffect(playback.id, playingStation?.url) {
+        // Another station or an episode came on: the song that was playing ends there.
+        radioScrobble.stopped(System.currentTimeMillis(), stillOn = playingStation?.id)?.takeIf { saved.scrobbleRadio }?.let { listen -> onRadioListen?.invoke(listen) }
         val station = playingStation ?: return@LaunchedEffect
         while (isActive) {
             if (PodioLiveTitle.recent(station.url) == null) heard(catalogue.nowPlaying(station.url), station)

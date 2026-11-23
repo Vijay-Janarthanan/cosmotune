@@ -118,6 +118,15 @@ class ScrobbleManager(
         scrobbleRemainingMillis = 0
     }
 
+    /** A song a radio station played (Podio's "Scrobble the songs stations play"), sent as a listen that began [startedAtSeconds]. */
+    fun scrobbleListen(artist: String, title: String, startedAtSeconds: Long, durationSeconds: Int) {
+        val listen = com.cosmotune.listening.PendingScrobble("lastfm", artist.forScrobble(), title, startedAtSeconds, null, durationSeconds)
+        scope.launch {
+            queue?.flush(submit = ::submitQueued)
+            if (submitQueued(listen) == com.cosmotune.listening.ScrobbleOutcome.RETRY_LATER) queue?.add(listen)
+        }
+    }
+
     private fun scrobbleSong(song: Song, durationSeconds: Int) {
         val scrobbleArtist = song.artist.forScrobble()
         val listen = com.cosmotune.listening.PendingScrobble("lastfm", scrobbleArtist, song.title, songStartedAt, song.albumName, durationSeconds)

@@ -4459,6 +4459,11 @@ fun CosmotuneDesktopApp() {
                             }
                         },
                         // Podio's queue follows the episode in the player's own queue, so it plays on after leaving Podio.
+                        // A song a station played, scrobbled when that is chosen in Settings › Podio.
+                        onRadioListen = { listen ->
+                            scope.launch { DesktopScrobbling.scrobble(Song(videoId = "radio-song:" + com.cosmotune.podio.PodioCatalogue.identity(listen.artist + "|" + listen.title),
+                                title = listen.title, artist = listen.artist, thumbnailUrl = null)) }
+                        },
                         onPlayQueue = { item, position, upcoming ->
                             if (!partyTrackChangeBlocked()) {
                                 liveQueue = DesktopQueue(listOf(podioSong(item)) + upcoming.filter { it.id != item.id }.map(::podioSong), index = 0)

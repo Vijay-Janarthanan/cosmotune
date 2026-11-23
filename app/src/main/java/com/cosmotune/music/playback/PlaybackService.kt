@@ -7620,6 +7620,7 @@ class PlaybackService : MediaLibraryService() {
                 val manager = scrobbleManager ?: ScrobbleManager(scope, scrobbleQueue).also {
                     scrobbleManager = it
                 }
+                com.cosmotune.podio.PodioRadioScrobbles.send = { listen -> manager.scrobbleListen(listen.artist, listen.title, listen.startedAtSeconds, listen.seconds) }
                 manager.minSongDuration = snapshot.minDuration
                 manager.scrobbleDelayPercent = snapshot.delayPercent
                 manager.scrobbleDelaySeconds = snapshot.delaySeconds

@@ -636,7 +636,9 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** The PIN that following a new show asks for ([PodioFollowLock]), or none. */
     val followLock: PodioFollowLockPin? = null,
     /** Save an episode whole as it starts streaming, so it plays on with no connection. */
-    val keepStreamed: Boolean = false)
+    val keepStreamed: Boolean = false,
+    /** Scrobble the songs stations name ([PodioRadioScrobble]) to the listener's Last.fm or ListenBrainz. */
+    val scrobbleRadio: Boolean = false)
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {

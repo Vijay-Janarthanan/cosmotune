@@ -104,6 +104,9 @@ fun PodioSettingsSection(storage: File, modifier: Modifier = Modifier,
         OrbitLabel("Radio recordings", fonts, look.dim, Modifier.padding(top = 8.dp))
         OrbitSwitchRow("Save each song as its own file", saved.recordBySong, { on -> save { it.copy(recordBySong = on) } },
             detail = "When the station names its songs; up to three hours a recording", plain = true, switchModifier = Modifier.testTag("settings:podio:record-by-song"))
+        OrbitSwitchRow("Scrobble the songs stations play", saved.scrobbleRadio, { on -> save { it.copy(scrobbleRadio = on) } },
+            detail = "To Last.fm or ListenBrainz, once you have signed in to one; podcasts never are", plain = true,
+            switchModifier = Modifier.testTag("settings:podio:scrobble-radio"))
         PodioAlarmSettings(saved, { change -> save(change) }, exactAlarms, onAllowExactAlarms)
         PodioFollowLockSettings(saved) { change -> save(change) }
         if (automation) {

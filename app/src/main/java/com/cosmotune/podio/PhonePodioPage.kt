@@ -105,6 +105,7 @@ import java.io.File
         sleepTimerMinutes = sleepMinutes, sleepAfterEpisode = sleepAfterEpisode,
         onSleepTimer = { minutes -> if (minutes == null) com.cosmotune.music.playback.SleepTimer.cancel() else com.cosmotune.music.playback.SleepTimer.start(minutes) },
         onSleepAfterEpisode = { com.cosmotune.music.playback.SleepTimer.startAfterTrack() },
+        onRadioListen = { listen -> PodioRadioScrobbles.send?.invoke(listen) },
         onDownloadEpisode = { item ->
             when (activeDownloads[item.id]) {
                 DownloadState.Queued, is DownloadState.Running -> Downloads.cancel(item.id)
