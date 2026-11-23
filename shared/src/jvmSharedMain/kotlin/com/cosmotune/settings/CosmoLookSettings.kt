@@ -71,6 +71,18 @@ class CosmoLookSettings(private val store: KeyValueStore) {
 
     fun setCompactRows(on: Boolean) { store.putBoolean(KEY_COMPACT_ROWS, on); compactRowsFlow.value = on }
 
+    private val interfaceSizeFlow = MutableStateFlow(InterfaceSize.of(store.getInt(KEY_INTERFACE_SIZE, InterfaceSize.DEFAULT.percent)))
+    private val textFontFlow = MutableStateFlow(TextFont.named(store.getString(KEY_TEXT_FONT, TextFont.COSMOTUNE.name)))
+
+    /** How large everything is drawn (Look and colours, Interface size): the whole app scales, text and controls together. */
+    val interfaceSize: StateFlow<InterfaceSize> = interfaceSizeFlow.asStateFlow()
+
+    /** The font of the app's body text (Look and colours, Text font); headings keep Cosmotune's own. */
+    val textFont: StateFlow<TextFont> = textFontFlow.asStateFlow()
+
+    fun setInterfaceSize(size: InterfaceSize) { store.putInt(KEY_INTERFACE_SIZE, size.percent); interfaceSizeFlow.value = size }
+    fun setTextFont(font: TextFont) { store.putString(KEY_TEXT_FONT, font.name); textFontFlow.value = font }
+
     private val keepDownloadedFlow = MutableStateFlow(readSet(KEY_KEEP_DOWNLOADED))
 
     /**
@@ -272,6 +284,8 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_VIDEO_VIEW = "np_video_view"
         const val KEY_FULL_SCREEN_FILL = "full_screen_fill"
         const val KEY_COMPACT_ROWS = "compact_rows"
+        const val KEY_INTERFACE_SIZE = "interface_size_percent"
+        const val KEY_TEXT_FONT = "text_font"
         const val KEY_KEEP_DOWNLOADED = "keep_downloaded"
         const val KEY_SMART_DOWNLOADS = "smart_downloads"
         const val KEY_HOME_HIDDEN = "home_hidden_sections"
@@ -293,5 +307,32 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         private const val MAX_SET = 600
 
         private fun modeOf(stored: Int): AppMode = AppMode.entries.getOrNull(stored) ?: AppMode.MUSIC
+    }
+}
+
+/** Interface size presets: the scale the whole app is drawn at, in percent of the device's own. */
+enum class InterfaceSize(val percent: Int, val label: String) {
+    COMPACT(90, "Compact"),
+    DEFAULT(100, "Default"),
+    LARGE(112, "Large"),
+    LARGER(125, "Larger"),
+    ;
+
+    val scale: Float get() = percent / 100f
+
+    companion object {
+        fun of(percent: Int): InterfaceSize = entries.firstOrNull { it.percent == percent } ?: DEFAULT
+    }
+}
+
+/** The body text's font: Cosmotune's own (Hanken Grotesk), the device's, or a serif. */
+enum class TextFont(val label: String) {
+    COSMOTUNE("Cosmotune"),
+    SYSTEM("System"),
+    SERIF("Serif"),
+    ;
+
+    companion object {
+        fun named(name: String?): TextFont = entries.firstOrNull { it.name == name } ?: COSMOTUNE
     }
 }

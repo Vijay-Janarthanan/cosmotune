@@ -6,6 +6,7 @@ import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,7 +70,15 @@ fun CosmoLookTheme(
     val shell = remember(settings) { CosmoShellState(settings, dark) }
     val reduced = rememberReducedMotion()
     PaletteFollower(shell, dark, reduced)
+    // Look and colours, Interface size: the whole app drawn larger or smaller than the device's own scale.
+    val interfaceSize by settings.interfaceSize.collectAsState()
+    val baseDensity = androidx.compose.ui.platform.LocalDensity.current
+    val density = remember(baseDensity, interfaceSize) {
+        if (interfaceSize == com.cosmotune.settings.InterfaceSize.DEFAULT) baseDensity
+        else androidx.compose.ui.unit.Density(baseDensity.density * interfaceSize.scale, baseDensity.fontScale)
+    }
     // The theme choice for the chrome that changes it (the profile menus), and the cross-fade such a change goes through.
+    CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides density) {
     ThemeChoiceRoot(themeChoice, reduced) {
     legacy {
         val legacyScheme = MaterialTheme.colorScheme
@@ -97,6 +106,7 @@ fun CosmoLookTheme(
                 )
             }
         }
+    }
     }
     }
 }

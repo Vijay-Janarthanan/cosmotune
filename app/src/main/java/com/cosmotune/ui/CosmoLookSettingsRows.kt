@@ -103,3 +103,7 @@ internal fun CosmoLookSettingsRows() {
     }
     if (previewOpen) CosmoLookPreviewDialog(onDismiss = { previewOpen = false })
 }
+        com.cosmotune.ui.settings.CosmoInterfaceSizeSetting()
+        RowDivider()
+        com.cosmotune.ui.settings.CosmoTextFontSetting()
+        RowDivider()
