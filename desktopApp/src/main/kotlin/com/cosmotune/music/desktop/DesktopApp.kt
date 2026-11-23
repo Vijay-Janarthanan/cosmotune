@@ -2826,10 +2826,11 @@ fun CosmotuneDesktopApp() {
             playbackEngine.shutdown()
             DesktopWindowsMedia.stop()
         }
+        val musicOn = { playback.isPlaying }
         DesktopTrayMenu.bind(
-            onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
-            onNext = ::playNext,
-            onPrevious = ::playPrevious,
+            onPlayPause = { if (com.cosmotune.video.host.DesktopVideoTray.active(musicOn())) com.cosmotune.video.host.DesktopVideoTray.playPause() else if (selectedSong != null) togglePlayPauseFromUser() },
+            onNext = { if (com.cosmotune.video.host.DesktopVideoTray.active(musicOn())) com.cosmotune.video.host.DesktopVideoTray.next() else playNext() },
+            onPrevious = { if (com.cosmotune.video.host.DesktopVideoTray.active(musicOn())) com.cosmotune.video.host.DesktopVideoTray.previous() else playPrevious() },
             onOpenPlayer = {
                 DesktopWindowVisibility.show()
                 overlays.nowPlaying = true
@@ -2841,22 +2842,35 @@ fun CosmotuneDesktopApp() {
             onQuit = { DesktopQuit.now("Quit from the tray") },
         )
     }
-    LaunchedEffect(selectedSong, playback.isPlaying) {
-        val title = selectedSong?.let { "${it.title} — ${it.artist}" }
-        tray.update(title = title, isPlaying = playback.isPlaying)
-        DesktopTrayMenu.publish(title = title, playing = playback.isPlaying)
+    // A video on in Video (while Music is not playing) takes the tray and the mini player: its title, its state, its controls.
+    val videoNow by com.cosmotune.video.host.rememberDesktopVideoNow(playback.isPlaying)
+    val trayVideo = videoNow?.let { it.title to it.playing }
+    LaunchedEffect(selectedSong, playback.isPlaying, trayVideo) {
+        val title = trayVideo?.let { (t, _) -> listOf(t, videoNow?.channel.orEmpty()).filter { it.isNotBlank() }.joinToString(" — ") }
+            ?: selectedSong?.let { "${it.title} — ${it.artist}" }
+        val playing = trayVideo?.second ?: playback.isPlaying
+        tray.update(title = title, isPlaying = playing)
+        DesktopTrayMenu.publish(title = title, playing = playing)
     }
     LaunchedEffect(Unit) {
         DesktopMiniPlayer.actions = DesktopMiniPlayer.Actions(
-            playPause = { if (selectedSong != null) togglePlayPauseFromUser() },
-            next = ::playNext,
-            previous = ::playPrevious,
+            playPause = {
+                if (com.cosmotune.video.host.DesktopVideoTray.active(playback.isPlaying)) com.cosmotune.video.host.DesktopVideoTray.playPause()
+                else if (selectedSong != null) togglePlayPauseFromUser()
+            },
+            next = { if (com.cosmotune.video.host.DesktopVideoTray.active(playback.isPlaying)) com.cosmotune.video.host.DesktopVideoTray.next() else playNext() },
+            previous = { if (com.cosmotune.video.host.DesktopVideoTray.active(playback.isPlaying)) com.cosmotune.video.host.DesktopVideoTray.previous() else playPrevious() },
             openMain = { DesktopWindowVisibility.show(); DesktopMiniPlayer.close() },
         )
     }
+    LaunchedEffect(videoNow) {
+        val v = videoNow ?: return@LaunchedEffect
+        DesktopMiniPlayer.publish(DesktopMiniPlayer.NowPlaying(v.title, v.channel, v.thumbnailUrl, v.playing,
+            if (v.durationMs > 0) v.positionMs.toFloat() / v.durationMs else 0f, v.durationMs))
+    }
     LaunchedEffect(selectedSong, playback.isPlaying, playback.positionMs / 1000, playback.durationMs) {
         val song = selectedSong
-        DesktopMiniPlayer.publish(DesktopMiniPlayer.NowPlaying(song?.title.orEmpty(), song?.artist.orEmpty(), song?.thumbnailUrl,
+        if (videoNow == null) DesktopMiniPlayer.publish(DesktopMiniPlayer.NowPlaying(song?.title.orEmpty(), song?.artist.orEmpty(), song?.thumbnailUrl,
             playback.isPlaying, if (playback.durationMs > 0) playback.positionMs.toFloat() / playback.durationMs else 0f,
             playback.durationMs))
         // What plays here, for the account's other devices to carry on with (a party's shared queue is not the listener's own).
