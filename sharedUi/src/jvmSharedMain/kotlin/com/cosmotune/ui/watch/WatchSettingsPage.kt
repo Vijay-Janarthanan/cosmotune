@@ -44,7 +44,7 @@ import com.cosmotune.watch.model.WatchProfile
 import kotlinx.coroutines.launch
 
 /** Which of the settings' small dialogs is open. */
-private enum class WatchSettingsDialog { FOLDER, DENSITY, SUBTITLES, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
+private enum class WatchSettingsDialog { FOLDER, DENSITY, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
 
 /**
  * Watch settings on the same rows Video's settings use ([CosmoSettingsGroup], [CosmoSettingsRow]): Sources and add-ons first
@@ -52,6 +52,7 @@ private enum class WatchSettingsDialog { FOLDER, DENSITY, SUBTITLES, SEED_TIME, 
  * (poster size, the subtitle look, the intro and credits skips) and Connected services (tracking, service keys, debrid). Each row says its current value; the
  * ones that need words typed open a small dialog. Reached from the profile menu on the phone and from the sidebar on the desktop.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
     val repository = watchRepository()
@@ -134,6 +135,13 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     onClick = { dialog = WatchSettingsDialog.CONNECTION })
             }
         }
+        item(key = "settings:storage") {
+            val limit by repository.cacheLimitMb.collectAsState()
+            val used by androidx.compose.runtime.produceState(0L, dialog) { value = runCatching { repository.cacheBytes() }.getOrDefault(0L) }
+            CosmoSettingsGroup(header = "Storage") {
+                CosmoSettingsRow(Icons.Rounded.Folder, "Cache", subtitle = "${sizeText(used) ?: "Empty"} of ${cacheLimitText(limit)}", onClick = { dialog = WatchSettingsDialog.CACHE })
+            }
+        }
         item(key = "settings:services") {
             CosmoSettingsGroup(header = "Connected services") {
                 if (repository.tracking != null) {
@@ -188,6 +196,22 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
             }
         }
         WatchSettingsDialog.SUBTITLES -> WatchSubtitleLookDialog { dialog = null }
+        WatchSettingsDialog.CACHE -> WatchDialog("Storage", "Cache", onDismiss = { dialog = null }) {
+            val limit by repository.cacheLimitMb.collectAsState()
+            var cleared by remember { mutableStateOf(false) }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OrbitLabel("Keep at most", fonts, look.dim, Modifier.padding(start = 6.dp))
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(100, 250, 500, 1000, 2000).forEach { mb ->
+                        OrbitSelectChip(cacheLimitText(mb), limit == mb, fonts, look, onClick = { scope.launch { repository.setCacheLimitMb(mb) } }, haptic = false)
+                    }
+                }
+                WatchCardChip(if (cleared) "Cache emptied" else "Empty the cache", look.ink, fonts, enabled = !cleared,
+                    onClick = { scope.launch { repository.clearCache(); cleared = true } })
+                Text("The cache keeps catalogues, guides and add-on answers so pages open quickly; the oldest go first. Streaming a torrent keeps at most 96 MB in memory and nothing on disk; downloads stay until you remove them.",
+                    style = fonts.body, color = look.dim)
+            }
+        }
         WatchSettingsDialog.SEED_TIME -> WatchDialog("Torrents", "Share for", onDismiss = { dialog = null }) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(30, 60, 180, 1440, 0).forEach { minutes ->
@@ -279,3 +303,6 @@ private fun seedTimeText(minutes: Int): String = when {
     minutes == 1440 -> "1 day"
     else -> "${minutes / 1440} days"
 }
+
+/** "250 MB", "1 GB". */
+private fun cacheLimitText(mb: Int): String = if (mb >= 1000) "${mb / 1000} GB" else "$mb MB"

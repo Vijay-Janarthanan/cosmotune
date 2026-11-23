@@ -555,6 +555,8 @@ internal fun InstallPreviewCard(p: InstallPreview, fonts: OrbitFonts, look: Orbi
         if (p.offers.isNotEmpty()) Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { p.offers.forEach { WatchBadge(it, fonts, look.ink) } }
         val note = p.problem ?: if (p.alreadyInstalled) "Already installed." else null
         note?.let { Text(it, style = fonts.body, color = if (p.problem != null) (if (look.dark) WATCH_LIVE else WATCH_LIVE_INK) else look.dim, modifier = Modifier.padding(top = 10.dp)) }
+        // Before installing: what the add-on will see of your watching (Stremio warns the same way).
+        p.activity?.let { Text(it, style = fonts.body, color = look.ink, modifier = Modifier.padding(top = 10.dp)) }
         Text("It speaks a read-only protocol: no code is downloaded or run.", style = fonts.body.copy(fontSize = 12.sp), color = look.dim, modifier = Modifier.padding(top = 10.dp))
     }
 }

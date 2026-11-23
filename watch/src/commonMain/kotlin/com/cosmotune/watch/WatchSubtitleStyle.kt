@@ -11,7 +11,8 @@ enum class SubtitleColour(val label: String, val argb: Long) {
 enum class SubtitleBackground(val label: String) { NONE("None"), BOX("Box"), BAND("Band") }
 
 /** The face subtitles are set in: the app's own, a serif, or a fixed-width one. */
-enum class SubtitleFont(val label: String) { APP("App font"), SERIF("Serif"), MONO("Typewriter") }
+/** The face subtitles are set in: the app's own, a serif, a fixed-width one, or a font file the viewer imported. */
+enum class SubtitleFont(val label: String) { APP("App font"), SERIF("Serif"), MONO("Typewriter"), YOURS("Your font") }
 
 /**
  * How Watch draws subtitles (the player draws them from the engine's cues, in every layout and on the TV): size as a percentage of
@@ -28,12 +29,16 @@ data class WatchSubtitleStyle(
     val bold: Boolean = false,
     val font: SubtitleFont = SubtitleFont.APP,
     val liftPercent: Int = 8,
+    /** The imported font file (TrueType or OpenType) kept on this device, and its name, when [font] is [SubtitleFont.YOURS]. */
+    val fontPath: String? = null,
+    val fontName: String? = null,
 ) {
     /** The same style with every number inside its range, for a file written by an older or edited copy. */
     fun coerced(): WatchSubtitleStyle = copy(
         sizePercent = sizePercent.coerceIn(SIZES.first(), SIZES.last()),
         backgroundPercent = backgroundPercent.coerceIn(BACKGROUNDS.first(), BACKGROUNDS.last()),
         liftPercent = liftPercent.coerceIn(LIFTS.first(), LIFTS.last()),
+        font = if (font == SubtitleFont.YOURS && fontPath == null) SubtitleFont.APP else font,
     )
 
     /** The text size for a picture [pictureHeightDp] high: 4.6 % of the height at 100 % (between 14 and 34), times the size. */

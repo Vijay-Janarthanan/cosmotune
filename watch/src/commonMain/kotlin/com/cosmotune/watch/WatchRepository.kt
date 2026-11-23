@@ -187,6 +187,8 @@ data class InstallPreview(
     val alreadyInstalled: Boolean = false,
     /** Set when the add-on cannot be installed (unreachable, not an add-on, needs configuring first, or peer-to-peer). */
     val problem: String? = null,
+    /** What the add-on will learn of what you watch, shown before installing it; null when it learns nothing. */
+    val activity: String? = null,
 ) {
     val installable: Boolean get() = problem == null && !alreadyInstalled
 }
@@ -348,6 +350,21 @@ interface WatchRepository {
     val recentSearches: StateFlow<List<String>> get() = DEFAULT_RECENT_SEARCHES
     suspend fun setRecentSearches(searches: List<String>) {}
 
+    /**
+     * Keeps a font file the viewer picked for subtitles (TrueType, OpenType or a collection, at most 20 MB) on this device and
+     * gives its path; fails with a message the screens show when it is not a font.
+     */
+    suspend fun importSubtitleFont(name: String, bytes: ByteArray): String = error("Fonts cannot be imported here.")
+
+    // Storage
+    /** Bytes Watch's cache holds on this device (catalogues, guides, add-on answers); 0 where there is none. */
+    suspend fun cacheBytes(): Long = 0
+    /** The most the cache may hold, in megabytes (the oldest files go first above it). */
+    val cacheLimitMb: StateFlow<Int> get() = DEFAULT_CACHE_LIMIT
+    suspend fun setCacheLimitMb(megabytes: Int) {}
+    /** Empties the cache; everything is fetched again when next needed. */
+    suspend fun clearCache() {}
+
     // Calendar
     /**
      * The episodes of the series this viewer follows (in My list or Continue watching) that came out in the [pastDays] before
@@ -436,6 +453,7 @@ interface WatchRepository {
 }
 
 private val DEFAULT_TORRENT_SETTINGS: StateFlow<com.cosmotune.watch.torrent.TorrentSettings> = kotlinx.coroutines.flow.MutableStateFlow(com.cosmotune.watch.torrent.TorrentSettings())
+private val DEFAULT_CACHE_LIMIT: StateFlow<Int> = kotlinx.coroutines.flow.MutableStateFlow(250)
 private val DEFAULT_RECENT_SEARCHES: StateFlow<List<String>> = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
 private val DEFAULT_WATCH_PREFERENCES: StateFlow<WatchPreferences> = kotlinx.coroutines.flow.MutableStateFlow(WatchPreferences())
 private val DEFAULT_WATCH_PROFILES: StateFlow<List<com.cosmotune.watch.model.WatchProfile>> = kotlinx.coroutines.flow.MutableStateFlow(listOf(com.cosmotune.watch.model.WatchProfile("default", "Everyone")))

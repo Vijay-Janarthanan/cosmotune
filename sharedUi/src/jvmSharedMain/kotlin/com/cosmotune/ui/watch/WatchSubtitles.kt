@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,7 +67,11 @@ fun BoxScope.WatchSubtitleText(text: String, style: WatchSubtitleStyle, fonts: O
     val s = style.coerced()
     BoxWithConstraints(Modifier.matchParentSize().testTag("watch:subtitles")) {
         val size = s.textSize(maxHeight.value)
-        val family = when (s.font) { SubtitleFont.APP -> fonts.text; SubtitleFont.SERIF -> FontFamily.Serif; SubtitleFont.MONO -> FontFamily.Monospace }
+        val imported = remember(s.fontPath) { s.fontPath?.let(::subtitleFontFamily) }
+        val family = when (s.font) {
+            SubtitleFont.APP -> fonts.text; SubtitleFont.SERIF -> FontFamily.Serif; SubtitleFont.MONO -> FontFamily.Monospace
+            SubtitleFont.YOURS -> imported ?: fonts.text
+        }
         val plainShadow = s.background == SubtitleBackground.NONE && !s.outline
         val base = TextStyle(fontFamily = family, fontWeight = if (s.bold) FontWeight.Bold else FontWeight(500), fontSize = size.sp,
             lineHeight = (size * 1.28f).sp, textAlign = TextAlign.Center,
@@ -96,7 +101,9 @@ fun BoxScope.WatchSubtitleText(text: String, style: WatchSubtitleStyle, fonts: O
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun WatchSubtitleEditor(style: WatchSubtitleStyle, onChange: (WatchSubtitleStyle) -> Unit, fonts: OrbitFonts, look: OrbitLook) {
+internal fun WatchSubtitleEditor(style: WatchSubtitleStyle, onChange: (WatchSubtitleStyle) -> Unit, fonts: OrbitFonts, look: OrbitLook,
+    /** Picks a font file and keeps it; null where fonts cannot be imported. */
+    onImportFont: (() -> Unit)? = null, fontMessage: String? = null) {
     val s = style.coerced()
     val group: @Composable (String, @Composable () -> Unit) -> Unit = { label, content ->
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -116,7 +123,14 @@ internal fun WatchSubtitleEditor(style: WatchSubtitleStyle, onChange: (WatchSubt
         if (s.background != SubtitleBackground.NONE) group("Background strength") {
             WatchSubtitleStyle.BACKGROUNDS.forEach { v -> OrbitSelectChip("$v%", s.backgroundPercent == v, fonts, look, onClick = { onChange(s.copy(backgroundPercent = v)) }, haptic = false) }
         }
-        group("Face") { SubtitleFont.entries.forEach { f -> OrbitSelectChip(f.label, s.font == f, fonts, look, onClick = { onChange(s.copy(font = f)) }, haptic = false) } }
+        group("Face") {
+            SubtitleFont.entries.filter { it != SubtitleFont.YOURS }.forEach { f -> OrbitSelectChip(f.label, s.font == f, fonts, look, onClick = { onChange(s.copy(font = f)) }, haptic = false) }
+            // An imported font is chosen again by its name; "Import a font" picks another file.
+            if (style.fontPath != null) OrbitSelectChip(style.fontName ?: "Your font", s.font == SubtitleFont.YOURS, fonts, look,
+                onClick = { onChange(s.copy(font = SubtitleFont.YOURS)) }, haptic = false)
+            if (onImportFont != null) OrbitSelectChip("Import a font", false, fonts, look, onClick = onImportFont, haptic = false)
+        }
+        fontMessage?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(start = 6.dp)) }
         group("Height above the bottom") {
             WatchSubtitleStyle.LIFTS.forEachIndexed { i, v ->
                 OrbitSelectChip(HEIGHT_NAMES[i], s.liftPercent == v, fonts, look, onClick = { onChange(s.copy(liftPercent = v)) }, haptic = false)

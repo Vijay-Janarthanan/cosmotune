@@ -528,6 +528,9 @@ private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls,
                 },
             ))
         }
+        // Another player on this device (VLC, mpv, MX Player): for a codec this one cannot play, or a player the viewer prefers.
+        if (!controls.remote) WatchOpenElsewhere(state, controls, fonts, look)
+        if (!controls.remote && state.stream != null) WatchPlaybackInfoButton(state, look)
         if (wide) WatchCardChip("Watch together", look.ink, fonts, onClick = controls.watchTogether, icon = CosmoIcons.Together, enabled = watchTogether && state.target != null)
         else WatchRoundButton(CosmoIcons.Together, "Watch together", look, onClick = controls.watchTogether, enabled = watchTogether && state.target != null)
       }
@@ -615,7 +618,8 @@ private fun FilmCard(
                 when (state.status) {
                     WatchPlayerStatus.RESOLVING -> "Finding the best copy"
                     WatchPlayerStatus.LOADING, WatchPlayerStatus.BUFFERING -> "Loading · ${longClock(p)}"
-                    else -> (if (wide) "Now watching · " else "") + "${longClock(p)} / ${longClock(durationMs)}" + if (durationMs > p) " · " + leftText(durationMs - p) else ""
+                    else -> (if (wide) "Now watching · " else "") + "${longClock(p)} / ${longClock(durationMs)}" + (chapterAt(state, p)?.let { " · $it" }
+                        ?: if (durationMs > p) " · " + leftText(durationMs - p) else "")
                 }
             }
             OrbitLabel(label, fonts, ink.copy(alpha = 0.72f), Modifier.padding(end = 80.dp))
@@ -667,6 +671,12 @@ private fun FilmCard(
                     })
                 }
                 controls.pictureInPicture?.let { WatchRoundButton(CosmoIcons.Pip, "Picture in picture", look, onClick = it, ink = ink) }
+                if (state.chapters.size > 1 && !state.isLive) Box {
+                    var chapters by remember { mutableStateOf(false) }
+                    WatchRoundButton(CosmoIcons.Queue, "Chapters", look, onClick = { chapters = true }, ink = ink)
+                    OrbitMenu(chapters, { chapters = false }, fonts = fonts, look = look, header = "Chapters", width = 300.dp,
+                        items = chapterItems(state, position(), controls.seekTo))
+                }
                 Box {
                     WatchRoundButton(CosmoIcons.Canvas, "Picture size", look, onClick = { screen = true }, ink = ink)
                     OrbitMenu(screen, { screen = false }, fonts = fonts, look = look, header = "Picture size", items = listOf(
@@ -720,6 +730,8 @@ private fun WatchFullScreen(
             if (state.streams.isNotEmpty()) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Sources", state.stream?.let { "${it.source.pluginName} · ${it.label}" }, CosmoIcons.Queue,
                 watchSourceItems(state, controls.switchStream)))
         }
+        if (state.chapters.size > 1 && !state.isLive) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Chapters", chapterAt(state, position()), CosmoIcons.Queue,
+            chapterItems(state, position(), controls.seekTo)))
         if (state.isLive && channels.isNotEmpty()) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Also on now", null, CosmoIcons.Explore,
             channels.map { row -> OrbitMenuItem(row.channel.name, row.now?.title) { onChannel(row.channel) } }))
     }
@@ -794,7 +806,89 @@ internal fun WatchSubtitleLookDialog(onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val fonts = com.cosmotune.ui.orbit.orbitFonts()
     val look = com.cosmotune.ui.orbit.orbitLook()
+    var fontMessage by remember { mutableStateOf<String?>(null) }
+    val keep: (com.cosmotune.watch.WatchSubtitleStyle) -> Unit = { style -> scope.launch { repository.setPreferences(repository.preferences.value.copy(subtitles = style)) } }
+    val pickFont = rememberFontFilePicker { name, bytes ->
+        scope.launch {
+            runCatching { repository.importSubtitleFont(name, bytes) }
+                .onSuccess { path -> fontMessage = null; keep(repository.preferences.value.subtitles.copy(font = com.cosmotune.watch.SubtitleFont.YOURS, fontPath = path,
+                    fontName = name.substringBeforeLast('.').take(40))) }
+                .onFailure { fontMessage = it.message ?: "That font could not be used." }
+        }
+    }
     WatchDialog("Subtitles", "Subtitle look", onDismiss = onDismiss) {
-        WatchSubtitleEditor(preferences.subtitles, { style -> scope.launch { repository.setPreferences(repository.preferences.value.copy(subtitles = style)) } }, fonts, look)
+        WatchSubtitleEditor(preferences.subtitles, keep, fonts, look, onImportFont = pickFont, fontMessage = fontMessage)
+    }
+}
+
+/** "Open in another player": the players this device has, or why this copy cannot go to one; the film here pauses. */
+@Composable
+private fun WatchOpenElsewhere(state: WatchPlayerState, controls: WatchPlayerControls, fonts: OrbitFonts, look: OrbitLook) {
+    val players = rememberExternalPlayers()
+    if (players.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    Box {
+        WatchRoundButton(CosmoIcons.Share, "Open in another player", look, onClick = { problem = null; open = true })
+        val why = problem ?: externalBlock(state.stream)
+        val title = listOfNotNull(state.summary?.name, state.subtitleLine).joinToString(" · ").ifBlank { "Watch" }
+        OrbitMenu(open, { open = false }, fonts = fonts, look = look, header = "Open in another player", width = 300.dp, items =
+            if (why != null) listOf(OrbitMenuItem("Can't open elsewhere", why, enabled = false) {})
+            else players.map { p -> OrbitMenuItem(p.name, "Plays this copy there", CosmoIcons.Play) {
+                val stream = state.stream ?: return@OrbitMenuItem
+                runCatching { p.open(stream, title) }.onSuccess { if (state.status == WatchPlayerStatus.PLAYING) controls.playPause() }
+                    .onFailure { problem = "${p.name} did not open. ${it.message ?: ""}".trim(); open = true }
+            } })
+    }
+}
+
+/** The name of the chapter playing at [positionMs], when what plays has chapters. */
+internal fun chapterAt(state: WatchPlayerState, positionMs: Long): String? =
+    state.chapters.lastOrNull { it.startMs <= positionMs }?.title?.takeIf { state.chapters.size > 1 }
+
+/** Every chapter with where it starts; the one playing is ticked, a tap goes to its start. */
+private fun chapterItems(state: WatchPlayerState, positionMs: Long, seekTo: (Long) -> Unit): List<OrbitMenuItem> {
+    val current = state.chapters.lastOrNull { it.startMs <= positionMs }
+    return state.chapters.map { c -> OrbitMenuItem(c.title, longClock(c.startMs), selected = c == current) { seekTo(c.startMs) } }
+}
+
+/** The lines of Playback info: the copy, how it plays, and what the engine reports now. */
+internal fun playbackInfoLines(state: WatchPlayerState, snapshot: com.cosmotune.video.player.PlayerSnapshot): List<Pair<String, String>> {
+    val s = state.stream ?: return emptyList()
+    val method = when {
+        s.isTorrent -> "Torrent, through Cosmotune's engine"
+        s.protocol == com.cosmotune.watch.model.StreamProtocol.LOCAL_FILE -> "File on this device"
+        s.label.startsWith("Transcoded") -> "Converted by your server"
+        s.protocol == com.cosmotune.watch.model.StreamProtocol.HLS -> "Stream (HLS)"
+        s.protocol == com.cosmotune.watch.model.StreamProtocol.DASH -> "Stream (DASH)"
+        else -> "Direct play"
+    }
+    return listOfNotNull(
+        "Source" to listOf(s.source.pluginName, s.label).joinToString(" · "),
+        "Play method" to method,
+        s.container.takeIf { it != com.cosmotune.watch.model.Container.UNKNOWN }?.let { "Container" to it.name },
+        (if (snapshot.videoWidth > 0) "${snapshot.videoWidth} × ${snapshot.videoHeight}" else s.qualityBadge)?.let { "Picture" to listOfNotNull(it, s.hdr).joinToString(" · ") },
+        s.videoCodec?.let { "Video codec" to it.uppercase() },
+        state.audioTracks.firstOrNull { it.selected }?.let { a -> "Audio" to listOfNotNull(a.label, a.codec, a.channels?.let { "$it ch" }).joinToString(" · ") },
+        snapshot.bandwidthKbps?.takeIf { it > 0 }?.let { "Bitrate" to if (it >= 1000) "%.1f Mb/s".format(it / 1000f) else "$it kb/s" },
+        snapshot.decoderName?.let { "Decoder" to it },
+        "Dropped frames" to "${snapshot.droppedFrames}",
+        s.sizeBytes?.let { sizeText(it) }?.let { "Size" to it },
+    )
+}
+
+/** Playback info (Jellyfin's overlay and Stremio's stats, as a menu over the page, never over the picture). */
+@Composable
+private fun WatchPlaybackInfoButton(state: WatchPlayerState, look: OrbitLook) {
+    val playback = LocalWatchPlayback.current ?: return
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    var open by remember { mutableStateOf(false) }
+    Box {
+        WatchRoundButton(CosmoIcons.Settings, "Playback info", look, onClick = { open = true })
+        if (open) {
+            val snapshot by playback.player.engine.snapshot.collectAsState()
+            OrbitMenu(true, { open = false }, fonts = fonts, look = look, header = "Playback info", width = 340.dp,
+                items = playbackInfoLines(state, snapshot).map { (k, v) -> OrbitMenuItem(k, v, enabled = false) {} })
+        }
     }
 }

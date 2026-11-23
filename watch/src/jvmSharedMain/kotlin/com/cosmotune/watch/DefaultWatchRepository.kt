@@ -466,7 +466,8 @@ class DefaultWatchRepository(
         return try {
             val m = StremioClient(http, url).manifest(ttlMs = 0)
             InstallPreview(url, m.name, m.description, m.logo, m.version, m.offers,
-                alreadyInstalled = store.state.value.sources.any { (it.spec as? UserSourceSpec.StremioAddon)?.manifestUrl == url }, problem = problemOf(m))
+                alreadyInstalled = store.state.value.sources.any { (it.spec as? UserSourceSpec.StremioAddon)?.manifestUrl == url }, problem = problemOf(m),
+                activity = m.activityNotice)
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             InstallPreview(url, host(url), null, problem = "The add-on did not answer (${e.message})")
         }
@@ -848,6 +849,26 @@ class DefaultWatchRepository(
         })
     }
 
+    private val cacheLimitState = MutableStateFlow(store.state.value.settings[CACHE_LIMIT]?.toIntOrNull()?.coerceIn(50, 4000) ?: 250)
+    override val cacheLimitMb: StateFlow<Int> = cacheLimitState.asStateFlow()
+    override suspend fun cacheBytes(): Long = kotlinx.coroutines.withContext(Dispatchers.IO) { WatchCacheFiles.size(config.cacheDir) }
+    override suspend fun setCacheLimitMb(megabytes: Int) {
+        val limit = megabytes.coerceIn(50, 4000)
+        update { it.copy(settings = it.settings + (CACHE_LIMIT to limit.toString())) }
+        cacheLimitState.value = limit
+        kotlinx.coroutines.withContext(Dispatchers.IO) { WatchCacheFiles.trim(config.cacheDir, limit * 1_000_000L) }
+    }
+    override suspend fun clearCache() = kotlinx.coroutines.withContext(Dispatchers.IO) { WatchCacheFiles.trim(config.cacheDir, 0) }
+
+    override suspend fun importSubtitleFont(name: String, bytes: ByteArray): String = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val ext = SubtitleFonts.extensionOf(bytes) ?: error("That file is not a TrueType or OpenType font.")
+        require(bytes.size <= 20 shl 20) { "That font is larger than 20 MB." }
+        val folder = File(config.dataDir, "fonts").apply { mkdirs() }
+        val file = File(folder, MessageDigest.getInstance("SHA-256").digest(bytes).take(8).joinToString("") { "%02x".format(it) } + ".$ext")
+        if (!file.isFile) file.writeBytes(bytes)
+        file.absolutePath
+    }
+
     override suspend fun catchup(channel: Channel, programme: EpgProgramme): Pair<PlayTarget, Stream>? {
         val owner = (listOf(channel) + channel.also).firstOrNull { it.catchup != null } ?: return null
         val archive = owner.catchup ?: return null
@@ -1086,6 +1107,8 @@ class DefaultWatchRepository(
 
     init {
         scope.launch { combine(store.state, status) { state, _ -> state }.collect { refresh(it) } }
+        // The cache is brought under its limit once a run, oldest files first.
+        scope.launch { runCatching { WatchCacheFiles.trim(config.cacheDir, cacheLimitState.value * 1_000_000L) } }
     }
 
     private suspend fun update(change: (WatchState) -> WatchState) { refresh(store.update(change)) }
@@ -1122,6 +1145,8 @@ class DefaultWatchRepository(
         /** The built-in plugins that play films for free, asked for the featured card. */
         private val FREE_FILM_PLUGINS = setOf(BuiltInPlugins.PLUTO, BuiltInPlugins.PLEX, BuiltInPlugins.YOUTUBE, BuiltInPlugins.ARCHIVE, BuiltInPlugins.PUBLIC_DOMAIN)
         private const val GUIDE_DISMISSED = "watch.guide.dismissed"
+        /** A device setting: the most Watch's cache may hold, in megabytes. */
+        private const val CACHE_LIMIT = "watch.cache.limit"
         /** The source of catch-up items: a channel's past programmes, played from its archive. */
         private const val CATCHUP = "catchup"
         /** A device setting, not synced: the torrent engine's sharing and connection choices. */
