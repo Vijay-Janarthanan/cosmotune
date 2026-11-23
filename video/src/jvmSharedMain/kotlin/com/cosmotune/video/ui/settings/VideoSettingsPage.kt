@@ -127,6 +127,12 @@ import com.cosmotune.video.resources.video_home_use_account
 import com.cosmotune.video.resources.video_set_resume_short
 import com.cosmotune.video.resources.video_set_seconds
 import com.cosmotune.video.resources.video_set_speed
+import com.cosmotune.video.resources.video_set_preset
+import com.cosmotune.video.resources.video_preset_custom
+import com.cosmotune.video.resources.video_preset_saver
+import com.cosmotune.video.resources.video_preset_balanced
+import com.cosmotune.video.resources.video_preset_sharp
+import com.cosmotune.video.resources.video_preset_best
 import com.cosmotune.video.resources.video_set_remote
 import com.cosmotune.video.resources.video_set_remote_note
 import com.cosmotune.video.resources.video_remote_channel_up
@@ -180,6 +186,7 @@ import com.cosmotune.video.settings.CodecPreference
 import com.cosmotune.video.settings.TitleCase
 import com.cosmotune.video.resources.video_settings_label
 import com.cosmotune.video.settings.CaptionColor
+import com.cosmotune.video.settings.QualityPreset
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.player.SPEEDS
@@ -196,7 +203,7 @@ import androidx.compose.runtime.setValue
 internal typealias SettingsUpdate = ((VideoSettings) -> VideoSettings) -> Unit
 
 /** The choices that open a [ChoiceSheet] (a category of SponsorBlock opens its own, see [CategoryChoiceSheet]). */
-private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP, SWIPE_EDGE, REMOTE }
+private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP, SWIPE_EDGE, REMOTE, PRESET }
 
 /** What the page asks about before it clears something. */
 private enum class Confirm { CLEAR_HISTORY, CLEAR_SEARCHES }
@@ -283,6 +290,12 @@ private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pi
     val auto = stringResource(Res.string.video_quality_auto)
     val codecs = CodecPreference.entries.map { codecLabel(it) }
     CosmoSettingsGroup(header = stringResource(Res.string.video_set_playback)) {
+        CosmoSettingsRow(
+            icon = VideoIcons.Hd,
+            title = stringResource(Res.string.video_set_preset),
+            subtitle = presetLabel(QualityPreset.of(settings)),
+            onClick = { open(SettingsChoice.PRESET) },
+        )
         CosmoSettingsRow(
             icon = VideoIcons.Hd,
             title = stringResource(Res.string.video_set_quality_wifi),
@@ -476,6 +489,16 @@ private fun remoteActionLabel(action: com.cosmotune.video.player.RemoteAction): 
         com.cosmotune.video.player.RemoteAction.PREVIOUS_VIDEO -> Res.string.video_remote_previous_video
     },
 )
+
+/** A preset's name with what it sets ("Balanced · 720p on Wi-Fi, 480p on mobile data"), or Custom. */
+@Composable
+private fun presetLabel(preset: QualityPreset?): String = when (preset) {
+    null -> stringResource(Res.string.video_preset_custom)
+    QualityPreset.DATA_SAVER -> stringResource(Res.string.video_preset_saver)
+    QualityPreset.BALANCED -> stringResource(Res.string.video_preset_balanced)
+    QualityPreset.SHARP -> stringResource(Res.string.video_preset_sharp)
+    QualityPreset.BEST -> stringResource(Res.string.video_preset_best)
+}
 
 /** A caption colour's name. */
 @Composable
@@ -698,6 +721,13 @@ private fun SettingsChoiceSheet(choice: SettingsChoice, settings: VideoSettings,
             onDismiss = onDismiss,
         )
         SettingsChoice.REMOTE -> RemoteButtonsSheets(settings, update, onDismiss)
+        SettingsChoice.PRESET -> ChoiceSheet(
+            title = stringResource(Res.string.video_set_preset),
+            options = QualityPreset.entries.map { ChoiceOption<QualityPreset?>(it, presetLabel(it)) },
+            selected = QualityPreset.of(settings),
+            onSelect = { preset -> if (preset != null) update { preset.applyTo(it) } },
+            onDismiss = onDismiss,
+        )
         SettingsChoice.SWIPE_EDGE -> ChoiceSheet(
             title = stringResource(Res.string.video_set_swipe_edge),
             options = VideoSettings.SWIPE_EDGE_CHOICES.map { ChoiceOption(it, stringResource(Res.string.video_set_swipe_edge_value, it)) },

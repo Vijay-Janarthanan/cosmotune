@@ -406,6 +406,12 @@
     <string name="video_set_swipe_edge_value">%1$d per cent of the width at each side</string>
     <string name="video_set_swipe_speed">Swipe the middle for speed</string>
     <string name="video_set_swipe_speed_note">In full screen, up is faster and down is slower.</string>
+    <string name="video_set_preset">Quality preset</string>
+    <string name="video_preset_custom">Custom</string>
+    <string name="video_preset_saver">Data saver · 480p on Wi-Fi, 360p on mobile data</string>
+    <string name="video_preset_balanced">Balanced · 720p on Wi-Fi, 480p on mobile data</string>
+    <string name="video_preset_sharp">Sharp · 1080p on Wi-Fi, 720p on mobile data</string>
+    <string name="video_preset_best">Best · the best the screen shows, everywhere</string>
     <string name="video_set_remote">Remote buttons</string>
     <string name="video_set_remote_note">What the colour, channel and wind buttons do while a video plays.</string>
     <string name="video_remote_channel_up">Channel up</string>
