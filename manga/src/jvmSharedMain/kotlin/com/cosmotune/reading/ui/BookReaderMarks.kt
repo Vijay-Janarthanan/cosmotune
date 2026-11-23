@@ -120,7 +120,8 @@ internal fun HighlightRow(mark: ReadingHighlight, onClick: () -> Unit, onRemove:
 
 /** A highlight's own sheet (a tap on it on the page): its colour, its note, remove. */
 @Composable
-internal fun HighlightSheet(mark: ReadingHighlight, onStyle: (ReadingMarkStyle) -> Unit, onNote: (String) -> Unit, onRemove: () -> Unit, onDismiss: () -> Unit) {
+internal fun HighlightSheet(mark: ReadingHighlight, onStyle: (ReadingMarkStyle) -> Unit, onNote: (String) -> Unit, onRemove: () -> Unit, onDismiss: () -> Unit,
+    onPicture: ((QuoteCardLook) -> Unit)? = null) {
     var note by remember(mark.id) { mutableStateOf(mark.note) }
     val look = orbitLook()
     KitSheet(onDismiss = { if (note != mark.note) onNote(note); onDismiss() }) {
@@ -133,6 +134,11 @@ internal fun HighlightSheet(mark: ReadingHighlight, onStyle: (ReadingMarkStyle) 
         }
         ReadSheetSection("Note") {
             OrbitInputField(note, { note = it.take(10_000) }, "Add a note", modifier = Modifier.fillMaxWidth().testTag("books:highlight:note"), singleLine = false, sentences = true, minLines = 3)
+        }
+        if (onPicture != null) ReadSheetSection("Save as a picture") {
+            ReadChipRow(inset = 0.dp) {
+                QuoteCardLook.entries.forEach { look -> ReadChip(look.label, false, { onPicture(look) }, Modifier.testTag("books:highlight:card:${look.name.lowercase()}"), icon = CosmoIcons.Download) }
+            }
         }
         Box(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) { ReadButton("Remove highlight", { onRemove(); onDismiss() }, kind = ReadKind.TONAL, icon = CosmoIcons.Close) }
         Spacer(Modifier.height(16.dp))

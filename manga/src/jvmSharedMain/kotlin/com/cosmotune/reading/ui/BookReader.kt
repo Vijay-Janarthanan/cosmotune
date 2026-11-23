@@ -118,6 +118,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     val marks = remember(state.highlights, book.id) { ReadingNotesExport.highlights(state, book.id) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val save = rememberReadingSave { error = it }
+    val quoteCard = rememberQuoteCard()
     // The chapter's highlights are laid on whenever it loads or they change; a highlight chosen from the list is then scrolled to.
     LaunchedEffect(page, page.loads, marks) {
         val href = page.href ?: return@LaunchedEffect
@@ -409,7 +410,9 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     marks.find { it.id == editing }?.let { mark ->
         HighlightSheet(mark, onStyle = { style -> guarded { repository.updateHighlight(mark.id, style = style) } },
             onNote = { note -> guarded { repository.updateHighlight(mark.id, note = note) } },
-            onRemove = { guarded { repository.removeHighlight(mark.id) } }, onDismiss = { editing = null })
+            onRemove = { guarded { repository.removeHighlight(mark.id) } }, onDismiss = { editing = null },
+            onPicture = { look -> save(ReadingNotesExport.fileName(state.books.find { it.id == book.id } ?: book, "png").replace(" notes.png", " quote.png"), "image/png",
+                quoteCard(mark.text, book.title, book.authors.joinToString(", "), look)) })
     }
     if (speedReading) SpeedReadingSheet(page, fill, ink, onDismiss = { speedReading = false })
     footnote?.let { text ->
