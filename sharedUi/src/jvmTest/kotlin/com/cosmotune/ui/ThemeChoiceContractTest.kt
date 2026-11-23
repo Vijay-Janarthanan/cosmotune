@@ -46,7 +46,8 @@ class ThemeChoiceContractTest {
         // The visuals' full-screen window is opened from inside the main window's composition and draws the content it is given there,
         // so it stands inside the app's theme already.
         val insideTheApp = setOf("DesktopVisuals.kt")
-        assertEquals(setOf("DesktopMiniPlayer.kt", "DesktopTrayFlyout.kt", "DesktopVisuals.kt", "Main.kt"), opening, "the desktop's windows; a new one must read the theme too")
+        assertEquals(setOf("DesktopFloatingLyrics.kt", "DesktopMiniPlayer.kt", "DesktopRescue.kt", "DesktopTrayFlyout.kt", "DesktopVisuals.kt", "Main.kt"), opening,
+            "the desktop's windows; a new one must read the theme too")
         for (name in opening - insideTheApp) {
             val file = root.walk().first { it.name == name }
             assertTrue("rememberDesktopDark()" in SourceContract.code(file.readText()), "$name reads the theme choice")
