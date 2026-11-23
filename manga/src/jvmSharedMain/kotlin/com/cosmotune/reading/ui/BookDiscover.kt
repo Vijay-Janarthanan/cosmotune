@@ -311,7 +311,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
                 })
             }
             if (!detailsLoading && detailsError == null && publication.links.none { it.downloadFormat != null }) item(key = "no-download") {
-                Text("No downloadable edition was supplied by this catalogue. You can import an EPUB or PDF you already have.", style = ReadType.body(),
+                Text("No downloadable edition was supplied by this catalogue. You can import a copy you already have.", style = ReadType.body(),
                     color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = ReadMargin, vertical = 12.dp))
             }
             if (publication.sourceId == "openlibrary" || publication.id.startsWith("openlibrary:")) {

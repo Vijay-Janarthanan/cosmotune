@@ -13,6 +13,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import okhttp3.Credentials
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -32,14 +33,76 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     private val textos = TextosBookCatalogue(client)
     private val openStax = OpenStaxBookCatalogue(client)
     private val globalGrey = GlobalGreyBookCatalogue(client)
+    val lookup = ReadingLookup(client)
+    private val fontFiles = File(root, "fonts").apply { mkdirs() }.also { ReadingFonts.directory = it }
+
+    /** Adds a font (TTF, OTF, WOFF or WOFF2) for books, such as OpenDyslexic. */
+    suspend fun importFont(name: String, open: () -> InputStream): ReadingFont = imports.withLock { withContext(Dispatchers.IO) {
+        val extension = name.substringAfterLast('.', "").lowercase()
+        require(extension in setOf("ttf", "otf", "woff", "woff2")) { "Choose a font file: TTF, OTF, WOFF or WOFF2." }
+        val bytes = open().use { input -> input.readNBytes(16 * 1024 * 1024 + 1) }
+        require(bytes.size in 64..16 * 1024 * 1024) { "This font file is empty or too large." }
+        val magic = String(bytes, 0, 4, Charsets.ISO_8859_1)
+        require(magic in setOf("wOFF", "wOF2", "OTTO", "true", "\u0000\u0001\u0000\u0000")) { "This file is not a font." }
+        val id = MessageDigest.getInstance("SHA-256").digest(bytes).take(16).joinToString("") { "%02x".format(it) }
+        File(fontFiles, "$id.$extension").writeBytes(bytes)
+        val font = ReadingFont(id, File(name).nameWithoutExtension.take(60).ifBlank { "My font" }, extension)
+        store.update { old -> require(old.fonts.size < 32 || old.fonts.any { it.id == id }) { "Remove a font before adding another." }
+            old.copy(fonts = old.fonts.filterNot { it.id == id } + font) }
+        font
+    } }
+    suspend fun removeFont(id: String) = withContext(Dispatchers.IO) {
+        store.update { old -> old.copy(fonts = old.fonts.filterNot { it.id == id },
+            preferences = if (old.preferences.fontFamily == "font:$id") old.preferences.copy(fontFamily = "serif") else old.preferences) }
+        fontFiles.listFiles().orEmpty().filter { it.nameWithoutExtension == id }.forEach { it.delete() }
+    }
+    private val dictionaryFiles = File(root, "dictionaries").apply { mkdirs() }
+    private val openDictionaries = HashMap<String, StarDict>()
+
+    /** Adds a StarDict dictionary (a ZIP or .tar.gz of its .ifo, .idx and .dict) for looking words up without a connection. */
+    suspend fun importDictionary(name: String, open: () -> InputStream): ReadingDictionary = imports.withLock { withContext(Dispatchers.IO) {
+        val temporary = File.createTempFile("dictionary-", ".part", dictionaryFiles)
+        val id = UUID.randomUUID().toString()
+        val target = File(dictionaryFiles, id)
+        try {
+            open().use { input -> temporary.outputStream().use { output -> input.copyTo(output) } }
+            require(temporary.length() in 1..512L * 1024 * 1024) { "This dictionary is empty or too large." }
+            val dictionary = StarDict.install(temporary, target)
+            val entry = ReadingDictionary(id, dictionary.name.take(120).ifBlank { File(name).nameWithoutExtension }, dictionary.words)
+            store.update { old -> require(old.dictionaries.size < 32) { "Remove a dictionary before adding another." }; old.copy(dictionaries = old.dictionaries + entry) }
+            synchronized(openDictionaries) { openDictionaries[id] = dictionary }
+            entry
+        } catch (failure: Exception) { target.deleteRecursively(); throw failure }
+        finally { temporary.delete() }
+    } }
+    suspend fun removeDictionary(id: String) = withContext(Dispatchers.IO) {
+        store.update { old -> old.copy(dictionaries = old.dictionaries.filterNot { it.id == id }) }
+        synchronized(openDictionaries) { openDictionaries.remove(id) }
+        if (id.matches(Regex("[0-9a-f-]{36}"))) File(dictionaryFiles, id).deleteRecursively()
+    }
+    /** [word]'s entries in the dictionaries on this device, in the order they were added. */
+    suspend fun defineOffline(word: String): List<ReadingDefinition> = withContext(Dispatchers.IO) {
+        state.value.dictionaries.flatMap { entry ->
+            val dictionary = synchronized(openDictionaries) { openDictionaries[entry.id] } ?: runCatching { StarDict(File(dictionaryFiles, entry.id)) }.getOrNull()
+                ?.also { synchronized(openDictionaries) { openDictionaries[entry.id] = it } } ?: return@flatMap emptyList()
+            runCatching { dictionary.lookup(word) }.getOrDefault(emptyList()).map { ReadingDefinition(entry.name, word.trim(), it) }
+        }
+    }
+    /** Keeps [word] at the top of the recent look-ups. */
+    suspend fun rememberLookup(word: String) {
+        val clean = word.trim().take(100).takeIf { it.isNotEmpty() && it.none(Char::isISOControl) } ?: return
+        store.update { old -> old.copy(lookups = (listOf(clean) + old.lookups.filterNot { it.equals(clean, true) }).take(100)) }
+    }
+    suspend fun clearLookups() = store.update { it.copy(lookups = emptyList()) }
 
     suspend fun importFile(name: String, open: () -> InputStream): ReadingBook = imports.withLock {
         withContext(Dispatchers.IO) { importOwned(name, open, null) }
     }
 
-    private suspend fun importOwned(name: String, open: () -> InputStream, source: ReadingPublication?): ReadingBook {
-        val extension = name.substringAfterLast('.', "").lowercase()
-        require(extension in setOf("epub", "pdf")) { "Choose an EPUB or PDF file." }
+    private suspend fun importOwned(name: String, open: () -> InputStream, source: ReadingPublication?, server: Pair<String, String>? = null): ReadingBook {
+        val convertKind = ReadingConvert.kindOf(name)
+        val extension = if (convertKind != null) "epub" else name.substringAfterLast('.', "").lowercase()
+        require(extension in setOf("epub", "pdf")) { "Read opens EPUB, PDF, MOBI, AZW3, FB2, TXT, HTML, Markdown, Word, RTF and CBZ books." }
         val temporary = File.createTempFile("import-", ".part", files)
         try {
             val digest = MessageDigest.getInstance("SHA-256")
@@ -59,7 +122,18 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
             } }
             val id = digest.digest().joinToString("") { "%02x".format(it) }
             val target = File(files, "$id.$extension")
-            val fallback = File(name).nameWithoutExtension.take(300).ifBlank { "Imported book" }
+            val fallback = File(name).nameWithoutExtension.removeSuffix(".fb2").take(300).ifBlank { "Imported book" }
+            var fileSha = ""
+            val koreaderHash = ReadingKoSyncClient.documentHash(temporary)
+            if (convertKind != null) {
+                // Converted once, here: the book keeps its original file's identity and owns the EPUB made from it.
+                val converted = File.createTempFile("convert-", ".part", files)
+                try {
+                    ReadingConvert.writeEpub(ReadingConvert.convert(convertKind, temporary, source?.title?.takeIf(String::isNotBlank) ?: fallback), converted)
+                    fileSha = sha256(converted)
+                    ReadingStore.move(converted, temporary)
+                } finally { converted.delete() }
+            }
             val parsed = if (extension == "epub") ReadingEpub.open(temporary, File(documents, id)) else null
             if (parsed == null) validatePdf(temporary)
             val previous = state.value.books.find { it.id == id }
@@ -69,7 +143,9 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
                 coverPath = parsed?.cover?.path, language = parsed?.language ?: source?.languages?.firstOrNull().orEmpty(),
                 description = parsed?.description ?: source?.description.orEmpty(),
                 sourceUrl = source?.links?.firstOrNull { it.kind == ReadingLinkKind.DETAILS }?.url ?: previous?.sourceUrl,
-                addedAtMs = previous?.addedAtMs ?: System.currentTimeMillis())
+                addedAtMs = previous?.addedAtMs ?: System.currentTimeMillis(),
+                originalFormat = convertKind?.let(ReadingConvert::label).orEmpty(), fileSha = fileSha, koreaderHash = koreaderHash,
+                serverSource = server?.first ?: previous?.serverSource.orEmpty(), serverLink = server?.second ?: previous?.serverLink.orEmpty())
             ReadingStore.move(temporary, target)
             store.update { it.copy(books = it.books.filterNot { old -> old.id == book.id } + book) }
             return book
@@ -80,11 +156,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         val book = state.value.books.find { it.id == bookId } ?: error("This book is no longer in the library.")
         val file = ownedFile(book)
         require(file.isFile && file.length() <= MAX_FILE_BYTES) { "The imported book file is missing or too large." }
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input -> val buffer = ByteArray(64 * 1024); while (true) {
-            currentCoroutineContext().ensureActive(); val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count)
-        } }
-        require(digest.digest().joinToString("") { "%02x".format(it) } == book.id) { "The owned book file changed; import the replacement edition again." }
+        require(sha256(file) == book.fileSha.ifBlank { book.id }) { "The owned book file changed; import the replacement edition again." }
         if (book.format == ReadingFormat.PDF) { validatePdf(file); ReadingDocument.Pdf(book, file) }
         else ReadingEpub.open(file, File(documents, book.id)).let {
             ReadingDocument.Epub(book, it.root, it.spine, it.navigation, it.resources)
@@ -107,10 +179,35 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         }
         return bookmark
     }
-    suspend fun removeBookmark(id: String) = store.update { it.copy(bookmarks = it.bookmarks.filterNot { bookmark -> bookmark.id == id }) }
+    /** Highlights [text] (offsets [start] until [end] of chapter [href]); an overlapping highlight of the same chapter is replaced. */
+    suspend fun saveHighlight(bookId: String, href: String, start: Int, end: Int, text: String, style: ReadingMarkStyle, progression: Double, note: String = "",
+        section: Int = 0, chapter: String = ""): ReadingHighlight {
+        require(href.length in 1..2_048 && start in 0..50_000_000 && end in start + 1..50_000_000 && progression.isFinite()) { "Choose some words to highlight." }
+        val highlight = ReadingHighlight(UUID.randomUUID().toString(), bookId, href, start, end, text.trim().take(4_000), style, note(note), progression.coerceIn(0.0, 1.0),
+            section = section.coerceIn(0, 100_000), chapter = chapter.trim().take(200))
+        store.update { old ->
+            require(old.books.any { it.id == bookId } && old.highlights.size < 50_000) { "Book missing or highlight limit reached." }
+            old.copy(highlights = old.highlights.filterNot { it.bookId == bookId && it.href == href && it.start < end && start < it.end } + highlight)
+        }
+        return highlight
+    }
+    /** Changes a highlight's [style] or [note]. */
+    suspend fun updateHighlight(id: String, style: ReadingMarkStyle? = null, note: String? = null) = store.update { old ->
+        old.copy(highlights = old.highlights.map { if (it.id != id) it else it.copy(style = style ?: it.style, note = note?.let(::note) ?: it.note, updatedAtMs = System.currentTimeMillis()) })
+    }
+    suspend fun removeHighlight(id: String) = store.update { it.copy(highlights = it.highlights.filterNot { mark -> mark.id == id }, removed = it.removed + (id to System.currentTimeMillis())) }
+    /** Puts a removed highlight back (its row's Undo). */
+    suspend fun restoreHighlight(mark: ReadingHighlight) = store.update { old ->
+        if (old.highlights.any { it.id == mark.id } || old.books.none { it.id == mark.bookId }) old
+        else old.copy(highlights = old.highlights + mark.copy(updatedAtMs = System.currentTimeMillis()), removed = old.removed - mark.id)
+    }
+    suspend fun removeBookmark(id: String) = store.update { it.copy(bookmarks = it.bookmarks.filterNot { bookmark -> bookmark.id == id }, removed = it.removed + (id to System.currentTimeMillis())) }
     suspend fun updatePreferences(value: ReadingPreferences) {
-        require(value.fontScale in 0.6f..3f && value.lineHeight in 1f..2.5f && value.marginDp in 0..80 &&
-            value.fontFamily in setOf("serif", "sans-serif", "monospace", "publisher")) { "Choose supported reader preferences." }
+        require(value.fontScale in 0.6f..3f && value.lineHeight in 1f..2.5f && value.marginDp in 0..80 && value.speechRate in 0.5f..3f && value.voice.length <= 300 && value.translateTo.length <= 12 &&
+            (value.fontFamily in setOf("serif", "sans-serif", "monospace", "publisher") || value.fontFamily.removePrefix("font:").let { id -> state.value.fonts.any { it.id == id } }) &&
+            value.paragraphSpacing in -1f..3f && value.columns in 1..2 && value.customCss.length <= 4_000 &&
+            listOf("url(", "@import", "expression", "behavior", "</", "javascript:").none { value.customCss.contains(it, true) } &&
+            listOf(value.pageColor, value.textColor).all { it.matches(Regex("#[0-9a-fA-F]{6}")) }) { "Choose supported reader preferences." }
         store.update { it.copy(preferences = value) }
     }
     suspend fun savePublication(value: ReadingPublication) = store.update { old ->
@@ -120,7 +217,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     suspend fun removeSaved(id: String) = store.update { it.copy(saved = it.saved.filterNot { publication -> publication.id == id }) }
     suspend fun markFinished(bookId: String, finished: Boolean = true) = store.update { old ->
         require(old.books.any { it.id == bookId })
-        old.copy(finished = if (finished) old.finished + bookId else old.finished - bookId)
+        old.copy(finished = if (finished) old.finished + bookId else old.finished - bookId, finishedAt = old.finishedAt + (bookId to System.currentTimeMillis()))
     }
     suspend fun createCollection(name: String): ReadingCollection {
         val collection = ReadingCollection(UUID.randomUUID().toString(), title(name))
@@ -138,7 +235,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         val book = state.value.books.find { it.id == bookId } ?: return@withContext
         val file = ownedFile(book)
         store.update { old -> old.copy(books = old.books.filterNot { it.id == bookId }, progress = old.progress - bookId,
-            bookmarks = old.bookmarks.filterNot { it.bookId == bookId }, finished = old.finished - bookId,
+            bookmarks = old.bookmarks.filterNot { it.bookId == bookId }, highlights = old.highlights.filterNot { it.bookId == bookId }, finished = old.finished - bookId,
             collections = old.collections.map { it.copy(bookIds = it.bookIds - bookId) }) }
         file.delete()
         File(documents, bookId).takeIf { it.exists() }?.let(ReadingEpub::deleteOwned)
@@ -152,9 +249,9 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         val old = state.value
         val book = old.books.find { it.id == bookId } ?: return@withContext null
         val taken = TakenBook(book, old.progress[bookId], old.bookmarks.filter { it.bookId == bookId }, bookId in old.finished,
-            old.collections.filter { bookId in it.bookIds }.map { it.id }.toSet())
+            old.collections.filter { bookId in it.bookIds }.map { it.id }.toSet(), old.highlights.filter { it.bookId == bookId })
         store.update { now -> now.copy(books = now.books.filterNot { it.id == bookId }, progress = now.progress - bookId,
-            bookmarks = now.bookmarks.filterNot { it.bookId == bookId }, finished = now.finished - bookId,
+            bookmarks = now.bookmarks.filterNot { it.bookId == bookId }, highlights = now.highlights.filterNot { it.bookId == bookId }, finished = now.finished - bookId,
             collections = now.collections.map { it.copy(bookIds = it.bookIds - bookId) }) }
         taken
     } }
@@ -166,6 +263,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
             if (old.books.any { it.id == id }) old
             else old.copy(books = old.books + taken.book, progress = taken.progress?.let { old.progress + (id to it) } ?: old.progress,
                 bookmarks = old.bookmarks + taken.bookmarks.filter { mark -> old.bookmarks.none { it.id == mark.id } },
+                highlights = old.highlights + taken.highlights.filter { mark -> old.highlights.none { it.id == mark.id } },
                 finished = if (taken.finished) old.finished + id else old.finished,
                 collections = old.collections.map { if (it.id in taken.collections) it.copy(bookIds = it.bookIds + id) else it })
         }
@@ -180,8 +278,142 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
 
     /** Puts a removed bookmark back (the bookmark row's Undo). */
     suspend fun restoreBookmark(mark: ReadingBookmark) = store.update { old ->
-        if (old.bookmarks.any { it.id == mark.id } || old.books.none { it.id == mark.bookId }) old else old.copy(bookmarks = old.bookmarks + mark)
+        if (old.bookmarks.any { it.id == mark.id } || old.books.none { it.id == mark.bookId }) old
+        else old.copy(bookmarks = old.bookmarks + mark.copy(createdAtMs = System.currentTimeMillis()), removed = old.removed - mark.id)
     }
+
+    private val webDav = ReadingWebDavClient(client)
+    private val syncing = Mutex()
+
+    /** Connects the WebDAV folder books sync through, and syncs once to check it. */
+    suspend fun connectWebDav(url: String, username: String, password: String): String {
+        ReadingWebDavClient.folder(url)
+        val config = ReadingWebDav(url.trim(), username.trim(), password)
+        store.update { it.copy(webDav = config) }
+        return syncWebDav() ?: "Synced."
+    }
+    suspend fun disconnectWebDav() = store.update { it.copy(webDav = null) }
+
+    /**
+     * Brings this device and the WebDAV folder together: reads the folder's file, merges it with this library (the later of each
+     * place, mark and Finished; removals stay removed), writes the result back unless another device wrote meanwhile (then again).
+     * Null when nothing is connected; otherwise a short line for Settings.
+     */
+    suspend fun syncWebDav(): String? = syncing.withLock {
+        val config = state.value.webDav ?: return@withLock null
+        val result = try {
+            var attempts = 0
+            while (true) {
+                val (remote, tag) = webDav.read(config)
+                val merged = ReadingSyncMerge.merge(ReadingSyncMerge.of(state.value), remote)
+                store.update { ReadingSyncMerge.apply(it, merged) }
+                if (merged == remote || webDav.write(config, merged, tag)) break
+                require(++attempts < 4) { "Another device kept writing; try again in a moment." }
+            }
+            "Synced"
+        } catch (failure: kotlinx.coroutines.CancellationException) { throw failure }
+        catch (failure: Exception) { "Not synced: " + (failure.message ?: "the server could not be reached.") }
+        store.update { old -> old.copy(webDav = old.webDav?.copy(lastSyncMs = System.currentTimeMillis(), lastResult = result)) }
+        result
+    }
+
+    suspend fun addFolder(folder: ReadingFolder) = store.update { old ->
+        require(old.folders.size < 16 || old.folders.any { it.location == folder.location }) { "Remove a folder before adding another." }
+        old.copy(folders = old.folders.filterNot { it.location == folder.location } + folder)
+    }
+    suspend fun removeFolder(location: String) = store.update { old ->
+        old.copy(folders = old.folders.filterNot { it.location == location }, folderFiles = old.folderFiles.filterKeys { !it.startsWith(location) })
+    }
+
+    /**
+     * Adds the books in [files] that Read has not taken yet (each file once; a changed file again), reporting each as it goes.
+     * Files Read cannot open are remembered so they are not tried on every visit. Returns how many books were added.
+     */
+    suspend fun scanFolder(files: List<ReadingFolderFile>, onProgress: (Int, Int) -> Unit = { _, _ -> }): Int {
+        val known = state.value.folderFiles
+        val fresh = files.filter { file -> file.key !in known && (file.name.substringAfterLast('.', "").lowercase() in setOf("epub", "pdf") || ReadingConvert.kindOf(file.name) != null) }
+        var added = 0
+        fresh.forEachIndexed { index, file ->
+            onProgress(index + 1, fresh.size)
+            val outcome = try {
+                val count = state.value.books.size
+                val book = importFile(file.name, file.open)
+                if (state.value.books.size > count) added++
+                book.id
+            } catch (failure: kotlinx.coroutines.CancellationException) { throw failure }
+            catch (_: Exception) { "!" }
+            store.update { old -> old.copy(folderFiles = (old.folderFiles + (file.key to outcome)).entries.toList().takeLast(20_000).associate { it.key to it.value }) }
+        }
+        return added
+    }
+
+    private val koSync = ReadingKoSyncClient(client)
+    private val background = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    /** [pushProgress] after the reader has closed, without holding the page up. */
+    fun pushProgressLater(bookId: String, spine: List<String>) {
+        if (state.value.koSync == null && state.value.books.none { it.id == bookId && it.serverLink.isNotEmpty() }) return
+        background.launch { runCatching { pushProgress(bookId, spine) } }
+    }
+    private val serverProgress = ReadingServerProgress(client)
+
+    /** Signs in to KOReader sync (with [create], makes the account first); only the key KOReader derives from the password is kept. */
+    suspend fun connectKoSync(server: String, username: String, password: String, create: Boolean) {
+        require(username.isNotBlank() && password.isNotEmpty()) { "Enter the user name and password." }
+        val account = ReadingKoSync(ReadingKoSyncClient.server(server).toString(), username.trim(), ReadingKoSyncClient.key(password),
+            state.value.koSync?.device ?: UUID.randomUUID().toString().replace("-", "").uppercase())
+        koSync.signIn(account, create)
+        store.update { it.copy(koSync = account.copy(lastResult = "Signed in")) }
+    }
+    suspend fun disconnectKoSync() = store.update { it.copy(koSync = null) }
+
+    private suspend fun koreaderHash(book: ReadingBook): String = book.koreaderHash.ifBlank {
+        if (book.originalFormat.isNotBlank()) return "" // A converted book's own file is gone; KOReader would know it by that file.
+        withContext(Dispatchers.IO) { ReadingKoSyncClient.documentHash(ownedFile(book)) }.also { hash ->
+            store.update { old -> old.copy(books = old.books.map { if (it.id == book.id) it.copy(koreaderHash = hash) else it }) }
+        }
+    }
+
+    /**
+     * Sends [bookId]'s place to KOReader sync and back to the library server it came from (Komga, Kavita), where those are set up.
+     * [spine] is the book's reading order. Failures are kept for Settings, never shown over the book.
+     */
+    suspend fun pushProgress(bookId: String, spine: List<String>) {
+        val current = state.value
+        val book = current.books.find { it.id == bookId } ?: return
+        val locator = current.progress[bookId]?.locator ?: return
+        current.koSync?.let { account ->
+            val result = try {
+                val hash = koreaderHash(book)
+                if (hash.isNotEmpty()) koSync.push(account, hash, ReadingKoSyncClient.progressOf(book.format, locator, spine), overall(book, locator, spine))
+                "Synced " + java.time.LocalTime.now().withNano(0).toString().take(5)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (failure: Exception) { "Not synced: " + (failure.message ?: "the server could not be reached.") }
+            store.update { old -> old.copy(koSync = old.koSync?.copy(lastResult = result)) }
+        }
+        ReadingServerProgress.target(book.serverLink)?.let { target ->
+            runCatching {
+                serverProgress.send(target, current.sources.find { it.id == book.serverSource }, book, locator,
+                    spine.indexOf(locator.resourceHref?.substringBefore('#')).coerceAtLeast(0), bookId in current.finished)
+            }
+        }
+    }
+
+    /** Where KOReader sync says another device left [bookId], when that is newer than this device's place. */
+    suspend fun remotePosition(bookId: String, spine: List<String>): ReadingRemotePosition? {
+        val current = state.value
+        val account = current.koSync ?: return null
+        val book = current.books.find { it.id == bookId } ?: return null
+        val hash = koreaderHash(book).ifEmpty { return null }
+        val (progress, percentage, by) = runCatching { koSync.pull(account, hash) }.getOrNull() ?: return null
+        val locator = ReadingKoSyncClient.locatorOf(book.format, progress, spine) ?: return null
+        if (by.second <= (current.progress[bookId]?.updatedAtMs ?: 0L) + 5_000) return null
+        if (locator.resourceHref == current.progress[bookId]?.locator?.resourceHref && book.format == ReadingFormat.EPUB) return null
+        return ReadingRemotePosition(locator, percentage, by.first.ifBlank { "another device" }, by.second)
+    }
+
+    private fun overall(book: ReadingBook, locator: ReadingLocator, spine: List<String>): Double =
+        if (book.format == ReadingFormat.PDF || spine.size <= 1) locator.progression
+        else (spine.indexOf(locator.resourceHref?.substringBefore('#')).coerceAtLeast(0) + locator.progression) / spine.size
 
     suspend fun saveOpdsSource(name: String, url: String, username: String = "", password: String = "", allowInsecureHttp: Boolean = false): ReadingOpdsSource {
         PersonalOpdsCatalogue("validation", url, username.takeIf(String::isNotEmpty), password, client, allowInsecureHttp)
@@ -294,9 +526,17 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
                 }
                 check(completed) { "The source returned too many download redirects." }
                 currentCoroutineContext().ensureActive()
-                importOwned("${publication.title}.$format", { download.inputStream() }, publication)
+                importOwned("${publication.title}.$format", { download.inputStream() }, publication, source?.let { it.id to link.url })
             } finally { download.delete() }
         }
+    }
+
+    private suspend fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input -> val buffer = ByteArray(64 * 1024); while (true) {
+            currentCoroutineContext().ensureActive(); val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count)
+        } }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun ownedFile(book: ReadingBook): File {
@@ -309,6 +549,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         require(value.progression.isFinite() && value.progression in 0.0..1.0 && value.page in 0..1_000_000 &&
             value.scrollOffset.isFinite() && value.scrollOffset in 0.0..1_000_000_000.0 && (value.resourceHref?.length ?: 0) <= 2_048) { "Invalid reading position." }
     }
+    private fun note(value: String) = value.trim().also { require(it.length <= 10_000) { "Keep a note under 10,000 characters." } }
     private fun title(value: String) = value.trim().also { require(it.length in 1..120 && it.none(Char::isISOControl)) { "Use a name with 1–120 characters." } }
     private fun validatePdf(file: File) {
         java.io.RandomAccessFile(file, "r").use { input ->
@@ -331,4 +572,5 @@ class TakenBook internal constructor(
     internal val bookmarks: List<ReadingBookmark>,
     internal val finished: Boolean,
     internal val collections: Set<String>,
+    internal val highlights: List<ReadingHighlight> = emptyList(),
 )

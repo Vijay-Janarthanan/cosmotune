@@ -136,6 +136,9 @@ internal class ReadScope(
     val onError: (String?) -> Unit,
     val busy: Boolean,
     val importBooks: () -> Unit,
+    /** Adds a folder of books (then reads it), and checks the folders for new books. */
+    val addFolder: () -> Unit = {},
+    val scanFolders: () -> Unit = {},
 )
 
 @Composable
@@ -169,6 +172,8 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
     }
     LaunchedEffect(navigation.tab) { ModeNav.mangaTab.value = navigation.tab }
     LaunchedEffect(document != null) { onReaderVisibility(document != null) }
+    // With a sync folder connected, Read syncs when it opens and each time a book is closed (quietly: Settings shows how it went).
+    LaunchedEffect(document == null) { if (document == null && repository.state.value.webDav != null) runCatching { repository.syncWebDav() } }
     DisposableEffect(Unit) { onDispose { onReaderVisibility(false) } }
     val pick = rememberReadingImport { name, stream ->
         action {
@@ -177,6 +182,28 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
             finally { busy = false }
         }
     }
+    // Folders of books: read when Read opens, when one is added and when asked; new files become books.
+    val folderAccess = rememberReadingFolders()
+    var scanning by remember { mutableStateOf<String?>(null) }
+    var scanJob by remember { mutableStateOf<Job?>(null) }
+    fun scanFolders(quiet: Boolean) {
+        if (scanJob?.isActive == true) return
+        scanJob = scope.launch {
+            var added = 0
+            try {
+                for (folder in repository.state.value.folders) {
+                    try {
+                        val files = folderAccess.list(folder)
+                        added += repository.scanFolder(files) { at, of -> scanning = "Adding books from ${folder.name} · $at of $of" }
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (failure: Exception) { if (!quiet) error = failure.message ?: "The folder “${folder.name}” could not be read." }
+                }
+                if (!quiet && added == 0) error = "No new books in your folders."
+            } finally { scanning = null }
+        }
+    }
+    LaunchedEffect(Unit) { if (repository.state.value.folders.isNotEmpty()) scanFolders(quiet = true) }
+    val addFolder = { folderAccess.pick { folder -> action { repository.addFolder(folder); scanFolders(quiet = false) } } }
     // Pages keep their shelves, filters and scroll while a book, a search or the reader stands over them.
     val holder = rememberSaveableStateHolder()
     val current = document
@@ -188,9 +215,10 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
     ReadModeFrame(BookTabs.all, navigation.tab, { navigation.select(it) }, showNavigation, showNavigation && navigation.atRoot, onMusic, showAccount,
         modifier = Modifier.testTag("books:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
-        val page = ReadScope(repository, pages, navigation, onMusic, showAccount, bottom, ::action, ::open, { error = it }, busy, pick)
+        val page = ReadScope(repository, pages, navigation, onMusic, showAccount, bottom, ::action, ::open, { error = it }, busy, pick, addFolder, { scanFolders(quiet = false) })
         Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.padding(top = 8.dp), onDismiss = { error = null }) }
+            scanning?.let { line -> ReadInlineBanner(line, Modifier.padding(top = 8.dp).testTag("books:scanning")) }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = orbitLook().accent)
             Box(Modifier.weight(1f)) {
                 val publication = navigation.publication
@@ -240,7 +268,7 @@ internal fun ReadingState.shelf(shelf: BookShelf, query: String): List<ReadingBo
 
 /** "BOOK · EPUB · 35 %": the mono line of a book's card. */
 internal fun ReadingState.bookLabel(book: ReadingBook): String = listOfNotNull(
-    "Book", book.format.name, if (book.id in finished) "finished" else fraction(book)?.let { "${(it * 100).toInt()} %" },
+    "Book", book.originalFormat.ifBlank { book.format.name }, if (book.id in finished) "finished" else fraction(book)?.let { "${(it * 100).toInt()} %" },
 ).joinToString(" · ")
 
 /** A book of the library as a tall cover: the reading line under it, and the "continue" moon off the corner once it is started. */
@@ -293,7 +321,15 @@ private fun BookLibrary(scope: ReadScope) {
         item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {
             val count = state.books.size
             ReadPageHead("Library", if (count == 1) "1 book · ${reading.size} reading" else "$count books · ${reading.size} reading", Modifier.readBleed()) {
-                ReadIconButton(CosmoIcons.Plus, "Import EPUB or PDF", { if (!scope.busy) scope.importBooks() }, Modifier.testTag("books:import"))
+                Box {
+                    var adding by remember { mutableStateOf(false) }
+                    ReadIconButton(CosmoIcons.Plus, "Add books", { if (!scope.busy) adding = true }, Modifier.testTag("books:import"))
+                    com.cosmotune.ui.orbit.OrbitMenu(adding, { adding = false }, listOfNotNull(
+                        com.cosmotune.ui.orbit.OrbitMenuItem("Import a book file", detail = "EPUB, PDF, Kindle, FB2, Word, text or CBZ", icon = CosmoIcons.Plus) { scope.importBooks() },
+                        com.cosmotune.ui.orbit.OrbitMenuItem("Add a folder of books", detail = "New books in it are added each time Read opens", icon = CosmoIcons.Library) { scope.addFolder() },
+                        com.cosmotune.ui.orbit.OrbitMenuItem("Check folders for new books", icon = CosmoIcons.Repeat) { scope.scanFolders() }.takeIf { state.folders.isNotEmpty() },
+                    ), orbitFonts(), orbitLook(), header = "Add books")
+                }
                 ReadRootActions(scope)
             }
         }
@@ -318,7 +354,7 @@ private fun BookLibrary(scope: ReadScope) {
         }
         if (shelf == BookShelf.SAVED) {
             if (saved.isEmpty()) item(key = "saved:empty", span = { GridItemSpan(maxLineSpan) }) {
-                ReadEmpty("Save something for later", "Books you save from Browse appear here. Import an EPUB or PDF to read your own copy.", Modifier.readBleed())
+                ReadEmpty("Save something for later", "Books you save from Browse appear here. Import a book file to read your own copy.", Modifier.readBleed())
             }
             items(saved, key = { "saved:${it.id}" }) { publication ->
                 if (rows) ReadCoverRow(publication.title, publication.authors.joinToString(" · "), publication.coverUrl, onClick = { scope.navigation.publication = publication },
@@ -332,7 +368,7 @@ private fun BookLibrary(scope: ReadScope) {
                         BookShelf.READING -> "Start your next chapter"; BookShelf.FINISHED -> "A shelf of stories completed"; BookShelf.UNREAD -> "Everything here is started"
                         else -> "Your next read starts here"
                     },
-                    "Import an EPUB or PDF, or find books from public libraries and public-domain catalogues.",
+                    "Import EPUB, PDF, Kindle, FB2, Word, text or comic files, or find books from public libraries and public-domain catalogues.",
                     Modifier.readBleed(),
                     actionLabel = if (state.books.isEmpty()) "Import books" else null, onAction = scope.importBooks,
                 )
@@ -401,14 +437,17 @@ private fun BookHero(scope: ReadScope, book: ReadingBook, state: ReadingState) {
 private fun BookBookmarks(scope: ReadScope) {
     val state by scope.repository.state.collectAsUiState()
     val list = rememberLazyListState()
-    val groups = state.bookmarks.groupBy { it.bookId }.mapNotNull { (id, marks) -> state.books.find { it.id == id }?.let { it to marks.sortedByDescending { mark -> mark.createdAtMs } } }
+    val groups = state.books.filter { book -> state.bookmarks.any { it.bookId == book.id } || state.highlights.any { it.bookId == book.id } }
+        .sortedByDescending { book -> maxOf(state.bookmarks.filter { it.bookId == book.id }.maxOfOrNull { it.createdAtMs } ?: 0L,
+            state.highlights.filter { it.bookId == book.id }.maxOfOrNull { it.updatedAtMs } ?: 0L) }
+        .map { book -> book to state.bookmarks.filter { it.bookId == book.id }.sortedByDescending { it.createdAtMs } }
     LazyColumn(Modifier.fillMaxSize().testTag("books:bookmarks:list"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
         item(key = "heading") {
-            val count = state.bookmarks.size
+            val count = state.bookmarks.size + state.highlights.size
             ReadPageHead("Bookmarks", if (count == 1) "1 passage kept" else "$count passages kept") { ReadRootActions(scope) }
         }
         if (groups.isEmpty()) item(key = "empty") {
-            ReadEmpty("No bookmarks yet", "Bookmark a passage from the reader's tools to come back to it here.")
+            ReadEmpty("No bookmarks yet", "Bookmark a passage from the reader's tools, or select words to highlight them, to come back to them here.")
         }
         groups.forEach { (book, marks) ->
             item(key = "book:${book.id}") {
@@ -416,6 +455,9 @@ private fun BookBookmarks(scope: ReadScope) {
                     key = book.id, onClick = { scope.navigation.book = book }, modifier = Modifier.padding(start = ReadMargin, end = ReadMargin, top = 16.dp))
             }
             items(marks, key = { "mark:${it.id}" }) { mark -> BookmarkRow(scope, book, mark) }
+            items(com.cosmotune.reading.data.ReadingNotesExport.highlights(state, book.id), key = { "highlight:${it.id}" }) { mark ->
+                BookHighlightRow(scope, book, mark, Modifier.padding(start = 24.dp))
+            }
         }
     }
 }
@@ -444,6 +486,17 @@ internal fun BookmarkRow(scope: ReadScope, book: ReadingBook, mark: ReadingBookm
     )
 }
 
+/** A highlight in the library's lists: tap opens the reader there; the cross removes it, with Undo. */
+@Composable
+internal fun BookHighlightRow(scope: ReadScope, book: ReadingBook, mark: ReadingHighlight, modifier: Modifier = Modifier) {
+    val undo = LocalOrbitUndo.current
+    HighlightRow(mark, onClick = { scope.action { scope.repository.saveLocator(book.id, ReadingLocator(mark.href, mark.progression)); scope.open(book) } },
+        onRemove = { scope.action {
+            scope.repository.removeHighlight(mark.id)
+            undo.removedThen("Highlight") { scope.repository.restoreHighlight(mark) }
+        } }, modifier = modifier)
+}
+
 /**
  * A book on this device (board D's title page): the colour card (the cover, "BOOK · EPUB · 35 %", the title, the authors, the
  * reading line, Mark finished and More (Remove from this device, with Undo), Continue or Read in the bite), the description, its
@@ -470,6 +523,13 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
         }
     }
     val (fill, _) = coverFill(null, book.id)
+    val save = rememberReadingSave { scope.onError(it) }
+    val highlights = com.cosmotune.reading.data.ReadingNotesExport.highlights(state, book.id)
+    val hasNotes = highlights.isNotEmpty() || state.bookmarks.any { it.bookId == book.id }
+    fun exportNotes(markdown: Boolean) {
+        val text = if (markdown) com.cosmotune.reading.data.ReadingNotesExport.markdown(book, state) else com.cosmotune.reading.data.ReadingNotesExport.html(book, state)
+        save(com.cosmotune.reading.data.ReadingNotesExport.fileName(book, if (markdown) "md" else "html"), if (markdown) "text/markdown" else "text/html", text.toByteArray())
+    }
     Box(Modifier.fillMaxSize()) {
         OrbitPageWash(fill)
         LazyColumn(Modifier.fillMaxSize().testTag("books:book"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
@@ -485,7 +545,9 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
                         OrbitCardChip(if (finished) "Mark unfinished" else "Mark finished", colors, onClick = { scope.action { scope.repository.markFinished(book.id, !finished) } }, icon = CosmoIcons.Check)
                         Box {
                             com.cosmotune.ui.orbit.OrbitCardButton(CosmoIcons.MoreVertical, "More", colors, { more = true }, Modifier.testTag("books:book:more"))
-                            com.cosmotune.ui.orbit.OrbitMenu(more, { more = false }, listOf(
+                            com.cosmotune.ui.orbit.OrbitMenu(more, { more = false }, listOfNotNull(
+                                com.cosmotune.ui.orbit.OrbitMenuItem("Export notes as Markdown", icon = CosmoIcons.Download) { exportNotes(true) }.takeIf { hasNotes },
+                                com.cosmotune.ui.orbit.OrbitMenuItem("Export notes as a web page", icon = CosmoIcons.Download) { exportNotes(false) }.takeIf { hasNotes },
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Remove from this device", icon = CosmoIcons.Close) { remove() },
                             ), orbitFonts(), look, header = book.title)
                         }
@@ -503,6 +565,10 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
             if (marks.isNotEmpty()) {
                 item(key = "marks:header") { ReadSection("Bookmarks", subtitle = marks.size.toString()) }
                 items(marks, key = { "mark:${it.id}" }) { mark -> BookmarkRow(scope, book, mark, nested = false) }
+            }
+            if (highlights.isNotEmpty()) {
+                item(key = "highlights:header") { ReadSection("Highlights and notes", subtitle = highlights.size.toString()) }
+                items(highlights, key = { "highlight:${it.id}" }) { mark -> BookHighlightRow(scope, book, mark) }
             }
             item(key = "facts") {
                 ReadSection("Details")
@@ -522,7 +588,7 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
 
 /** A book's details as its page lists them: the format, the language, when it was added and where it came from. */
 internal fun bookFacts(book: ReadingBook, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Pair<String, String>> = listOfNotNull(
-    "Format" to book.format.name,
+    "Format" to (book.originalFormat.ifBlank { book.format.name }),
     book.language.takeIf { it.isNotBlank() }?.let { "Language" to it },
     "Added" to java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH).format(java.time.Instant.ofEpochMilli(book.addedAtMs).atZone(zone)),
     "Source" to (book.sourceUrl ?: "On this device"),
