@@ -300,9 +300,9 @@ internal fun rememberMangaCover(repository: MangaRepository, book: MangaBook): A
 internal fun MangaBook.colourUrl(): String? = coverUrl?.takeIf { it.startsWith("http") && !sourceId.startsWith("template:") && !sourceId.startsWith("komga:") }
 
 /**
- * A series as a tall cover. In the library ([inLibrary]) its corner carries the unread chapters (in peach) and the downloaded ones
- * (board frame 10, Mihon's badges), the reading line shows how far into the chapter, and the "continue" moon off the corner opens
- * the reader where it left off; a tap opens the series.
+ * A series as a tall cover. In the library ([inLibrary]) the line under it says how many chapters are unread and downloaded
+ * (nothing is drawn on the cover itself), the reading line shows how far into the chapter, and the "continue" moon off the
+ * corner opens the reader where it left off; a tap opens the series.
  */
 @Composable
 internal fun MangaBookCard(scope: MangaScope, book: MangaBook, meta: String?, modifier: Modifier = Modifier, width: Dp? = null, inLibrary: Boolean = false) {
@@ -310,27 +310,9 @@ internal fun MangaBookCard(scope: MangaScope, book: MangaBook, meta: String?, mo
     val cover = rememberMangaCover(scope.repository, book)
     val progress = if (inLibrary) state.progress[book.id]?.takeIf { !it.finished && it.pageCount > 0 }?.let { (it.page + 1f) / it.pageCount } else null
     val counts = if (inLibrary) mangaCoverCounts(book, state) else null
-    Box(modifier) {
-        ReadCoverCard(book.title, meta, cover, onClick = { scope.openBook(book) }, width = width, progress = progress, key = book.id,
-            onContinue = if (inLibrary && book.chapters.isNotEmpty()) ({ scope.continueReading(book, state) }) else null)
-        if (counts != null && (counts.unread > 0 || counts.downloaded > 0)) Row(Modifier.align(Alignment.TopStart).padding(6.dp).testTag("manga:badges:${book.id}"),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (counts.unread > 0) MangaCountBadge(counts.unread, peach = true, label = "${counts.unread} unread")
-            if (counts.downloaded > 0) MangaCountBadge(counts.downloaded, peach = false, label = "${counts.downloaded} downloaded")
-        }
-    }
-}
-
-/** A count on a cover's corner: unread in peach, downloaded in the ink. */
-@Composable
-internal fun MangaCountBadge(count: Int, peach: Boolean, label: String) {
-    val look = orbitLook()
-    val fonts = com.cosmotune.ui.orbit.orbitFonts()
-    val fill = if (peach) look.accent else look.ink
-    val ink = if (peach) androidx.compose.ui.graphics.Color(0xFF2A100A) else look.ground
-    androidx.compose.material3.Text(if (count > 999) "999+" else count.toString(), style = fonts.label.copy(fontSize = 11.sp), color = ink, maxLines = 1,
-        modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).background(fill).padding(horizontal = 6.dp, vertical = 2.dp)
-            .semantics { contentDescription = label })
+    val line = listOfNotNull(counts?.let(::mangaCountsLine), meta).joinToString(" · ").ifEmpty { null }
+    ReadCoverCard(book.title, line, cover, onClick = { scope.openBook(book) }, modifier = modifier, width = width, progress = progress, key = book.id,
+        onContinue = if (inLibrary && book.chapters.isNotEmpty()) ({ scope.continueReading(book, state) }) else null)
 }
 
 /** A new chapter of a library series (Updates, Library): the cover, the series, the chapter, its download. Tap reads it. */

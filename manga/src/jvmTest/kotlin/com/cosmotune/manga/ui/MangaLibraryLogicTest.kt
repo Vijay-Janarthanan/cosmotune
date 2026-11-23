@@ -21,6 +21,13 @@ class MangaLibraryLogicTest {
         assertEquals(0, mangaCoverCounts(book.copy(sourceId = "local"), state).downloaded)
     }
 
+    @Test fun theCountsStandInTheLineUnderTheCoverNotOnIt() {
+        assertEquals("3 unread · 2 downloaded", mangaCountsLine(MangaCoverCounts(unread = 3, downloaded = 2)))
+        assertEquals("1 unread", mangaCountsLine(MangaCoverCounts(unread = 1, downloaded = 0)))
+        assertEquals("4 downloaded", mangaCountsLine(MangaCoverCounts(unread = 0, downloaded = 4)))
+        assertEquals(null, mangaCountsLine(MangaCoverCounts(unread = 0, downloaded = 0)))
+    }
+
     @Test fun theContinueRowSaysWhereTheReaderStands() {
         val reading = MangaLibraryState(books = listOf(book), progress = mapOf("book" to MangaProgress("book", "book-c2", page = 5, pageCount = 22)))
         assertEquals("Chapter 2 · Page 6 of 22", mangaContinueLine(book, reading))

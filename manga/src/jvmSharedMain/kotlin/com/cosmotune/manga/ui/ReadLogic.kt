@@ -195,13 +195,19 @@ internal fun mangaLibraryLine(book: MangaBook, state: MangaLibraryState): String
     return if (unread == 0) "Caught up" else "$unread unread" + if (fresh > 0) " · $fresh new" else ""
 }
 
-/** What a library cover carries in its corner: the unread chapters and the chapters on this device. */
+/** What the line under a library cover says: the unread chapters and the chapters on this device. */
 internal data class MangaCoverCounts(val unread: Int, val downloaded: Int)
 
 internal fun mangaCoverCounts(book: MangaBook, state: MangaLibraryState): MangaCoverCounts = MangaCoverCounts(
     unread = book.chapters.count { it.id !in state.readChapters },
     downloaded = if (book.sourceId == "local") 0 else book.chapters.count { state.downloads.containsKey(it.id) },
 )
+
+/** "3 unread · 2 downloaded" under a library cover; null when there is neither. */
+internal fun mangaCountsLine(counts: MangaCoverCounts): String? = listOfNotNull(
+    counts.unread.takeIf { it > 0 }?.let { "$it unread" },
+    counts.downloaded.takeIf { it > 0 }?.let { "$it downloaded" },
+).joinToString(" · ").ifEmpty { null }
 
 /** The library in the order its options sheet chose: last read (the default), title, added, or the most unread first. */
 internal fun mangaLibraryOrder(books: List<MangaBook>, sort: String, state: MangaLibraryState): List<MangaBook> = when (sort) {

@@ -110,7 +110,7 @@ class PodioReadMangaContractTest {
     @Test fun mangaOpensOnTheGridWithCountsAndChoosesChaptersByHold() {
         val library = body("$manga/MangaApp.kt", "MangaLibrary")
         assertTrue(library.contains("MangaContinueRow(") && !library.contains("MangaHero(") && !library.contains("\"New chapters\""), "one Continue row, no hero")
-        assertTrue(code("$manga/MangaApp.kt").contains("MangaCountBadge(counts.unread, peach = true"), "unread in peach on the cover")
+        assertTrue(code("$manga/MangaApp.kt").contains("counts?.let(::mangaCountsLine)") && !code("$manga/MangaApp.kt").contains("MangaCountBadge"), "the counts in the line under the cover, nothing on it")
         val details = code("$manga/MangaDetails.kt")
         assertTrue(details.contains("SelectionBar(") && details.contains("selection = selection.toggle(chapter.id)"), "a hold chooses several")
         assertTrue(details.contains("number = chapterNumber(item, index + 1)"), "the chapter number's tile")
