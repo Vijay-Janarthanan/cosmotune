@@ -167,9 +167,21 @@ object DownloadSession {
     fun running(videoId: String, fraction: Float) =
         set(videoId, DownloadProgress.Running(fraction))
 
-    fun done(videoId: String) = set(videoId, DownloadProgress.Done)
+    fun done(videoId: String) {
+        set(videoId, DownloadProgress.Done)
+        remember(videoId, null)
+    }
 
-    fun failed(videoId: String, reason: String) = set(videoId, DownloadProgress.Failed(reason))
+    fun failed(videoId: String, reason: String) {
+        set(videoId, DownloadProgress.Failed(reason))
+        remember(videoId, reason)
+    }
+
+    /** Into the kept download history, which outlives this sitting; see [com.cosmotune.listening.DownloadHistory]. */
+    private fun remember(videoId: String, failed: String?) {
+        val song = _state.value.items.firstOrNull { it.videoId == videoId }?.song ?: return
+        runCatching { com.cosmotune.settings.Extras.settings.recordDownload(song.videoId, song.title, song.artist, failed) }
+    }
 
     /**
      * Swap in the track that is actually being fetched.

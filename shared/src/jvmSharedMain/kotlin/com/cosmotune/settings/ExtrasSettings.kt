@@ -247,6 +247,31 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putString(KEY_LIST_ORDERS, com.cosmotune.listening.ListOrders.encode(next))
     }
 
+    private val downloadHistoryFlow = MutableStateFlow(com.cosmotune.listening.DownloadHistory.decode(store.getString(KEY_DOWNLOAD_HISTORY, "")))
+
+    /** Finished and failed downloads, newest first; see [com.cosmotune.listening.DownloadHistory]. */
+    val downloadHistory: StateFlow<List<com.cosmotune.listening.DownloadHistory.Entry>> = downloadHistoryFlow.asStateFlow()
+    @Synchronized fun recordDownload(trackId: String, title: String, artist: String, failed: String? = null, atMs: Long = System.currentTimeMillis()) {
+        val next = com.cosmotune.listening.DownloadHistory.add(downloadHistoryFlow.value, com.cosmotune.listening.DownloadHistory.Entry(trackId, title, artist, atMs, failed))
+        downloadHistoryFlow.value = next
+        store.putString(KEY_DOWNLOAD_HISTORY, com.cosmotune.listening.DownloadHistory.encode(next))
+    }
+    fun clearDownloadHistory() {
+        downloadHistoryFlow.value = emptyList()
+        store.putString(KEY_DOWNLOAD_HISTORY, "")
+    }
+
+    private val videoTimingsFlow = MutableStateFlow(com.cosmotune.listening.VideoTimings.decode(store.getString(KEY_VIDEO_TIMINGS, "")))
+
+    /** The listener's own timing for each music video, by video id; see [com.cosmotune.listening.VideoTimings]. */
+    val videoTimings: StateFlow<Map<String, Long>> = videoTimingsFlow.asStateFlow()
+    fun nudgeVideoTiming(videoId: String, stepMs: Long?) {
+        val next = if (stepMs == null) com.cosmotune.listening.VideoTimings.set(videoTimingsFlow.value, videoId, 0)
+        else com.cosmotune.listening.VideoTimings.nudge(videoTimingsFlow.value, videoId, stepMs)
+        videoTimingsFlow.value = next
+        store.putString(KEY_VIDEO_TIMINGS, com.cosmotune.listening.VideoTimings.encode(next))
+    }
+
     private val notificationSleepFlow = MutableStateFlow(store.getBoolean(KEY_NOTIFICATION_SLEEP, false))
 
     /** The phone notification's second button is the sleep timer instead of Repeat. Off until turned on. */
@@ -285,6 +310,8 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_NOW_PLAYING_FILE = "extras_now_playing_file"
         const val KEY_NOTIFICATION_SLEEP = "extras_notification_sleep"
         const val KEY_LIST_ORDERS = "extras_list_orders"
+        const val KEY_VIDEO_TIMINGS = "extras_video_timings"
+        const val KEY_DOWNLOAD_HISTORY = "extras_download_history"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"

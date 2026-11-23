@@ -1,5 +1,6 @@
 package com.cosmotune.music.ui.screens
 
+import com.cosmotune.ui.extras.downloadHistoryItems
 import androidx.compose.foundation.selection.selectableGroup
 
 import android.content.Context
@@ -335,6 +336,8 @@ fun SettingsScreen(
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.ALL) }
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
+    var viewingDownloadHistory by remember { mutableStateOf(false) }
+    val downloadHistory by com.cosmotune.settings.Extras.settings.downloadHistory.collectAsStateWithLifecycle()
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
     // What the last export or import did, shown on the row that did it rather
     // than as a toast: a backup is the one action here whose outcome nobody can
@@ -1079,6 +1082,15 @@ fun SettingsScreen(
             row(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE, "most played", "offline", "automatic", summary = com.cosmotune.ui.settings.SMART_DOWNLOADS_LINE) {
                 val smartContext = androidx.compose.ui.platform.LocalContext.current
                 com.cosmotune.ui.settings.SmartDownloadsRows(com.cosmotune.ui.settings.cosmoLookSettings(smartContext))
+            }
+            row("Download history", "downloads", "history", "failed") {
+                SettingsRow(
+                    icon = Icons.Rounded.History,
+                    title = "Download history",
+                    subtitle = if (downloadHistory.isEmpty()) "Songs you download are listed here, with any that failed"
+                    else "${downloadHistory.size} songs, newest first",
+                    onClick = { viewingDownloadHistory = true },
+                )
             }
         }
         SearchableSettingsGroup(search, category = SettingsCategory.DOWNLOADS, header = stringResource(R.string.local_music)) {
@@ -2031,6 +2043,20 @@ fun SettingsScreen(
                     picking = null
                 },
             )
+        }
+    }
+
+    if (viewingDownloadHistory) {
+        com.cosmotune.ui.orbit.OrbitPickerSheet(onDismiss = { viewingDownloadHistory = false }) {
+            if (downloadHistory.isEmpty()) {
+                Text("No downloads yet", style = com.cosmotune.ui.orbit.orbitFonts().body, color = com.cosmotune.ui.orbit.orbitLook().dim,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp))
+            }
+            androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
+                downloadHistoryItems(downloadHistory, System.currentTimeMillis(),
+                    onClear = com.cosmotune.settings.Extras.settings::clearDownloadHistory, horizontal = 20.dp, title = "Download history")
+            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 

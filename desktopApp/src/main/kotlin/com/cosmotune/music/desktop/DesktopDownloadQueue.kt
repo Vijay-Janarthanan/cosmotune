@@ -245,6 +245,7 @@ object DesktopDownloadQueue {
                                 journal?.remove(id, item.sequence)
                                 _active.update { if (it[id]?.sequence == item.sequence) it - id else it }
                                 _finished.tryEmit(saved)
+                                keepInHistory(item, null)
                             },
                             onFailure = { failed(id, item, it) },
                         )
@@ -255,6 +256,7 @@ object DesktopDownloadQueue {
         } finally {
             synchronized(lock) { workers-- }
             ensureWorkers()
+            announceIfDrained()
         }
     }
 
@@ -272,6 +274,27 @@ object DesktopDownloadQueue {
         journal?.phase(id, item.sequence, MusicDownloadPhase.FAILED, reason)
         _active.update { it + (id to item.copy(state = DesktopDownloadState.Failed(reason))) }
         DesktopTrackLog.log("download failed for '${item.song.title}' — $reason")
+        keepInHistory(item, reason)
+    }
+
+    /** Set by the window: told once a queue has drained, with how it went ("12 songs downloaded, 1 failed"). */
+    @Volatile var onBatchFinished: ((String) -> Unit)? = null
+    private var batchSaved = 0
+    private var batchFailed = 0
+
+    /** Into the kept download history, and the running count the finished queue announces. */
+    private fun keepInHistory(item: DesktopDownloadItem, failed: String?) {
+        synchronized(lock) { if (failed == null) batchSaved++ else batchFailed++ }
+        runCatching { com.cosmotune.settings.Extras.settings.recordDownload(item.song.videoId, item.song.title, item.song.artist, failed) }
+    }
+
+    /** Called as a worker stops: the last one out of an empty queue announces the batch. */
+    private fun announceIfDrained() {
+        val summary = synchronized(lock) {
+            if (workers > 0 || pending.isNotEmpty() || running.isNotEmpty()) return
+            com.cosmotune.listening.DownloadHistory.batchSummary(batchSaved, batchFailed).also { batchSaved = 0; batchFailed = 0 }
+        } ?: return
+        onBatchFinished?.invoke(summary)
     }
 
     /**

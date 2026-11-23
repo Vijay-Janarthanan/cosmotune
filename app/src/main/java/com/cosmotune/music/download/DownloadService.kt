@@ -67,8 +67,10 @@ class DownloadService : Service() {
         }
 
         if (drain == null) {
+            val startedAt = System.currentTimeMillis()
             drain = scope.launch {
                 drainQueue()
+                announceFinished(startedAt)
                 // Not shutdown(stopWork = true): this is the drain coroutine,
                 // and cancelling its own job here would be cancelling itself.
                 shutdown(stopWork = false)
@@ -183,6 +185,30 @@ class DownloadService : Service() {
         runCatching { manager.notify(NOTIFICATION_ID, buildNotification()) }
     }
 
+    /**
+     * Once the queue has drained, a quiet note of how it went ("12 songs downloaded, 1 failed"), since the progress
+     * notification leaves with the service. A tap opens the app; it clears itself.
+     */
+    private fun announceFinished(startedAt: Long) {
+        val batch = runCatching { com.cosmotune.settings.Extras.settings.downloadHistory.value }.getOrNull()
+            ?.filter { it.atMs >= startedAt } ?: return
+        val summary = com.cosmotune.listening.DownloadHistory.batchSummary(batch.count { it.failed == null }, batch.count { it.failed != null }) ?: return
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        val open = packageManager.getLaunchIntentForPackage(packageName)?.let {
+            PendingIntent.getActivity(this, 1, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        }
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_logo)
+            .setContentTitle("Downloads finished")
+            .setContentText(summary)
+            .setAutoCancel(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .apply { open?.let(::setContentIntent) }
+            .build()
+        runCatching { manager.notify(FINISHED_NOTIFICATION_ID, notification) }
+    }
+
     private fun buildNotification(): Notification {
         val active = Downloads.active.value
         val runningStates = active.values.filterIsInstance<DownloadState.Running>()
@@ -253,6 +279,9 @@ class DownloadService : Service() {
 
         /** Distinct from playback's, which Media3 owns. */
         const val NOTIFICATION_ID = 0x8175
+
+        /** The note left when a queue has drained. */
+        const val FINISHED_NOTIFICATION_ID = 0x81A5
 
         const val ACTION_CANCEL_ALL = "com.cosmotune.music.download.CANCEL_ALL"
 

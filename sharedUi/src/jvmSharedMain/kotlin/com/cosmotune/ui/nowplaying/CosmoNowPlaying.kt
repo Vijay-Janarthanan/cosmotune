@@ -317,11 +317,13 @@ fun CosmoNowPlaying(
     val orbitInk = orbitLook(colors)
     val enterPip: (() -> Unit)? = if (pip.supported && musicVideo) ({ if (videoAway) pip.exit() else { videoHidden = false; pip.enter() } }) else null
     val leavePip: () -> Unit = { if (videoAway) pip.exit() }
+    val videoTimings by com.cosmotune.settings.Extras.settings.videoTimings.collectAsStateWithLifecycle()
     val videoMenu: @Composable () -> Unit = {
         OrbitMenu(
             open = videoMenuOpen, onDismiss = { videoMenuOpen = false }, fonts = orbitType, look = orbitInk, header = "Show the video",
             items = videoViewItems(keptView, cinemaShown, !videoHidden, { leavePip(); setView(it) }, { leavePip(); if (it) cinema = true else leaveCinema() },
-                { leavePip(); videoHidden = !it }, pip = enterPip, inPip = pip.active),
+                { leavePip(); videoHidden = !it }, pip = enterPip, inPip = pip.active) +
+                videoTimingItems(canvas?.videoId?.takeIf { musicVideo }, videoTimings, com.cosmotune.settings.Extras.settings::nudgeVideoTiming),
         )
     }
     val screenButton: CardButton? = if (!musicVideo) null else CardButton(

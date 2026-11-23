@@ -5439,10 +5439,11 @@ fun CosmotuneDesktopApp() {
                                 currentSong = playback.song,
                                 isPlaying = playback.isPlaying,
                             )
-                            // Only while there is a queue to look at.
-                            if (downloadInProgress.isNotEmpty()) {
+                            // While there is a queue to look at, or a history of earlier downloads.
+                            val downloadHistory by com.cosmotune.settings.Extras.settings.downloadHistory.collectAsState()
+                            if (downloadInProgress.isNotEmpty() || downloadHistory.isNotEmpty()) {
                                 DesktopActionButton(
-                                    "Queue · ${downloadInProgress.size}",
+                                    if (downloadInProgress.isNotEmpty()) "Queue · ${downloadInProgress.size}" else "Download history",
                                     CosmotuneIcons.Download,
                                     onClick = { overlays.downloadManager = true },
                                     modifier = Modifier

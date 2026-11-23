@@ -75,4 +75,15 @@ class NowPlayingVideoContractTest {
         assertTrue(items.contains("if (pip != null) OrbitMenuItem(\"Picture in picture\"") && items.contains("\"Not on this device\", enabled = false"))
         assertTrue(screen.contains("pip = enterPip, inPip = pip.active"), "Now Playing hands the menu its picture-in-picture")
     }
+
+    @Test fun theVideoMenuMovesThePictureAndKeepsItPerVideo() {
+        var moved: Pair<String, Long?>? = null
+        assertTrue(com.cosmotune.ui.nowplaying.videoTimingItems(null, emptyMap()) { _, _ -> }.isEmpty(), "nothing without a music video")
+        val items = com.cosmotune.ui.nowplaying.videoTimingItems("vid", mapOf("vid" to 300L)) { id, step -> moved = id to step }
+        assertTrue(items.map { it.title } == listOf("Picture earlier", "Picture later", "Timing as matched"))
+        assertTrue(items[0].keepOpen && items[0].detail!!.contains("0.3 s earlier"))
+        items[1].onClick(); assertTrue(moved == ("vid" to -100L))
+        items[2].onClick(); assertTrue(moved == ("vid" to null))
+        assertTrue(screen.contains("videoTimingItems(canvas?.videoId?.takeIf { musicVideo }"), "Now Playing offers it under Show the video")
+    }
 }

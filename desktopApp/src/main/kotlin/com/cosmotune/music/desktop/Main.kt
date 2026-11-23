@@ -161,6 +161,10 @@ private fun runDesktop() {
         }.collect { com.cosmotune.music.data.recommendations.LocalRecommendations.useLastFm(it) }
     }
     DesktopDownloadQueue.restore(java.io.File(desktopRecommendationData().parentFile, "downloads/queue.json"))
+    // A drained queue says how it went: a tray notice, or the window's own notice where there is no tray.
+    DesktopDownloadQueue.onBatchFinished = { summary ->
+        if (!DesktopAwtTray.notify("Downloads finished", summary)) DesktopPlayerHost.showMessage(summary)
+    }
     com.cosmotune.providers.ProviderHub.configure(java.io.File(desktopRecommendationData().parentFile, "providers"), cache = DesktopMediaCache.directory.resolve("provider-artwork").toFile())
     // Where cloud sync remembers how far it got; the session itself is in the credential store.
     DesktopCloud.configure(java.io.File(desktopRecommendationData().parentFile, "cloud"))
