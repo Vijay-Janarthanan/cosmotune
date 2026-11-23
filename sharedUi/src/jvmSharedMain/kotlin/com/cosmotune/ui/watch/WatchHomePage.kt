@@ -168,6 +168,9 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                             }
                         }
                     }
+                    if (filter == HomeFilter.ALL || filter == HomeFilter.SERIES) item(key = "watch:new-episodes") {
+                        WatchNewEpisodesRow(actions, fonts, look, side, frame.wide)
+                    }
                     data.featured?.let { featured ->
                         item(key = "watch:featured") {
                             WatchFeaturedCard(

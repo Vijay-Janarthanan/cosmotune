@@ -82,6 +82,42 @@ data class WatchHome(
     val empty: Boolean = false,
 )
 
+/** An episode on the Calendar: its series, the episode, its date, and whether it is out and not watched yet. */
+data class CalendarEntry(val summary: TitleSummary, val episode: Episode, val date: String, val isNew: Boolean)
+
+/** Dates of the Calendar, as ISO strings (they sort as they read). */
+object WatchCalendar {
+    /** [date] moved by [days]. */
+    fun shift(date: String, days: Int): String {
+        val (y, m, d) = date.split('-').map { it.toInt() }
+        val epoch = epochDay(y, m, d) + days
+        return fromEpochDay(epoch)
+    }
+
+    private fun epochDay(year: Int, month: Int, day: Int): Long {
+        val y = if (month <= 2) year - 1 else year
+        val era = (if (y >= 0) y else y - 399) / 400
+        val yoe = y - era * 400
+        val mp = (month + 9) % 12
+        val doy = (153 * mp + 2) / 5 + day - 1
+        val doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+        return era * 146097L + doe - 719468
+    }
+
+    private fun fromEpochDay(days: Long): String {
+        val z = days + 719468
+        val era = (if (z >= 0) z else z - 146096) / 146097
+        val doe = z - era * 146097
+        val yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+        val doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+        val mp = (5 * doy + 2) / 153
+        val d = doy - (153 * mp + 2) / 5 + 1
+        val m = if (mp < 10) mp + 3 else mp - 9
+        val y = yoe + era * 400 + if (m <= 2) 1 else 0
+        return "${y.toString().padStart(4, '0')}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}"
+    }
+}
+
 /** "Next up" on a series page: the episode in progress, else the first unwatched one. */
 data class NextUp(val episode: Episode, val progress: WatchProgress?, val resume: Boolean) {
     val label: String get() = if (resume) "Resume S${episode.season} E${episode.number}" else "Play S${episode.season} E${episode.number}"

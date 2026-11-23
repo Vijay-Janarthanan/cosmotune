@@ -90,6 +90,7 @@ internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     com.cosmotune.ui.orbit.OrbitSelectChip("My list · ${list.size}", true, fonts, look, onClick = {}, haptic = false)
                     com.cosmotune.ui.orbit.OrbitSelectChip("Playlists · ${playlists.size}", false, fonts, look, onClick = { WatchNav.open(WatchRoute.Playlists()) }, haptic = false)
+                    com.cosmotune.ui.orbit.OrbitSelectChip("Calendar", false, fonts, look, onClick = { WatchNav.open(WatchRoute.Calendar) }, haptic = false)
                     if (actions.downloads != null) com.cosmotune.ui.orbit.OrbitSelectChip("Downloads · ${kept.size}", false, fonts, look, onClick = { WatchNav.go(WatchTab.DOWNLOADS) }, haptic = false)
                 }
             }
