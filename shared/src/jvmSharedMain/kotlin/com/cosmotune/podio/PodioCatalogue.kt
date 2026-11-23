@@ -29,7 +29,9 @@ import kotlin.coroutines.resumeWithException
     val feed: String, val artwork: String = "", val website: String = "", val source: String = "Publisher feed")
 @Serializable data class PodcastEpisode(val id: String, val title: String, val show: String, val url: String,
     val artwork: String = "", val durationSeconds: Long = 0, val published: String = "", val description: String = "",
-    val chaptersUrl: String? = null, val transcripts: List<PodcastTranscript> = emptyList())
+    val chaptersUrl: String? = null, val transcripts: List<PodcastTranscript> = emptyList(),
+    /** Chapters the feed itself carries: Podlove Simple Chapters, else chapter times listed in the show notes. */
+    val inlineChapters: List<PodcastChapter> = emptyList())
 data class PodcastFeed(val show: PodcastShow, val episodes: List<PodcastEpisode>,
     /** Publisher-provided RSS/Atom archive link, rather than a guessed page number. */
     val nextPage: String? = null, val visitedPages: List<String> = emptyList())
@@ -289,11 +291,27 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         if (YouTubePodcasts.showId(address) != null) return (youtubePodcasts ?: YouTubePodcasts()).feed(address)
         return publisherFeed(address)
     }
-    suspend fun chapters(episode: PodcastEpisode): List<PodcastChapter> = episode.chaptersUrl?.let {
-        withContext(Dispatchers.Default) { PodcastExtras.chapters(read(requireNotNull(httpUrl(it)))) }
-    }.orEmpty()
+    /**
+     * The episode's chapters from the best place that has them: the publisher's chapters file, then the ones written into a
+     * downloaded copy ([localPath]), then those in the feed itself (Podlove, or times in the show notes). A file that cannot be
+     * loaded only counts as a failure when nothing else has chapters.
+     */
+    suspend fun chapters(episode: PodcastEpisode, localPath: String? = null): List<PodcastChapter> {
+        var failure: Exception? = null
+        val remote = episode.chaptersUrl?.let {
+            try { withContext(Dispatchers.Default) { PodcastExtras.chapters(read(requireNotNull(httpUrl(it)))) } }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) { failure = error; emptyList() }
+        }.orEmpty()
+        if (remote.isNotEmpty()) return remote
+        val local = localPath?.let { path -> withContext(Dispatchers.IO) { Id3Chapters.readFile(java.io.File(path)) } }.orEmpty()
+        if (local.isNotEmpty()) return local
+        if (episode.inlineChapters.isNotEmpty()) return episode.inlineChapters
+        failure?.let { throw it }
+        return emptyList()
+    }
     suspend fun transcript(source: PodcastTranscript): List<PodcastCue> = withContext(Dispatchers.Default) {
-        PodcastExtras.transcript(read(requireNotNull(httpUrl(source.url))))
+        PodcastExtras.transcript(read(requireNotNull(httpUrl(source.url))), source.type)
     }
     suspend fun publisherFeed(url: String): PodcastFeed {
         val address = requireNotNull(httpUrl(url)) { "Enter an HTTP or HTTPS podcast feed URL." }
@@ -433,15 +451,28 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                     chaptersUrl = entry.children().firstOrNull { it.local() == "chapters" && it.getAttribute("url").isNotBlank() }
                         ?.getAttribute("url")?.let(::resolve)?.takeIf(String::isNotBlank),
                     transcripts = entry.children().filter { it.local() == "transcript" }.take(12).mapNotNull { item ->
-                        val type = item.getAttribute("type").lowercase()
-                        if (type !in setOf("application/x-subrip", "text/srt", "text/vtt")) return@mapNotNull null
+                        val type = item.getAttribute("type").lowercase().substringBefore(';').trim()
+                        if (type !in TRANSCRIPT_TYPES) return@mapNotNull null
                         resolve(item.getAttribute("url")).takeIf(String::isNotBlank)?.let { PodcastTranscript(it, type, item.getAttribute("language").take(40)) }
+                    }.sortedBy { transcriptRank(it.type) },
+                    inlineChapters = podloveChapters(entry, ::resolve).ifEmpty {
+                        PodcastExtras.notesChaptersOf(listOf("description", "encoded", "summary").map { entry.field(it) })
                     })
             }.distinctBy { it.id }.toList()
             val next = channel.children().firstOrNull { it.local() == "link" && it.getAttribute("rel").equals("next", true) }
                 ?.getAttribute("href")?.takeIf(String::isNotBlank)?.let(::resolve)?.takeIf { it.isNotBlank() && it != url }
             return PodcastFeed(show, episodes, next, listOf(url))
         }
+        /** Timed formats first, then HTML, then plain text: the first one is what the Transcript tab opens. */
+        private val TRANSCRIPT_TYPES = setOf("application/x-subrip", "application/srt", "text/srt", "text/vtt", "application/json", "text/html", "text/plain")
+        private fun transcriptRank(type: String) = when (type) { "text/html" -> 1; "text/plain" -> 2; else -> 0 }
+        private fun podloveChapters(entry: Element, resolve: (String) -> String): List<PodcastChapter> =
+            entry.children().firstOrNull { it.local() == "chapters" && it.getAttribute("url").isBlank() && it.children().any { child -> child.local() == "chapter" } }
+                ?.children()?.filter { it.local() == "chapter" }?.take(500)?.mapNotNull { chapter ->
+                    val start = PodcastExtras.npt(chapter.getAttribute("start")) ?: return@mapNotNull null
+                    val title = chapter.getAttribute("title").trim().take(300).takeIf(String::isNotEmpty) ?: return@mapNotNull null
+                    PodcastChapter(start, title, chapter.getAttribute("image").takeIf(String::isNotBlank)?.let(resolve)?.takeIf(String::isNotBlank))
+                }?.distinctBy { it.startMs }?.sortedBy { it.startMs }.orEmpty()
         private fun Element.local(): String = localName ?: tagName.substringAfter(':')
         private fun Element.children(): List<Element> = (0 until childNodes.length).mapNotNull { childNodes.item(it) as? Element }
         private fun JsonObject.text(key: String): String = (get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()

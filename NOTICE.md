@@ -279,6 +279,8 @@ Reviewed revisions and attribution are recorded in `docs/UPSTREAM_SNAPSHOT_2026-
 
 Playback recovery (`shared/.../playback/recovery/`) follows reviewed behavior from two GPL-3.0 projects, written again for Cosmotune rather than copied: Metrolist (waiting out a lost network on a 1 s to 10 s backoff for up to two minutes; the 12-second progress watchdog) and LastWave Native `c3594b90a6` (stopping at the end of the queue when the last song fails; a new shuffle order for every repeat-all round).
 
+Equaliser preset import and export (`shared/.../music/playback/EqPresetText.kt`) and typed-in band values follow the idea and the AutoEQ text format of LastWave Native `1398814bc7` (GPL-3.0), written again for Cosmotune's seven fixed bands rather than copied. Chapter times read from podcast show notes (`TimestampLines.kt`) follow the idea in gpodder `65a5fd6055` (GPL-3.0), and one-line transcript cues follow anypod `643ed036cf` (MIT); both are independent code. Podcasting 2.0 transcript and chapter formats, Podlove Simple Chapters and ID3 CHAP frames are implemented from their public specifications.
+
 Euthopiar has no repository license at the reviewed revision: Cosmotune's Watch batch, layout and add-on behavior is independently implemented, without importing its source. The macOS MediaPlayer bridge is also original; unlicensed LastWave Desktop bridge source was not copied. AETHER Constellations and ContinuousLine modes are excluded by product choice.
 
 ## Read document engines and catalogues
