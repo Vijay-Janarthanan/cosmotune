@@ -2,6 +2,9 @@ package com.cosmotune.music.desktop
 
 import com.cosmotune.ui.browse.musicRadio
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import androidx.compose.foundation.lazy.LazyListState
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.FollowCover
@@ -216,6 +219,7 @@ import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.PlaybackSourceType
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.podio.item
 import com.cosmotune.podio.offlinePodioItem
 import com.cosmotune.music.data.model.SubscriptionState
 import com.cosmotune.music.data.model.UiState
@@ -465,6 +469,21 @@ fun CosmotuneDesktopApp() {
         while (true) {
             kotlinx.coroutines.delay(com.cosmotune.update.UpdateCheckSchedule.MIN_GAP_MS)
             updates.refresh(com.cosmotune.update.UpdateTrigger.PERIODIC)
+        }
+    }
+    // Podio's followed shows are checked while the app runs (as Android's scheduled work does): each show's own choices
+    // download new episodes or add them to Up next.
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(5 * 60_000L)
+        while (true) {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val library = com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile())
+                    val found = com.cosmotune.podio.PodioRefresh.run(library, com.cosmotune.podio.PodioCatalogue(youtubePodcasts = com.cosmotune.podio.YouTubePodcasts()))
+                    com.cosmotune.podio.PodioShowRules.apply(found, library).download.forEach { DesktopDownloadQueue.enqueue(it.episode.item().song()) }
+                }
+            }
+            kotlinx.coroutines.delay(6 * 60 * 60_000L)
         }
     }
     // The window coming back from the tray or the Dock looks too, at most once an hour.
@@ -1883,6 +1902,36 @@ fun CosmotuneDesktopApp() {
         if (!com.cosmotune.podio.PodioPlaybackPolicy.isPodio(playbackEngine.state.value.song?.videoId)) playbackEngine.setPlaybackSpeed(playbackSpeed)
     }
     LaunchedEffect(volume) { playbackEngine.setVolume(volume) }
+    // Podio's radio alarm (Settings › Podio), while the app runs, the tray included: the station starts at its time, softly at first
+    // when chosen. A computer asleep at that time starts it on waking, unless it is more than half an hour late.
+    LaunchedEffect(Unit) {
+        val library = com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile())
+        library.state.map { it.alarm }.distinctUntilChanged().collectLatest { alarm ->
+            while (true) {
+                val at = com.cosmotune.podio.PodioAlarms.next(alarm, System.currentTimeMillis()) ?: break
+                while (System.currentTimeMillis() < at) delay(minOf(30_000L, at - System.currentTimeMillis()).coerceAtLeast(1))
+                val station = alarm!!.station
+                runCatching { withContext(Dispatchers.IO) { library.update { com.cosmotune.podio.PodioHistory.played(it.copy(alarm = it.alarm?.let(com.cosmotune.podio.PodioAlarms::fired)), station) } } }
+                if (System.currentTimeMillis() - at <= 30 * 60_000L && !partyTrackChangeBlocked()) {
+                    val full = volume
+                    if (alarm.gentle) playbackEngine.setVolume(full * com.cosmotune.podio.PodioAlarms.GENTLE_STEPS.first())
+                    liveQueue = DesktopQueue(listOf(station.item().song()), index = 0)
+                    preShuffleOrder = emptyList()
+                    playCurrent()
+                    if (alarm.gentle) {
+                        for (step in com.cosmotune.podio.PodioAlarms.GENTLE_STEPS.drop(1)) {
+                            delay(com.cosmotune.podio.PodioAlarms.GENTLE_STEP_MS)
+                            // Changed by hand: the ramp stops there.
+                            if (volume != full || playbackEngine.state.value.song?.videoId != station.item().id) break
+                            playbackEngine.setVolume(full * step)
+                        }
+                        playbackEngine.setVolume(volume)
+                    }
+                }
+                if (alarm.days.isEmpty()) break
+            }
+        }
+    }
     LaunchedEffect(audioQuality) { playbackEngine.setAudioQuality(audioQuality.name) }
     LaunchedEffect(automixPerformance) {
         playbackEngine.setAutomixPerformance(automixPerformance)
@@ -3645,6 +3694,12 @@ fun CosmotuneDesktopApp() {
         SideEffect { DesktopRoomVideo.look = cosmoShell?.settings }
         // A Watch install link that reached the app opens Watch, where its sheet waits.
         com.cosmotune.desktop.FollowWatchLinks(cosmoShell?.settings)
+        // A station playlist the app was opened with makes Podio the mode, where Add a station opens filled in.
+        val stationLink by com.cosmotune.podio.PodioLinks.pending.collectAsState()
+        LaunchedEffect(stationLink != null, cosmoShell?.settings) {
+            val settings = cosmoShell?.settings
+            if (stationLink != null && settings != null && com.cosmotune.design.AppModes.available(AppMode.PODIO) && settings.mode.value != AppMode.PODIO) settings.setMode(AppMode.PODIO)
+        }
         // The room for every page and mode: one launcher for the window ("Play in room", the room icon).
         val roomLauncher = rememberDesktopRoomLauncher(open = ::openRoom, askToJoin = ::openRoom)
         LaunchedEffect(roomJoined) {
@@ -4434,6 +4489,8 @@ fun CosmotuneDesktopApp() {
                     // An episode as the desktop player takes it: from its downloaded file when there is one.
                     fun podioSong(item: com.cosmotune.podio.PodioItem): Song =
                         com.cosmotune.podio.PodioDownloads.withOfflinePath(item.song(), downloads.firstOrNull { it.videoId == item.id })
+                    // How long each running episode download still needs.
+                    val podioEta = remember { com.cosmotune.podio.PodioDownloadEta() }
                     return@DesktopFrame BoxWithConstraints {
                     val podioCompact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
                     com.cosmotune.podio.ui.PodioApp(
@@ -4448,6 +4505,11 @@ fun CosmotuneDesktopApp() {
                             }
                         },
                         // Podio's queue follows the episode in the player's own queue, so it plays on after leaving Podio.
+                        // A song a station played, scrobbled when that is chosen in Settings › Podio.
+                        onRadioListen = { listen ->
+                            scope.launch { DesktopScrobbling.scrobble(Song(videoId = "radio-song:" + com.cosmotune.podio.PodioCatalogue.identity(listen.artist + "|" + listen.title),
+                                title = listen.title, artist = listen.artist, thumbnailUrl = null)) }
+                        },
                         onPlayQueue = { item, position, upcoming ->
                             if (!partyTrackChangeBlocked()) {
                                 liveQueue = DesktopQueue(listOf(podioSong(item)) + upcoming.filter { it.id != item.id }.map(::podioSong), index = 0)
@@ -4491,12 +4553,13 @@ fun CosmotuneDesktopApp() {
                                 true
                             } else false
                         },
-                        episodeDownloadStatus = downloadQueue.mapValues { (_, item) -> when (val status = item.state) {
+                        episodeDownloadStatus = downloadQueue.also { podioEta.keepOnly(it.keys) }.mapValues { (id, item) -> when (val status = item.state) {
                             DesktopDownloadState.Queued -> "Queued"
-                            is DesktopDownloadState.Running -> "Downloading ${(status.fraction.coerceIn(0f, 1f) * 100).toInt()}%"
+                            is DesktopDownloadState.Running -> com.cosmotune.podio.PodioFormatting.downloading(status.fraction, podioEta.left(id, status.fraction.coerceIn(0f, 1f)))
                             is DesktopDownloadState.Failed -> "Download failed: ${status.reason} · tap to retry"
                         } },
                         episodeDownloadsRunning = downloadQueue.filterValues { it.state !is DesktopDownloadState.Failed }.keys,
+                        recordingsFolder = remember { com.cosmotune.podio.PodioRecordings.desktopFolder() },
                         onImportOpmlFile = {
                             com.cosmotune.desktop.chooseCosmotuneFile("", false, "Import podcast subscriptions")?.let { file ->
                                 withContext(Dispatchers.IO) { file.inputStream().use(com.cosmotune.podio.PodioOpml::read) }
@@ -6610,7 +6673,7 @@ private fun DesktopSettingsScreen(
                         SettingsRow(
                             Icons.Rounded.Sync,
                             "Turn on cloud sync",
-                            "Playlists, likes and followed artists on all your devices, no sign-in needed",
+                            "Playlists, likes, followed artists and podcasts on all your devices, no sign-in needed",
                             DesktopCloud::turnOn,
                         )
                     }

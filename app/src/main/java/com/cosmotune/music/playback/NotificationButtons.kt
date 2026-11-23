@@ -9,7 +9,7 @@ import androidx.media3.session.MediaConstants
  * for Like when the song cannot be liked (signed out, a file on the phone, radio). An idea from LastWave Native.
  */
 internal object NotificationButtons {
-    enum class Kind { LIKE, SHUFFLE, REPEAT }
+    enum class Kind { LIKE, SHUFFLE, REPEAT, NEXT_CHAPTER }
 
     /**
      * The session extras that keep Back and Next in their places while there is nowhere to go. Without them Media3 moves the first
@@ -19,7 +19,8 @@ internal object NotificationButtons {
      */
     val reservedSlots = listOf(MediaConstants.EXTRAS_KEY_SLOT_RESERVATION_SEEK_TO_PREV, MediaConstants.EXTRAS_KEY_SLOT_RESERVATION_SEEK_TO_NEXT)
 
-    fun pick(canLike: Boolean): List<Kind> = listOf(if (canLike) Kind.LIKE else Kind.SHUFFLE, Kind.REPEAT)
+    /** A podcast episode with chapters has Next chapter where Repeat would be. */
+    fun pick(canLike: Boolean, chapters: Boolean = false): List<Kind> = listOf(if (canLike) Kind.LIKE else Kind.SHUFFLE, if (chapters) Kind.NEXT_CHAPTER else Kind.REPEAT)
 
     /** Off → all → one → off: the same order as the app's own Repeat button. */
     fun nextRepeat(mode: Int): Int = when (mode) {

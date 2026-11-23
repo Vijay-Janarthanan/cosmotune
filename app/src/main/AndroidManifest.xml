@@ -8,6 +8,11 @@
     <!-- Finding smart TVs on the home network (DLNA) needs Wi-Fi's multicast lock while searching. -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The radio alarm: wakes the phone on the minute, and is set again after a restart. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Android 17: a radio station on the home network (an Icecast or Navidrome box); asked for only when one plays. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Saving a track to Music outlives the screen it was asked from. -->
@@ -220,6 +225,32 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
+            </intent-filter>
+
+            <!--
+              A radio station's playlist (M3U, PLS): tapped in the browser or opened from the file manager, Cosmotune offers it to
+              Podio's Add a station ([com.cosmotune.podio.PodioIntentLink]). By type for files and downloads, by name for web links.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="audio/x-mpegurl" />
+                <data android:mimeType="audio/mpegurl" />
+                <data android:mimeType="audio/x-scpls" />
+                <data android:mimeType="application/pls+xml" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.pls" />
+                <data android:pathPattern=".*\\.m3u" />
+                <data android:pathPattern=".*\\.PLS" />
+                <data android:pathPattern=".*\\.M3U" />
             </intent-filter>
 
             <!-- Public Listen Together invites. autoVerify makes a tap open
@@ -437,6 +468,27 @@
         <receiver
             android:name="com.cosmotune.music.data.UpdateInstallReceiver"
             android:exported="false" />
+        <!-- Podio for automation apps (Tasker and the like): play a station by name or address, go on with For you, or pause. -->
+        <receiver
+            android:name="com.cosmotune.podio.PodioAutomationReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.cosmotune.podio.PLAY_STATION" />
+                <action android:name="com.cosmotune.podio.PLAY_FOR_YOU" />
+                <action android:name="com.cosmotune.podio.PAUSE" />
+            </intent-filter>
+        </receiver>
+        <!-- Podio's radio alarm: plays the station when it goes off; sets it again after a restart, an update or a clock change. -->
+        <receiver
+            android:name="com.cosmotune.podio.PodioAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
         <receiver
             android:name="com.cosmotune.music.data.UpdatedReceiver"
             android:exported="false">

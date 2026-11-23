@@ -35,6 +35,8 @@ import org.jetbrains.compose.resources.painterResource
 internal val desktopSharedPlaylist = MutableStateFlow<String?>(null)
 
 private fun offerDesktopLink(link: String) {
+    // A radio station playlist (a .pls or .m3u file or address) goes to Podio's Add a station.
+    if (com.cosmotune.podio.PodioLinks.offerDesktop(link)) return
     val playlist = SharedPlaylistLink.fromOpenUri(link)
     if (playlist != null) desktopSharedPlaylist.value = playlist
     else com.cosmotune.desktop.DesktopWatch.offer(link)
@@ -42,16 +44,21 @@ private fun offerDesktopLink(link: String) {
 
 fun main(args: Array<String>) {
     if (args.contentEquals(arrayOf("--provider-auth-browser"))) { ProviderVerificationBrowserMain.run(); return }
+    com.cosmotune.podio.PodioFeedLogins.install(com.cosmotune.podio.PodioLibrary.desktopFile())
     // A Watch add-on link the system opened Cosmotune with (stremio://..., cosmotune://watch/...): its Install sheet waits.
     val openLink = args.firstOrNull {
         com.cosmotune.watch.InstallLinks.isInstallLink(it) || com.cosmotune.watch.InstallLinks.isPackLink(it) ||
-            SharedPlaylistLink.fromOpenUri(it) != null
+            SharedPlaylistLink.fromOpenUri(it) != null || com.cosmotune.podio.PodioLinks.accepts(it)
     }
     openLink?.let(::offerDesktopLink)
     // macOS hands URL-scheme opens (the bundle declares stremio:// and cosmotune://) to a running app through this handler.
     runCatching {
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.APP_OPEN_URI)) {
             java.awt.Desktop.getDesktop().setOpenURIHandler { event -> offerDesktopLink(event.uri.toString()) }
+        }
+        // A playlist file opened with Cosmotune from Finder.
+        if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.APP_OPEN_FILE)) {
+            java.awt.Desktop.getDesktop().setOpenFileHandler { event -> event.files.forEach { offerDesktopLink(it.absolutePath) } }
         }
     }
     // Cosmotune already running: the link goes to that process (its Install sheet opens there) and this one ends.

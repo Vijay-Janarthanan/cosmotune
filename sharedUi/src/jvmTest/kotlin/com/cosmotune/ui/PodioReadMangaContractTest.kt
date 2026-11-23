@@ -79,7 +79,7 @@ class PodioReadMangaContractTest {
     @Test fun theBackgroundRefreshIsScheduledAndAnnouncesNewEpisodes() {
         val worker = code("app/src/main/java/com/cosmotune/podio/PodioRefreshWorker.kt")
         assertTrue(worker.contains("PodioRefresh.run(library") && worker.contains("NotificationCompat.InboxStyle()"), "it refreshes and notifies")
-        assertTrue(worker.contains("if (library.state.value.autoDownloadNew)"), "downloads only when chosen")
+        assertTrue(worker.contains("PodioShowRules.apply(found, library") && worker.contains("plan.download.forEach"), "downloads only what each show chose")
         assertTrue(worker.contains("NetworkType.UNMETERED") && worker.contains("ExistingPeriodicWorkPolicy.KEEP"), "on an unmetered connection, scheduled once")
         assertTrue(code("app/src/main/java/com/cosmotune/podio/PhonePodioPage.kt").contains("PodioRefreshWorker.schedule(context, refreshWanted)"), "Podio keeps it scheduled")
         assertTrue(code("shared/src/jvmSharedMain/kotlin/com/cosmotune/podio/PodioCatalogue.kt").contains("val autoDownloadNew: Boolean = false"), "auto-download is off by default")

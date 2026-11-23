@@ -53,6 +53,15 @@ import java.io.File
         value = withContext(Dispatchers.IO) { Downloads.getDownloadedSongs(context).mapNotNull(Song::offlinePodioItem) }
     }
     var pendingLegacyDownload by remember { mutableStateOf<Song?>(null) }
+    // A station on the home network (an Icecast or Navidrome box) needs Android 17's local network permission.
+    val localNetwork = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    fun askForLocalNetwork(item: PodioItem) {
+        if (android.os.Build.VERSION.SDK_INT < 37 || !item.live) return
+        val host = runCatching { java.net.URI(item.url).host }.getOrNull() ?: return
+        if (!com.cosmotune.music.data.NetworkPolicy.isLocalHost(host) || host == "127.0.0.1" || host == "localhost") return
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, LOCAL_NETWORK) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        runCatching { localNetwork.launch(LOCAL_NETWORK) }
+    }
     val storagePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         pendingLegacyDownload?.let { song -> if (granted) Downloads.enqueue(context, song, "Podio") else android.widget.Toast.makeText(context, "Storage permission is needed to export this episode.", android.widget.Toast.LENGTH_SHORT).show() }
         pendingLegacyDownload = null
@@ -61,6 +70,8 @@ import java.io.File
     val podioSaved by remember(context) { PodioLibrary(PodioRefreshWorker.libraryFile(context)).state }.collectAsState()
     val refreshWanted = podioSaved.refreshInBackground && podioSaved.shows.isNotEmpty()
     LaunchedEffect(refreshWanted) { runCatching { PodioRefreshWorker.schedule(context, refreshWanted) } }
+    // How long each running download still needs.
+    val eta = remember { PodioDownloadEta() }
     val sleepMinutes by com.cosmotune.music.playback.SleepTimer.minutes.collectAsState()
     val sleepAfterEpisode by com.cosmotune.music.playback.SleepTimer.afterTrack.collectAsState()
     var pending by remember { mutableStateOf<Pair<PodioItem, Long>?>(null) }
@@ -89,6 +100,7 @@ import java.io.File
             current?.author ?: state.song?.artist.orEmpty(), state.isPlaying, pending != null || state.isLoading,
             state.position.positionMs, state.durationMs, if (failed) "Playback failed" else state.error, rate = controller?.playbackParameters?.speed ?: 1f),
         onPlay = { item, position ->
+            askForLocalNetwork(item)
             com.cosmotune.music.data.NerdStats.recordSource(item.id, podioSourceName(item.id))
             failed = false; pendingUpcoming = emptyList(); pending = item to position
         },
@@ -103,6 +115,7 @@ import java.io.File
         sleepTimerMinutes = sleepMinutes, sleepAfterEpisode = sleepAfterEpisode,
         onSleepTimer = { minutes -> if (minutes == null) com.cosmotune.music.playback.SleepTimer.cancel() else com.cosmotune.music.playback.SleepTimer.start(minutes) },
         onSleepAfterEpisode = { com.cosmotune.music.playback.SleepTimer.startAfterTrack() },
+        onRadioListen = { listen -> PodioRadioScrobbles.send?.invoke(listen) },
         onDownloadEpisode = { item ->
             when (activeDownloads[item.id]) {
                 DownloadState.Queued, is DownloadState.Running -> Downloads.cancel(item.id)
@@ -118,12 +131,20 @@ import java.io.File
         downloadedEpisodes = offlineEpisodes,
         onRemoveDownload = { item -> Downloads.delete(context, item.id) },
         remoteGlobeControls = remoteGlobeControls,
-        episodeDownloadStatus = activeDownloads.mapValues { (_, status) -> when (status) {
+        episodeDownloadStatus = activeDownloads.also { eta.keepOnly(it.keys) }.mapValues { (id, status) -> when (status) {
             DownloadState.Queued -> "Queued"
-            is DownloadState.Running -> "Downloading ${(status.fraction.coerceIn(0f, 1f) * 100).toInt()}%"
+            is DownloadState.Running -> PodioFormatting.downloading(status.fraction, eta.left(id, status.fraction.coerceIn(0f, 1f)))
             is DownloadState.Failed -> "Download failed: ${status.reason} · tap to retry"
         } },
         episodeDownloadsRunning = activeDownloads.filterValues { it !is DownloadState.Failed }.keys,
+        onShare = { subject, text ->
+            runCatching {
+                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, subject).putExtra(Intent.EXTRA_TEXT, text), null))
+            }
+        },
+        // Station recordings stay in the app's own Music folder on the device (no storage permission needed).
+        recordingsFolder = remember(context) { File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC) ?: context.filesDir, "Cosmotune Radio") },
         onImportOpmlFile = { chooseFile(false)?.let { uri -> withContext(Dispatchers.IO) {
             requireNotNull(context.contentResolver.openInputStream(uri)).use(PodioOpml::read)
         } } })
@@ -147,3 +168,6 @@ private fun replaceUpcomingEpisodes(player: androidx.media3.session.MediaControl
     if (count > index + 1) player.removeMediaItems(index + 1, count)
     if (wanted.isNotEmpty()) player.addMediaItems(upcoming.filter { it.id != current }.map { it.song().toMediaItem() })
 }
+
+/** Android 17: reaching a device on the home network. */
+private const val LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"

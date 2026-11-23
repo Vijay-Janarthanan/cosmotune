@@ -27,6 +27,13 @@ internal object PodioFormat {
         return if (hours > 0) "$hours:${minutes.toString().padStart(2, '0')}:$seconds" else "$minutes:$seconds"
     }
 
+    /** A file's size: "820 KB", "4.2 MB"; empty for nothing. */
+    fun size(bytes: Long): String = when {
+        bytes <= 0 -> ""
+        bytes < 1_000_000 -> "${(bytes / 1000).coerceAtLeast(1)} KB"
+        else -> String.format(Locale.ROOT, "%.1f MB", bytes / 1_000_000.0)
+    }
+
     /** An episode's length in words: "45 min", "1 h 5 min", "2 h"; empty when it is not known. */
     fun duration(seconds: Long): String = when {
         seconds <= 0 -> ""
@@ -63,6 +70,15 @@ internal object PodioFormat {
             ?: runCatching { LocalDate.parse(text.take(10)).atStartOfDay(java.time.ZoneOffset.UTC).toInstant() }.getOrNull()
 
     /** When an episode was published, in epoch milliseconds, for putting the newest first; null when the feed's date is unreadable. */
+    /** When an episode came out, in the listener's own time: "12 Oct 2026, 14:05"; null when the feed gives no time of day. */
+    fun releasedAt(published: String, zone: java.time.ZoneId = java.time.ZoneId.systemDefault(), locale: Locale = Locale.getDefault()): String? {
+        val text = published.trim()
+        // A bare date ("2026-10-12") names no time.
+        if (text.length <= 10) return null
+        val instant = parseInstant(text) ?: return null
+        return DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", locale).format(instant.atZone(zone))
+    }
+
     fun publishedAt(published: String): Long? = published.trim().takeIf(String::isNotEmpty)?.let(::parseInstant)?.toEpochMilli()
 
     /** How far the playhead is through a started (and not finished) episode, 0..1; 0 when nothing is known. */

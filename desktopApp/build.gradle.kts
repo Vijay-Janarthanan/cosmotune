@@ -716,6 +716,8 @@ compose.desktop {
             description = if (targetOs == "windows") "Cosmotune" else "Music and video, in your mood"
             vendor = "Cosmotune contributors"
             copyright = "Copyright © 2026 Cosmotune contributors, based on BitChord"
+            // A radio station's PLS playlist opened from the file manager offers the station to Podio.
+            fileAssociation("audio/x-scpls", "pls", "Radio station playlist")
 
             modules(
                 // What the app's jars refer to (jdeps), plus the modules found through services or by name below. No longer

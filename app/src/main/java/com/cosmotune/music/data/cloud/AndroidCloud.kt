@@ -104,7 +104,7 @@ object AndroidCloud {
             marks = FileSyncMarks(File(folder, "marks.json")),
             kinds = listOf(
                 SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND,
-                SyncPlaylistCovers.KIND,
+                SyncPlaylistCovers.KIND, com.cosmotune.podio.SyncPodio.KIND,
             ),
             scope = scope,
             log = { android.util.Log.i("Cosmotune", it) },
@@ -158,6 +158,14 @@ object AndroidCloud {
             }
         }
         scope.launch { com.cosmotune.watch.WatchSyncSignals.changes.collect { autoSync.changed() } }
+        scope.launch {
+            var previous: Map<String, JsonObject>? = null
+            podioLibrary().state.collect { saved ->
+                val current = com.cosmotune.podio.SyncPodio.changeSignal(saved)
+                if (previous != null && previous != current) autoSync.changed()
+                previous = current
+            }
+        }
         SyncLikes.sourceTrack = SourceLibraryStore::ownsTrack
         scope.launch {
             _enabled.value = flags.getBoolean(KEY_ENABLED, false)
@@ -304,6 +312,9 @@ object AndroidCloud {
         )
     }
 
+    /** Podio's library, the same store the Podio screens and the player use. */
+    private fun podioLibrary() = com.cosmotune.podio.PodioLibrary(File(app.filesDir, "podio/library.json"))
+
     private fun online(): Boolean = runCatching {
         val connectivity = app.getSystemService(ConnectivityManager::class.java)
         connectivity.getNetworkCapabilities(connectivity.activeNetwork)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
@@ -327,6 +338,8 @@ object AndroidCloud {
             // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
             com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
             com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
+            // Podio's follows, saved stations and where episodes were left.
+            com.cosmotune.podio.SyncPodio.KIND -> com.cosmotune.podio.SyncPodio.snapshot(podioLibrary().state.value)
             else -> emptyMap()
         }
 
@@ -347,6 +360,7 @@ object AndroidCloud {
                     com.cosmotune.music.watch.AndroidWatch.store(app).update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
                 com.cosmotune.watch.SyncWatchLibrary.KIND ->
                     com.cosmotune.music.watch.AndroidWatch.store(app).update { com.cosmotune.watch.SyncWatchLibrary.apply(it, upserts, deletes) }
+                com.cosmotune.podio.SyncPodio.KIND -> podioLibrary().update { com.cosmotune.podio.SyncPodio.apply(it, upserts, deletes) }
             }
         }
     }

@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.cosmotune.podio.ui
 
 import com.cosmotune.music.playback.rememberLivePlayheadOf
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Forward30
 import androidx.compose.material.icons.outlined.Replay
+import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material.icons.outlined.Speed
@@ -93,10 +95,12 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
     val fonts = orbitFonts()
     val look = orbitLook()
     var open by remember { mutableStateOf(false) }
-    val active = timer.afterEpisode || timer.minutes != null
+    val count by com.cosmotune.podio.PodioSleepCount.left.collectAsState()
+    val active = timer.afterEpisode || timer.minutes != null || count > 0
     // The time left while one counts ("23:41"), from the host's timer; the length set where there is no host timer to read.
     val left = com.cosmotune.ui.sleep.rememberSleepTimer()?.remainingMs
     val text = when {
+        count > 0 -> "$count episodes"
         timer.afterEpisode -> "After episode"
         left != null -> com.cosmotune.ui.sleep.sleepCountdown(left)
         timer.minutes != null -> "${timer.minutes} min"
@@ -108,9 +112,16 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
         val extend = com.cosmotune.ui.sleep.SleepTimerUi.control?.takeIf { left != null }
         val items = listOfNotNull(extend?.let { control ->
             OrbitMenuItem("Extend", "Add ${com.cosmotune.ui.sleep.SleepTimerControl.EXTEND_MINUTES} minutes", keepOpen = true) { control.extend() }
-        }) + listOf(15, 30, 45, 60).map { minutes -> OrbitMenuItem("$minutes minutes", selected = timer.minutes == minutes && !timer.afterEpisode) { onTimer(minutes) } } +
-            listOfNotNull(timer.onAfterEpisode?.takeIf { episode }?.let { after -> OrbitMenuItem("End of episode", selected = timer.afterEpisode) { after() } }) +
-            OrbitMenuItem("Turn off timer", enabled = active) { onTimer(null) }
+        }) + listOf(15, 30, 45, 60).map { minutes -> OrbitMenuItem("$minutes minutes", selected = timer.minutes == minutes && !timer.afterEpisode) {
+                com.cosmotune.podio.PodioSleepCount.cancel(); onTimer(minutes) } } +
+            listOfNotNull(timer.onAfterEpisode?.takeIf { episode }?.let { after -> OrbitMenuItem("End of episode", selected = timer.afterEpisode && count == 0) {
+                com.cosmotune.podio.PodioSleepCount.cancel(); after() } }) +
+            // After two or three episodes: the queue plays on until the last of them ends.
+            listOf(2, 3).mapNotNull { episodes -> timer.onAfterEpisode?.takeIf { episode }?.let { after ->
+                OrbitMenuItem("After $episodes episodes", selected = count == episodes, testTag = "podio:sleep:episodes:$episodes") {
+                    onTimer(null); com.cosmotune.podio.PodioSleepCount.start(episodes, after) }
+            } } +
+            OrbitMenuItem("Turn off timer", enabled = active) { com.cosmotune.podio.PodioSleepCount.cancel(); onTimer(null) }
         OrbitMenu(open, { open = false }, items, fonts, look, header = left?.let { "Sleep timer · ${com.cosmotune.ui.sleep.sleepCountdown(it)} left" } ?: "Sleep timer", width = 220.dp)
     }
 }
@@ -184,7 +195,7 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
  * speed or skips.
  */
 @Composable internal fun PodioPlayerBar(playback: PodioPlayback, station: RadioStation?, artUrl: String?, onToggle: () -> Unit, onSeek: (Long) -> Unit,
-    onSpeed: (Float) -> Unit, timer: PodioTimer, onOpen: (() -> Unit)?, queued: Int = 0, onQueue: (() -> Unit)? = null) {
+    onSpeed: (Float) -> Unit, timer: PodioTimer, onOpen: (() -> Unit)?, queued: Int = 0, onQueue: (() -> Unit)? = null, onBookmark: (() -> Unit)? = null) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val live = playback.id?.startsWith("podio:radio:") == true
@@ -213,6 +224,7 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
                     SpeedChip(playback, onSpeed, colors)
                 }
                 SleepTimerChip(timer, episode = !live, card = colors)
+                if (!live && onBookmark != null && roomy) OrbitRoundButton(Icons.Outlined.BookmarkAdd, "Bookmark this moment", ink, onBookmark, size = 36.dp, onInk = colors.fill)
                 if (!live && onQueue != null) QueueButton(queued, onQueue, ink, colors.fill, size = 36.dp)
             }
         }
@@ -231,7 +243,7 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
 @Composable internal fun EpisodePlayerSheet(playback: PodioPlayback, artUrl: String?, onToggle: () -> Unit, onSeek: (Long) -> Unit, onSpeed: (Float) -> Unit,
     timer: PodioTimer, roomItem: PartyTrack? = null, episode: com.cosmotune.podio.PodcastEpisode? = null, show: String = "",
     catalogue: com.cosmotune.podio.PodioCatalogue? = null, queued: Int = 0, onQueue: (() -> Unit)? = null,
-    showSpeed: Float? = null, onShowSpeed: ((Float?) -> Unit)? = null, onDismiss: () -> Unit) {
+    showSpeed: Float? = null, onShowSpeed: ((Float?) -> Unit)? = null, onBookmark: (() -> Unit)? = null, onShareAt: (() -> Unit)? = null, onDismiss: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val chapters = if (episode != null && catalogue != null) rememberEpisodeChapters(episode, catalogue) else null
@@ -266,9 +278,15 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
                     onSeek((playback.positionMs + 30_000).let { if (playback.durationMs > 0) it.coerceAtMost(playback.durationMs) else it })
                 }, size = 50.dp, onInk = look.ground)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            // A row that wraps, so on a narrow phone no control is pushed off.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp),
+                itemVerticalAlignment = Alignment.CenterVertically) {
                 SpeedChip(playback, onSpeed, showSpeed = showSpeed, onShowSpeed = onShowSpeed)
                 SleepTimerChip(timer, episode = true)
+                if (onBookmark != null) OrbitSelectChip("Bookmark", false, fonts, look, onBookmark, icon = Icons.Outlined.BookmarkAdd, haptic = false,
+                    modifier = Modifier.testTag("podio:bookmark-add"))
+                if (onShareAt != null) OrbitSelectChip("Share from ${PodioFormat.clock(playback.positionMs)}", false, fonts, look, onShareAt,
+                    icon = com.cosmotune.ui.components.CosmoIcons.Share, haptic = false, modifier = Modifier.testTag("podio:share-at"))
                 // [roomItem] is the episode as the room would take it; nothing is drawn where rooms are not offered.
                 RoomPlayButton(roomItem, dense = true)
             }

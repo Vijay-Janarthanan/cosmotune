@@ -1,4 +1,19 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.cosmotune.podio.ui
+
+import androidx.compose.material.icons.outlined.GraphicEq
+
+import androidx.compose.foundation.rememberScrollState
+
+import androidx.compose.foundation.verticalScroll
+
+import androidx.compose.material.icons.outlined.ContentCopy
+
+import com.cosmotune.ui.collectAsUiState
+
+import androidx.compose.material.icons.outlined.Stop
+
+import androidx.compose.material.icons.outlined.FiberManualRecord
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -91,10 +106,12 @@ internal class OnAir(val station: RadioStation?, val song: String?, val onPrevio
                 if (live && onNext != null && !nextName.isNullOrBlank()) OrbitLabel("Next: $nextName", fonts, ink.copy(alpha = 0.7f), Modifier.padding(top = 8.dp).testTag("podio:card:next"))
             }
             val buttons: @Composable (Modifier) -> Unit = { at ->
-                Row(at, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                // A row that wraps, so on a narrow phone no control is pushed off the card.
+                FlowRow(at, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     if (onPrevious != null) OrbitCardButton(CosmoIcons.Previous, "Previous station", colors, onPrevious)
                     if (onNext != null) OrbitCardButton(CosmoIcons.Next, "Next station", colors, onNext)
                     OrbitCardButton(if (saved) CosmoIcons.HeartFill else CosmoIcons.Heart, if (saved) "Remove favourite" else "Save favourite", colors, { m.toggleFavourite(station) }, on = saved)
+                    if (live) RecordButton(m, station, colors)
                     extra(colors)
                 }
             }
@@ -133,9 +150,11 @@ internal fun stationCells(width: Dp, side: Dp, wide: Boolean): Pair<Int, Dp> {
 }
 
 /** The region and language chips (and Clear while a filter is on), shared by Radio, Podcasts and the search. */
-@Composable internal fun FilterChips(m: PodioModel, fonts: OrbitFonts, look: OrbitLook) {
+@Composable internal fun FilterChips(m: PodioModel, fonts: OrbitFonts, look: OrbitLook, stations: Boolean = false) {
     OrbitChoiceChip("Region", m.country, REGIONS, { m.browse(); m.country = it }, fonts, look, icon = Icons.Outlined.Public)
     OrbitChoiceChip("Language", m.language, LANGUAGES, { m.browse(); m.language = it }, fonts, look, icon = Icons.Outlined.Translate)
+    // Stations by genre (Radio Browser's tags).
+    if (stations) OrbitChoiceChip("Genre", m.tag, STATION_TAGS, { m.browse(); m.tag = it }, fonts, look, icon = Icons.Outlined.GraphicEq)
     if (m.filtered) PodioTextAction("Clear", look, fonts, m::clearFilters)
 }
 
@@ -165,12 +184,14 @@ private fun stationsLine(m: PodioModel): String {
         if (featured != null) WatchWash(stationCardColors(featured).fill, look)
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = env.bottom + 16.dp)) {
             item(key = "head") {
-                PodioHead("Radio", if (m.radio.isEmpty()) "Radio Browser" else m.stationCount(), fonts, look, side, env.onMusic)
+                PodioHead("Radio", if (m.radio.isEmpty()) "Radio Browser" else m.stationCount(), fonts, look, side, env.onMusic) {
+                    OrbitPageButton(CosmoIcons.Plus, "Add a station", m::addStation)
+                }
             }
             item(key = "chips") {
                 OrbitChipRow(side, Modifier.padding(top = 18.dp)) {
                     OrbitSelectChip("Globe", false, fonts, look, onGlobe, icon = Icons.Outlined.Public, haptic = false)
-                    FilterChips(m, fonts, look)
+                    FilterChips(m, fonts, look, stations = true)
                 }
             }
             if (featured != null) item(key = "card") {
@@ -182,6 +203,23 @@ private fun stationsLine(m: PodioModel): String {
                 Column {
                     OrbitPageSection("Your stations", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp), subtitle = "${favourites.size} saved")
                     OrbitShelfRow(side, 8.dp) { items(favourites, key = { "fav-" + it.id }) { station -> StationTile(station, env, m, fonts, look, if (wide) 84.dp else 68.dp) } }
+                }
+            }
+            val recent = env.saved.recentStations.filter { station -> favourites.none { it.id == station.id } }.take(12)
+            if (recent.isNotEmpty()) item(key = "recent") {
+                Column {
+                    OrbitPageSection("Recently played", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp),
+                        action = "Copy as M3U", onAction = {
+                            m.host.copyText(com.cosmotune.podio.PodioStationLinks.m3u(env.saved.recentStations)); m.notice = "Copied your recent stations as an M3U playlist."
+                        })
+                    OrbitShelfRow(side, 8.dp) { items(recent, key = { "recent-" + it.id }) { station -> StationTile(station, env, m, fonts, look, if (wide) 84.dp else 68.dp) } }
+                }
+            }
+            if (env.saved.heardSongs.isNotEmpty()) item(key = "heard") {
+                Column(Modifier.padding(horizontal = side)) {
+                    OrbitPageSection("Heard on the radio", Modifier.padding(horizontal = 4.dp).padding(top = 24.dp, bottom = 10.dp),
+                        subtitle = env.saved.heardSongs.size.toString(), action = "All ›", onAction = { m.songsOpen = true })
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { env.saved.heardSongs.take(3).forEach { HeardSongRow(m, it, fonts, look) } }
                 }
             }
             item(key = "stations-title") {
@@ -372,3 +410,55 @@ private fun LazyListScope.stationsUnderRing(m: PodioModel, env: PodioEnv, onAir:
         }
     }
 }
+
+/**
+ * Record on a station's card: a tap starts saving the station to files (each song its own file when Settings › Podio says so); while it
+ * records it shows the time so far, and a tap stops it. Nothing is drawn where the host keeps no recordings.
+ */
+@Composable internal fun RecordButton(m: PodioModel, station: RadioStation, colors: OrbitCardColors) {
+    if (m.recordingsFolder == null) return
+    val state by com.cosmotune.podio.PodioRecorder.state.collectAsUiState()
+    val mine = state?.takeIf { it.stationId == station.id && it.error == null }
+    if (mine == null) { OrbitCardButton(Icons.Outlined.FiberManualRecord, "Record this station", colors, { m.startRecording(station) }, Modifier.testTag("podio:record")); return }
+    val elapsed by produceState(0L, mine.startedMs) { while (true) { value = System.currentTimeMillis() - mine.startedMs; kotlinx.coroutines.delay(1_000) } }
+    OrbitCardChip(PodioFormat.episodeMeta(PodioFormat.clock(elapsed), if (mine.saved > 0) "${mine.saved} saved" else ""), colors, m::stopRecording,
+        Modifier.testTag("podio:record:stop"), icon = Icons.Outlined.Stop, solid = true)
+}
+
+/** A song a station named: the title (selectable, to copy part of it), the station and when; Copy puts the title on the clipboard. */
+@Composable internal fun HeardSongRow(m: PodioModel, song: com.cosmotune.podio.PodioHeardSong, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(look.row).padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 8.dp)
+        .testTag("podio:heard"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.weight(1f).padding(end = 4.dp)) {
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(song.title, style = fonts.body, color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text(PodioFormat.episodeMeta(song.station, PodioFormat.ago(song.atMs)), style = fonts.body.copy(fontSize = 13.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        OrbitRoundButton(Icons.Outlined.ContentCopy, "Copy the song", look.ink, { m.host.copyText(song.title); m.notice = "Copied \"${song.title}\"." }, size = 36.dp)
+    }
+}
+
+/** Every song the stations named, latest first, with Copy all and Clear. */
+@Composable internal fun HeardSongsSheet(m: PodioModel, songs: List<com.cosmotune.podio.PodioHeardSong>, onDismiss: () -> Unit) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    com.cosmotune.ui.kit.KitSheet(onDismiss) {
+        Column(Modifier.fillMaxWidth().heightIn(max = 720.dp).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp)
+            .testTag("podio:heard-sheet"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrbitLabel("Heard on the radio · ${songs.size}", fonts, look.dim)
+            OrbitChipRow(0.dp, Modifier.padding(bottom = 4.dp)) {
+                OrbitSelectChip("Copy all", false, fonts, look, { m.host.copyText(com.cosmotune.podio.PodioHistory.songsText(songs)); m.notice = "Copied ${songs.size} songs." },
+                    icon = Icons.Outlined.ContentCopy, haptic = false)
+                OrbitSelectChip("Clear history", false, fonts, look, { m.clearRadioHistory(); onDismiss() }, icon = CosmoIcons.Close, haptic = false)
+            }
+            songs.forEach { HeardSongRow(m, it, fonts, look) }
+        }
+    }
+}
+
+/** The genres offered for stations (Radio Browser tags), with "Every genre" first. */
+internal val STATION_TAGS = listOf("" to "Every genre", "news" to "News", "talk" to "Talk", "pop" to "Pop", "rock" to "Rock", "jazz" to "Jazz",
+    "classical" to "Classical", "dance" to "Dance", "hits" to "Hits", "oldies" to "Oldies", "country" to "Country", "hip hop" to "Hip hop",
+    "electronic" to "Electronic", "indie" to "Indie", "folk" to "Folk", "devotional" to "Devotional", "sports" to "Sports", "bollywood" to "Bollywood",
+    "tamil" to "Tamil", "kids" to "Kids", "lofi" to "Lo-fi", "ambient" to "Ambient", "reggae" to "Reggae", "latin" to "Latin", "metal" to "Metal")

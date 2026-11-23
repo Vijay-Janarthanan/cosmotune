@@ -96,13 +96,19 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     /** The native file dialog for "Import from another app" (OPML), where the host has one; export and share are in Settings › Podio. */
     onImportOpmlFile: (suspend () -> String?)? = null,
     remoteGlobeControls: Boolean = false,
+    /** Scrobbles a song a station played (Settings › Podio, off by default) to the listener's Last.fm or ListenBrainz. */
+    onRadioListen: ((PodioRadioListen) -> Unit)? = null,
     /**
      * Plays an episode followed by what is queued after it, so the player goes on by itself; null where the host plays one item at
      * a time ([onPlay]), and the queue then waits for the page.
      */
     onPlayQueue: ((PodioItem, Long, List<PodioItem>) -> Unit)? = null,
     /** Replaces what follows the playing episode in the player when the queue changes. */
-    onUpcoming: ((List<PodioItem>) -> Unit)? = null) {
+    onUpcoming: ((List<PodioItem>) -> Unit)? = null,
+    /** Where station recordings are saved (Record on a station's card); null where the host keeps none. */
+    recordingsFolder: File? = null,
+    /** The system's share sheet (subject, text); null where there is none, and Share copies the link instead. */
+    onShare: ((String, String) -> Unit)? = null) {
     val catalogue = remember(directory) { directory ?: PodioDefaults.catalogue }
     // The app's own catalogue keeps its pages for the process and on the disk; one a host or a test hands in keeps its own.
     val pages = remember(catalogue) { com.cosmotune.cache.PageCache.of(catalogue, persistent = directory == null) }
@@ -112,7 +118,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     val scope = rememberUiCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val host = PodioHost(onPlay, onDownloadEpisode, onRemoveDownload, onImportOpmlFile, remoteGlobeControls,
-        copyText = { clipboard.setText(AnnotatedString(it)) }, onPlayQueue = onPlayQueue, onUpcoming = onUpcoming)
+        copyText = { clipboard.setText(AnnotatedString(it)) }, onPlayQueue = onPlayQueue, onUpcoming = onUpcoming, share = onShare)
     val query = rememberSaveable { mutableStateOf("") }
     val language = rememberSaveable { mutableStateOf("") }
     val country = rememberSaveable { mutableStateOf("") }
@@ -125,6 +131,11 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         PodioModel(catalogue, library, scope, host, query, language, country, genre, searching, searchShows, satellite, globeFull, pages)
     }
     m.host = host
+    m.recordingsFolder = recordingsFolder
+    val recorderSaves by PodioRecorder.saves.collectAsUiState()
+    LaunchedEffect(recordingsFolder, recorderSaves) { m.loadRecordings() }
+    val recorder by PodioRecorder.state.collectAsUiState()
+    LaunchedEffect(recorder?.error) { recorder?.error?.let { m.error = "Recording stopped: $it"; PodioRecorder.dismissError() } }
     m.undoBar = com.cosmotune.ui.orbit.LocalOrbitUndo.current
     val queued by m.queue.state.collectAsUiState()
 
@@ -170,7 +181,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     LaunchedEffect(section) { m.browse(); m.query = ""; m.genre = ""; m.searching = false; m.globeFull = false; m.queueOpen = false }
     val stationsWanted = if (m.searching) !m.searchShows && !m.searchEpisodes else section == PodioSection.RADIO || section == PodioSection.GLOBE
     val showsWanted = if (m.searching) m.searchShows && !m.searchEpisodes else section == PodioSection.PODCASTS
-    LaunchedEffect(stationsWanted, showsWanted, m.searching, m.language, m.country, m.genre, m.request) {
+    LaunchedEffect(stationsWanted, showsWanted, m.searching, m.language, m.country, m.genre, m.tag, m.request) {
         // Network continuations can resume on a worker with an immediate effect dispatcher. Publish page state on the UI dispatcher.
         withContext(Dispatchers.Main.immediate) { if (stationsWanted || showsWanted) m.loadDirectory(stations = stationsWanted) }
     }
@@ -178,7 +189,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     // Following lists the new episodes of the followed shows, and the Podcasts home what was started of them; the Following tab
     // counts the new ones, so the list is asked for (from its cache while that is fresh) wherever something is followed.
     val inboxWanted = section == PodioSection.FOLLOWING || section == PodioSection.PODCASTS || saved.shows.isNotEmpty()
-    LaunchedEffect(inboxWanted, saved.shows, saved.inboxEpisodesPerShow, inboxRequest) {
+    LaunchedEffect(inboxWanted, saved.shows, saved.inboxEpisodesPerShow, saved.showSettings.mapValues { it.value.inboxEpisodes }, inboxRequest) {
         if (inboxWanted) withContext(Dispatchers.Main.immediate) { m.loadInbox(saved.shows, force = inboxRequest > 0, episodeLimit = saved.inboxEpisodesPerShow) }
     }
 
@@ -199,16 +210,64 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         delay(400)
         if (kotlin.math.abs(playback.rate - speed) > 0.01f) onSpeed(speed)
     }
+    // Downloads that are played (or beyond a show's "Downloads to keep") go by themselves, once the episode is no longer on.
+    // "Keep episodes as they play": an episode streamed from the internet is saved whole as it starts, so going back, a seek or
+    // the next listen need no connection (Pocket Casts' cache while streaming).
+    LaunchedEffect(playback.id, saved.keepStreamed) {
+        val id = playback.id ?: return@LaunchedEffect
+        if (!saved.keepStreamed || !id.startsWith("podio:episode:") || id.startsWith("podio:episode:recording-")) return@LaunchedEffect
+        if (downloadedEpisodes.any { it.id == id } || id in episodeDownloadsRunning) return@LaunchedEffect
+        val item = m.lastPlayed?.takeIf { it.id == id && it.url.startsWith("http") } ?: return@LaunchedEffect
+        onDownloadEpisode?.invoke(item)
+    }
+    LaunchedEffect(downloadedEpisodes, saved.completedEpisodes, saved.deletePlayedDownloads, saved.keepDownloadsPerShow, saved.showSettings, playback.id) {
+        delay(3_000)
+        m.applyRetention(downloadedEpisodes, playback.id)
+    }
+    // A station link opened from outside (a browser, the file manager, the desktop) opens Add a station, filled in.
+    val outside by PodioLinks.pending.collectAsUiState()
+    LaunchedEffect(outside) {
+        val link = outside ?: return@LaunchedEffect
+        chooseSection(PodioSection.RADIO)
+        m.stationDialogError = null
+        m.stationDialog = RadioStation("", link.name, link.address)
+        PodioLinks.handled()
+    }
+    // The saved stations are checked against the directory once a day, while the radio is open.
+    LaunchedEffect(section == PodioSection.RADIO, saved.stations.size) { if (section == PodioSection.RADIO) m.checkSavedStations() }
     LaunchedEffect(m.notice) { if (m.notice != null) { delay(5_000); m.notice = null } }
     fun openQueue() { m.playerSheet = false; m.queueOpen = true }
     val playingStation = if (live) (m.radio + saved.stations + listOfNotNull(m.selected)).firstOrNull { it.item().id == playback.id } else null
-    // What the station is playing now, from its own stream; asked again every half minute while it plays.
+    // What the station is playing now: as the player reads it from the stream when it does (the desktop), else asked of the
+    // stream again every half minute while it plays.
     var song by remember(playback.id) { mutableStateOf<String?>(null) }
-    LaunchedEffect(playback.id, playingStation?.url) {
-        val url = playingStation?.url ?: return@LaunchedEffect
-        while (isActive) { song = catalogue.nowPlaying(url)?.takeIf { it != playingStation.name }; delay(30_000) }
+    val heardLive by PodioLiveTitle.current.collectAsUiState()
+    val radioScrobble = remember { PodioRadioScrobble() }
+    fun heard(title: String?, station: RadioStation) {
+        if (saved.scrobbleRadio && onRadioListen != null) radioScrobble.heard(station.id, title?.takeIf { it != station.name }, System.currentTimeMillis())?.let(onRadioListen)
+        song = title?.takeIf { it != station.name }
+        // Each song the station names is kept in Heard on the radio.
+        song?.let { named -> m.save { PodioHistory.heard(it, named, station, System.currentTimeMillis()) } }
     }
+    LaunchedEffect(heardLive, playingStation?.url) {
+        val station = playingStation ?: return@LaunchedEffect
+        val live = heardLive?.takeIf { PodioLiveTitle.same(it.url, station.url) } ?: return@LaunchedEffect
+        if (live.title != song) heard(live.title, station)
+    }
+    LaunchedEffect(playback.id, playingStation?.url) {
+        // Another station or an episode came on: the song that was playing ends there.
+        radioScrobble.stopped(System.currentTimeMillis(), stillOn = playingStation?.id)?.takeIf { saved.scrobbleRadio }?.let { listen -> onRadioListen?.invoke(listen) }
+        val station = playingStation ?: return@LaunchedEffect
+        while (isActive) {
+            if (PodioLiveTitle.recent(station.url) == null) heard(catalogue.nowPlaying(station.url), station)
+            delay(30_000)
+        }
+    }
+    // The recorder follows what plays: a recording ends when another station or an episode comes on.
+    LaunchedEffect(playback.id, playingStation?.id) { if (playback.id != null) PodioRecorder.playing(playingStation) }
     val nowArt = m.lastPlayed?.takeIf { it.id == playback.id }?.artwork
+    // The episode on, as a bookmark keeps it.
+    val playingItem = if (episodeOn) m.lastPlayed?.takeIf { it.id == playback.id } ?: playingEntry?.item() else null
     val sequence = playingStation?.let { station -> if (m.nearby.any { it.id == station.id }) m.nearby else m.radio }.orEmpty()
     val sequenceIndex = playingStation?.let { station -> sequence.indexOfFirst { it.id == station.id } } ?: -1
     val onAir = OnAir(playingStation, song,
@@ -287,7 +346,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         if (!showNavigation) Column(Modifier.fillMaxSize().padding(padding)) {
             Box(Modifier.weight(1f).fillMaxWidth()) { content(); banner(Modifier.align(Alignment.BottomCenter)) }
             if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live },
-                queued = queued.entries.size, onQueue = ::openQueue)
+                queued = queued.entries.size, onQueue = ::openQueue, onBookmark = playingItem?.let { item -> { m.addBookmark(item, playback.positionMs) } })
         } else {
             // The shared navigation (CosmoNav): under 600 dp the dock (Podio's mini player above the four tabs), from 600 dp the rail with
             // the same tabs and the full player bar under the page. The page leads with the mode pill at every width, as every mode's does.
@@ -331,7 +390,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                         }
                     }
                     if (playerBar) PodioPlayerBar(playback, playingStation, nowArt, onToggle, onSeek, onSpeed, timer, onAir.onOpen.takeIf { live },
-                        queued = queued.entries.size, onQueue = ::openQueue)
+                        queued = queued.entries.size, onQueue = ::openQueue, onBookmark = playingItem?.let { item -> { m.addBookmark(item, playback.positionMs) } })
                 }
             }
         }
@@ -339,8 +398,13 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             roomItem = (m.lastPlayed?.takeIf { it.id == playback.id } ?: playingEntry?.item())?.roomItem(),
             episode = playingEntry?.episode, show = playingEntry?.show?.title.orEmpty(), catalogue = catalogue,
             queued = queued.entries.size, onQueue = ::openQueue,
-            showSpeed = m.speedFor(playingEntry?.show?.id), onShowSpeed = playingEntry?.let { entry -> { speed: Float? -> m.setShowSpeed(entry.show.id, speed) } }) { m.playerSheet = false }
+            showSpeed = m.speedFor(playingEntry?.show?.id), onShowSpeed = playingEntry?.let { entry -> { speed: Float? -> m.setShowSpeed(entry.show.id, speed) } },
+            onBookmark = playingItem?.let { item -> { m.addBookmark(item, playback.positionMs) } },
+            onShareAt = playingEntry?.let { entry -> { m.shareEpisode(entry.episode, entry.show.title, playback.positionMs) } }) { m.playerSheet = false }
         m.episodeSheet?.let { entry -> EpisodeSheet(m, env, entry) { m.episodeSheet = null } }
+        if (m.songsOpen) HeardSongsSheet(m, saved.heardSongs) { m.songsOpen = false }
+        if (m.listeningOpen) ListeningSheet(saved) { m.listeningOpen = false }
+        m.showSettingsFor?.let { show -> ShowSettingsSheet(show, saved, m::save) { m.showSettingsFor = null } }
     }
     }
     if (m.addFeed) com.cosmotune.ui.sheets.CosmoAlertDialog(
@@ -355,6 +419,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         dismissLabel = "Cancel",
         onDismiss = { m.addFeed = false },
     )
+    m.stationDialog?.let { editing -> StationDialog(m, editing.takeIf { it.id.isNotEmpty() }) { m.stationDialog = null } }
+    if (m.lockedFollow != null) FollowLockDialog(m)
     if (m.importingOpml) com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = { m.importingOpml = false },
         title = "Import podcast subscriptions",

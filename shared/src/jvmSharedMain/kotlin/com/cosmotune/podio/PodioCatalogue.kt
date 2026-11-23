@@ -24,14 +24,32 @@ import kotlin.coroutines.resumeWithException
 @Serializable data class RadioStation(val id: String, val name: String, val url: String,
     val country: String = "", val countryCode: String = "", val language: String = "", val tags: String = "",
     val artwork: String = "", val latitude: Double? = null, val longitude: Double? = null,
-    val codec: String = "", val bitrate: Int = 0, val state: String = "")
+    val codec: String = "", val bitrate: Int = 0, val state: String = "",
+    /** The directory's last check could not reach the stream ([PodioStationCheck]). */
+    val offline: Boolean = false,
+    /** The directory no longer lists the station. */
+    val removed: Boolean = false)
 @Serializable data class PodcastShow(val id: String, val title: String, val author: String,
-    val feed: String, val artwork: String = "", val website: String = "", val source: String = "Publisher feed")
+    val feed: String, val artwork: String = "", val website: String = "", val source: String = "Publisher feed",
+    /** Podcasting 2.0's "podcast:funding": where to support the show (a web page; nothing is paid in the app). */
+    val funding: List<PodcastLink> = emptyList(),
+    /** Podcasting 2.0's "podcast:person" for the whole show: its hosts and makers. */
+    val people: List<PodcastPerson> = emptyList())
+/** Someone the feed names (Podcasting 2.0 "podcast:person"): a host, a guest; [href] is their page, [image] their picture. */
+@Serializable data class PodcastPerson(val name: String, val role: String = "host", val href: String = "", val image: String = "")
+/** A link the feed gives with its words ("Support us on …"). */
+@Serializable data class PodcastLink(val url: String, val text: String)
 @Serializable data class PodcastEpisode(val id: String, val title: String, val show: String, val url: String,
     val artwork: String = "", val durationSeconds: Long = 0, val published: String = "", val description: String = "",
     val chaptersUrl: String? = null, val transcripts: List<PodcastTranscript> = emptyList(),
     /** Chapters the feed itself carries: Podlove Simple Chapters, else chapter times listed in the show notes. */
-    val inlineChapters: List<PodcastChapter> = emptyList())
+    val inlineChapters: List<PodcastChapter> = emptyList(),
+    /** Its season and number in the show (podcast:season / podcast:episode, or the iTunes tags), when the feed gives them. */
+    val season: Int? = null, val number: Int? = null,
+    /** The hosts and guests the feed names for this episode. */
+    val people: List<PodcastPerson> = emptyList(),
+    /** Where the episode is talked about (Podcasting 2.0 "podcast:socialInteract"): a fediverse post whose replies are its comments. */
+    val comments: String? = null)
 data class PodcastFeed(val show: PodcastShow, val episodes: List<PodcastEpisode>,
     /** Publisher-provided RSS/Atom archive link, rather than a guessed page number. */
     val nextPage: String? = null, val visitedPages: List<String> = emptyList())
@@ -83,7 +101,13 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     private val spotifyMetadata: (suspend (String) -> PodcastFeed)? = null,
     private val weatherBase: String = "https://api.open-meteo.com", private val wikipediaBase: String = "https://en.wikipedia.org",
     private val commonsBase: String = "https://commons.wikimedia.org",
-    private val youtubePodcasts: YouTubePodcasts? = null) {
+    private val youtubePodcasts: YouTubePodcasts? = null,
+    /**
+     * gPodder's public directory and Podverse's, searched beside Apple Podcasts and fyyd (no account, no key). A catalogue pointed at
+     * other directories (a test's server) leaves them out unless it names them too.
+     */
+    private val gpodderBase: String? = "https://gpodder.net".takeIf { fyydBase == "https://api.fyyd.de" },
+    private val podverseBase: String? = "https://api.podverse.fm".takeIf { fyydBase == "https://api.fyyd.de" }) {
     private val json = Json { ignoreUnknownKeys = true }
     private val spotify by lazy { SpotifyPublicPodcasts(::readRequest) }
     private var mirrors: List<String>? = null
@@ -101,24 +125,42 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         error("The radio directory is unavailable. Please retry.")
     }
     suspend fun stations(query: String = "", countryCode: String = "", language: String = "", globe: Boolean = false,
-        limit: Int? = null): List<RadioStation> = withContext(Dispatchers.Default) {
+        limit: Int? = null, tag: String = ""): List<RadioStation> = withContext(Dispatchers.Default) {
         val count = limit?.coerceIn(1, 3000) ?: if (globe) 1200 else 3000
         val params = linkedMapOf("hidebroken" to "true", "order" to "clickcount", "reverse" to "true", "limit" to count.toString())
         if (query.isNotBlank()) params["name"] = query.trim().take(200)
         if (countryCode.isNotBlank()) params["countrycode"] = countryCode.uppercase(Locale.ROOT).take(2)
         if (language.isNotBlank()) params["language"] = language.trim().lowercase(Locale.ROOT).take(60)
         if (globe) params["has_geo_info"] = "true"
-        val directory = (radio("/json/stations/search", params) as? JsonArray).orEmpty().mapNotNull { element ->
+        if (tag.isNotBlank()) params["tag"] = tag.trim().lowercase(Locale.ROOT).take(60)
+        val directory = stationList(radio("/json/stations/search", params))
+        val merged = mergeExtras(directory, extras, query, countryCode, language).let { list -> if (tag.isBlank()) list else list.filter { it.tags.contains(tag, true) } }
+        if (limit != null) merged.take(count) else merged
+    }
+
+    /** The directory's current entries for saved stations ([ids]), with whether its last check reached each one. */
+    suspend fun stationsById(ids: List<String>): List<RadioStation> = withContext(Dispatchers.Default) {
+        val wanted = ids.filter { it.matches(Regex("[a-zA-Z0-9-]{1,64}")) && !it.startsWith(PodioStationLinks.CUSTOM_PREFIX) }.distinct().take(200)
+        if (wanted.isEmpty()) emptyList() else stationList(radio("/json/stations/byuuid", mapOf("uuids" to wanted.joinToString(","))))
+    }
+
+    /** A vote for the station in the open directory (one a station every ten minutes); true when it was counted. */
+    suspend fun vote(id: String): Boolean {
+        if (!id.matches(Regex("[a-zA-Z0-9-]{1,64}")) || id.startsWith(PodioStationLinks.CUSTOM_PREFIX)) return false
+        return attempt { ((radio("/json/vote/$id", emptyMap()) as? JsonObject)?.get("ok") as? JsonPrimitive)?.booleanOrNull } == true
+    }
+
+    private fun stationList(answer: JsonElement): List<RadioStation> {
+        val directory = (answer as? JsonArray).orEmpty().mapNotNull { element ->
             val o = element as? JsonObject ?: return@mapNotNull null
             val url = httpUrl(o.text("url_resolved").ifBlank { o.text("url") }) ?: return@mapNotNull null
             val id = o.text("stationuuid").takeIf { it.matches(Regex("[a-zA-Z0-9-]{1,64}")) } ?: return@mapNotNull null
             RadioStation(id, o.text("name").trim().take(300), url, o.text("country"), o.text("countrycode"),
                 o.text("language"), o.text("tags"), httpUrl(o.text("favicon")).orEmpty(),
                 o.number("geo_lat")?.takeIf { it in -90.0..90.0 }, o.number("geo_long")?.takeIf { it in -180.0..180.0 },
-                o.text("codec"), o.text("bitrate").toIntOrNull() ?: 0, o.text("state").trim().take(80))
+                o.text("codec"), o.text("bitrate").toIntOrNull() ?: 0, o.text("state").trim().take(80), offline = o.text("lastcheckok") == "0")
         }.distinctBy { it.id }
-        val merged = mergeExtras(directory, extras, query, countryCode, language)
-        if (limit != null) merged.take(count) else merged
+        return directory
     }
     // Stations whose own web page publishes the stream but that the open directory does not list yet. They belong to the real
     // directory only: a test that points the catalogue at its own server gets exactly what that server returns.
@@ -129,8 +171,14 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
             PodioCatalogue::class.java.getResourceAsStream("/podio/extra-stations.json")?.bufferedReader()?.use { json.decodeFromString<List<RadioStation>>(it.readText()) }
         }.getOrNull().orEmpty()
     }
+    /** The stream a station address plays: the address itself, or the first stream a playlist (M3U, PLS) at it names. */
+    suspend fun stationStream(url: String): String {
+        val address = requireNotNull(httpUrl(url)) { "Enter an HTTP or HTTPS address." }
+        if (!PodioStationLinks.isPlaylist(address)) return address
+        return PodioStationLinks.streams(read(address), address).firstOrNull() ?: error("This playlist names no stream.")
+    }
     suspend fun stationPlayed(id: String) {
-        if (!id.matches(Regex("[a-zA-Z0-9-]{1,64}"))) return
+        if (!id.matches(Regex("[a-zA-Z0-9-]{1,64}")) || id.startsWith(PodioStationLinks.CUSTOM_PREFIX)) return
         try { radio("/json/url/$id", emptyMap()) } catch(e: CancellationException) { throw e } catch (_: Exception) { }
     }
     /**
@@ -260,10 +308,13 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         val term = podcastSearchTerm(query)
         val apple = async { attempt { appleSearch(term, country) } }
         val fyyd = async { attempt { fyydSearch(term) } }
-        val appleShows = apple.await()
-        val fyydShows = fyyd.await()
-        if (appleShows == null && fyydShows == null) error("Podcast search is unavailable. Please retry.")
-        (appleShows.orEmpty() + fyydShows.orEmpty()).distinctBy { it.feed.trimEnd('/') }
+        val gpodder = gpodderBase?.let { base -> async { attempt { gpodderShows(read(address(base, "/search.json", mapOf("q" to term)))) } } }
+        val podverse = podverseBase?.let { base -> async { attempt { podverseShows(read(address(base, "/api/v1/podcast", mapOf("searchTitle" to term)))) } } }
+        val first = listOf(apple.await(), fyyd.await())
+        if (first.all { it == null } && gpodder == null && podverse == null) error("Podcast search is unavailable. Please retry.")
+        val found = first + listOf(gpodder?.await(), podverse?.await())
+        if (found.all { it == null }) error("Podcast search is unavailable. Please retry.")
+        found.flatMap { it.orEmpty() }.distinctBy { it.feed.trimEnd('/').removePrefix("https://").removePrefix("http://") }
     }
     private fun podcastSearchTerm(query: String) = query.trim().take(200).ifBlank { "podcast" }
     private suspend fun appleSearch(query: String, country: String): List<PodcastShow> {
@@ -374,7 +425,9 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     private suspend fun <T> attempt(block: suspend () -> T): T? = try { block() } catch(e: CancellationException) { throw e } catch (_: Exception) { null }
     private fun address(base: String, path: String, params: Map<String, String>): String = (base.trimEnd('/') + path).toHttpUrl().newBuilder()
         .apply { params.forEach { (k, v) -> addQueryParameter(k, v) } }.build().toString()
-    private suspend fun read(url: String): String = readRequest(Request.Builder().url(url).header("User-Agent", "Cosmotune-Podio/1 (+https://github.com/Vijay-Janarthanan/cosmotune)").build())
+    private suspend fun read(url: String): String = readRequest(Request.Builder().url(url).header("User-Agent", "Cosmotune-Podio/1 (+https://github.com/Vijay-Janarthanan/cosmotune)")
+        // A private feed's own server gets its login; no other server ever sees it.
+        .apply { PodioFeedLogins.forUrl(url)?.let { header("Authorization", PodioFeedLogins.header(it)) } }.build())
     private suspend fun readRequest(request: Request): String = suspendCancellableCoroutine { continuation ->
         val call = client.newCall(request)
         continuation.invokeOnCancellation { call.cancel() }
@@ -427,6 +480,27 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         fun isSpotifyLink(value: String): Boolean = SpotifyPublicPodcasts.link(value) != null
         private fun titleKey(value: String): String = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFKC)
             .lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
+        /** Shows from gPodder's directory search ([gpodderBase]/search.json): a list of {url, title, author, logo_url, website}. */
+        fun gpodderShows(text: String): List<PodcastShow> = (Json.parseToJsonElement(text) as? JsonArray).orEmpty().take(30).mapNotNull { element ->
+            val o = element as? JsonObject ?: return@mapNotNull null
+            val feed = httpUrl(o.text("url")) ?: return@mapNotNull null
+            val title = o.text("title").trim().takeIf(String::isNotEmpty) ?: return@mapNotNull null
+            PodcastShow(identity(feed), title, o.text("author"), feed, httpUrl(o.text("scaled_logo_url").ifBlank { o.text("logo_url") }).orEmpty(),
+                httpUrl(o.text("website")).orEmpty(), "gPodder")
+        }
+        /** Shows from Podverse's search ([podverseBase]/api/v1/podcast): [[{title, imageUrl, linkUrl, feedUrls: [{url}]}], count]. */
+        fun podverseShows(text: String): List<PodcastShow> {
+            val root = Json.parseToJsonElement(text)
+            val list = ((root as? JsonArray)?.firstOrNull() as? JsonArray) ?: (root as? JsonArray) ?: return emptyList()
+            return list.take(30).mapNotNull { element ->
+                val o = element as? JsonObject ?: return@mapNotNull null
+                if ((o["credentialsRequired"] as? JsonPrimitive)?.contentOrNull == "true") return@mapNotNull null
+                val feed = (o["feedUrls"] as? JsonArray).orEmpty().firstNotNullOfOrNull { (it as? JsonObject)?.text("url")?.let(::httpUrl) } ?: return@mapNotNull null
+                val title = o.text("title").trim().takeIf(String::isNotEmpty) ?: return@mapNotNull null
+                PodcastShow(identity(feed), title, (o["authors"] as? JsonArray).orEmpty().firstNotNullOfOrNull { (it as? JsonObject)?.text("name") }.orEmpty(),
+                    feed, httpUrl(o.text("imageUrl")).orEmpty(), httpUrl(o.text("linkUrl")).orEmpty(), "Podverse")
+            }
+        }
         fun httpUrl(raw: String): String? = runCatching {
             val value = raw.trim(); val uri = URI(value)
             value.takeIf { uri.scheme?.lowercase(Locale.ROOT) in setOf("http", "https") && !uri.host.isNullOrBlank() && uri.userInfo == null }
@@ -458,7 +532,11 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
             val title = channel.field("title").takeIf { it.isNotBlank() } ?: error("The feed has no title")
             val image = channel.children().firstOrNull { it.local() == "image" }
             val artwork = image?.getAttribute("href")?.takeIf(String::isNotBlank) ?: image?.field("url").orEmpty()
-            val show = PodcastShow(identity(identityUrl), title, channel.field("author"), identityUrl, resolve(artwork), resolve(channel.field("link")))
+            val show = PodcastShow(identity(identityUrl), title, channel.field("author"), identityUrl, resolve(artwork), resolve(channel.field("link")),
+                funding = channel.children().filter { it.local() == "funding" }.take(4).mapNotNull { link ->
+                    resolve(link.getAttribute("url")).takeIf(String::isNotBlank)?.let { PodcastLink(it, link.textContent.trim().take(120).ifBlank { "Support the show" }) }
+                },
+                people = peopleOf(channel, ::resolve))
             val episodes = channel.children().asSequence().filter { it.local() in setOf("item", "entry") }.take(1000).mapNotNull { entry ->
                 val enclosure = entry.children().firstOrNull { it.local() == "enclosure" || it.local() == "link" && it.getAttribute("rel") == "enclosure" }
                     ?: return@mapNotNull null
@@ -479,7 +557,12 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                     }.sortedBy { transcriptRank(it.type) },
                     inlineChapters = podloveChapters(entry, ::resolve).ifEmpty {
                         PodcastExtras.notesChaptersOf(listOf("description", "encoded", "summary").map { entry.field(it) })
-                    })
+                    },
+                    season = entry.field("season").toIntOrNull()?.takeIf { it in 1..10_000 },
+                    number = entry.field("episode").toIntOrNull()?.takeIf { it in 1..100_000 },
+                    people = peopleOf(entry, ::resolve),
+                    comments = entry.children().filter { it.local() == "socialInteract" && it.getAttribute("protocol").equals("activitypub", true) }
+                        .firstNotNullOfOrNull { resolve(it.getAttribute("uri")).takeIf(String::isNotBlank) })
             }.distinctBy { it.id }.toList()
             val next = channel.children().firstOrNull { it.local() == "link" && it.getAttribute("rel").equals("next", true) }
                 ?.getAttribute("href")?.takeIf(String::isNotBlank)?.let(::resolve)?.takeIf { it.isNotBlank() && it != url }
@@ -495,6 +578,13 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                     val title = chapter.getAttribute("title").trim().take(300).takeIf(String::isNotEmpty) ?: return@mapNotNull null
                     PodcastChapter(start, title, chapter.getAttribute("image").takeIf(String::isNotBlank)?.let(resolve)?.takeIf(String::isNotBlank))
                 }?.distinctBy { it.startMs }?.sortedBy { it.startMs }.orEmpty()
+        /** Podcasting 2.0's "podcast:person" entries under [parent] (at most 12), each with its role, page and picture. */
+        private fun peopleOf(parent: Element, resolve: (String) -> String): List<PodcastPerson> =
+            parent.children().filter { it.local() == "person" }.take(12).mapNotNull { person ->
+                val name = person.textContent.trim().take(120).takeIf(String::isNotEmpty) ?: return@mapNotNull null
+                PodcastPerson(name, person.getAttribute("role").trim().lowercase().take(40).ifBlank { "host" },
+                    person.getAttribute("href").takeIf(String::isNotBlank)?.let(resolve).orEmpty(), person.getAttribute("img").takeIf(String::isNotBlank)?.let(resolve).orEmpty())
+            }.distinctBy { it.name.lowercase() to it.role }
         private fun Element.local(): String = localName ?: tagName.substringAfter(':')
         private fun Element.children(): List<Element> = (0 until childNodes.length).mapNotNull { childNodes.item(it) as? Element }
         private fun JsonObject.text(key: String): String = (get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
@@ -532,14 +622,52 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** Refresh followed shows in the background and say when there are new episodes. */
     val refreshInBackground: Boolean = true,
     /** Download new episodes of followed shows as the background refresh finds them. Off unless chosen. */
-    val autoDownloadNew: Boolean = false)
+    val autoDownloadNew: Boolean = false,
+    /** Each followed show's own settings ([PodioShowSettings]), by show id; a show at every default has none. */
+    val showSettings: Map<String, PodioShowSettings> = emptyMap(),
+    /** Remove a downloaded episode by itself once it is played (a show can choose otherwise). */
+    val deletePlayedDownloads: Boolean = false,
+    /** Keep only this many of each show's newest downloads; 0 keeps all (a show can choose otherwise). */
+    val keepDownloadsPerShow: Int = 0,
+    /** Moments marked in episodes ([PodioBookmarks]), oldest first. */
+    val bookmarks: List<PodioBookmark> = emptyList(),
+    /** Lists that fill themselves from the followed shows ([PodioSmartLists]). */
+    val smartLists: List<PodioSmartList> = emptyList(),
+    /** A station recording starts a new file at each new song the station names. */
+    val recordBySong: Boolean = true,
+    /** The stations played lately, the latest first ([PodioHistory]). */
+    val recentStations: List<RadioStation> = emptyList(),
+    /** The songs the stations named while they played, the latest first. */
+    val heardSongs: List<PodioHeardSong> = emptyList(),
+    /** Each followed show's tags ([PodioTags]), by show id. */
+    val showTags: Map<String, Set<String>> = emptyMap(),
+    /** Episodes kept as favourites ([PodioFavourites]), the newest first. */
+    val favouriteEpisodes: List<PodioQueueEntry> = emptyList(),
+    /** The Next button of headphones (or the car) bookmarks the playing episode instead of skipping it. */
+    val headsetBookmarks: Boolean = false,
+    /** Speech plays louder and clearer (a show can choose otherwise). */
+    val voiceBoost: Boolean = false,
+    /** When the saved stations were last checked against the directory ([PodioStationCheck]). */
+    val stationsCheckedMs: Long = 0,
+    /** Listening by day ("2026-11-23") and show id ([PodioStats]). */
+    val listened: Map<String, Map<String, Long>> = emptyMap(),
+    /** The radio alarm ([PodioAlarms]), or none. */
+    val alarm: PodioAlarm? = null,
+    /** The user names and passwords of private feeds ([PodioFeedLogins]), by feed address; they stay on this device. */
+    val feedLogins: Map<String, PodioFeedLogin> = emptyMap(),
+    /** The PIN that following a new show asks for ([PodioFollowLock]), or none. */
+    val followLock: PodioFollowLockPin? = null,
+    /** Save an episode whole as it starts streaming, so it plays on with no connection. */
+    val keepStreamed: Boolean = false,
+    /** Scrobble the songs stations name ([PodioRadioScrobble]) to the listener's Last.fm or ListenBrainz. */
+    val scrobbleRadio: Boolean = false)
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {
             val lock = Any()
             val state = kotlinx.coroutines.flow.MutableStateFlow(runCatching {
                 Json { ignoreUnknownKeys = true }.decodeFromString<PodioSaved>(file.readText())
-            }.getOrDefault(PodioSaved()))
+            }.getOrDefault(PodioSaved()).also { PodioFeedLogins.known = it.feedLogins })
         }
         private val stores = java.util.concurrent.ConcurrentHashMap<String, java.lang.ref.WeakReference<Store>>()
         private fun sharedStore(file: File): Store = synchronized(stores) {
@@ -574,24 +702,34 @@ class PodioLibrary(private val file: File) {
             it.copy(stations = it.stations.take(500), shows = shows, progress = progress, completedEpisodes = it.completedEpisodes.intersect(progress.keys),
                 skipSilenceByShow = it.skipSilenceByShow.filterKeys(followed::contains),
                 speedByShow = it.speedByShow.filterKeys(followed::contains).filterValues { speed -> speed in 0.5f..3f },
+                showSettings = it.showSettings.filterKeys(followed::contains), showTags = it.showTags.filterKeys(followed::contains),
+                favouriteEpisodes = it.favouriteEpisodes.take(PodioFavourites.MAX),
                 knownEpisodes = it.knownEpisodes.filterKeys(followed::contains).mapValues { (_, ids) -> ids.take(PodioRefresh.KNOWN_PER_SHOW) },
-                seenEpisodes = it.seenEpisodes.toList().takeLast(2000).toSet())
+                seenEpisodes = it.seenEpisodes.toList().takeLast(2000).toSet(), bookmarks = it.bookmarks.takeLast(PodioBookmarks.MAX),
+                // Logins of followed shows stay; a few more for feeds opened but not followed yet.
+                feedLogins = it.feedLogins.entries.sortedByDescending { (feed, _) -> shows.any { show -> show.feed == feed } }.take(50).associate { e -> e.toPair() })
         }
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, file.name + ".tmp")
         temp.writeText(json.encodeToString(next))
         java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         state.value = next
+        PodioFeedLogins.known = next.feedLogins
     }
 
     fun importOpml(xml: String): Int {
         val shows = PodioOpml.decode(xml)
+        // An OPML folder becomes a tag of the shows inside it.
+        val folders = PodioTags.foldersOf(xml)
         var added = 0
         update { old ->
             val combined = (old.shows + shows).distinctBy { it.feed.trimEnd('/') }
             require(combined.size <= 500) { "The library supports up to 500 followed podcasts." }
             added = combined.size - old.shows.size
-            old.copy(shows = combined)
+            combined.fold(old.copy(shows = combined)) { acc, show ->
+                val tags = folders[show.feed.trimEnd('/')] ?: return@fold acc
+                PodioTags.set(acc, show.id, acc.showTags[show.id].orEmpty() + tags)
+            }
         }
         return added
     }

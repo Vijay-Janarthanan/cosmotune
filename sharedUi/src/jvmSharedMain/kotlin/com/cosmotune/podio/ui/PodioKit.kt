@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import com.cosmotune.podio.PodioStationCheck
 import com.cosmotune.podio.RadioStation
 import com.cosmotune.podio.item
 import com.cosmotune.ui.components.CosmoIcons
@@ -76,10 +77,13 @@ import kotlinx.coroutines.launch
 @Composable internal fun StationRow(station: RadioStation, saved: Boolean, current: Boolean, playing: Boolean, onPlay: () -> Unit, onSave: () -> Unit,
     fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, onAir: String? = null, showHeart: Boolean = true) {
     val line = if (current) onAir?.let { "On air: $it" } ?: "On air now"
-        else PodioFormat.stationMeta(station.placeLine(), station.language, station.codec, station.bitrate)
-    OrbitSongRow(station.name, line, null, fonts, look, onPlay, modifier.fillMaxWidth(), now = current, playing = playing,
-        discContent = { StationRowDisc(station, current, playing, fonts, look) },
-        trailing = if (showHeart) ({ HeartButton(saved, onSave, look) }) else null)
+        else PodioStationCheck.status(station) ?: PodioFormat.stationMeta(station.placeLine(), station.language, station.codec, station.bitrate)
+    // A saved station swipes to the left to be removed (with Undo).
+    PodioSwipe(modifier.fillMaxWidth(), endLabel = "Remove", onEnd = if (saved && !current) onSave else null) {
+        OrbitSongRow(station.name, line, null, fonts, look, onPlay, Modifier.fillMaxWidth(), now = current, playing = playing,
+            discContent = { StationRowDisc(station, current, playing, fonts, look) },
+            trailing = if (showHeart) ({ HeartButton(saved, onSave, look) }) else null)
+    }
 }
 
 /**
@@ -103,12 +107,13 @@ internal fun LazyListScope.stationGrid(key: String, stations: List<RadioStation>
     val onAir = env.playback.id == station.item().id
     val saved = env.saved.stations.any { it.id == station.id }
     Box {
-        OrbitStationRecord(station.name, if (onAir) "On air" else station.shortPlace(), station.artwork, fonts, look, onClick = { m.playStation(station) },
+        OrbitStationRecord(station.name, if (onAir) "On air" else PodioStationCheck.status(station) ?: station.shortPlace(), station.artwork, fonts, look, onClick = { m.playStation(station) },
             onAir = onAir, playing = onAir && env.playback.playing, onLongClick = { menu = true }, size = size)
         OrbitMenu(menu, { menu = false }, listOf(
             OrbitMenuItem(if (onAir) "Playing" else "Play", icon = CosmoIcons.Play, enabled = !onAir) { m.playStation(station) },
             OrbitMenuItem(if (saved) "Remove from your stations" else "Save to your stations", icon = if (saved) CosmoIcons.HeartFill else CosmoIcons.Heart) { m.toggleFavourite(station) },
-        ), fonts, look, header = station.name)
+            OrbitMenuItem("Edit station") { m.editStation(env.saved.stations.first { it.id == station.id }) }.takeIf { saved },
+        ).filterNotNull(), fonts, look, header = station.name)
     }
 }
 

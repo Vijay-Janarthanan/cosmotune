@@ -95,6 +95,11 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     LaunchedEffect(watchLink.value != null, shell) {
         if (watchLink.value != null && shell != null && AppModes.available(AppMode.WATCH)) shell.settings.setMode(AppMode.WATCH)
     }
+    // A radio station link opened from another app ([com.cosmotune.podio.PodioIntentLink]) opens Podio, where Add a station waits.
+    val stationLink = com.cosmotune.podio.PodioLinks.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(stationLink.value != null, shell) {
+        if (stationLink.value != null && shell != null && AppModes.available(AppMode.PODIO)) shell.settings.setMode(AppMode.PODIO)
+    }
     // A Watch item the room opens here ([com.cosmotune.music.watch.RoomWatch]): Watch becomes the mode, its player page attached.
     val roomWatch = com.cosmotune.music.watch.RoomWatch.opening.collectAsStateWithLifecycle()
     LaunchedEffect(roomWatch.value, shell) {

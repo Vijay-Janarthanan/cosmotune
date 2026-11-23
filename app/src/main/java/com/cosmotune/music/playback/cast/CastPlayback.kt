@@ -597,9 +597,11 @@ class CastPlayback(
             metadata.artworkUri?.takeIf { it.scheme == "http" || it.scheme == "https" }
                 ?.let { addImage(WebImage(it)) }
         }
+        // A Podio station is a live stream with no end; one without a telling extension is most often MP3.
+        val live = item.mediaId.startsWith("podio:radio:")
         val info = MediaInfo.Builder(stream.url)
-            .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
-            .setContentType(stream.mimeType)
+            .setStreamType(if (live) MediaInfo.STREAM_TYPE_LIVE else MediaInfo.STREAM_TYPE_BUFFERED)
+            .setContentType(if (live) radioMimeType(stream) else stream.mimeType)
             .setMetadata(music)
             .setCustomData(JSONObject().put(KEY_MEDIA_ID, item.mediaId))
             .apply { metadata.durationMs?.takeIf { it > 0 }?.let(::setStreamDuration) }
@@ -647,6 +649,14 @@ class CastPlayback(
          * their extension, and an unnamed one is taken to be MP4 audio, which
          * is what nearly every unnamed stream here is.
          */
+        /** A station's type: what its address says, else MP3 (what most stations send) rather than the MP4 guess for files. */
+        fun radioMimeType(stream: CastStream): String {
+            val uri = Uri.parse(stream.url)
+            val path = uri.lastPathSegment?.lowercase().orEmpty()
+            val known = uri.getQueryParameter("mime") != null || listOf(".flac", ".mp3", ".ogg", ".opus", ".wav", ".webm", ".aac", ".mpd", ".m3u8", ".m4a", ".mp4").any(path::endsWith)
+            return if (known) stream.mimeType else "audio/mpeg"
+        }
+
         fun mimeTypeOf(uri: Uri): String {
             uri.getQueryParameter("mime")?.takeIf { it.isNotBlank() }?.let { return it }
             val path = uri.lastPathSegment?.lowercase().orEmpty()

@@ -71,6 +71,15 @@ class DesktopPlaybackEngine(
     private val _state = MutableStateFlow(DesktopPlaybackState())
     val state: StateFlow<DesktopPlaybackState> = _state.asStateFlow()
 
+    // The computer stays awake while something plays (DesktopKeepAwake).
+    private val keepAwakeJob = scope.launch {
+        var playing = false
+        state.collect { snapshot -> if (snapshot.isPlaying != playing) { playing = snapshot.isPlaying; DesktopKeepAwake.playing(playing) } }
+    }
+
+    private val podioSkipper = com.cosmotune.podio.PodioSkipper()
+    private val skipLibrary by lazy { com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile()) }
+
     // Episode progress belongs to playback, not to whichever page is currently visible.
     private val podioProgressJob = scope.launch {
         var tracker: com.cosmotune.podio.PodioProgressTracker? = null
@@ -80,6 +89,10 @@ class DesktopPlaybackEngine(
                     tracker = runCatching { com.cosmotune.podio.PodioProgressTracker(com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile())) }.getOrNull()
                 }
                 tracker?.observe(snapshot.song?.videoId, snapshot.positionMs, snapshot.isPlaying, snapshot.isLoading, snapshot.durationMs)
+                // A show's own intro and outro lengths (its settings sheet) are skipped as it plays.
+                if (tracker != null) skipLibrary.let { library ->
+                    podioSkipper.check(library, snapshot.song?.videoId, snapshot.positionMs, snapshot.durationMs, snapshot.isPlaying && !snapshot.isLoading)?.let(::seekTo)
+                }
             }
         } finally {
             val snapshot = state.value
@@ -590,6 +603,7 @@ class DesktopPlaybackEngine(
                 requested = DesktopPcmFormat(44_100, 2, bytesPerSample = 4, isFloat = true),
                 windowed = stream.windowedReads,
                 transport = stream.transport,
+                live = song.videoId.startsWith("podio:radio:"),
             ).map {
                 if (startAtMs > 0) decoder.seek(startAtMs * 1_000)
                 // From here the decoder belongs to its own read-ahead thread: the audio thread only
@@ -1638,7 +1652,9 @@ class DesktopPlaybackEngine(
 
     /** The volume the sink plays at: the listener's, under the maximum-volume cap and the sleep fade. DoP is never scaled. */
     private fun outputGain(): Float =
-        if (current?.directDsd == true) volume else volume * com.cosmotune.settings.Extras.settings.maxVolumeGain * sleepFadeGain
+        if (current?.directDsd == true) volume else volume * com.cosmotune.settings.Extras.settings.maxVolumeGain * sleepFadeGain *
+            // Podio's voice boost for the playing episode (Settings › Podio, or its show's sheet).
+            com.cosmotune.podio.PodioShowRules.gainFor(skipLibrary.state.value, current?.song?.videoId)
 
     private var pitchResampler: com.cosmotune.audio.PitchResampler? = null
 

@@ -16,6 +16,7 @@ class NotificationButtonsTest {
     @Test
     fun shuffleStandsInForLikeWhenItCannotBeUsed() {
         assertEquals(listOf(Kind.SHUFFLE, Kind.REPEAT), NotificationButtons.pick(canLike = false))
+        assertEquals(listOf(Kind.SHUFFLE, Kind.NEXT_CHAPTER), NotificationButtons.pick(canLike = false, chapters = true))
     }
 
     @Test

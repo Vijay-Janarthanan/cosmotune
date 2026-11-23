@@ -295,7 +295,8 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         // Before the composition, so a cold launch from a widget's artwork has
         // the request already standing by the time CosmotuneApp first reads it.
-        if (!com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent)) {
+        // A radio station playlist goes to Podio's Add a station, and to nothing else.
+        if (!com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent) && !com.cosmotune.podio.PodioIntentLink.consume(this, intent)) {
             PlayerDeepLink.consume(intent)
             JamInviteLink.consume(intent)
             // A Watch install or pack link is Watch's alone; anything else is Music's.
@@ -411,6 +412,8 @@ class MainActivity : AppCompatActivity() {
         // one that just arrived and not the one the task was started with.
         setIntent(intent)
         if (com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent)) return
+        // A radio station playlist goes to Podio's Add a station.
+        if (com.cosmotune.podio.PodioIntentLink.consume(this, intent)) return
         PlayerDeepLink.consume(intent)
         JamInviteLink.consume(intent)
         // A Watch install or pack link is Watch's alone; anything else is Music's.

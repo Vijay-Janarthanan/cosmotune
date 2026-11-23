@@ -1,5 +1,9 @@
 package com.cosmotune.podio.ui
 
+import androidx.compose.material.icons.outlined.ThumbUp
+
+import androidx.compose.material.icons.outlined.Edit
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -70,7 +74,11 @@ internal fun RadioDetail(station: RadioStation, m: PodioModel, env: PodioEnv, so
         val side = orbitPageSide(maxWidth)
         WatchWash(stationCardColors(station).fill, look)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = env.bottom + 16.dp)) {
-            PodioBackHead("Station", onBack, fonts, look, side, backLabel = "Back to the map")
+            PodioBackHead("Station", onBack, fonts, look, side, backLabel = "Back to the map") {
+                // A saved station can be renamed, given a picture or pointed at another stream.
+                if (!com.cosmotune.podio.PodioStationLinks.isCustom(station)) OrbitPageButton(Icons.Outlined.ThumbUp, "Vote for this station", { m.vote(station) })
+                if (env.saved.stations.any { it.id == station.id }) OrbitPageButton(Icons.Outlined.Edit, "Edit station", { m.editStation(env.saved.stations.first { it.id == station.id }) })
+            }
             StationCard(station, env, m, live = true, song, onPrevious, onNext, Modifier.padding(horizontal = side).padding(top = 16.dp).fillMaxWidth(), large = true,
                 nextName = nextName) { colors ->
                 if (timer != null) SleepTimerChip(timer, episode = false, card = colors)
