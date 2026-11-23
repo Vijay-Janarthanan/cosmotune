@@ -81,7 +81,9 @@ internal fun HomeUpNextCard(
                 if (name != null) {
                     Row(
                         // Ends 16 dp short of Play's ring (its 41 dp radius about 46 dp in from the corner), so the name never runs into it.
-                        Modifier.padding(top = 12.dp, end = 90.dp).clip(RoundedCornerShape(20.dp)).then(if (onChannel != null) Modifier.clickable(onClick = onChannel) else Modifier),
+                        // The pressed shape's round ends must not cut the words: they stand 14 dp inside its end.
+                        Modifier.padding(top = 12.dp, end = 90.dp).clip(RoundedCornerShape(20.dp)).then(if (onChannel != null) Modifier.clickable(onClick = onChannel) else Modifier)
+                            .padding(end = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         ChannelAvatar(item.channelAvatarUrl, 30.dp, name = name)
