@@ -325,10 +325,20 @@ fun CosmoNowPlaying(
         shuffle = shuffleEnabled, repeatMode = repeatMode, crossfade = features.crossfade, automix = automixOn,
         equaliser = features.equaliser, castingTo = features.castingTo, inRoom = inParty,
     )
+    // Best part (upstream 1.10): where YouTube's "Most replayed" curve says the song's best part starts; no chip without one.
+    val bestPartOn by com.cosmotune.settings.Extras.settings.bestPart.collectAsStateWithLifecycle()
+    val bestPartMs by androidx.compose.runtime.produceState<Long?>(null, song.videoId, bestPartOn, durationMs > 0) {
+        value = null
+        if (bestPartOn && !controlsLocked) {
+            val heat = com.cosmotune.music.data.bestpart.BestPart.heatmapFor(song.videoId)
+            value = com.cosmotune.music.data.bestpart.BestPart.pick(heat, emptyList(), durationMs)
+        }
+    }
+    val bestPart: (() -> Unit)? = bestPartMs?.takeIf { !controlsLocked }?.let { at -> { onSeek(at) } }
     val statusChips: @Composable (Boolean) -> Unit = { transportOnCard ->
         NowPlayingStatusChips(
             activeChips(active, transportOnCard, onToggleShuffle, onCycleRepeat, { sheets.details = true }, { sheets.cast = true }, together),
-            orbitType, orbitInk,
+            orbitType, orbitInk, bestPart,
         )
     }
     val openCanvasOn by PlayerSettings.openCanvasEnabled.collectAsStateWithLifecycle()
