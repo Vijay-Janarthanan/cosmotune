@@ -68,3 +68,63 @@ object KeepDownloaded {
         return handed
     }
 }
+
+/**
+ * Smart downloads (SimpMusic's, [CosmoLookSettings.smartDownloads]): the listener's most played songs kept downloaded without
+ * them choosing any. Each pass takes the top [CosmoLookSettings.smartDownloads] of the play counts, downloads those on neither the
+ * device nor already fetched, and removes again a song it fetched itself once that song falls well out of the top (past
+ * [RELEASE_MARGIN] times the count, so a song hovering at the edge is not fetched and dropped day after day). A song the listener
+ * downloaded themselves is never removed.
+ */
+object SmartDownloads {
+    /** The choices the setting offers; 0 is off. */
+    val COUNTS = listOf(0, 25, 50, 100)
+
+    /** How far past the count a song this fetched may slip before it is removed. */
+    const val RELEASE_MARGIN = 1.5
+
+    private val STREAM_ID = Regex("[A-Za-z0-9_-]{11}")
+
+    /** Whether [videoId] names a song that streams (a YouTube id), rather than a local file or an add-on's track. */
+    fun streamable(videoId: String): Boolean = STREAM_ID.matches(videoId)
+
+    /** What one pass does: the songs to download, and the ids of songs this fetched that go. */
+    data class Plan(val download: List<Song>, val release: List<String>)
+
+    /**
+     * The pass for [ranked] (most played first) at [count]: the top songs not [onDevice] (and not already [kept]) to download;
+     * the [kept] ones now below `count * RELEASE_MARGIN` to release. Off ([count] 0) releases everything it fetched.
+     */
+    fun plan(ranked: List<Song>, count: Int, onDevice: (String) -> Boolean, kept: Set<String>): Plan {
+        val playable = ranked.filter { !it.isMatchPending && !it.isMatchMissing && it.localPath == null }.distinctBy { it.videoId }
+        val top = playable.take(count)
+        val download = top.filter { !onDevice(it.videoId) && it.videoId !in kept }
+        val stay = playable.take((count * RELEASE_MARGIN).toInt()).map { it.videoId }.toSet()
+        val release = kept.filter { it !in stay }
+        return Plan(download, release)
+    }
+
+    /**
+     * One pass: [ranked] read, the plan's songs handed to [download], its releases given to [remove] (a removal that fails stays
+     * kept, to try again). The kept set is updated to what this fetched and still keeps. Says how many songs it handed over.
+     */
+    suspend fun run(
+        look: CosmoLookSettings,
+        ranked: suspend () -> List<Song>,
+        onDevice: (String) -> Boolean,
+        download: suspend (List<Song>) -> Unit,
+        remove: suspend (String) -> Boolean,
+    ): Int {
+        val count = look.smartDownloads.value
+        val kept = look.smartKept()
+        if (count <= 0 && kept.isEmpty()) return 0
+        val songs = if (count > 0) try { ranked() } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { return 0 } else emptyList()
+        val plan = plan(songs, count, onDevice, kept)
+        // A song a "Keep downloaded" playlist also fetched stays on the device; Smart downloads only lets go of it.
+        val playlists = look.keepDownloaded.value.flatMap { look.keptSongs(it) }.toSet()
+        val released = plan.release.filter { id -> id in playlists || runCatching { remove(id) }.getOrDefault(false) }.toSet()
+        if (plan.download.isNotEmpty()) download(plan.download)
+        look.setSmartKept(kept - released + plan.download.map { it.videoId })
+        return plan.download.size
+    }
+}

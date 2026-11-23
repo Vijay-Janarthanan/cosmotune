@@ -2,6 +2,7 @@ package com.cosmotune.music.desktop
 
 import com.cosmotune.ui.browse.musicRadio
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 import androidx.compose.foundation.lazy.LazyListState
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.FollowCover
@@ -1280,6 +1281,24 @@ fun CosmotuneDesktopApp() {
     // this app can tell, see DesktopPlayerHost).
     suspend fun keepDownloadedPass(playlists: Collection<String>? = null, newestOnly: Boolean = false) {
         val look = com.cosmotune.ui.settings.cosmoLookSettings()
+        // Smart downloads (the most played songs kept downloaded) on the daily pass, not on a playlist's own quick one.
+        if (playlists == null && !newestOnly) runCatching {
+            com.cosmotune.ui.pages.SmartDownloads.run(
+                look,
+                ranked = {
+                    withContext(Dispatchers.IO) { DesktopListeningStats.summary(DesktopReplayPeriod.ALL_TIME) }.songs
+                        .sortedWith(compareByDescending<DesktopReplayEntry> { it.plays }.thenByDescending { it.listenedMs })
+                        .map { it.song }.filter { com.cosmotune.ui.pages.SmartDownloads.streamable(it.videoId) }
+                },
+                onDevice = { id -> downloads.any { it.videoId == id } },
+                download = { songs -> downloadAll(songs) },
+                remove = { id ->
+                    val song = downloads.firstOrNull { it.videoId == id }
+                    if (song != null) removeDownload(song)
+                    true
+                },
+            )
+        }
         if (look.keepDownloaded.value.isEmpty()) return
         runCatching {
             com.cosmotune.ui.pages.KeepDownloaded.run(
@@ -1306,6 +1325,10 @@ fun CosmotuneDesktopApp() {
                 keepDownloadedPass(listOf(com.cosmotune.ui.pages.KeepDownloaded.LIKED_MUSIC), newestOnly = true)
             }
         }
+    }
+    LaunchedEffect(Unit) {
+        // Smart downloads turned on or changed: its songs come down now, not at the next daily pass.
+        com.cosmotune.ui.settings.cosmoLookSettings().smartDownloads.drop(1).collectLatest { keepDownloadedPass() }
     }
     LaunchedEffect(Unit) {
         // Clear of the start's own work (the session, the first pages), then the pass.
@@ -6462,6 +6485,11 @@ private fun DesktopSettingsScreen(
                             )
                         }
                     }
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE, com.cosmotune.ui.settings.SMART_DOWNLOADS_LINE)) {
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE)) {
+                            com.cosmotune.ui.settings.SmartDownloadsRows(com.cosmotune.ui.settings.cosmoLookSettings())
+                        }
                     }
                 }
             }

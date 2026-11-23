@@ -1055,6 +1055,10 @@ fun SettingsScreen(
                     subtitle = "Music/Cosmotune".takeIf { exportDownloads },
                 )
             }
+            row(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE, "most played", "offline", "automatic", summary = com.cosmotune.ui.settings.SMART_DOWNLOADS_LINE) {
+                val smartContext = androidx.compose.ui.platform.LocalContext.current
+                com.cosmotune.ui.settings.SmartDownloadsRows(com.cosmotune.ui.settings.cosmoLookSettings(smartContext))
+            }
         }
         SearchableSettingsGroup(search, category = SettingsCategory.DOWNLOADS, header = stringResource(R.string.local_music)) {
             val localMusicFolderTitle = stringResource(R.string.local_music_folder)

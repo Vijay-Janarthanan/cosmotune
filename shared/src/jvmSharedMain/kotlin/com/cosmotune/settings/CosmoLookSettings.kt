@@ -98,6 +98,25 @@ class CosmoLookSettings(private val store: KeyValueStore) {
 
     fun setKeepDownloadedCheckedMs(ms: Long) = store.putString(KEY_KEEP_CHECKED, ms.toString())
 
+    private val smartDownloadsFlow = MutableStateFlow(store.getInt(KEY_SMART_DOWNLOADS, 0).coerceAtLeast(0))
+
+    /**
+     * Smart downloads: how many of the listener's most played songs are kept downloaded (0 for off; 25, 50 or 100). The songs
+     * download on Wi-Fi once a day, and a song this fetched is removed again once it falls well out of the most played.
+     */
+    val smartDownloads: StateFlow<Int> = smartDownloadsFlow.asStateFlow()
+
+    fun setSmartDownloads(count: Int) {
+        val kept = count.coerceAtLeast(0)
+        store.putInt(KEY_SMART_DOWNLOADS, kept)
+        smartDownloadsFlow.value = kept
+    }
+
+    /** The songs Smart downloads fetched itself: the only ones it ever removes. */
+    fun smartKept(): Set<String> = readSet(KEY_SMART_KEPT)
+
+    fun setSmartKept(ids: Set<String>) = writeSet(KEY_SMART_KEPT, ids)
+
     private fun readSet(key: String): Set<String> = store.getString(key, "").split(SET_SEPARATOR).filter { it.isNotBlank() }.toSet()
 
     /** At most the last [MAX_SET] entries: a preferences value has a length limit on the desktop (8 KiB). */
@@ -151,6 +170,8 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_FULL_SCREEN_FILL = "full_screen_fill"
         const val KEY_COMPACT_ROWS = "compact_rows"
         const val KEY_KEEP_DOWNLOADED = "keep_downloaded"
+        const val KEY_SMART_DOWNLOADS = "smart_downloads"
+        const val KEY_SMART_KEPT = "smart_downloads_kept"
         const val KEY_KEPT_PREFIX = "kept_songs:"
         const val KEY_KEEP_CHECKED = "keep_downloaded_checked"
         private const val SET_SEPARATOR = ","
