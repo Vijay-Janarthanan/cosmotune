@@ -98,7 +98,7 @@ open class PlaylistPlugin(
             val e = list.first()
             Channel(key, id, e.name, e.number, e.logo, e.groups.ifEmpty { listOf("General") },
                 e.countries.ifEmpty { listOfNotNull(defaultCountry ?: e.tvgId?.takeIf(M3uParser::isIptvOrgId)?.substringAfter('.')?.substringBefore('@')) },
-                e.languages, epgId = e.tvgId ?: e.tvgName ?: e.name, tvgId = e.tvgId, catchup = e.catchup, isRadio = e.radio)
+                e.languages, epgId = e.tvgId ?: e.tvgName ?: e.name, tvgId = e.tvgId, catchup = e.catchup, isRadio = e.radio, epgShiftMinutes = e.epgShiftMinutes)
         }
         val result = channels to (guides() + guideUrls).distinct()
         loaded = result; loadedAt = System.currentTimeMillis()

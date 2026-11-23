@@ -169,6 +169,8 @@ data class Channel(
     val isRadio: Boolean = false,
     /** iptv-org's "Not 24/7", "Geo-blocked". */
     val labels: List<String> = emptyList(),
+    /** Minutes the guide's times are moved by for this channel (a playlist's `tvg-shift`, for a guide in another time zone). */
+    val epgShiftMinutes: Int = 0,
     /**
      * The same channel as other sources list it (same name, no country that differs), each under its own key and plugin: one
      * row in Live TV and search, and each source is asked for its own copy when it plays ([PlayTarget.Live]).

@@ -912,7 +912,11 @@ class DefaultWatchRepository(
         val byEpg = HashMap<Pair<String, String>, MutableList<EpgProgramme>>()
         for ((p, list) in programmes) for (prog in list.orEmpty()) byEpg.getOrPut(p.id to prog.epgId) { mutableListOf() } += prog
         return GuideWindow(fromMs, toMs, channels.map { c ->
-            val list = (byKey[c.key] ?: listOf(c)).flatMap { own -> listOfNotNull(own.epgId, own.tvgId).distinct().flatMap { byEpg[own.pluginId to it].orEmpty() } }
+            val list = (byKey[c.key] ?: listOf(c)).flatMap { own ->
+                val shift = own.epgShiftMinutes * 60_000L
+                listOfNotNull(own.epgId, own.tvgId).distinct().flatMap { byEpg[own.pluginId to it].orEmpty() }
+                    .map { if (shift == 0L) it else it.copy(startMs = it.startMs + shift, stopMs = it.stopMs + shift) }
+            }
             GuideRow(c, list.distinctBy { it.startMs }.sortedBy { it.startMs })
         })
     }
