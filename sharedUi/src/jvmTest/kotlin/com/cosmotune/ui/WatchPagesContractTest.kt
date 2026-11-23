@@ -189,4 +189,12 @@ class WatchPagesContractTest {
         assertTrue("val channelWidth = if (wide) 220.dp else 68.dp" in live, "the phone's channel column is the logo")
         assertTrue("GuideList(window, now, fonts, look, clock, playChannel)" in live, "and the guide can be a list")
     }
+
+    @Test fun aBackBarNeverRepeatsTheHeadingUnderIt() {
+        val app = read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/WatchApp.kt")
+        assertTrue("showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader(\"\", fonts, look) })" in app, "Plugins and Watch settings: the back button alone")
+        assertTrue("top is WatchRoute.Playlists -> if (top.id == null) \"\" else \"Watch playlists\"" in app, "the list of playlists has its own heading")
+        assertFalse("\"Watch settings\" else tab.label" in app)
+        assertTrue("OrbitPageHeading(\"Watch settings\"" in read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/WatchSettingsPage.kt"), "the page itself is named in its heading")
+    }
 }

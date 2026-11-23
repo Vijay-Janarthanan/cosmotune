@@ -129,9 +129,11 @@ fun WatchApp(
         val pageWidth = if (railShown) maxWidth - com.cosmotune.ui.shell.CosmoNav.RAIL_WIDTH_DP.dp else maxWidth
         val wide = wideLayout ?: (pageWidth >= 840.dp)
         val header: (@Composable () -> Unit)? = when {
-            top != null -> ({ WatchBackHeader(when { top is WatchRoute.Playlists -> "Watch playlists"; top is WatchRoute.Page && top.summary.type == TitleType.SERIES -> "Series"; else -> "Film" }, fonts, look) })
+            // The back bar's small label names the kind of page or where Back goes, never the big heading under it again: the list of
+            // playlists, Plugins and Watch settings carry their own name in their heading, so their bar has the back button alone.
+            top != null -> ({ WatchBackHeader(when { top is WatchRoute.Playlists -> if (top.id == null) "" else "Watch playlists"; top is WatchRoute.Page && top.summary.type == TitleType.SERIES -> "Series"; else -> "Film" }, fonts, look) })
             // Downloads, Plugins and Settings are reached from the profile menu on the phone: they come back with a back button.
-            showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader(if (tab == WatchTab.SETTINGS) "Watch settings" else tab.label, fonts, look) })
+            showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader("", fonts, look) })
             showNavigation -> ({ WatchPhoneHeader(fonts, look) })
             else -> null
         }
