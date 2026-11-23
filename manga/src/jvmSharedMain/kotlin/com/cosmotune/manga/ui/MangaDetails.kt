@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -60,6 +61,7 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
     val list = rememberLazyListState()
     var more by remember { mutableStateOf(false) }
     var migrate by remember(book.id) { mutableStateOf(false) }
+    var editing by remember(book.id) { mutableStateOf(false) }
     val readOrFind: (MangaChapter) -> Unit = { chapter -> if (book.unlinkedSourceName() != null) migrate = true else onRead(chapter) }
     // A hold on a chapter starts choosing several (Mihon's selection): mark read or unread, download, remove downloads.
     var selection by remember(book.id) { mutableStateOf(emptySet<String>()) }
@@ -98,6 +100,15 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
     }
     MangaBackHandler(selection.isNotEmpty()) { selection = emptySet() }
     if (migrate) MangaMigrateSheet(scope, book) { migrate = false }
+    if (editing) KitSheet(onDismiss = { editing = false }) {
+        var title by remember { mutableStateOf(state.books.find { it.id == book.id }?.title ?: book.title) }
+        ReadSheetHeader(mangaText("Edit title"), onDone = { editing = false; scope.action { repository.store.retitle(book.id, title) } }, doneLabel = "Save")
+        Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.cosmotune.ui.orbit.OrbitInputField(title, { title = it.take(300) }, mangaText("Title"), modifier = Modifier.fillMaxWidth().testTag("manga:edit:title"))
+            Text(mangaText("Kept when the series refreshes. Clear it to use the source's title again."), style = ReadType.meta(), color = orbitLook().dim)
+        }
+        Spacer(Modifier.height(16.dp))
+    }
     if (more) KitSheet(onDismiss = { more = false }, title = book.title) {
         ReadSheetRow(mangaText("Refresh chapters"), CosmoIcons.Replay, { more = false; onRefresh() })
         val website = book.parserData?.publicUrl?.takeIf { it.isNotBlank() } ?: book.url.takeIf { it.startsWith("http") }
@@ -114,6 +125,10 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
                 undo.showThen(words) { repository.store.update { it.copy(notInterested = it.notInterested - book.id) } }
             } }, Modifier.testTag("manga:notinterested"))
         }
+        val share = rememberMangaShare { scope.onError(it) }
+        if (website != null) ReadSheetRow(mangaText("Share series"), CosmoIcons.Share, { more = false; share.shareLink(book.title, website) }, Modifier.testTag("manga:share"))
+        if (saved) ReadSheetRow(mangaText("Edit title"), Icons.Rounded.Edit, { more = false; editing = true }, Modifier.testTag("manga:edit"))
+        if (saved && state.customCovers.containsKey(book.id)) ReadSheetRow(mangaText("Use the source's cover"), CosmoIcons.Replay, { more = false; scope.action { repository.store.cover(book.id, null) } })
         if (book.sourceId != "local") ReadSheetRow(mangaText("Find on another source"), CosmoIcons.Search, { more = false; migrate = true }, Modifier.testTag("manga:migrate:open"))
         if (saved) ReadSheetRow(mangaText("Remove from library"), CosmoIcons.Close, onClick = {
             more = false; scope.action {

@@ -251,6 +251,9 @@ internal fun androidx.compose.foundation.layout.RowScope.MangaRootActions(scope:
 /** The cover of a series: its address, the first page of a local comic, or a signed cover fetched through its source. */
 @Composable
 internal fun rememberMangaCover(repository: MangaRepository, book: MangaBook): Any? {
+    // A cover the listener chose (a page set as cover) comes first.
+    val chosen = repository.store.state.collectAsState().value.customCovers[book.id]?.let { java.io.File(it) }?.takeIf { it.isFile }
+    if (chosen != null) return chosen
     val signedCover = book.sourceId.startsWith("template:") || book.sourceId.startsWith("komga:") || book.sourceId.startsWith("suwayomi:")
     var cover by remember(book.id, book.coverUrl) { mutableStateOf<Any?>(book.coverUrl.takeUnless { signedCover }) }
     LaunchedEffect(book.id, book.coverUrl) {

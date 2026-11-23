@@ -156,6 +156,10 @@ data class MangaLibraryState(
     val readerTapInvert: Boolean = false,
     /** The volume keys turn pages while reading. */
     val readerVolumeKeys: Boolean = false,
+    /** Covers the listener chose for a series (a page set as cover), by series id: a file in the library's covers folder. */
+    val customCovers: Map<String, String> = emptyMap(),
+    /** Titles the listener gave a series, kept over the source's when the series refreshes. */
+    val titleEdits: Map<String, String> = emptyMap(),
     /** The collection a series joins when it is added to the library ("" for none). */
     val defaultCollection: String = "",
     /** The series the last library update could not check, with the reason (Komikku's update errors). */

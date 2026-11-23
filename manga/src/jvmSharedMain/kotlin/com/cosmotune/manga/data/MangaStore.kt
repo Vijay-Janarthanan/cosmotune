@@ -77,6 +77,7 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
 
     suspend fun save(book: MangaBook) = update { old ->
         val previous = old.books.find { it.id == book.id }
+        val book = old.titleEdits[book.id]?.let { book.copy(title = it) } ?: book
         // A new series joins the default collection, when there is one.
         val collections = if (previous == null && old.defaultCollection.isNotBlank()) old.collections.map { if (it.id == old.defaultCollection) it.copy(bookIds = it.bookIds + book.id) else it }
             else old.collections
@@ -85,7 +86,7 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
 
     suspend fun remove(bookId: String) = update { old ->
         val chapterIds = old.books.find { it.id == bookId }?.chapters.orEmpty().map { it.id }.toSet()
-        old.copy(books = old.books.filterNot { it.id == bookId }, progress = old.progress - bookId, updateFailures = old.updateFailures - bookId, tracks = old.tracks - bookId, syncedRead = old.syncedRead - bookId, trackFailures = old.trackFailures - bookId,
+        old.copy(books = old.books.filterNot { it.id == bookId }, progress = old.progress - bookId, customCovers = old.customCovers - bookId, titleEdits = old.titleEdits - bookId, updateFailures = old.updateFailures - bookId, tracks = old.tracks - bookId, syncedRead = old.syncedRead - bookId, trackFailures = old.trackFailures - bookId,
             collections = old.collections.map { it.copy(bookIds = it.bookIds - bookId) },
             downloads = old.downloads.filterKeys { it !in chapterIds }, readChapters = old.readChapters - chapterIds,
             newChapters = old.newChapters - chapterIds,
@@ -119,7 +120,7 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
             val known = previous.chapters.map { it.id }.toSet()
             val fresh = if (known.isEmpty()) emptyList() else detail.chapters.map { it.id }.filter { it !in known && it !in old.readChapters && it !in old.syncedRead[detail.id].orEmpty() }
             found = fresh.size
-            old.settledSyncedRead(detail).copy(books = old.books.map { if (it.id == detail.id) detail.copy(addedAtMs = previous.addedAtMs) else it },
+            old.settledSyncedRead(detail).copy(books = old.books.map { if (it.id == detail.id) detail.copy(addedAtMs = previous.addedAtMs, title = old.titleEdits[detail.id] ?: detail.title) else it },
                 newChapters = (old.newChapters + fresh).let { if (it.size > MAX_NEW_CHAPTERS) it.toList().takeLast(MAX_NEW_CHAPTERS).toSet() else it })
         }
         return found
@@ -157,6 +158,23 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
 
     suspend fun deleteCollection(id: String) = update { old -> old.copy(collections = old.collections.filterNot { it.id == id },
         defaultCollection = old.defaultCollection.takeUnless { it == id }.orEmpty()) }
+
+    /** Sets the page in [image] as [bookId]'s cover (a copy in the covers folder); null puts the source's cover back. */
+    suspend fun cover(bookId: String, image: File?) {
+        val folder = File(root, "covers").apply { mkdirs() }
+        val target = File(folder, java.security.MessageDigest.getInstance("SHA-256").digest(bookId.toByteArray()).take(12).joinToString("") { "%02x".format(it) } + ".jpg")
+        if (image != null) withContext(Dispatchers.IO) { image.copyTo(target, overwrite = true) }
+        update { old -> old.copy(customCovers = if (image == null) old.customCovers - bookId else old.customCovers + (bookId to target.path)) }
+        if (image == null) withContext(Dispatchers.IO) { target.delete() }
+    }
+
+    /** Renames a series for this library ([title] blank puts the source's name back on the next refresh). */
+    suspend fun retitle(bookId: String, title: String) = update { old ->
+        val name = title.trim().take(300)
+        require(name.none(Char::isISOControl)) { "Use a title without control characters" }
+        old.copy(titleEdits = if (name.isBlank()) old.titleEdits - bookId else old.titleEdits + (bookId to name),
+            books = if (name.isBlank()) old.books else old.books.map { if (it.id == bookId) it.copy(title = name) else it })
+    }
 
     suspend fun hideCollection(id: String, hidden: Boolean) = update { old -> old.copy(collections = old.collections.map { if (it.id == id) it.copy(hidden = hidden) else it }) }
 

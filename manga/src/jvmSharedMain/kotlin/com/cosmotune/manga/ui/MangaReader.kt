@@ -209,6 +209,7 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     controls: Boolean, hasNext: Boolean, toggleControls: () -> Unit, hideControls: () -> Unit, actions: ReaderActions, onBack: () -> Unit, onNext: () -> Unit) {
     val library by repository.store.state.collectAsState()
     val initial = initialPage.coerceIn(pages.indices)
+    var held by remember { mutableStateOf<File?>(null) }
     // Two pages side by side only in the paged modes and only while the window is wider than tall.
     var wide by remember { mutableStateOf(false) }
     val spreads = remember(pages.size, library.readerSpread, library.readerCoverAlone, wide, mode) {
@@ -357,7 +358,7 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
         if (mode == MangaReaderMode.WEBTOON) LazyColumn(state = scroll, modifier = Modifier.fillMaxSize().testTag("manga:webtoon")) {
             itemsIndexed(pages, key = { _, item -> item.id }) { index, item ->
                 MangaImage(repository, item, chapter.sourceId, webtoon = true, fitWidth = true, zoom[item.id] ?: 1f, { zoom[item.id] = it }, onTap,
-                    onReady = { ready -> readyImages[index] = ready }, treatment = treatment.copy(rotateWide = false), filter = filter)
+                    onReady = { ready -> readyImages[index] = ready }, treatment = treatment.copy(rotateWide = false), filter = filter, onHold = { held = it })
             }
             item(key = "chapter-end") { Box(Modifier.fillMaxWidth().height(1.dp).testTag("manga:chapter-end")) }
         } else HorizontalPager(pager, reverseLayout = mode == MangaReaderMode.PAGES_RTL, beyondViewportPageCount = 0, modifier = Modifier.fillMaxSize()) { index ->
@@ -365,20 +366,21 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
             if (spread.size == 1) {
                 val item = pages[spread.single()]
                 MangaImage(repository, item, chapter.sourceId, webtoon = false, fitWidth = fit == MangaReaderFit.WIDTH, zoom[item.id] ?: 1f, { zoom[item.id] = it }, onTap,
-                    treatment = treatment, filter = filter)
+                    treatment = treatment, filter = filter, onHold = { held = it })
             } else Row(Modifier.fillMaxSize().testTag("manga:spread")) {
                 // Right to left reads the right-hand page first.
                 (if (mode == MangaReaderMode.PAGES_RTL) spread.reversed() else spread).forEachIndexed { side, pageIndex ->
                     val item = pages[pageIndex]
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = if (side == 0) Alignment.CenterEnd else Alignment.CenterStart) {
                         MangaImage(repository, item, chapter.sourceId, webtoon = false, fitWidth = false, zoom[item.id] ?: 1f, { zoom[item.id] = it },
-                            { x, y, width, height -> onTap(x + side * width, y, width * 2, height) }, treatment = treatment, filter = filter)
+                            { x, y, width, height -> onTap(x + side * width, y, width * 2, height) }, treatment = treatment, filter = filter, onHold = { held = it })
                     }
                 }
             }
         }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    held?.let { file -> MangaPageActions(repository, chapter, book, file, page) { held = null; runCatching { focus.requestFocus() } } }
     // Brightness is a dimming over the pages (the system's own stays as it is); it never takes a tap.
     if (library.readerBrightness < 1f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = (1f - library.readerBrightness).coerceIn(0f, 0.7f))))
     // With the card hidden, a faint "6 / 22" at the foot says where the reader is (Mihon's page number).
@@ -449,7 +451,8 @@ internal fun readerFilter(filter: MangaReaderFilter): androidx.compose.ui.graphi
 @Composable
 private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: String, webtoon: Boolean, fitWidth: Boolean, scale: Float,
     onScale: (Float) -> Unit, onTap: (Float, Float, Float, Float) -> Unit, onReady: (Boolean) -> Unit = {}, treatment: MangaPageTreatment = MangaPageTreatment(),
-    filter: androidx.compose.ui.graphics.ColorFilter? = null) {
+    filter: androidx.compose.ui.graphics.ColorFilter? = null, onHold: (File) -> Unit = {}) {
+    val latestHold = rememberUpdatedState(onHold)
     var file by remember(page.id) { mutableStateOf<File?>(null) }
     val latestReady = rememberUpdatedState(onReady)
     val latestScale = rememberUpdatedState(scale)
@@ -485,6 +488,8 @@ private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: S
                     detectTapGestures(
                         onTap = { position -> latestTap.value(position.x, position.y, size.width.toFloat(), size.height.toFloat()) },
                         onDoubleTap = { onScale(if (latestScale.value == 1f) 2f else 1f); offset = Offset.Zero },
+                        // A hold on a page offers its actions: share or copy it, save it, use it as the cover.
+                        onLongPress = { file?.let { latestHold.value(it) } },
                     )
                 },
             onSuccess = { latestReady.value(true) },
@@ -495,5 +500,24 @@ private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: S
             Text(message, style = ReadType.body(), color = Color.White)
             ReadTextButton(mangaText("Retry page"), { latestReady.value(false); file = null; retry++ })
         } }
+    }
+}
+
+/** What a held page offers (Mihon's page actions): share it (copy it on a computer), save it, or make it the series' cover. */
+@Composable
+private fun MangaPageActions(repository: MangaRepository, chapter: MangaChapter, book: MangaBook?, file: File, page: Int, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var message by remember { mutableStateOf<String?>(null) }
+    val share = rememberMangaShare { message = it }
+    val name = listOfNotNull(book?.title, chapter.title, "page ${page + 1}").joinToString(" - ")
+    KitSheet(onDismiss = onDismiss) {
+        ReadSheetHeader(mangaText("Page") + " ${page + 1}", onDone = onDismiss)
+        ReadSheetRow(mangaText(share.shareLabel), CosmoIcons.Share, { share.sharePage(file) }, Modifier.testTag("manga:page:share"))
+        ReadSheetRow(mangaText("Save page"), CosmoIcons.Download, { share.savePage(file, name) }, Modifier.testTag("manga:page:save"))
+        if (book != null && repository.store.state.value.books.any { it.id == book.id }) ReadSheetRow(mangaText("Use as cover"), CosmoIcons.Check, { scope.launch {
+            message = try { repository.store.cover(book.id, file); "Cover changed" } catch (cancelled: CancellationException) { throw cancelled } catch (failure: Exception) { failure.message ?: "The cover could not be changed" }
+        } }, Modifier.testTag("manga:page:cover"))
+        message?.let { Text(it, style = ReadType.meta(), color = orbitLook().dim, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+        Spacer(Modifier.height(16.dp))
     }
 }
