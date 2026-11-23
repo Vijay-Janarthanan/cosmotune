@@ -433,6 +433,8 @@ fun CosmoNowPlaying(
             lyrics = lyricLines, lyricsUnavailable = noLyrics, loadingText = lyricsLoadingText, translation = lyricsTranslation,
             trackKey = song.videoId, playhead = lyricsPlayhead, isPlaying = isPlaying && position.advancing,
             onSeekToLine = seekToLyric, onOpenProviders = { sheets.providers = true },
+            // No lyrics found: "Search for lyrics" opens the lyrics search, where the listener picks the right ones.
+            onSearchLyrics = { sheets.lyricsSearch = true },
             style = style, modifier = m, topPadding = topPadding, share = lyricShare,
             song = lyricStageSong, surface = if (wide) LyricSurface.DESKTOP else LyricSurface.PHONE,
         )

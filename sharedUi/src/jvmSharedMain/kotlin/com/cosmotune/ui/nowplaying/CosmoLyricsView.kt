@@ -943,6 +943,8 @@ internal fun CosmoLyricsPanel(
     onOpenProviders: () -> Unit,
     style: LyricsStyle,
     modifier: Modifier = Modifier,
+    /** "Search for lyrics" under the empty state: the player's own lyrics search where it has one, else the sources sheet. */
+    onSearchLyrics: () -> Unit = onOpenProviders,
     topPadding: Dp = LyricsMetrics.PORTRAIT_TOP_PADDING_DP.dp,
     share: CosmoLyricShare? = null,
     song: LyricStageSong? = null,
@@ -978,7 +980,7 @@ internal fun CosmoLyricsPanel(
                     topPadding = topPadding,
                     selection = share?.selection ?: LyricSelection.None,
                     particles = particleProgress,
-                    onSearchLyrics = onOpenProviders,
+                    onSearchLyrics = onSearchLyrics,
                 )
             } else {
                 key(trackKey) {
