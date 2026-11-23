@@ -200,9 +200,9 @@ class HomeStructureTest {
         assertEquals(5, columns(3000f), "never more than five")
     }
 
-    @Test fun theGroundIsThePagesFlatGround() {
+    @Test fun theGroundIsThePagesOwnGround() {
         val ground = VideoSourceContract.code(VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/blocks/VideoGround.kt"))
-        assertTrue("colors.live(CoverField.BACKGROUND_TOP)" in ground && "Color(0x" !in ground, "the One bg in every theme, no ground of Video's own")
+        assertTrue("cosmoGroundUnder()" in ground && "Color(0x" !in ground, "the app's ground where the row stands, in every theme, no ground of Video's own")
         assertTrue("videoSolidGround()" in screen, "the chip row that sticks has the ground under it")
     }
 

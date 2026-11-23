@@ -164,6 +164,26 @@ fun Modifier.cosmoPlayerGroundEdges(top: Dp, bottom: Dp): Modifier {
 }
 
 /**
+ * The page's ground ([cosmoAmbientGround], as it is painted on the whole window) under a row that sticks or floats over the page:
+ * the stretch of it where the row stands this frame, so what scrolls under the row is hidden and the row cannot be told from the
+ * page around it, the cover's wash included. Read in draw: where the row is in the window, the live colours.
+ */
+@Composable
+fun Modifier.cosmoGroundUnder(): Modifier {
+    val colors = LocalCosmoColors.current
+    val wash by animateFloatAsState(if (colors.palette.isFallback) 0f else 1f, tween(600), label = "rowWash")
+    val pageHeight = LocalWindowInfo.current.containerSize.height.toFloat()
+    val placedAt = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    return onGloballyPositioned { placedAt.floatValue = it.positionInWindow().y }.drawWithCache {
+        val brushes = groundBrushes(colors, wash, artwork = false, height = if (pageHeight > 0f) pageHeight else size.height * 8f)
+        onDrawBehind {
+            val y = placedAt.floatValue
+            withTransform({ translate(top = -y) }) { brushes.forEach { drawRect(it, topLeft = Offset(0f, y), size = size) } }
+        }
+    }
+}
+
+/**
  * [ground] moved in OKLCH lightness, away from [ink], just far enough that [ink] keeps [ratio]:1 on it ([CoverWash.readable]): the
  * hue and the chroma are kept (only where sRGB has no such colour is the chroma lowered), so a deep colour never goes muddy the way
  * a mix toward black does. Unchanged when it already reads. The luminance cap of the artwork backdrop.
