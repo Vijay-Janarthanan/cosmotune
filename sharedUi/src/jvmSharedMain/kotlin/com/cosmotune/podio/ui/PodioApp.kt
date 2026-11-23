@@ -163,7 +163,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     LaunchedEffect(section) { m.browse(); m.query = ""; m.genre = ""; m.searching = false; m.globeFull = false; m.queueOpen = false }
     val stationsWanted = if (m.searching) !m.searchShows else section == PodioSection.RADIO || section == PodioSection.GLOBE
     val showsWanted = if (m.searching) m.searchShows else section == PodioSection.PODCASTS
-    LaunchedEffect(stationsWanted, showsWanted, m.searching, m.language, m.country, m.genre, m.request) {
+    LaunchedEffect(stationsWanted, showsWanted, m.searching, m.language, m.country, m.genre, m.tag, m.request) {
         // Network continuations can resume on a worker with an immediate effect dispatcher. Publish page state on the UI dispatcher.
         withContext(Dispatchers.Main.immediate) { if (stationsWanted || showsWanted) m.loadDirectory(stations = stationsWanted) }
     }
@@ -206,6 +206,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         m.stationDialog = RadioStation("", link.name, link.address)
         PodioLinks.handled()
     }
+    // The saved stations are checked against the directory once a day, while the radio is open.
+    LaunchedEffect(section == PodioSection.RADIO, saved.stations.size) { if (section == PodioSection.RADIO) m.checkSavedStations() }
     LaunchedEffect(m.notice) { if (m.notice != null) { delay(5_000); m.notice = null } }
     fun openQueue() { m.playerSheet = false; m.queueOpen = true }
     val playingStation = if (live) (m.radio + saved.stations + listOfNotNull(m.selected)).firstOrNull { it.item().id == playback.id } else null

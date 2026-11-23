@@ -169,9 +169,33 @@ internal class PodioModel(
         catch (_: Exception) { error = "Couldn't save your Podio library. Check available storage and retry." }
     } }
 
-    fun toggleFavourite(station: RadioStation) = save { old ->
-        old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station)
+    fun toggleFavourite(station: RadioStation) {
+        val index = library.state.value.stations.indexOfFirst { it.id == station.id }
+        if (index < 0) { save { old -> old.copy(stations = old.stations + station) }; return }
+        val kept = library.state.value.stations[index]
+        save { old -> old.copy(stations = old.stations.filterNot { it.id == station.id }) }
+        // A removed station comes back where it was, with its own name and picture.
+        offerUndo(PodioUndo("Removed ${kept.name.ifBlank { "the station" }}") {
+            save { old -> if (old.stations.any { it.id == kept.id }) old else old.copy(stations = old.stations.toMutableList().apply { add(index.coerceAtMost(size), kept) }) }
+        })
     }
+
+    /** The genre the station lists are narrowed to (a Radio Browser tag: "jazz", "news"); empty for all. */
+    var tag by mutableStateOf("")
+
+    /** Checks the saved stations against the directory once a day ([PodioStationCheck]). */
+    suspend fun checkSavedStations() {
+        val saved = library.state.value
+        if (!PodioStationCheck.due(saved, System.currentTimeMillis())) return
+        val fresh = try { catalogue.stationsById(saved.stations.map { it.id }) } catch (e: CancellationException) { throw e } catch (_: Exception) { return }
+        if (fresh.isEmpty()) return
+        withContext(Dispatchers.IO) { library.update { PodioStationCheck.merge(it, fresh, System.currentTimeMillis()) } }
+    }
+
+    /** A vote for [station] in Radio Browser. */
+    fun vote(station: RadioStation) { scope.launch {
+        notice = if (catalogue.vote(station.id)) "Thanks, your vote for ${station.name} is counted." else "Couldn't vote now. Radio Browser counts one vote a station every ten minutes."
+    } }
 
     /** The station dialog is open: null closed, a blank station to add one, a saved one to change it. */
     var stationDialog by mutableStateOf<RadioStation?>(null)
@@ -534,7 +558,7 @@ internal class PodioModel(
         servedRequest = request
         val storefront = country.ifBlank { java.util.Locale.getDefault().country.ifBlank { "US" } }
         val typed = query.trim()
-        val key = if (stations) "podio:stations:$query|$country|$language" else "podio:shows:$storefront|$genre|$language|$typed"
+        val key = if (stations) "podio:stations:$query|$country|$language|$tag" else "podio:shows:$storefront|$genre|$language|$typed"
         val asked = listOf(query, country, language, genre)
         // What this request showed last comes back at once (from memory, or the disk after a restart) and stays while it refreshes;
         // inside the freshness window it is not asked for again.
@@ -559,7 +583,7 @@ internal class PodioModel(
     }
 
     private suspend fun fetchDirectory(stations: Boolean, query: String, country: String, language: String, genre: String, storefront: String, typed: String): DirectoryPage {
-        if (stations) return DirectoryPage(stations = PodioLocal.rank(catalogue.stations(query, country, language), PodioLocal.current()))
+        if (stations) return DirectoryPage(stations = PodioLocal.rank(catalogue.stations(query, country, language, tag = tag), PodioLocal.current()))
         val genreName = PODCAST_GENRES.firstOrNull { it.first == genre }?.second
         return if (typed.isNotBlank()) DirectoryPage("Results for \"$typed\"", shows = catalogue.podcasts(listOf(typed, language).filter(String::isNotBlank).joinToString(" "), storefront))
         else if (language.isBlank()) {
@@ -570,9 +594,9 @@ internal class PodioModel(
     }
 
     /** Clears the search and both filters, and asks again. */
-    fun clearFilters() { browse(); country = ""; language = ""; query = ""; genre = ""; request++ }
+    fun clearFilters() { browse(); country = ""; language = ""; query = ""; genre = ""; tag = ""; request++ }
 
-    val filtered: Boolean get() = country.isNotBlank() || language.isNotBlank() || query.isNotBlank() || genre.isNotBlank()
+    val filtered: Boolean get() = country.isNotBlank() || language.isNotBlank() || query.isNotBlank() || genre.isNotBlank() || tag.isNotBlank()
 
     /** "2 stations · Worldwide", "40 stations · India". */
     fun stationCount(): String = "${radio.size} ${if (radio.size == 1) "station" else "stations"}" +

@@ -1,6 +1,8 @@
 @file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.cosmotune.podio.ui
 
+import androidx.compose.material.icons.outlined.GraphicEq
+
 import androidx.compose.foundation.rememberScrollState
 
 import androidx.compose.foundation.verticalScroll
@@ -148,9 +150,11 @@ internal fun stationCells(width: Dp, side: Dp, wide: Boolean): Pair<Int, Dp> {
 }
 
 /** The region and language chips (and Clear while a filter is on), shared by Radio, Podcasts and the search. */
-@Composable internal fun FilterChips(m: PodioModel, fonts: OrbitFonts, look: OrbitLook) {
+@Composable internal fun FilterChips(m: PodioModel, fonts: OrbitFonts, look: OrbitLook, stations: Boolean = false) {
     OrbitChoiceChip("Region", m.country, REGIONS, { m.browse(); m.country = it }, fonts, look, icon = Icons.Outlined.Public)
     OrbitChoiceChip("Language", m.language, LANGUAGES, { m.browse(); m.language = it }, fonts, look, icon = Icons.Outlined.Translate)
+    // Stations by genre (Radio Browser's tags).
+    if (stations) OrbitChoiceChip("Genre", m.tag, STATION_TAGS, { m.browse(); m.tag = it }, fonts, look, icon = Icons.Outlined.GraphicEq)
     if (m.filtered) PodioTextAction("Clear", look, fonts, m::clearFilters)
 }
 
@@ -188,7 +192,7 @@ private fun stationsLine(m: PodioModel): String {
             item(key = "chips") {
                 OrbitChipRow(side, Modifier.padding(top = 18.dp)) {
                     OrbitSelectChip("Globe", false, fonts, look, onGlobe, icon = Icons.Outlined.Public, haptic = false)
-                    FilterChips(m, fonts, look)
+                    FilterChips(m, fonts, look, stations = true)
                 }
             }
             if (featured != null) item(key = "card") {
@@ -453,3 +457,9 @@ private fun LazyListScope.stationsUnderRing(m: PodioModel, env: PodioEnv, onAir:
         }
     }
 }
+
+/** The genres offered for stations (Radio Browser tags), with "Every genre" first. */
+internal val STATION_TAGS = listOf("" to "Every genre", "news" to "News", "talk" to "Talk", "pop" to "Pop", "rock" to "Rock", "jazz" to "Jazz",
+    "classical" to "Classical", "dance" to "Dance", "hits" to "Hits", "oldies" to "Oldies", "country" to "Country", "hip hop" to "Hip hop",
+    "electronic" to "Electronic", "indie" to "Indie", "folk" to "Folk", "devotional" to "Devotional", "sports" to "Sports", "bollywood" to "Bollywood",
+    "tamil" to "Tamil", "kids" to "Kids", "lofi" to "Lo-fi", "ambient" to "Ambient", "reggae" to "Reggae", "latin" to "Latin", "metal" to "Metal")

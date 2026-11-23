@@ -24,7 +24,11 @@ import kotlin.coroutines.resumeWithException
 @Serializable data class RadioStation(val id: String, val name: String, val url: String,
     val country: String = "", val countryCode: String = "", val language: String = "", val tags: String = "",
     val artwork: String = "", val latitude: Double? = null, val longitude: Double? = null,
-    val codec: String = "", val bitrate: Int = 0, val state: String = "")
+    val codec: String = "", val bitrate: Int = 0, val state: String = "",
+    /** The directory's last check could not reach the stream ([PodioStationCheck]). */
+    val offline: Boolean = false,
+    /** The directory no longer lists the station. */
+    val removed: Boolean = false)
 @Serializable data class PodcastShow(val id: String, val title: String, val author: String,
     val feed: String, val artwork: String = "", val website: String = "", val source: String = "Publisher feed",
     /** Podcasting 2.0's "podcast:funding": where to support the show (a web page; nothing is paid in the app). */
@@ -113,24 +117,42 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         error("The radio directory is unavailable. Please retry.")
     }
     suspend fun stations(query: String = "", countryCode: String = "", language: String = "", globe: Boolean = false,
-        limit: Int? = null): List<RadioStation> = withContext(Dispatchers.Default) {
+        limit: Int? = null, tag: String = ""): List<RadioStation> = withContext(Dispatchers.Default) {
         val count = limit?.coerceIn(1, 3000) ?: if (globe) 1200 else 3000
         val params = linkedMapOf("hidebroken" to "true", "order" to "clickcount", "reverse" to "true", "limit" to count.toString())
         if (query.isNotBlank()) params["name"] = query.trim().take(200)
         if (countryCode.isNotBlank()) params["countrycode"] = countryCode.uppercase(Locale.ROOT).take(2)
         if (language.isNotBlank()) params["language"] = language.trim().lowercase(Locale.ROOT).take(60)
         if (globe) params["has_geo_info"] = "true"
-        val directory = (radio("/json/stations/search", params) as? JsonArray).orEmpty().mapNotNull { element ->
+        if (tag.isNotBlank()) params["tag"] = tag.trim().lowercase(Locale.ROOT).take(60)
+        val directory = stationList(radio("/json/stations/search", params))
+        val merged = mergeExtras(directory, extras, query, countryCode, language).let { list -> if (tag.isBlank()) list else list.filter { it.tags.contains(tag, true) } }
+        if (limit != null) merged.take(count) else merged
+    }
+
+    /** The directory's current entries for saved stations ([ids]), with whether its last check reached each one. */
+    suspend fun stationsById(ids: List<String>): List<RadioStation> = withContext(Dispatchers.Default) {
+        val wanted = ids.filter { it.matches(Regex("[a-zA-Z0-9-]{1,64}")) && !it.startsWith(PodioStationLinks.CUSTOM_PREFIX) }.distinct().take(200)
+        if (wanted.isEmpty()) emptyList() else stationList(radio("/json/stations/byuuid", mapOf("uuids" to wanted.joinToString(","))))
+    }
+
+    /** A vote for the station in the open directory (one a station every ten minutes); true when it was counted. */
+    suspend fun vote(id: String): Boolean {
+        if (!id.matches(Regex("[a-zA-Z0-9-]{1,64}")) || id.startsWith(PodioStationLinks.CUSTOM_PREFIX)) return false
+        return attempt { ((radio("/json/vote/$id", emptyMap()) as? JsonObject)?.get("ok") as? JsonPrimitive)?.booleanOrNull } == true
+    }
+
+    private fun stationList(answer: JsonElement): List<RadioStation> {
+        val directory = (answer as? JsonArray).orEmpty().mapNotNull { element ->
             val o = element as? JsonObject ?: return@mapNotNull null
             val url = httpUrl(o.text("url_resolved").ifBlank { o.text("url") }) ?: return@mapNotNull null
             val id = o.text("stationuuid").takeIf { it.matches(Regex("[a-zA-Z0-9-]{1,64}")) } ?: return@mapNotNull null
             RadioStation(id, o.text("name").trim().take(300), url, o.text("country"), o.text("countrycode"),
                 o.text("language"), o.text("tags"), httpUrl(o.text("favicon")).orEmpty(),
                 o.number("geo_lat")?.takeIf { it in -90.0..90.0 }, o.number("geo_long")?.takeIf { it in -180.0..180.0 },
-                o.text("codec"), o.text("bitrate").toIntOrNull() ?: 0, o.text("state").trim().take(80))
+                o.text("codec"), o.text("bitrate").toIntOrNull() ?: 0, o.text("state").trim().take(80), offline = o.text("lastcheckok") == "0")
         }.distinctBy { it.id }
-        val merged = mergeExtras(directory, extras, query, countryCode, language)
-        if (limit != null) merged.take(count) else merged
+        return directory
     }
     // Stations whose own web page publishes the stream but that the open directory does not list yet. They belong to the real
     // directory only: a test that points the catalogue at its own server gets exactly what that server returns.
@@ -566,7 +588,9 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** The Next button of headphones (or the car) bookmarks the playing episode instead of skipping it. */
     val headsetBookmarks: Boolean = false,
     /** Speech plays louder and clearer (a show can choose otherwise). */
-    val voiceBoost: Boolean = false)
+    val voiceBoost: Boolean = false,
+    /** When the saved stations were last checked against the directory ([PodioStationCheck]). */
+    val stationsCheckedMs: Long = 0)
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {
