@@ -390,6 +390,7 @@ private fun BookTiles(state: ReadingState, modifier: Modifier, onBookmarks: () -
         Triple("Saved for later", state.saved.size, { onShelf(BookShelf.SAVED) }),
         Triple("Finished", state.finished.count { id -> state.books.any { it.id == id } }, { onShelf(BookShelf.FINISHED) }),
     )
+    var stats by remember { mutableStateOf(false) }
     val look = orbitLook()
     val fonts = orbitFonts()
     Column(modifier.fillMaxWidth().testTag("books:tiles"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -405,7 +406,17 @@ private fun BookTiles(state: ReadingState, modifier: Modifier, onBookmarks: () -
                 }
             }
         }
+        if (state.readingMs.isNotEmpty()) {
+            val week = ReadingStatistics.week(state, java.time.LocalDate.now()).sumOf { it.second }
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(ReadShape.md).background(look.row)
+                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = { stats = true }).padding(horizontal = 16.dp, vertical = 12.dp)
+                .testTag("books:tile:stats"), verticalAlignment = Alignment.CenterVertically) {
+                Text("Reading time", style = ReadType.rowTitle(), color = look.ink, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(ReadingProgressMath.duration(week) + " this week", style = fonts.label, color = look.dim)
+            }
+        }
     }
+    if (stats) ReadingStatsSheet(state, onDismiss = { stats = false })
 }
 
 /** A book of the library as a row (the list view): its cover, the title, "Author · 35 %". */

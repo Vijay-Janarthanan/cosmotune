@@ -51,7 +51,10 @@ import kotlinx.serialization.Serializable
     /** The reader's own style rules laid over every book (no addresses or imports). */
     val customCss: String = "",
     /** The page and text colours of [ReadingTheme.CUSTOM], as #rrggbb. */
-    val pageColor: String = "#fdf6e3", val textColor: String = "#2b2b2b")
+    val pageColor: String = "#fdf6e3", val textColor: String = "#2b2b2b",
+    /** The reader's foot line (in order), the book's title over the page, a progress bar under it, and image captions hidden. */
+    val footer: List<ReadingFooterItem> = listOf(ReadingFooterItem.CHAPTER, ReadingFooterItem.CHAPTER_LEFT), val showTitle: Boolean = false,
+    val footerBar: Boolean = false, val hideCaptions: Boolean = false)
 @Serializable data class ReadingOpdsSource(val id: String, val name: String, val url: String,
     val username: String = "", val password: String = "", val allowInsecureHttp: Boolean = false)
 @Serializable data class ReadingCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())
@@ -67,7 +70,9 @@ import kotlinx.serialization.Serializable
     /** Folders of books Read watches, and the files it has taken from them (file key to the book's id, or "!" when it could not). */
     val folders: List<ReadingFolder> = emptyList(), val folderFiles: Map<String, String> = emptyMap(),
     /** The KOReader sync account, when the reader signed in. */
-    val koSync: ReadingKoSync? = null)
+    val koSync: ReadingKoSync? = null,
+    /** Reading time by book and by day ("2026-11-23"), and each book's pace, for time left and the statistics. */
+    val readingMs: Map<String, Long> = emptyMap(), val readingDays: Map<String, Long> = emptyMap(), val paces: Map<String, ReadingPace> = emptyMap())
 
 /** A folder of books on this device: a tree address on Android, a path on the desktop. */
 @Serializable data class ReadingFolder(val location: String, val name: String)

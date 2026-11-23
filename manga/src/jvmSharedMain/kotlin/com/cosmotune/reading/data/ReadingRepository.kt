@@ -170,6 +170,19 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
             old.copy(progress = old.progress + (bookId to ReadingProgress(bookId, locator)))
         }
     }
+    /** Adds [ms] of reading [bookId] today, and to its pace when [covered] (a share of the book read forward) is believable. */
+    suspend fun recordReading(bookId: String, ms: Long, covered: Double) {
+        if (ms <= 0 || ms > 30 * 60_000) return
+        val day = ReadingStatistics.dayKey(System.currentTimeMillis())
+        store.update { old ->
+            if (old.books.none { it.id == bookId }) return@update old
+            val pace = old.paces[bookId] ?: ReadingPace()
+            val steady = covered in 0.0..0.05
+            old.copy(readingMs = old.readingMs + (bookId to (old.readingMs[bookId] ?: 0L) + ms),
+                readingDays = (old.readingDays + (day to (old.readingDays[day] ?: 0L) + ms)).entries.sortedBy { it.key }.takeLast(800).associate { it.key to it.value },
+                paces = if (steady) old.paces + (bookId to ReadingPace(pace.fraction + covered, pace.ms + ms)) else old.paces)
+        }
+    }
     suspend fun saveBookmark(bookId: String, name: String, locator: ReadingLocator): ReadingBookmark {
         validateLocator(locator)
         val bookmark = ReadingBookmark(UUID.randomUUID().toString(), bookId, title(name), locator)

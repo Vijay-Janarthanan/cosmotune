@@ -64,8 +64,10 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     var error by remember { mutableStateOf<String?>(null) }
     var tools by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
+    var lastMove by remember { mutableLongStateOf(System.currentTimeMillis()) }
     fun saveLocation(value: ReadingLocator) {
         locator = value
+        lastMove = System.currentTimeMillis()
         scope.launch {
             try { repository.saveLocator(book.id, value) }
             catch (cancelled: CancellationException) { throw cancelled }
@@ -146,6 +148,27 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     var remote by remember(book.id) { mutableStateOf<ReadingRemotePosition?>(null) }
     LaunchedEffect(book.id) { remote = repository.remotePosition(book.id, spine) }
     DisposableEffect(book.id) { onDispose { repository.pushProgressLater(book.id, spine) } }
+    // Where in the whole book, for the foot line, time left and the reading statistics (chapters weighed by their size).
+    val sizes = remember(document) { epub?.spine?.map { it.file.length() }.orEmpty() }
+    val overall = if (epub != null) ReadingProgressMath.overall(locator, spine, sizes) else locator.progression
+    val chapterEnd = if (epub != null) ReadingProgressMath.chapterEnd(locator, spine, sizes) else 1.0
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); now = System.currentTimeMillis() } }
+    val latestOverall by rememberUpdatedState(overall)
+    // Reading time: counted while the page moved in the last three minutes (or is being read aloud), saved each minute.
+    LaunchedEffect(book.id) {
+        var pending = 0L
+        var from = latestOverall
+        while (true) {
+            kotlinx.coroutines.delay(15_000)
+            if (System.currentTimeMillis() - lastMove < 180_000 || aloud?.playing == true) pending += 15_000
+            if (pending >= 60_000) {
+                val to = latestOverall
+                runCatching { repository.recordReading(book.id, pending, to - from) }
+                from = to; pending = 0
+            }
+        }
+    }
     val canSearch = epub != null || supportsReadingPdfSearch()
     val section = epub?.spine?.indexOfFirst { it.href.substringBefore('#') == locator.resourceHref?.substringBefore('#') }?.takeIf { it >= 0 } ?: 0
     val look = orbitLook()
@@ -155,6 +178,9 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     Box(Modifier.fillMaxSize().background(look.ground).testTag("books:reader")) {
         Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.windowInsetsPadding(WindowInsets.statusBars), onDismiss = { error = null }) }
+            if (preferences.showTitle) Text(listOf(book.title, epub?.spine?.getOrNull(section)?.title.orEmpty()).filter { it.isNotBlank() }.joinToString(" · ").uppercase(),
+                style = orbitFonts().label, color = look.dim.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 24.dp, vertical = 8.dp).testTag("books:title-line"))
             remote?.let { there ->
                 ReadInlineBanner("${there.device} is further on, at ${(there.percentage * 100).toInt()} %.", Modifier.windowInsetsPadding(WindowInsets.statusBars).testTag("books:remote"),
                     actionLabel = "Go there", onAction = { saveLocation(there.locator); remote = null }, onDismiss = { remote = null })
@@ -185,11 +211,16 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
             }
             // A tap on the middle of the page shows the tools where the page can tell (the phone); the desktop keeps the button.
             if (aloud?.active == true) Unit
-            else if (!tools) Row(Modifier.fillMaxWidth(), horizontalArrangement = if (readingCenterTap) Arrangement.Center else Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically) {
-                if (readingCenterTap) Text(bookReaderLabel(epub, section, locator).uppercase(), style = orbitFonts().label, color = look.dim.copy(alpha = 0.7f), maxLines = 1,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("books:page-line"))
-                else OrbitReaderButton(CosmoIcons.MoreVertical, "Show reading tools", ink, fill, { tools = true }, Modifier.background(fill, CircleShape).testTag("books:show-tools"))
+            else if (!tools) Column(Modifier.fillMaxWidth()) {
+                if (preferences.footerBar) com.cosmotune.ui.orbit.OrbitProgressLine({ overall.toFloat() }, look.dim, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), moon = 3.dp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, if (readingCenterTap) Alignment.CenterHorizontally else Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    val chapterTitle = if (epub != null) epub.spine.getOrNull(section)?.title?.takeIf { it.isNotBlank() } ?: "Chapter ${section + 1} of ${epub.spine.size}" else "Page ${locator.page + 1}"
+                    val line = ReadingProgressMath.footer(preferences.footer, chapterTitle, overall, chapterEnd, state.paces[book.id], now)
+                    if (line.isNotBlank() || readingCenterTap) Text(line.ifBlank { bookReaderLabel(epub, section, locator) }.uppercase(), style = orbitFonts().label,
+                        color = look.dim.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).testTag("books:page-line"))
+                    if (!readingCenterTap) OrbitReaderButton(CosmoIcons.MoreVertical, "Show reading tools", ink, fill, { tools = true }, Modifier.background(fill, CircleShape).testTag("books:show-tools"))
+                }
             } else OrbitReaderCard(
                 label = bookReaderLabel(epub, section, locator),
                 progress = { if (epub != null && epub.spine.size > 1) section / (epub.spine.size - 1f) else locator.progression.toFloat().coerceIn(0f, 1f) },
@@ -380,6 +411,18 @@ internal fun ReadingAppearanceChoices(preferences: ReadingPreferences, reflowabl
         } else {
             Text("PDFs keep the publisher's layout. Use the page and zoom controls of the document.", style = ReadType.body(), color = Color(palette.textSecondary),
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+        }
+        if (reflowable) ReadSheetSection("Foot line") {
+            ReadChipRow(inset = 0.dp) {
+                ReadingFooterItem.entries.forEach { item ->
+                    val on = item in preferences.footer
+                    ReadChip(item.label, on, { onChange(preferences.copy(footer = if (on) preferences.footer - item else preferences.footer + item)) }, Modifier.testTag("books:footer:${item.name.lowercase()}"))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            com.cosmotune.ui.orbit.OrbitSwitchRow("Progress bar under the page", preferences.footerBar, { onChange(preferences.copy(footerBar = it)) }, Modifier.padding(vertical = 2.dp))
+            com.cosmotune.ui.orbit.OrbitSwitchRow("Book and chapter over the page", preferences.showTitle, { onChange(preferences.copy(showTitle = it)) }, Modifier.padding(vertical = 2.dp))
+            com.cosmotune.ui.orbit.OrbitSwitchRow("Hide picture captions", preferences.hideCaptions, { onChange(preferences.copy(hideCaptions = it)) }, Modifier.padding(vertical = 2.dp))
         }
         ReadSheetSection("Brightness · ${(preferences.brightness * 100).toInt()}%") {
             ReadSlider(preferences.brightness, { onChange(preferences.copy(brightness = it.coerceIn(0.3f, 1f))) }, 0.3f..1f, 6, "Brightness", Modifier.testTag("books:brightness"))

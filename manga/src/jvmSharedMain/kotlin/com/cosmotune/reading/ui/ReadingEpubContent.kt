@@ -135,6 +135,7 @@ internal object ReadingEpubScripts {
             if (value.hyphenate) append("body{-webkit-hyphens:auto!important;hyphens:auto!important}")
             if (value.paragraphSpacing >= 0f) append("body p{margin-top:0!important;margin-bottom:${value.paragraphSpacing.coerceIn(0f, 3f)}em!important}")
             if (value.paragraphIndent) append("body p{text-indent:1.5em!important}")
+            if (value.hideCaptions) append("figcaption,.caption,.figcaption{display:none!important}")
             if (columns) append("html{height:100%!important;overflow-y:hidden!important}body{max-width:none!important;margin:0!important;box-sizing:border-box!important;height:100vh!important;-webkit-column-count:2;column-count:2;-webkit-column-gap:${margin * 2}px;column-gap:${margin * 2}px;column-fill:auto}")
             if (value.customCss.isNotBlank() && UNSAFE_CSS.none { value.customCss.contains(it, true) }) append(value.customCss)
         }
