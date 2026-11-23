@@ -90,6 +90,8 @@ internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     com.cosmotune.ui.orbit.OrbitSelectChip("My list · ${list.size}", true, fonts, look, onClick = {}, haptic = false)
                     com.cosmotune.ui.orbit.OrbitSelectChip("Playlists · ${playlists.size}", false, fonts, look, onClick = { WatchNav.open(WatchRoute.Playlists()) }, haptic = false)
+                    com.cosmotune.ui.orbit.OrbitSelectChip("Calendar", false, fonts, look, onClick = { WatchNav.open(WatchRoute.Calendar) }, haptic = false)
+                    com.cosmotune.ui.orbit.OrbitSelectChip("History", false, fonts, look, onClick = { WatchNav.open(WatchRoute.History) }, haptic = false)
                     if (actions.downloads != null) com.cosmotune.ui.orbit.OrbitSelectChip("Downloads · ${kept.size}", false, fonts, look, onClick = { WatchNav.go(WatchTab.DOWNLOADS) }, haptic = false)
                 }
             }
@@ -179,22 +181,79 @@ internal fun WatchDownloadsPage(actions: WatchActions, fonts: OrbitFonts, look: 
                     DownloadRow(d, downloads, actions, fonts, look, Modifier.padding(horizontal = side).padding(top = 10.dp))
                 }
             }
+            if (downloads != null && downloads.canTorrent) item(key = "dl:shares") { WatchShares(downloads, actions, fonts, look, Modifier.padding(horizontal = side).padding(top = 24.dp)) }
             item(key = "dl:end") { Spacer(Modifier.height(40.dp)) }
         }
+    }
+}
+
+/**
+ * Sharing your own files: each file or folder being shared with its magnet link (Copy link), how much was sent and to how many
+ * peers, and Stop; then "Share a file or folder" where the device has a picker. Only share what you have the right to.
+ */
+@Composable
+private fun WatchShares(downloads: com.cosmotune.watch.WatchDownloads, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
+    val shares by downloads.shares.collectAsState()
+    if (shares.isEmpty() && !downloads.canChooseShare) return
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        com.cosmotune.ui.orbit.OrbitLabel("Sharing your files", fonts, look.dim, Modifier.padding(start = 6.dp))
+        shares.forEach { share ->
+            com.cosmotune.ui.orbit.WatchRowFrame(look, height = 72.dp) {
+                Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                    androidx.compose.material3.Text(share.name, style = fonts.title, color = look.ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    val line = share.error ?: when {
+                        share.magnet == null -> "Reading the files"
+                        !share.running -> "Stopped"
+                        else -> listOfNotNull("Sharing", sizeText(share.uploaded)?.let { "$it sent" }, "${share.peers} peers").joinToString(" · ")
+                    }
+                    androidx.compose.material3.Text(line, style = fonts.body, color = look.dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    share.magnet?.let { magnet ->
+                        com.cosmotune.ui.orbit.WatchCardChip("Copy link", look.ink, fonts, onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(magnet)) })
+                    }
+                    com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.Close, "Stop sharing ${share.name}", look, onClick = { downloads.stopShare(share.id) }, size = 36.dp)
+                }
+            }
+        }
+        if (downloads.canChooseShare) com.cosmotune.ui.orbit.WatchCardChip("Share a file or folder", look.ink, fonts, icon = com.cosmotune.ui.components.CosmoIcons.Share,
+            onClick = { actions.launch { downloads.chooseAndShare() } })
+        androidx.compose.material3.Text("Makes a magnet link to send. It works while Cosmotune is open and sharing. Only share what you have the right to.",
+            style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, modifier = Modifier.padding(start = 6.dp))
+    }
+}
+
+/** "43% · 2.1 MB/s · 4 min left · 12 peers" while a torrent downloads; "Sharing · 1.2 GB sent · 5 peers" while it is shared. */
+internal fun torrentLine(d: com.cosmotune.watch.WatchDownload): String? {
+    val t = d.torrent ?: return null
+    return when {
+        t.seeding -> listOfNotNull("Sharing", sizeText(t.uploaded)?.let { "$it sent" }, "${t.peers} peers").joinToString(" · ")
+        d.status == com.cosmotune.watch.WatchDownload.Status.DOWNLOADING -> listOfNotNull(
+            d.fraction?.let { "${(it * 100).toInt()}%" } ?: "Finding peers",
+            t.rate.takeIf { it > 0 }?.let { "${sizeText(it) ?: "${it / 1000} kB"}/s" },
+            d.secondsLeft?.let { if (it >= 3600) "${it / 3600} h ${(it % 3600) / 60} min left" else "${(it + 59) / 60} min left" },
+            "${t.peers} peers",
+        ).joinToString(" · ")
+        else -> null
     }
 }
 
 @Composable
 private fun DownloadRow(d: com.cosmotune.watch.WatchDownload, downloads: com.cosmotune.watch.WatchDownloads, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
     val done = d.status == com.cosmotune.watch.WatchDownload.Status.DONE
-    val play = { d.target?.let { t -> WatchNav.open(WatchRoute.Play(t, d.summary, downloads.streamOf(d))) }; Unit }
+    // A torrent's folder plays its first video; the others are in its ⋯ menu.
+    val videos = if (done && d.torrent != null) downloads.torrentVideos(d) else emptyList()
+    val playFile: (java.io.File) -> Unit = { f -> d.target?.let { t -> WatchNav.open(WatchRoute.Play(t, d.summary, downloads.streamOf(d, f))) } }
+    val play = { if (d.torrent != null) videos.firstOrNull()?.let(playFile) else d.target?.let { t -> WatchNav.open(WatchRoute.Play(t, d.summary, downloads.streamOf(d))) }; Unit }
     com.cosmotune.ui.orbit.WatchRowFrame(look, modifier, height = 84.dp, onClick = if (done) play else null) {
-        com.cosmotune.ui.orbit.WatchPicture(d.summary?.backdropUrl ?: d.summary?.posterUrl, d.key.value, Modifier.padding(start = 4.dp).size(96.dp, 56.dp), radius = 14.dp)
+        // The poster kept with the download shows with no connection.
+        com.cosmotune.ui.orbit.WatchPicture(downloads.posterOf(d) ?: d.summary?.backdropUrl ?: d.summary?.posterUrl, d.key.value, Modifier.padding(start = 4.dp).size(96.dp, 56.dp), radius = 14.dp)
         Column(Modifier.weight(1f)) {
             androidx.compose.material3.Text(d.title, style = fonts.title, color = look.ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             val status = when (d.status) {
-                com.cosmotune.watch.WatchDownload.Status.DONE -> listOfNotNull(d.line, sizeText(d.totalBytes ?: d.bytes)).joinToString(" · ")
-                com.cosmotune.watch.WatchDownload.Status.DOWNLOADING -> "Downloading · " + (d.fraction?.let { "${(it * 100).toInt()}%" } ?: sizeText(d.bytes))
+                com.cosmotune.watch.WatchDownload.Status.DONE -> torrentLine(d) ?: listOfNotNull(d.line, sizeText(d.totalBytes ?: d.bytes)).joinToString(" · ")
+                com.cosmotune.watch.WatchDownload.Status.DOWNLOADING -> torrentLine(d)?.let { "Downloading · $it" } ?: ("Downloading · " + (d.fraction?.let { "${(it * 100).toInt()}%" } ?: sizeText(d.bytes)))
                 com.cosmotune.watch.WatchDownload.Status.FAILED -> d.error ?: "Stopped"
                 com.cosmotune.watch.WatchDownload.Status.PAUSED -> "Paused · " + (sizeText(d.bytes) ?: "Ready to resume")
             }
@@ -204,13 +263,30 @@ private fun DownloadRow(d: com.cosmotune.watch.WatchDownload, downloads: com.cos
             }
         }
         when (d.status) {
-            com.cosmotune.watch.WatchDownload.Status.DONE -> com.cosmotune.ui.orbit.WatchCardChip("Play", look.ink, fonts, onClick = play, icon = com.cosmotune.ui.components.CosmoIcons.Play)
+            com.cosmotune.watch.WatchDownload.Status.DONE -> com.cosmotune.ui.orbit.WatchCardChip("Play", look.ink, fonts, onClick = play, icon = com.cosmotune.ui.components.CosmoIcons.Play,
+                enabled = d.torrent == null || videos.isNotEmpty())
             com.cosmotune.watch.WatchDownload.Status.FAILED, com.cosmotune.watch.WatchDownload.Status.PAUSED -> com.cosmotune.ui.orbit.WatchCardChip("Resume", look.ink, fonts, onClick = {
                 if (!downloads.retry(d.id)) d.summary?.let { actions.open(it) }
             })
             com.cosmotune.watch.WatchDownload.Status.DOWNLOADING -> com.cosmotune.ui.orbit.WatchCardChip("Pause", look.ink, fonts, onClick = { actions.launch { downloads.pause(d.id) } })
         }
-        com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.Close, if (done) "Remove ${d.title}" else "Stop ${d.title}", look, onClick = { downloads.remove(d.id) }, size = 36.dp)
+        if (done) Box {
+            // A finished download's menu: its other videos, sharing it, and removing it.
+            var menu by remember { mutableStateOf(false) }
+            com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.More, "More for ${d.title}", look, onClick = { menu = true }, size = 36.dp)
+            com.cosmotune.ui.orbit.OrbitMenu(menu, { menu = false }, fonts = fonts, look = look, header = d.title, width = 300.dp, items = buildList {
+                if (videos.size > 1) videos.forEach { f -> add(com.cosmotune.ui.orbit.OrbitMenuItem(f.name, sizeText(f.length()), com.cosmotune.ui.components.CosmoIcons.Play) { playFile(f) }) }
+                val t = d.torrent
+                when {
+                    t?.seeding == true -> add(com.cosmotune.ui.orbit.OrbitMenuItem("Stop sharing", "The files stay", com.cosmotune.ui.components.CosmoIcons.Close) { actions.launch { downloads.stopSharing(d.id) } })
+                    t != null && downloads.canTorrent -> add(com.cosmotune.ui.orbit.OrbitMenuItem("Share again", "For the time set in Watch settings", com.cosmotune.ui.components.CosmoIcons.Share) { downloads.shareAgain(d.id) })
+                    downloads.canTorrent -> add(com.cosmotune.ui.orbit.OrbitMenuItem("Share as a torrent", "Makes a magnet link to send", com.cosmotune.ui.components.CosmoIcons.Share) {
+                        runCatching { downloads.share(downloads.fileOf(d)) }
+                    })
+                }
+                add(com.cosmotune.ui.orbit.OrbitMenuItem("Remove", "Deletes the file from this device", com.cosmotune.ui.components.CosmoIcons.Close) { downloads.remove(d.id) })
+            })
+        } else com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.Close, "Stop ${d.title}", look, onClick = { downloads.remove(d.id) }, size = 36.dp)
     }
 }
 

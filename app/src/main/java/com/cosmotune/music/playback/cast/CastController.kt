@@ -38,6 +38,8 @@ object CastController {
         val name: String,
         val connecting: Boolean,
         val connected: Boolean,
+        /** The receiver's address on the network, when its route says. */
+        val host: String? = null,
     )
 
     data class State(
@@ -69,6 +71,20 @@ object CastController {
     private var watched: CastSession? = null
     private var pending: CastSession? = null
     private var disconnectEpoch = 0L
+
+    /**
+     * Someone other than the music asking for a receiver: Watch's video. The next session that
+     * starts is handed to it instead of to [CastPlayback], and the music never sees it.
+     */
+    interface Guest {
+        fun onSessionBegan(session: CastSession)
+        fun onSessionEnded()
+    }
+    private var guestClaim: Guest? = null
+    private var guestSession: CastSession? = null
+    private var guestOwner: Guest? = null
+    /** A route to select once the session already on it has ended. */
+    private var selectAfterEnd: String? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val volumeListener = object : Cast.Listener() {
@@ -78,7 +94,10 @@ object CastController {
     }
 
     private val sessionListener = object : SessionManagerListener<CastSession> {
-        override fun onSessionStarting(session: CastSession) { disconnectEpoch++; pending = session; update { it.copy(connecting = true, error = null) } }
+        override fun onSessionStarting(session: CastSession) {
+            if (guestClaim != null) { pending = session; return }
+            disconnectEpoch++; pending = session; update { it.copy(connecting = true, error = null) }
+        }
 
         override fun onSessionStarted(session: CastSession, sessionId: String) =
             began(session, resumed = false)
@@ -86,22 +105,32 @@ object CastController {
         override fun onSessionStartFailed(session: CastSession, error: Int) {
             if (pending !== session) return
             pending = null
+            guestClaim?.let { guest -> guestClaim = null; guest.onSessionEnded(); return }
             Log.w(TAG, "session start failed: $error")
             update { it.copy(connecting = false) }
             playback?.onConnectFailed()
         }
 
         override fun onSessionEnding(session: CastSession) {
+            if (guestSession === session) return
             if (watched !== session) return
             playback?.onSessionEnding(session)
         }
 
         override fun onSessionEnded(session: CastSession, error: Int) {
+            if (guestSession === session) {
+                val owner = guestOwner
+                guestSession = null; guestOwner = null
+                owner?.onSessionEnded()
+                publishDevices()
+                return
+            }
             if (watched !== session) return
             stopWatching()
             update { it.copy(connecting = false, connectedName = null) }
             playback?.onSessionEnded(error)
             publishDevices()
+            selectAfterEnd?.let { id -> selectAfterEnd = null; router?.routes?.firstOrNull { it.id == id }?.let { router?.selectRoute(it) } }
         }
 
         override fun onSessionResuming(session: CastSession, sessionId: String) {
@@ -208,6 +237,35 @@ object CastController {
         return { router.removeCallback(callback) }
     }
 
+    /**
+     * Starts a session on [deviceId] for [guest] (Watch's video). Music already casting is
+     * stopped first; the guest hears [Guest.onSessionEnded] if the session never starts.
+     */
+    fun connectGuest(deviceId: String, guest: Guest) {
+        val router = router ?: return guest.onSessionEnded()
+        val route = router.routes.firstOrNull { it.id == deviceId } ?: return guest.onSessionEnded()
+        guestOwner?.takeIf { it !== guest }?.let { endGuest(it) }
+        guestClaim = guest
+        val live = castContext?.sessionManager?.currentCastSession?.takeIf { it.isConnected && it !== guestSession }
+        if (live != null && watched === live) {
+            selectAfterEnd = route.id
+            disconnect(resumeHere = false)
+        } else {
+            router.selectRoute(route)
+        }
+    }
+
+    /** Ends [guest]'s session (stopping what the receiver plays) or its pending claim. */
+    fun endGuest(guest: Guest) {
+        if (guestClaim === guest) { guestClaim = null; selectAfterEnd = null }
+        if (guestOwner !== guest) return
+        val session = guestSession
+        guestSession = null; guestOwner = null
+        if (session != null && castContext?.sessionManager?.currentCastSession === session) {
+            castContext?.sessionManager?.endCurrentSession(true)
+        }
+    }
+
     fun connect(deviceId: String) {
         val router = router ?: return
         val route = router.routes.firstOrNull { it.id == deviceId } ?: return
@@ -250,6 +308,16 @@ object CastController {
         if (pending != null && pending !== session) return
         if (castContext?.sessionManager?.currentCastSession !== session) return
         pending = null
+        val guest = guestClaim
+        if (guest != null && !resumed) {
+            guestClaim = null
+            guestSession = session; guestOwner = guest
+            guest.onSessionBegan(session)
+            publishDevices()
+            return
+        }
+        // A video session left over from a closed Watch player is not the music's to take.
+        if (resumed && guestSession === session) return
         disconnectEpoch++
         watch(session)
         update {
@@ -289,6 +357,7 @@ object CastController {
                         name = it.name,
                         connecting = it.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTING,
                         connected = it.isSelected,
+                        host = runCatching { com.google.android.gms.cast.CastDevice.getFromBundle(it.extras)?.inetAddress?.hostAddress }.getOrNull(),
                     )
                 }
                 .sortedBy { it.name.lowercase() }

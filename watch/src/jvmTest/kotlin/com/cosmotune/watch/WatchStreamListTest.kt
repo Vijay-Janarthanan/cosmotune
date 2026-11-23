@@ -28,6 +28,9 @@ class WatchStreamListTest {
         assertEquals("1.5 GB · 1:02:03", measured.watchMetadata(titleRuntimeMin = 90))
         assertEquals("1.5 GB · 1:02:04", measured.watchMetadata(playingDurationMs = 3_724_000L))
         assertEquals("1.5 GB · Live", measured.copy(isLive = true).watchMetadata())
+        val rich = measured.copy(hdr = "DV", videoCodec = "hevc", audioChannels = "5.1")
+        assertEquals("1.5 GB · 1:02:03 · DV · HEVC · 5.1", rich.watchMetadata())
+        assertEquals("1.5 GB · 1:02:03 · HEVC · 5.1", rich.copy(label = "2160p DV").watchMetadata(), "what the label already says is not said twice")
     }
 
     private fun stream(provider: String, height: Int?) = Stream(

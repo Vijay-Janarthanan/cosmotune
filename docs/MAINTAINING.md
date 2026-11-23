@@ -232,8 +232,10 @@ Video's own wiring. Our own files that know about the stored mode and the drawer
    The Video-specific Compose fixtures are `uiTests/src/test/kotlin/com/cosmotune/ui/VideoMiniPlayerInteractionTest.kt` (the transport)
    and `uiTests/src/test/kotlin/com/cosmotune/ui/VideoWatchNavigationInteractionTest.kt` (the watch page's back stack); remove them and the `testImplementation(project(":video"))` dependency from `uiTests/build.gradle.kts` too.
    Watch mode plays its films, episodes and channels on Video's engine, so its player goes with the Video code: in `:watch`,
-   `watch/src/commonMain/kotlin/com/cosmotune/watch/WatchPlayer.kt`, `watch/src/jvmSharedMain/kotlin/com/cosmotune/watch/DefaultWatchRepository.kt`,
-   `WatchDownloads.kt`, `player/EngineWatchPlayer.kt` and `plugins/free/YouTubeFreePlugin.kt` (and `watch/src/jvmTest/kotlin/com/cosmotune/watch/EngineWatchPlayerTest.kt` and `WatchCastingTest.kt`, which drive a cast with Video's fake engine);
+   `watch/src/commonMain/kotlin/com/cosmotune/watch/WatchPlayer.kt`, `WatchPreferences.kt` (the sound mix and picture looks, and the
+   player's types under Watch's names), `watch/src/jvmSharedMain/kotlin/com/cosmotune/watch/DefaultWatchRepository.kt`,
+   `WatchDownloads.kt`, `player/EngineWatchPlayer.kt` and `plugins/free/YouTubeFreePlugin.kt` (and `watch/src/jvmTest/kotlin/com/cosmotune/watch/EngineWatchPlayerTest.kt`,
+   `WatchPictureChoiceTest.kt` and `WatchCastingTest.kt`, which drive the player with Video's fake engine);
    the Live now channels and Spotlight charts read through Video's source, `live/LiveEventsHub.kt`,
    `watch/src/jvmSharedMain/kotlin/com/cosmotune/watch/live/SpotlightSources.kt`, `plugins/youtube/OfficialLivePlugin.kt`,
    `PrasarBharatiPlugin.kt` and `YouTubeLivePlugin.kt` (and the test double `watch/src/jvmTest/kotlin/com/cosmotune/watch/LiveVideoSource.kt`);

@@ -284,6 +284,8 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     override fun load(request: PlaybackRequest) {
         if (released) return
         smoothing.onLoad()
+        com.cosmotune.video.player.android.smooth.SoundMix.mix = com.cosmotune.video.player.AudioMix.NORMAL
+        com.cosmotune.video.player.android.smooth.SoftwareDecoding.on = false
         val from = request.startMs.coerceAtLeast(0)
         // A live stream starts at its default position, the live edge less the target offset (Y-28, spec 5.13, 6.2): a start of 0
         // would be the oldest moment of its window.
@@ -339,6 +341,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
                 traceStarted = false
                 traceFirstFrame = true
                 StartupTrace.mark(request.videoId, "media3 prepare", item.localConfiguration?.mimeType ?: "progressive")
+                if (pictureFilter != com.cosmotune.video.player.PictureFilter.NORMAL) applyPictureFilter()
                 c.pause()
                 c.setMediaItem(item, start)
                 c.prepare()
@@ -364,6 +367,40 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         smoothing.playbackSpeed = wanted
         snapshotValues.update { it.copy(speed = wanted) }
         command { it.setPlaybackSpeed(wanted) }
+    }
+
+    override fun setSoftwareDecoding(on: Boolean) {
+        // Read when the next decoder is chosen: this video's copy is opened again to apply it now.
+        if (com.cosmotune.video.player.android.smooth.SoftwareDecoding.on == on) return
+        com.cosmotune.video.player.android.smooth.SoftwareDecoding.on = on
+    }
+
+    override fun setAudioMix(mix: com.cosmotune.video.player.AudioMix) {
+        com.cosmotune.video.player.android.smooth.SoundMix.mix = mix
+    }
+
+    override val pictureFilters: Set<com.cosmotune.video.player.PictureFilter> = setOf(
+        com.cosmotune.video.player.PictureFilter.NORMAL, com.cosmotune.video.player.PictureFilter.BRIGHTER,
+        com.cosmotune.video.player.PictureFilter.VIVID, com.cosmotune.video.player.PictureFilter.SOFTER)
+
+    @Volatile private var pictureFilter = com.cosmotune.video.player.PictureFilter.NORMAL
+
+    override fun setPictureFilter(filter: com.cosmotune.video.player.PictureFilter) {
+        if (filter == pictureFilter) return
+        pictureFilter = filter
+        main.post { applyPictureFilter() }
+    }
+
+    /** Media3's own effects on the service's player (main thread): brightness, saturation with contrast, a light blur. */
+    private fun applyPictureFilter() {
+        val player = VideoPlayerHolder.player ?: return
+        val effects: List<androidx.media3.common.Effect> = when (pictureFilter) {
+            com.cosmotune.video.player.PictureFilter.BRIGHTER -> listOf(androidx.media3.effect.Brightness(0.08f))
+            com.cosmotune.video.player.PictureFilter.VIVID -> listOf(androidx.media3.effect.HslAdjustment.Builder().adjustSaturation(30f).build(), androidx.media3.effect.Contrast(0.08f))
+            com.cosmotune.video.player.PictureFilter.SOFTER -> listOf(androidx.media3.effect.GaussianBlur(0.8f))
+            else -> emptyList()
+        }
+        runCatching { player.setVideoEffects(effects) }
     }
 
     override fun setVolume(volume: Float) {

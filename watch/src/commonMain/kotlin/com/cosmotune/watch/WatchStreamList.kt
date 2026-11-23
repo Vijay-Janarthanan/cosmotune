@@ -41,7 +41,16 @@ fun Stream.watchMetadata(playingDurationMs: Long? = null, titleRuntimeMin: Int? 
         titleRuntimeMin != null && titleRuntimeMin > 0 -> "Title runtime ${titleRuntimeMin} min"
         else -> "Duration unknown"
     }
-    return "$size · $runtime"
+    // The picture and sound the copy says it has: "HDR10 · HEVC · 5.1", where the add-on or server tells.
+    val picture = listOfNotNull(threeD, hdr?.takeIf { it.isNotBlank() }, videoCodec?.takeIf { it.isNotBlank() }?.uppercase(), audioChannels?.takeIf { it.isNotBlank() })
+        .filter { part -> !label.contains(part, ignoreCase = true) }
+    return (listOf(size, runtime) + picture).joinToString(" · ")
 }
+
+/** "3D" for a side-by-side, over-under or MVC copy, as its release name says (needs 3D glasses or a 3D screen); null otherwise. */
+val Stream.threeD: String?
+    get() = listOfNotNull(label, description, filename).joinToString(" ").let { text ->
+        if (Regex("(?i)(?<![a-z0-9])(3d|h-?sbs|h-?ou|half-?sbs|half-?ou|sbs3d|mvc)(?![a-z0-9])").containsMatchIn(text)) "3D" else null
+    }
 
 const val WATCH_SKIP_MS = 30_000L

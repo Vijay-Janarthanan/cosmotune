@@ -102,8 +102,10 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
     // Live TV is a tab of its own, not one of Home's filters.
     val filter = fixed ?: chosen.takeIf { it != HomeFilter.LIVE } ?: HomeFilter.ALL
     val viewer by repository.activeProfile.collectAsState()
+    // The home languages pick their own rows, so another choice is another set of rows.
+    val languages = repository.preferences.collectAsState().value.homeLanguages.joinToString(",")
     // The rows of each tab stay for the process (and on the disk): coming back shows them at once while they refresh.
-    val entry = remember(repository, filter, viewer) { watchHomeEntry(repository, filter, viewer) }
+    val entry = remember(repository, filter, viewer, languages) { watchHomeEntry(repository, filter, "$viewer:$languages") }
     // Where the page was scrolled to stays too: opening a title and coming back finds the same place.
     val listState = remember(filter, viewer) { WatchHomeMemory.page(filter.name + ":" + viewer) }
     val cached by entry.collectOnPage()
@@ -167,6 +169,9 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                                 itemsIndexed(going, key = { _, it -> it.key.value }) { _, item -> ContinueCard(item, frame.wide, fonts, look, actions) }
                             }
                         }
+                    }
+                    if (filter == HomeFilter.ALL || filter == HomeFilter.SERIES) item(key = "watch:new-episodes") {
+                        WatchNewEpisodesRow(actions, fonts, look, side, frame.wide)
                     }
                     data.featured?.let { featured ->
                         item(key = "watch:featured") {
@@ -312,6 +317,14 @@ private fun ContinueCard(item: ContinueItem, wide: Boolean, fonts: OrbitFonts, l
     WatchCard(
         title, leftText(item.progress.remainingMs), item.summary.backdropUrl ?: item.summary.posterUrl, item.key.value, fonts, look,
         onClick = { play() }, width = if (wide) 260.dp else 224.dp, wide = true, progress = item.progress.fraction, onPlay = { play() },
+        menu = listOf(
+            com.cosmotune.ui.orbit.OrbitMenuItem(if (item.episode != null) "Mark ${item.episodeLabel} as watched" else "Mark as watched", "It leaves Continue watching", CosmoIcons.Check) {
+                actions.launch { actions.repository.setWatched(item.key, item.summary, watched = true, atMs = System.currentTimeMillis(), episodeName = item.episode?.name) }
+            },
+            com.cosmotune.ui.orbit.OrbitMenuItem("Remove from Continue watching", "Forgets where you were", CosmoIcons.Close) {
+                actions.launch { actions.repository.clearProgress(item.key) }
+            },
+        ),
     )
 }
 

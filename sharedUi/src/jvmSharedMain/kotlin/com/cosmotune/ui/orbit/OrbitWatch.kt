@@ -29,9 +29,13 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -263,6 +267,8 @@ fun WatchCard(
     progress: Float? = null,
     onPlay: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /** What the card's ⋯ offers (Mark as watched, Remove); none draws no button. */
+    menu: List<OrbitMenuItem> = emptyList(),
 ) {
     val interaction = remember { MutableInteractionSource() }
     Column(
@@ -276,9 +282,18 @@ fun WatchCard(
             if (onPlay != null) WatchPlayMoon(look, onPlay, size = if (wide || width == null || width >= 140.dp) 42.dp else 38.dp)
         }
         if (progress != null) WatchProgressLine(progress, look, Modifier.padding(top = 8.dp, end = if (onPlay != null) 10.dp else 0.dp))
-        Text(title, style = fonts.title.copy(fontSize = 13.5.sp, lineHeight = 17.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 10.dp, end = 8.dp))
-        if (!line.isNullOrBlank()) Text(line, style = fonts.body.copy(fontSize = 11.5.sp, lineHeight = 15.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = fonts.title.copy(fontSize = 13.5.sp, lineHeight = 17.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 10.dp, end = 8.dp))
+                if (!line.isNullOrBlank()) Text(line, style = fonts.body.copy(fontSize = 11.5.sp, lineHeight = 15.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (menu.isNotEmpty()) Box(Modifier.padding(top = 4.dp)) {
+                var open by remember { mutableStateOf(false) }
+                OrbitRoundButton(CosmoIcons.More, "More for $title", look.dim, { open = true }, size = 32.dp)
+                OrbitMenu(open, { open = false }, menu, fonts, look, header = title)
+            }
+        }
     }
 }
 
@@ -359,8 +374,16 @@ fun WatchMessage(label: String, title: String, text: String, fonts: OrbitFonts, 
 
 /** A round tonal button that takes the focus (back, more, a star). */
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 fun WatchRoundButton(icon: ImageVector, label: String, look: OrbitLook, onClick: () -> Unit, modifier: Modifier = Modifier, ink: Color = look.ink, size: Dp = 40.dp, on: Boolean = false, enabled: Boolean = true) =
-    OrbitRoundButton(icon, label, ink, onClick, modifier, size = size, on = on, onInk = look.ground, enabled = enabled)
+    // Its name shows on hover on a computer and on a long press on a phone.
+    androidx.compose.material3.TooltipBox(
+        positionProvider = androidx.compose.material3.TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip(containerColor = look.ink, contentColor = look.ground) { Text(label, fontSize = 12.sp, lineHeight = 16.sp, color = look.ground) } },
+        state = androidx.compose.material3.rememberTooltipState(),
+    ) {
+        OrbitRoundButton(icon, label, ink, onClick, modifier, size = size, on = on, onInk = look.ground, enabled = enabled)
+    }
 
 /** A focus target with no look of its own (TV rows that have no click). */
 internal fun Modifier.watchFocusable(interaction: MutableInteractionSource): Modifier = this.focusable(interactionSource = interaction)

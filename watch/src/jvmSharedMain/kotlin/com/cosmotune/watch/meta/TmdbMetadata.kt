@@ -44,8 +44,6 @@ class TmdbMetadata(
     private val region: String = "IN",
     private val baseUrl: String = "https://api.themoviedb.org/3",
     private val imageBase: String = "https://image.tmdb.org/t/p",
-    /** Original languages that get their own rows ("ta" gives "Tamil films"). */
-    private val regionalLanguages: List<String> = listOf("ta", "hi"),
 ) : MetadataProvider {
     override val source = MetadataSource.TMDB
     private val bearer = apiKey.startsWith("eyJ")
@@ -134,7 +132,8 @@ class TmdbMetadata(
         return get("/tv/$id/season/$season", ttl = 6 * WatchHttp.HOUR).list("episodes").mapNotNull { ep ->
             val n = ep.int("episode_number") ?: return@mapNotNull null
             Episode(WatchKey.tmdbEpisode(id, season, n), seriesKey, season, n, ep.str("name") ?: "Episode $n", ep.str("overview"),
-                img(ep.str("still_path"), "w500"), ep.str("air_date"), ep.int("runtime"), ExternalIds(tmdb = ep.int("id")))
+                img(ep.str("still_path"), "w500"), ep.str("air_date"), ep.int("runtime"), ExternalIds(tmdb = ep.int("id")),
+                rating = ep.double("vote_average")?.takeIf { it > 0 && (ep.int("vote_count") ?: 0) >= 3 })
         }
     }
 
@@ -173,54 +172,18 @@ class TmdbMetadata(
         WatchSearchRules.merge(answers)
     }
 
-    override suspend fun rows(type: TitleType?): List<HomeRow> = coroutineScope {
-        val defs = buildList {
-            if (type != TitleType.SERIES) {
-                add(RowDef("tmdb:today:film", "Top 10 · trending today", topTen = true))
-                add(RowDef("tmdb:trending:film", "Trending films"))
-                add(RowDef("tmdb:popular:film", "Popular films"))
-                regionalLanguages.forEach {
-                    add(RowDef("tmdb:regional10:film:$it", "Top 10 · ${LANGUAGES[it] ?: it}", topTen = true))
-                    add(RowDef("tmdb:lang:film:$it", "${LANGUAGES[it] ?: it} films"))
-                }
-                add(RowDef("tmdb:top:film", "Top rated films"))
-                listOf(18 to "Drama", 35 to "Comedy", 28 to "Action", 53 to "Thriller").forEach { (g, n) -> add(RowDef("tmdb:genre:film:$g", n)) }
-            }
-            if (type != TitleType.FILM) {
-                add(RowDef("tmdb:today:series", "Top 10 series · today", topTen = true))
-                add(RowDef("tmdb:trending:series", "Trending series"))
-                add(RowDef("tmdb:popular:series", "Popular series"))
-                add(RowDef("tmdb:top:series", "Top rated series"))
-                add(RowDef("tmdb:anime:series", "Anime"))
-                add(RowDef("tmdb:soap:series", "Daily soaps"))
-                add(RowDef("tmdb:scripted:series", "Scripted series"))
-            }
-        }
-        defs.map { d -> async { runCatching { HomeRow(d.id, d.title, rowPage(d.id, 0).let { if (d.topTen) it.take(10) else it },
-            subtitle = if (d.id.contains(":regional10:")) "TMDB popularity · original language" else if (d.topTen) "TMDB daily trending" else null, pageable = !d.topTen) }.getOrNull() } }.awaitAll().filterNotNull().filter { it.items.isNotEmpty() }
+    override suspend fun rows(type: TitleType?, languages: List<String>): List<HomeRow> = coroutineScope {
+        rowDefs(type, languages).map { d -> async { runCatching { HomeRow(d.id, d.title, rowPage(d.id, 0).let { if (d.topTen) it.take(10) else it },
+            subtitle = if (d.id.contains(":regional10:")) "Most watched in that language now" else if (d.topTen) "TMDB daily trending" else null, pageable = !d.topTen) }.getOrNull() } }
+            .awaitAll().filterNotNull().filter { it.items.isNotEmpty() }
     }
 
-    private data class RowDef(val id: String, val title: String, val topTen: Boolean = false)
-
     override suspend fun rowPage(rowId: String, skip: Int): List<TitleSummary> {
+        val (path, params) = request(rowId, skip / 20 + 1, region) ?: return emptyList()
         val parts = rowId.split(':')
-        if (parts.firstOrNull() != "tmdb" || parts.size < 3) return emptyList()
+        val ttl = when (parts[1]) { "today", "trending" -> 3 * WatchHttp.HOUR; "top" -> WatchHttp.DAY; else -> 6 * WatchHttp.HOUR }
         val type = if (parts[2] == "series") TitleType.SERIES else TitleType.FILM
-        val t = if (type == TitleType.FILM) "movie" else "tv"
-        val page = (skip / 20 + 1).toString()
-        val e = when (parts[1]) {
-            "today" -> get("/trending/$t/day", mapOf("page" to page), 3 * WatchHttp.HOUR)
-            "trending" -> get("/trending/$t/week", mapOf("page" to page), 3 * WatchHttp.HOUR)
-            "popular" -> get("/$t/popular", mapOf("page" to page, "region" to region), 6 * WatchHttp.HOUR)
-            "top" -> get("/$t/top_rated", mapOf("page" to page), WatchHttp.DAY)
-            "genre" -> get("/discover/$t", mapOf("page" to page, "with_genres" to parts.getOrElse(3) { "18" }, "sort_by" to "popularity.desc"), 6 * WatchHttp.HOUR)
-            "lang", "regional10" -> get("/discover/$t", mapOf("page" to page, "with_original_language" to parts.getOrElse(3) { "ta" }, "sort_by" to "popularity.desc", "vote_count.gte" to "20"), 6 * WatchHttp.HOUR)
-            "anime" -> get("/discover/tv", mapOf("page" to page, "with_genres" to "16", "with_original_language" to "ja", "sort_by" to "popularity.desc"), 6 * WatchHttp.HOUR)
-            "soap" -> get("/discover/tv", mapOf("page" to page, "with_genres" to "10766", "sort_by" to "popularity.desc"), 6 * WatchHttp.HOUR)
-            "scripted" -> get("/discover/tv", mapOf("page" to page, "with_type" to "0", "without_genres" to "10766", "sort_by" to "popularity.desc"), 6 * WatchHttp.HOUR)
-            else -> return emptyList()
-        }
-        return e.list("results").mapNotNull { summaryOf(it, type) }
+        return get(path, params, ttl).list("results").mapNotNull { summaryOf(it, type) }
     }
 
     override suspend fun findByImdb(imdb: String, type: TitleType): TitleSummary? {
@@ -280,8 +243,68 @@ class TmdbMetadata(
             10751 to "Family", 14 to "Fantasy", 36 to "History", 27 to "Horror", 10402 to "Music", 9648 to "Mystery", 10749 to "Romance",
             878 to "Science Fiction", 53 to "Thriller", 10752 to "War", 37 to "Western", 10759 to "Action & Adventure", 10762 to "Kids",
             10763 to "News", 10764 to "Reality", 10765 to "Sci-Fi & Fantasy", 10766 to "Soap", 10767 to "Talk", 10768 to "War & Politics")
-        val LANGUAGES = mapOf("ta" to "Tamil", "hi" to "Hindi", "te" to "Telugu", "ml" to "Malayalam", "kn" to "Kannada", "bn" to "Bengali",
-            "ko" to "Korean", "ja" to "Japanese", "es" to "Spanish", "fr" to "French")
+        val LANGUAGES: Map<String, String> = WatchLanguage.entries.associate { it.code to it.label }
+
+        /** One row of Watch home from TMDB; a [topTen] row shows ten numbered cards and does not page. */
+        data class RowDef(val id: String, val title: String, val topTen: Boolean = false)
+
+        /**
+         * Watch home's TMDB rows for [type] (null = both): the world's trending and popular, then for each of the viewer's home
+         * [languages] a Top 10 and a row of its films, and a Top 10, web series and daily soaps of its series, then genres.
+         */
+        fun rowDefs(type: TitleType?, languages: List<String>): List<RowDef> = buildList {
+            val names = languages.distinct().map { it to (LANGUAGES[it] ?: it) }
+            if (type != TitleType.SERIES) {
+                add(RowDef("tmdb:today:film", "Top 10 · trending today", topTen = true))
+                add(RowDef("tmdb:trending:film", "Trending films"))
+                add(RowDef("tmdb:popular:film", "Popular films"))
+                names.forEach { (code, name) ->
+                    add(RowDef("tmdb:regional10:film:$code", "Top 10 · $name films", topTen = true))
+                    add(RowDef("tmdb:lang:film:$code", "$name films"))
+                }
+                add(RowDef("tmdb:top:film", "Top rated films"))
+                listOf(18 to "Drama", 35 to "Comedy", 28 to "Action", 53 to "Thriller").forEach { (g, n) -> add(RowDef("tmdb:genre:film:$g", n)) }
+            }
+            if (type != TitleType.FILM) {
+                add(RowDef("tmdb:today:series", "Top 10 series · today", topTen = true))
+                add(RowDef("tmdb:trending:series", "Trending series"))
+                add(RowDef("tmdb:popular:series", "Popular series"))
+                names.forEach { (code, name) ->
+                    add(RowDef("tmdb:regional10:series:$code", "Top 10 · $name series", topTen = true))
+                    add(RowDef("tmdb:web:series:$code", "$name web series"))
+                    add(RowDef("tmdb:soap:series:$code", "$name daily soaps"))
+                }
+                add(RowDef("tmdb:top:series", "Top rated series"))
+                add(RowDef("tmdb:anime:series", "Anime"))
+                add(RowDef("tmdb:soap:series", "Daily soaps"))
+                add(RowDef("tmdb:scripted:series", "Scripted series"))
+            }
+        }
+
+        /** The TMDB path and parameters for page [page] of the home row [rowId], or null for a row TMDB does not serve. */
+        fun request(rowId: String, page: Int, region: String): Pair<String, Map<String, String>>? {
+            val parts = rowId.split(':')
+            if (parts.firstOrNull() != "tmdb" || parts.size < 3) return null
+            val t = if (parts[2] == "series") "tv" else "movie"
+            val lang = parts.getOrNull(3)
+            val p = "page" to page.toString()
+            // TMDB's series types: 2 is a miniseries, 4 a scripted show (0 is a documentary).
+            val scripted = "with_type" to "4|2"
+            val popular = "sort_by" to "popularity.desc"
+            return when (parts[1]) {
+                "today" -> "/trending/$t/day" to mapOf(p)
+                "trending" -> "/trending/$t/week" to mapOf(p)
+                "popular" -> "/$t/popular" to mapOf(p, "region" to region)
+                "top" -> "/$t/top_rated" to mapOf(p)
+                "genre" -> "/discover/$t" to mapOf(p, "with_genres" to (lang ?: "18"), popular)
+                "lang", "regional10" -> "/discover/$t" to mapOf(p, "with_original_language" to (lang ?: "ta"), popular, "vote_count.gte" to "20")
+                "anime" -> "/discover/tv" to mapOf(p, "with_genres" to "16", "with_original_language" to "ja", popular)
+                "soap" -> "/discover/tv" to (mapOf(p, "with_genres" to "10766", popular) + listOfNotNull(lang?.let { "with_original_language" to it }))
+                "web" -> "/discover/tv" to mapOf(p, scripted, "without_genres" to "10766", "with_original_language" to (lang ?: "ta"), popular, "vote_count.gte" to "5")
+                "scripted" -> "/discover/tv" to mapOf(p, scripted, "without_genres" to "10766", popular)
+                else -> null
+            }
+        }
     }
 }
 

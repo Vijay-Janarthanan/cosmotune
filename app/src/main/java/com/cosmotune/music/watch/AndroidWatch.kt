@@ -50,7 +50,9 @@ object AndroidWatch {
         val dir = app.getExternalFilesDir(android.os.Environment.DIRECTORY_MOVIES)?.let { File(it, "Watch") } ?: File(File(app.filesDir, "watch"), "downloads")
         com.cosmotune.watch.WatchDownloads(dir, Http.client, destinationOptions =
             listOf(File(File(app.filesDir, "watch"), "downloads")) +
-                app.getExternalFilesDirs(android.os.Environment.DIRECTORY_MOVIES).filterNotNull().map { File(it, "Watch") })
+                app.getExternalFilesDirs(android.os.Environment.DIRECTORY_MOVIES).filterNotNull().map { File(it, "Watch") },
+            // Finished torrents are not shared on mobile data unless the listener allowed it.
+            metered = { app.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered ?: true })
     }.also { it.bindRepository(repository(context)); downloadsRef = it }
 
     /** Whether [player] has been built in this process. */
@@ -61,7 +63,8 @@ object AndroidWatch {
     fun player(context: Context): EngineWatchPlayer = playerRef ?: run {
         val graph = androidVideoGraph(context.applicationContext)
         EngineWatchPlayer(repository(context), graph.playback.engine, onYouTube = { id, at -> graph.playback.play(id, at) },
-            stopOthers = { runCatching { graph.playback.stop() } })
+            stopOthers = { runCatching { graph.playback.stop() } }, speech = AndroidSpeechSampler(context.applicationContext),
+            frames = AndroidFrameGrabber, previewDir = File(File(context.applicationContext.cacheDir, "watch"), "previews"))
     }.also { playerRef = it }
 
     /** A `stremio://` or `cosmotune://watch/...` link opened from another app: the Install sheet shows it. */

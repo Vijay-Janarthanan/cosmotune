@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -52,7 +53,7 @@ enum class WatchBatchSelection { SEASON, UNWATCHED, ALL, CUSTOM }
     val completed: Int get() = episodes.count { it.status == WatchBatchEpisodeStatus.DONE }
 }
 
-/** Application-scoped, serial queue built on Watch's existing range downloader and device storage policy. */
+/** Application-scoped queue (one episode at a time unless the viewer chose more) built on Watch's existing range downloader and device storage policy. */
 class WatchBatchDownloads internal constructor(private val downloads: WatchDownloads, private val scope: CoroutineScope) {
     private val json = Json { ignoreUnknownKeys = true }
     private val serializer = ListSerializer(WatchBatchDownload.serializer())
@@ -145,39 +146,59 @@ class WatchBatchDownloads internal constructor(private val downloads: WatchDownl
         launched.start()
     }
 
+    /**
+     * Downloads the batch's episodes, as many at once as the viewer chose in Watch settings (one to three, one by default): each
+     * worker claims the next episode nobody has, so none is fetched twice.
+     */
     private suspend fun runBatch(id: String, repo: WatchRepository) {
         synchronized(this) { edit(id) { it.copy(status = WatchBatchStatus.RUNNING) } }
-        while (true) {
-            val batch = state.value.firstOrNull { it.id == id } ?: return
-            if (batch.status != WatchBatchStatus.RUNNING) return
-            val episode = batch.episodes.firstOrNull { it.status in setOf(WatchBatchEpisodeStatus.PENDING, WatchBatchEpisodeStatus.DOWNLOADING) } ?: break
-            var activeDownload: String? = null
-            try {
-                val kept = downloads.doneFor(episode.target.key)
-                if (kept != null) {
-                    episode(id, episode.copy(status = WatchBatchEpisodeStatus.DONE, downloadId = kept.id)); continue
+        val claimed = HashSet<WatchKey>()
+        val workers = repo.preferences.value.parallelDownloads.coerceIn(1, MAX_DOWNLOADS_AT_ONCE)
+        coroutineScope {
+            repeat(workers) {
+                launch {
+                    while (true) {
+                        val (batch, episode) = synchronized(this@WatchBatchDownloads) {
+                            val batch = state.value.firstOrNull { it.id == id }?.takeIf { it.status == WatchBatchStatus.RUNNING } ?: return@launch
+                            val next = batch.episodes.firstOrNull { it.status in setOf(WatchBatchEpisodeStatus.PENDING, WatchBatchEpisodeStatus.DOWNLOADING) && it.target.key !in claimed }
+                                ?: return@launch
+                            claimed += next.target.key
+                            batch to next
+                        }
+                        downloadOne(id, batch, episode, repo)
+                    }
                 }
-                val candidates = repo.sourcesNow(episode.target, episode.hint).streams.filter(downloads::canDownload)
-                val stream = choose(candidates, batch.maxHeight, episode.hint, episode.target)
-                    ?: error("No matching direct MP4, MKV or WebM copy at this quality. Check your sources and retry.")
-                val d = checkNotNull(downloads.start(episode.target, batch.summary, stream,
-                    "S${episode.target.season} E${episode.target.episode} · ${episode.target.episodeName.orEmpty()}", batch.directoryPath))
-                activeDownload = d.id
-                val hint = StreamHint(stream.source.pluginId, stream.label, stream.filename, stream.sizeBytes, stream.durationMs, stream.bingeGroup)
-                episode(id, episode.copy(status = WatchBatchEpisodeStatus.DOWNLOADING, downloadId = d.id, hint = hint, error = null))
-                val result = downloads.items.first { list -> list.none { it.id == d.id && it.status == WatchDownload.Status.DOWNLOADING } }.firstOrNull { it.id == d.id }
-                check(result?.status == WatchDownload.Status.DONE) { result?.error ?: "Download stopped. Retry to continue." }
-                episode(id, episode.copy(status = WatchBatchEpisodeStatus.DONE, downloadId = d.id, hint = hint, error = null))
-                activeDownload = null
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
-                val current = state.value.firstOrNull { it.id == id }?.episodes?.firstOrNull { it.target.key == episode.target.key } ?: episode
-                episode(id, current.copy(status = WatchBatchEpisodeStatus.FAILED, error = e.message?.take(200) ?: "Download failed."))
-            } finally {
-                activeDownload?.let { withContext(NonCancellable) { downloads.pause(it) } }
             }
         }
         synchronized(this) { edit(id) { it.copy(status = if (it.episodes.any { e -> e.status == WatchBatchEpisodeStatus.FAILED }) WatchBatchStatus.FAILED else WatchBatchStatus.DONE) } }
+    }
+
+    private suspend fun downloadOne(id: String, batch: WatchBatchDownload, episode: WatchBatchEpisode, repo: WatchRepository) {
+        var activeDownload: String? = null
+        try {
+            val kept = downloads.doneFor(episode.target.key)
+            if (kept != null) {
+                episode(id, episode.copy(status = WatchBatchEpisodeStatus.DONE, downloadId = kept.id)); return
+            }
+            val candidates = repo.sourcesNow(episode.target, episode.hint).streams.filter(downloads::canDownload)
+            val stream = choose(candidates, batch.maxHeight, episode.hint, episode.target)
+                ?: error("No matching direct MP4, MKV or WebM copy at this quality. Check your sources and retry.")
+            val d = checkNotNull(downloads.start(episode.target, batch.summary, stream,
+                "S${episode.target.season} E${episode.target.episode} · ${episode.target.episodeName.orEmpty()}", batch.directoryPath))
+            activeDownload = d.id
+            val hint = StreamHint(stream.source.pluginId, stream.label, stream.filename, stream.sizeBytes, stream.durationMs, stream.bingeGroup)
+            episode(id, episode.copy(status = WatchBatchEpisodeStatus.DOWNLOADING, downloadId = d.id, hint = hint, error = null))
+            val result = downloads.items.first { list -> list.none { it.id == d.id && it.status == WatchDownload.Status.DOWNLOADING } }.firstOrNull { it.id == d.id }
+            check(result?.status == WatchDownload.Status.DONE) { result?.error ?: "Download stopped. Retry to continue." }
+            episode(id, episode.copy(status = WatchBatchEpisodeStatus.DONE, downloadId = d.id, hint = hint, error = null))
+            activeDownload = null
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            val current = state.value.firstOrNull { it.id == id }?.episodes?.firstOrNull { it.target.key == episode.target.key } ?: episode
+            episode(id, current.copy(status = WatchBatchEpisodeStatus.FAILED, error = e.message?.take(200) ?: "Download failed."))
+        } finally {
+            activeDownload?.let { withContext(NonCancellable) { downloads.pause(it) } }
+        }
     }
 
     @Synchronized private fun episode(id: String, episode: WatchBatchEpisode) { edit(id) { it.copy(episodes = it.episodes.map { old -> if (old.target.key == episode.target.key) episode else old }) } }
@@ -219,3 +240,6 @@ class WatchBatchDownloads internal constructor(private val downloads: WatchDownl
         }
     }
 }
+
+/** The most episodes a batch downloads at once. */
+const val MAX_DOWNLOADS_AT_ONCE = 3

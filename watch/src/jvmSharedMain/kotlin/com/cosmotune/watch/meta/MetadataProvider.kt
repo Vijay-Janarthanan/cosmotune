@@ -21,8 +21,8 @@ interface MetadataProvider {
         if (query.browsing || query.kind == com.cosmotune.watch.WatchKind.LIVE) com.cosmotune.watch.QueryAbility.SILENT else com.cosmotune.watch.QueryAbility(true)
     suspend fun find(query: com.cosmotune.watch.WatchQuery, currentYear: Int): List<TitleSummary> =
         if (query.browsing) emptyList() else search(query.trimmed)
-    /** The metadata rows of Watch home for [type] (null = both): trending, popular, top rated, genres, regional. */
-    suspend fun rows(type: TitleType?): List<HomeRow>
+    /** The metadata rows of Watch home for [type] (null = both): trending, popular, top rated, genres, and rows for each of [languages]. */
+    suspend fun rows(type: TitleType?, languages: List<String> = emptyList()): List<HomeRow>
     suspend fun rowPage(rowId: String, skip: Int): List<TitleSummary>
     /** The canonical card for an IMDb id (TMDB `/find`), so add-on and server items join the TMDB keys. */
     suspend fun findByImdb(imdb: String, type: TitleType): TitleSummary?

@@ -173,4 +173,30 @@ class WatchBatchDownloadsTest {
             }
         } finally { scope.coroutineContext[Job]!!.cancelAndJoin(); directory.deleteRecursively() }
     }
+
+    @Test fun twoAtOnceFetchesTheNextEpisodeWhileTheFirstStillDownloads() = runBlocking {
+        val directory = Files.createTempDirectory("watch-batch-parallel").toFile()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            TestServer().use { server ->
+                server.text("/episode.mp4", "fixture episode")
+                val asked = java.util.concurrent.atomic.AtomicInteger()
+                val both = CompletableDeferred<Unit>()
+                val downloads = WatchDownloads(directory, OkHttpClient(), scope = scope)
+                val base = repo { t ->
+                    if (asked.incrementAndGet() >= 2) both.complete(Unit)
+                    // Each episode waits until a second one is being fetched beside it: one at a time would never get there.
+                    withTimeout(5_000) { both.await() }
+                    listOf(stream(server.url("/episode.mp4?" + t.key.value)))
+                }
+                downloads.bindRepository(object : WatchRepository by base {
+                    override val preferences = kotlinx.coroutines.flow.MutableStateFlow(WatchPreferences(parallelDownloads = 2))
+                })
+                downloads.batches.enqueue(title, WatchBatchSelection.ALL, 1)
+                val done = withTimeout(15_000) { downloads.batches.items.first { it.single().status in setOf(WatchBatchStatus.DONE, WatchBatchStatus.FAILED) } }.single()
+                assertEquals(WatchBatchStatus.DONE, done.status, done.episodes.joinToString { "${it.status} ${it.error}" })
+                assertEquals(3, downloads.items.value.size)
+            }
+        } finally { scope.coroutineContext[Job]!!.cancelAndJoin(); directory.deleteRecursively() }
+    }
 }

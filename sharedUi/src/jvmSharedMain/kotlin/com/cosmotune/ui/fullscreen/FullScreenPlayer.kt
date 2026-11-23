@@ -1,5 +1,6 @@
 package com.cosmotune.ui.fullscreen
 
+import androidx.compose.ui.layout.layout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -183,7 +184,8 @@ private const val PINCH_STEP = 1.12f
  * them, a mouse that moves shows them. A double tap on the left or right third skips [FULL_SCREEN_SKIP_MS] back or ahead, shown
  * as a soft half-circle with the seconds. A long press plays at 2x while the finger stays down ([speed]; the speed before comes
  * back on release, with a "2x speed" hint). On a touch screen ([rememberFullScreenDevice]) a vertical drag on the left half sets
- * the brightness and on the right half the volume, with the level meter at that edge. [actions] are direct lines of the ⋯ menu
+ * the brightness and on the right half the volume, with the level meter at that edge; a sideways swipe seeks (two minutes across
+ * the picture), the controls showing the time it lands on and the shift on the seek row. [actions] are direct lines of the ⋯ menu
  * (Picture in picture where the platform has it). Keys: Space or K plays and pauses, the arrows or J and L skip, F and Escape leave.
  * [overlay] is drawn over everything and stays when the controls hide (Watch's next-episode countdown and Skip intro, Video's
  * segment skip, a loading or failure note); it is told whether the controls show, so it can sit above the seek bar.
@@ -206,6 +208,8 @@ fun FullScreenPlayer(
     speed: FullScreenSpeed? = null,
     live: Boolean = false,
     holdControls: Boolean = false,
+    /** Drawn over the seek bar at the time being picked while it is dragged or swiped (Watch's seek thumbnails); null for none. */
+    seekPreview: (@Composable (Long) -> Unit)? = null,
     overlay: @Composable BoxScope.(controlsShown: Boolean) -> Unit = {},
 ) {
     val (fill, setFill) = rememberFullScreenFill()
@@ -225,6 +229,8 @@ fun FullScreenPlayer(
     val held = remember { mutableStateOf<Float?>(null) }
     val meter = remember { mutableStateOf<LevelKind?>(null) }
     val meterLevel = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    // A sideways swipe on the picture: where it would seek to, shown on the seek bar until the finger lifts.
+    val swipeSeek = remember { mutableStateOf<Long?>(null) }
     val currentSpeed by androidx.compose.runtime.rememberUpdatedState(speed)
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
@@ -279,7 +285,8 @@ fun FullScreenPlayer(
                     )
                 }
                 // After the taps, so a drag is taken before the tap detector sees it (and cancels the tap).
-                .levelDrags(device, meter, meterLevel),
+                .levelDrags(device, meter, meterLevel)
+                .seekSwipes(canSkip, durationMs, position, swipeSeek, onEnd = { target -> onSeek(target); stamp++ }),
         )
         SkipFlashes(flash)
         if (held.value != null) Text(
@@ -290,7 +297,7 @@ fun FullScreenPlayer(
         meter.value?.let { kind ->
             LevelMeter(kind, meterLevel, Modifier.align(if (kind == LevelKind.BRIGHTNESS) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = 24.dp))
         }
-        AnimatedVisibility(shown || holdControls, Modifier.fillMaxSize(), enter = fadeIn(tween(200)), exit = fadeOut(tween(360))) {
+        AnimatedVisibility(shown || holdControls || swipeSeek.value != null, Modifier.fillMaxSize(), enter = fadeIn(tween(200)), exit = fadeOut(tween(360))) {
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize().background(CONTROLS_SCRIM))
                 Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 24.dp, vertical = 20.dp)) {
@@ -301,7 +308,7 @@ fun FullScreenPlayer(
                     CentreControls(transport, playing, canSkip, onPlayPause = { onPlayPause(); stamp++ }, skip = { skip(it); stamp++ }, Modifier.align(Alignment.Center))
                     if (!live && durationMs > 0) SeekRow(
                         position, durationMs, playing, onSeek = { onSeek(it); stamp++ }, onScrub = { scrubbing = it },
-                        Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                        Modifier.align(Alignment.BottomCenter).fillMaxWidth(), swipe = swipeSeek.value, preview = seekPreview,
                     )
                 }
             }
@@ -379,7 +386,8 @@ private fun RoundControl(icon: ImageVector, label: String, enabled: Boolean, onC
 
 /** The elapsed time, a straight seek bar (peach progress and thumb on white at 28 %) and the length. */
 @Composable
-private fun SeekRow(position: () -> Long, durationMs: Long, playing: Boolean, onSeek: (Long) -> Unit, onScrub: (Boolean) -> Unit, modifier: Modifier) {
+private fun SeekRow(position: () -> Long, durationMs: Long, playing: Boolean, onSeek: (Long) -> Unit, onScrub: (Boolean) -> Unit, modifier: Modifier, swipe: Long? = null,
+    preview: (@Composable (Long) -> Unit)? = null) {
     // Read a few times a second while playing, never in composition elsewhere.
     var now by remember { mutableLongStateOf(position()) }
     LaunchedEffect(playing) {
@@ -387,10 +395,14 @@ private fun SeekRow(position: () -> Long, durationMs: Long, playing: Boolean, on
         while (playing) { delay(250); now = position() }
     }
     var drag by remember { mutableStateOf<Float?>(null) }
-    val shownMs = drag?.let { (it * durationMs).toLong() } ?: now
+    // Where a swipe started, so its shift can be written beside the time.
+    val swipeFrom = remember { mutableLongStateOf(0L) }
+    if (swipe == null) swipeFrom.longValue = now
+    val shownMs = drag?.let { (it * durationMs).toLong() } ?: swipe ?: now
     val time = TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(clock(shownMs), style = time, color = Color.White)
+        if (swipe != null) Text(swipeShift(swipe - swipeFrom.longValue), style = time, color = PEACH, modifier = Modifier.testTag("fullscreen:swipe-seek"))
         BoxWithConstraints(
             Modifier.weight(1f).height(32.dp).testTag("fullscreen:seek")
                 .semantics { contentDescription = "Seek bar" }
@@ -417,6 +429,13 @@ private fun SeekRow(position: () -> Long, durationMs: Long, playing: Boolean, on
                 drawRoundRect(PEACH, Offset(0f, y - line / 2f), Size(size.width * fraction, line), radius)
                 drawCircle(PEACH, radius = 7.dp.toPx(), center = Offset(size.width * fraction, y))
             })
+            if (preview != null && (drag != null || swipe != null)) Box(Modifier.layout { measurable, constraints ->
+                val placeable = measurable.measure(androidx.compose.ui.unit.Constraints())
+                layout(constraints.maxWidth, 0) {
+                    val x = (fraction * constraints.maxWidth - placeable.width / 2f).toInt().coerceIn(0, (constraints.maxWidth - placeable.width).coerceAtLeast(0))
+                    placeable.place(x, -placeable.height - 4.dp.roundToPx())
+                }
+            }) { preview(shownMs) }
         }
         Text(clock(durationMs), style = time, color = Color.White)
     }
@@ -456,6 +475,53 @@ private fun BoxScope.SkipFlashes(flash: SkipFlash) {
         }
     }
 }
+
+/** A swipe's shift as the seek row writes it: "+0:45", "−1:10". */
+internal fun swipeShift(deltaMs: Long): String = (if (deltaMs < 0) "−" else "+") + clock(kotlin.math.abs(deltaMs))
+
+/** How far a swipe across the whole picture moves: two minutes, or the whole film when it is shorter. */
+internal fun swipeSeekTarget(fromMs: Long, dxFraction: Float, durationMs: Long): Long =
+    (fromMs + (dxFraction * minOf(SWIPE_SEEK_SPAN_MS, durationMs)).toLong()).coerceIn(0L, durationMs)
+
+private const val SWIPE_SEEK_SPAN_MS = 120_000L
+
+/**
+ * A sideways swipe with one finger on a touch screen seeks: [preview] holds where it would land while the finger moves (the seek
+ * row shows it, with the shift), [onEnd] seeks there when it lifts. A vertical drag is the level drags'; a second finger a pinch.
+ */
+private fun Modifier.seekSwipes(enabled: Boolean, durationMs: Long, position: () -> Long, preview: androidx.compose.runtime.MutableState<Long?>, onEnd: (Long) -> Unit): Modifier =
+    if (!enabled) this else pointerInput(durationMs) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            if (down.type != PointerType.Touch) return@awaitEachGesture
+            val width = size.width.coerceAtLeast(1).toFloat()
+            var from = 0L
+            var dragging = false
+            var cancelled = false
+            try {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    if (event.changes.count { it.pressed } >= 2) { cancelled = true; break }
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!change.pressed) break
+                    val dx = change.position.x - down.position.x
+                    val dy = change.position.y - down.position.y
+                    if (!dragging && kotlin.math.abs(dx) > viewConfiguration.touchSlop * 2 && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 2) {
+                        dragging = true
+                        from = position()
+                    }
+                    if (dragging) {
+                        change.consume()
+                        preview.value = swipeSeekTarget(from, dx / width, durationMs)
+                    }
+                }
+            } finally {
+                val target = preview.value
+                preview.value = null
+                if (dragging && !cancelled && target != null) onEnd(target)
+            }
+        }
+    }
 
 /**
  * A vertical drag on the left half sets the brightness and on the right half the volume ([device]'s; nothing where it is null),

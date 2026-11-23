@@ -3,7 +3,9 @@ package com.cosmotune.ui.watch
 import com.cosmotune.ui.orbit.OrbitCollapsedHeader
 import com.cosmotune.ui.orbit.OrbitCollapsingHeaderBar
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -118,6 +120,7 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
     val details: @Composable (Modifier) -> Unit = { modifier ->
         Column(modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             WatchTitleFacts(shown, page, fonts, look, showMissingPlot = title != null)
+            TitleNote(shown.key, repository, actions, fonts, look)
         }
     }
 
@@ -153,6 +156,7 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
                     onTrailer = { actions.playTrailer(shown, it) },
                     onAnimeMapping = { animeMapping = true },
                     onPlaylist = { playlistPicker = true },
+                    onRandom = { page?.let { p -> actions.launch { randomEpisode(p, actions.repository)?.let { e -> actions.playEpisode(p.summary, e) } } } },
                     modifier = Modifier.padding(horizontal = side).padding(top = 12.dp),
                 )
             }
@@ -284,6 +288,7 @@ private fun TitleCard(
     onTrailer: (com.cosmotune.watch.model.Trailer) -> Unit,
     onAnimeMapping: () -> Unit,
     onPlaylist: () -> Unit,
+    onRandom: () -> Unit,
     modifier: Modifier,
 ) {
     var more by remember { mutableStateOf(false) }
@@ -297,6 +302,7 @@ private fun TitleCard(
             more, onDismiss = { more = false }, fonts = fonts, look = look, header = s.name,
             items = buildList {
                 if (series) trailer?.let { t -> add(OrbitMenuItem("Trailer", t.name, CosmoIcons.Video) { onTrailer(t) }) }
+                if (series && episodes != null) add(OrbitMenuItem("Play a random episode", "From any season that has aired", CosmoIcons.Shuffle) { onRandom() })
                 if (series) add(OrbitMenuItem("Anime opening and ending skips", "Match this season to MyAnimeList", CosmoIcons.Settings) { onAnimeMapping() })
                 add(OrbitMenuItem("Add to Watch playlist", null, CosmoIcons.Plus) { onPlaylist() })
                 page?.whereToWatch?.forEach { w -> add(OrbitMenuItem("On ${w.name}", "Opens outside the app", CosmoIcons.Share, enabled = w.link != null) { w.link?.let(uri::openUri) }) }
@@ -471,17 +477,37 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
     LaunchedEffect(nextUp, seasons) { if (season == null) season = nextUp?.episode?.season ?: seasons.firstOrNull { it.number > 0 }?.number ?: seasons.firstOrNull()?.number }
     val chosen = season ?: return
     val episodes by produceState<List<Episode>?>(null, page.key, chosen) { value = null; value = runCatching { repository.episodes(page.key, chosen) }.getOrDefault(emptyList()) }
-    val progress by produceState<Map<WatchKey, WatchProgress>>(emptyMap(), episodes) {
+    // Read again after Mark as watched changes one.
+    var marks by remember { mutableStateOf(0) }
+    val progress by produceState<Map<WatchKey, WatchProgress>>(emptyMap(), episodes, marks) {
         value = episodes.orEmpty().mapNotNull { e -> runCatching { repository.progress(e.key) }.getOrNull()?.let { e.key to it } }.toMap()
+    }
+    val mark: (List<Episode>, Boolean) -> Unit = { list, watched ->
+        actions.launch {
+            list.forEach { e -> repository.setWatched(e.key, page.summary, watched, System.currentTimeMillis(), e.name) }
+            marks++
+        }
     }
     if (batchOpen) WatchBatchSheet(page, chosen, episodes.orEmpty(), actions, fonts, look) { batchOpen = false }
     Column(Modifier.padding(top = 12.dp)) {
         Row(Modifier.fillMaxWidth().padding(end = side), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(start = side), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                seasons.forEach { s -> OrbitSelectChip(if (s.number == 0) "Specials" else s.name, s.number == chosen, fonts, look, onClick = { season = s.number }, haptic = false) }
+                // Seasons with their own posters show them, the chosen one ringed; others are chips.
+                if (seasons.count { it.posterUrl != null } * 2 >= seasons.size && seasons.size > 1) seasons.forEach { s ->
+                    SeasonPoster(s, s.number == chosen, fonts, look) { season = s.number }
+                } else seasons.forEach { s -> OrbitSelectChip(if (s.number == 0) "Specials" else s.name, s.number == chosen, fonts, look, onClick = { season = s.number }, haptic = false) }
             }
             if (actions.downloads != null && !episodes.isNullOrEmpty()) {
                 WatchRoundButton(CosmoIcons.Download, "Download episodes", look, onClick = { batchOpen = true }, modifier = Modifier.padding(start = 8.dp))
+            }
+            if (!episodes.isNullOrEmpty()) Box(Modifier.padding(start = 8.dp)) {
+                var seasonMenu by remember { mutableStateOf(false) }
+                WatchRoundButton(CosmoIcons.More, "More for this season", look, onClick = { seasonMenu = true })
+                val aired = episodes.orEmpty().filter { e -> e.airDate.let { it == null || it <= java.time.LocalDate.now().toString() } }
+                OrbitMenu(seasonMenu, { seasonMenu = false }, fonts = fonts, look = look, header = if (chosen == 0) "Specials" else "Season $chosen", items = listOf(
+                    OrbitMenuItem("Mark season as watched", "${aired.size} episodes", CosmoIcons.Check, enabled = aired.isNotEmpty()) { mark(aired, true) },
+                    OrbitMenuItem("Mark season as not watched", null, CosmoIcons.Close) { mark(episodes.orEmpty(), false) },
+                ))
             }
         }
         Column(Modifier.padding(horizontal = side).padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -492,14 +518,48 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
                 val next = nextUp?.episode?.key == e.key
                 val p = progress[e.key]
                 val before = nextUp != null && nextUp.episode.season == e.season && e.number < nextUp.episode.number
-                EpisodeRow(e, p, next, watched = p?.completed == true || (p == null && before), fonts, look) { actions.playEpisode(page, e) }
+                val watched = p?.completed == true || (p == null && before)
+                EpisodeRow(e, p, next, watched, fonts, look, onMark = { mark(listOf(e), !watched) }) { actions.playEpisode(page, e) }
             }
         }
     }
 }
 
+/** The profile's own note on a title (where an anime left off, who recommended it): shown under the facts, Add or Edit opens it. */
 @Composable
-private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watched: Boolean, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
+private fun TitleNote(key: WatchKey, repository: com.cosmotune.watch.WatchRepository, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook) {
+    var edits by remember(key) { mutableStateOf(0) }
+    val note by produceState<String?>(null, key, edits) { value = runCatching { repository.note(key) }.getOrNull() }
+    var open by remember(key) { mutableStateOf(false) }
+    var text by remember(key) { mutableStateOf("") }
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        note?.let {
+            OrbitLabel("Your note", fonts, look.dim)
+            Text(it, style = fonts.body, color = look.ink)
+        }
+        WatchCardChip(if (note == null) "Add a note" else "Edit note", look.ink, fonts, onClick = { text = note.orEmpty(); open = true })
+    }
+    if (open) com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = { open = false }, title = "Your note",
+        message = "Only this profile sees it.", confirmLabel = "Save", dismissLabel = "Cancel", onConfirm = {
+            actions.launch { repository.setNote(key, text); edits++; open = false }
+        }) { WatchField("Note", text, { text = it.take(2_000) }, fonts, look, placeholder = "Up to episode 12, recommended by Mia") }
+}
+
+/** A season tab as its poster with its name under it; the chosen one has a ring in the accent. */
+@Composable
+private fun SeasonPoster(s: com.cosmotune.watch.model.Season, chosen: Boolean, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
+    val name = if (s.number == 0) "Specials" else s.name
+    Column(Modifier.width(76.dp).clip(RoundedCornerShape(14.dp)).clickable(onClickLabel = name, role = androidx.compose.ui.semantics.Role.Tab, onClick = onClick).padding(2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        WatchPicture(s.posterUrl, "${s.seriesKey.value}:${s.number}", Modifier.size(72.dp, 106.dp)
+            .then(if (chosen) Modifier.border(2.dp, look.accent, RoundedCornerShape(12.dp)) else Modifier), radius = 12.dp)
+        Text(name, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = if (chosen) look.accent else look.ink, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+    }
+}
+
+@Composable
+private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watched: Boolean, fonts: OrbitFonts, look: OrbitLook, onMark: () -> Unit, onClick: () -> Unit) {
     WatchRowFrame(look, height = 97.dp, highlighted = next, onClick = onClick) {
         Box(Modifier.size(144.dp, 81.dp)) {
             WatchPicture(e.stillUrl, e.key.value, Modifier.fillMaxSize(), radius = 14.dp)
@@ -514,8 +574,22 @@ private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watc
             Text("${e.number}. ${e.name}", style = fonts.title.copy(fontSize = 14.sp, lineHeight = 18.sp), color = if (next) look.accent else look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val inProgress = progress != null && !progress.completed && progress.fraction > 0f
             val second = if (inProgress) leftText(progress!!.remainingMs) else e.overview?.lineSequence()?.firstOrNull { it.isNotBlank() }
-            Text(listOfNotNull(runtimeText(e.runtimeMin), second).joinToString(" · "), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
+            Text(listOfNotNull(runtimeText(e.runtimeMin), e.rating?.let { "★ %.1f".format(it) }, e.kind?.label, second).joinToString(" · "), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
                 color = if (next) look.accent else look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
+        WatchRoundButton(CosmoIcons.Check, if (watched) "Mark episode ${e.number} as not watched" else "Mark episode ${e.number} as watched", look,
+            onClick = onMark, on = watched, size = 34.dp)
     }
+}
+
+/** A random episode of [page] that has aired, from a random numbered season (specials left out); null when none is listed. */
+internal suspend fun randomEpisode(page: Title, repository: com.cosmotune.watch.WatchRepository, random: kotlin.random.Random = kotlin.random.Random.Default): Episode? {
+    val today = java.time.LocalDate.now().toString()
+    val seasons = page.seasons.filter { it.number > 0 && it.episodeCount > 0 }.shuffled(random)
+    for (season in seasons) {
+        val aired = runCatching { repository.episodes(page.key, season.number) }.getOrDefault(emptyList())
+            .filter { e -> e.airDate.let { it == null || it <= today } }
+        if (aired.isNotEmpty()) return aired.random(random)
+    }
+    return null
 }

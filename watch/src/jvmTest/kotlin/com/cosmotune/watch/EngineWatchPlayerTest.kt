@@ -187,6 +187,28 @@ class EngineWatchPlayerTest {
         assertEquals(1, closed.get())
     }
 
+    @Test fun aStalledTorrentIsPickedUpAgainWhereItStoppedOnceBeforeTheNextCopy() = runBlocking<Unit> {
+        val engine = FakeVideoPlayerEngine()
+        val torrent = stream("addon", "magnet:?xt=urn:btih:" + "b".repeat(40))
+        val direct = stream("one", "https://one/movie.mp4")
+        val opened = AtomicInteger()
+        val repo = object : WatchRepository by Repo(listOf(torrent, direct)) {
+            override suspend fun openPlayback(stream: Stream) = WatchPlaybackLease("http://127.0.0.1:3001/local.mp4") {}.also { opened.incrementAndGet() }
+        }
+        val player = EngineWatchPlayer(repo, engine, settleMs = 0, tickMs = 20, torrentStallMs = 200)
+        player.open(repo.targetOf(film), film, startMs = 0)
+        until("torrent playing") { opened.get() == 1 && engine.lastRequest != null }
+        engine.setSnapshot { it.copy(status = PlayerStatus.READY, playing = true, durationMs = 6_720_000) }
+        engine.setPosition(1_234_000)
+        engine.setSnapshot { it.copy(status = PlayerStatus.BUFFERING) }
+        until("picked up again") { opened.get() == 2 }
+        until("loaded again") { engine.lastRequest?.startMs == 1_234_000L }
+        assertEquals("http://127.0.0.1:3001/local.mp4", (engine.lastRequest?.input as? MediaInput.Url)?.url)
+        engine.fail(PlayerErrorKind.NETWORK, "no peers")
+        until("next copy") { (engine.lastRequest?.input as? MediaInput.Url)?.url == "https://one/movie.mp4" }
+        assertEquals(2, opened.get(), "a torrent is picked up again once")
+    }
+
     @Test fun youTubeCopiesGoToVideoModesPlayer() = runBlocking<Unit> {
         var handed: Pair<String, Long>? = null
         val repo = Repo(listOf(stream("youtube", "https://www.youtube.com/watch?v=abc123", StreamProtocol.YOUTUBE)))
@@ -196,5 +218,33 @@ class EngineWatchPlayerTest {
         until("handed over") { handed != null }
         assertEquals("abc123" to 5_000L, handed)
         assertEquals(null, engine.lastRequest)
+    }
+
+    @Test fun theNextEpisodesCopyIsFoundBeforeTheEndAndPlaysAtOnce() = runBlocking<Unit> {
+        val series = WatchKey.tmdbSeries(9)
+        val first = PlayTarget.EpisodeOf(WatchKey.tmdbEpisode(9, 1, 1), ExternalIds(tmdb = 9), "Harbour Town", 1, 1)
+        val second = com.cosmotune.watch.model.Episode(WatchKey.tmdbEpisode(9, 1, 2), series, 1, 2, "The Pier")
+        val asked = java.util.concurrent.CopyOnWriteArrayList<WatchKey>()
+        val repo = object : WatchRepository by FakeWatchRepository() {
+            override fun sources(target: PlayTarget, hint: StreamHint?): Flow<SourcesState> =
+                flowOf(SourcesState(target, listOf(stream("p", "https://cdn/${target.key.value}.mkv")), emptySet()))
+            override suspend fun sourcesNow(target: PlayTarget, hint: StreamHint?): SourcesState {
+                asked += target.key
+                return SourcesState(target, listOf(stream("p", "https://cdn/${target.key.value}.mkv")), emptySet())
+            }
+            override suspend fun nextEpisode(episode: WatchKey) = if (episode == first.key) second else null
+            override suspend fun progress(key: WatchKey): WatchProgress? = null
+            override suspend fun saveProgress(progress: WatchProgress) {}
+        }
+        val engine = FakeVideoPlayerEngine()
+        val player = EngineWatchPlayer(repo, engine, scope = CoroutineScope(SupervisorJob() + Dispatchers.Default), settleMs = 0, tickMs = 20)
+        player.open(first, TitleSummary(series, TitleType.SERIES, "Harbour Town"))
+        until("the first episode plays") { engine.lastRequest != null && player.state.value.nextEpisode == second }
+        engine.play()
+        engine.seekTo(engine.snapshot.value.durationMs - 30_000)
+        until("the next episode's copy is looked up before the end") { second.key in asked }
+        player.playNextEpisode()
+        until("the found copy plays") { (engine.lastRequest?.input as? com.cosmotune.video.player.MediaInput.Url)?.url == "https://cdn/${second.key.value}.mkv" }
+        player.stop()
     }
 }

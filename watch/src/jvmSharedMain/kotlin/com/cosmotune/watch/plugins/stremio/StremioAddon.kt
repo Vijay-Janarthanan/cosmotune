@@ -54,6 +54,17 @@ data class StremioManifest(
         if (resources.any { it.name == "meta" } && !streams) add("Details")
     }
 
+    /**
+     * What this add-on learns of the viewer's watching, for the Install sheet's warning: one that finds copies, subtitles or
+     * details is sent every film or episode opened; one with catalogues alone only what rows are browsed. Null for neither.
+     */
+    val activityNotice: String? get() = when {
+        resources.any { it.name == "stream" || it.name == "subtitles" || it.name == "meta" } ->
+            "This add-on is told every film or episode you open, so whoever runs it can see what you watch."
+        catalogs.isNotEmpty() -> "This add-on sees which of its rows you browse and what you search for."
+        else -> null
+    }
+
     companion object {
         fun parse(e: JsonElement): StremioManifest {
             val id = requireNotNull(e.str("id")) { "This is not an add-on manifest" }

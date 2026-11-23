@@ -76,6 +76,7 @@ import com.cosmotune.ui.orbit.WatchCardChip
 import com.cosmotune.ui.orbit.WatchLogoTile
 import com.cosmotune.ui.orbit.WatchMessage
 import com.cosmotune.ui.orbit.WatchSkeleton
+import com.cosmotune.ui.orbit.WatchRowFrame
 import com.cosmotune.ui.orbit.channelMark
 import com.cosmotune.ui.orbit.logoFill
 import com.cosmotune.watch.ChannelFacets
@@ -271,6 +272,9 @@ private fun GuideGrid(
     window: GuideWindow, now: Long, favourites: Set<com.cosmotune.watch.model.WatchKey>, wide: Boolean, scroll: ScrollState, fonts: OrbitFonts, look: OrbitLook,
     actions: WatchActions, played: String?, playedFocus: FocusRequester, playChannel: (Channel) -> Unit,
 ) {
+    // A channel that keeps a catch-up archive: its programme on now opens the choice of live, from the start, or earlier today.
+    var archive by remember { mutableStateOf<Channel?>(null) }
+    archive?.let { channel -> WatchCatchupDialog(channel, now, actions, fonts, look, onLive = { archive = null; playChannel(channel) }) { archive = null } }
     val perMinute = if (wide) 8.5.dp else 5.dp
     // The phone's channel column is the logo alone (its name is the button's), so about two programmes show beside it.
     val channelWidth = if (wide) 220.dp else 68.dp
@@ -317,7 +321,8 @@ private fun GuideGrid(
                                 val w = perMinute * ((stop - start) / 60_000).toInt()
                                 val on = p.isOnAt(now)
                                 ProgrammeCell(p, p.title.substringAfter(": "), if (on) "${hm(p.startMs)} – ${hm(p.stopMs)}" else hm(p.startMs), on, w, x, fonts, look) {
-                                    if (on || p.startMs <= now) playChannel(row.channel)
+                                    if (on && row.channel.keepsArchive) archive = row.channel
+                                    else if (on || p.startMs <= now) playChannel(row.channel)
                                 }
                             }
                         }
@@ -364,20 +369,38 @@ private fun ChannelCell(channel: Channel, favourite: Boolean, width: Dp, wide: B
 @Composable
 private fun ProgrammeCell(p: EpgProgramme?, title: String, time: String?, now: Boolean, width: Dp, x: Dp, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
+    // The genre tints the cell softly (Kodi's guide colours), and its name follows the time, so colour is never the only sign.
+    val genre = p?.let { com.cosmotune.watch.model.EpgGenre.of(it.categories) }
     Box(
         Modifier.offset(x = x).padding(horizontal = 3.dp, vertical = 6.dp).width((width - 6.dp).coerceAtLeast(12.dp)).fillMaxHeight()
             .cosmoFocusRing(interaction, 16.dp).clip(RoundedCornerShape(16.dp))
-            .background(if (now) look.accent.copy(alpha = if (look.dark) 0.18f else 0.16f) else look.ink.copy(alpha = 0.06f))
+            .background(when {
+                now -> look.accent.copy(alpha = if (look.dark) 0.18f else 0.16f)
+                genre != null -> genreHue(genre).copy(alpha = if (look.dark) 0.16f else 0.13f)
+                else -> look.ink.copy(alpha = 0.06f)
+            })
             .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Column {
             Text(title, style = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = if (now) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium),
                 color = if (now) look.accent else if (p == null) look.dim else look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (time != null) Text(time, style = fonts.body.copy(fontSize = 11.sp, lineHeight = 14.sp), color = look.dim, maxLines = 1)
+            val line = listOfNotNull(time, genre?.label).joinToString(" · ").ifBlank { null }
+            if (line != null) Text(line, style = fonts.body.copy(fontSize = 11.sp, lineHeight = 14.sp), color = look.dim, maxLines = 1)
         }
     }
 }
+
+/** Muted genre hues for the guide, the same in light and dark (only their strength changes). */
+internal fun genreHue(genre: com.cosmotune.watch.model.EpgGenre): androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color(when (genre) {
+    com.cosmotune.watch.model.EpgGenre.FILM -> 0xFFC97B84
+    com.cosmotune.watch.model.EpgGenre.NEWS -> 0xFF7C93C3
+    com.cosmotune.watch.model.EpgGenre.SPORT -> 0xFF6FAF8A
+    com.cosmotune.watch.model.EpgGenre.KIDS -> 0xFFD9A85B
+    com.cosmotune.watch.model.EpgGenre.MUSIC -> 0xFF9E86C8
+    com.cosmotune.watch.model.EpgGenre.FACTUAL -> 0xFF5FA8A8
+    com.cosmotune.watch.model.EpgGenre.SHOW -> 0xFFB89A7A
+})
 
 /**
  * A dropdown chip of the phone's filters (board frame 9): its [title] (or the chosen value's name), lit while a value is chosen; a
@@ -415,6 +438,54 @@ private fun GuideList(window: GuideWindow, now: Long, fonts: OrbitFonts, look: O
             val on = row.programmes.firstOrNull { it.isOnAt(now) }
             val next = row.programmes.firstOrNull { it.startMs >= (on?.stopMs ?: now) }
             LiveRow(com.cosmotune.watch.LiveNowItem(row.channel, on, next), fonts, look, clock) { playChannel(row.channel) }
+        }
+    }
+}
+
+/** Whether this channel (or another source's copy of it) keeps a catch-up archive. */
+internal val Channel.keepsArchive: Boolean get() = catchup != null || also.any { it.catchup != null }
+
+/**
+ * Catch-up for a channel that keeps an archive (Kodi IPTV Simple's idea): Watch live, Watch from the start of what is on now, and
+ * the programmes of the last day as rows, newest first; each plays from the archive and seeks like a film.
+ */
+@Composable
+private fun WatchCatchupDialog(channel: Channel, now: Long, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, onLive: () -> Unit, onDismiss: () -> Unit) {
+    val repository = actions.repository
+    val days = (listOf(channel) + channel.also).firstNotNullOfOrNull { it.catchup }?.days?.coerceIn(1, 30) ?: 1
+    val past by androidx.compose.runtime.produceState<List<EpgProgramme>?>(null, channel) {
+        val from = now - minOf(days, 1) * 86_400_000L
+        value = runCatching { repository.guide(listOf(channel), from, now + 60_000).rows.firstOrNull()?.programmes.orEmpty() }.getOrDefault(emptyList())
+            .filter { it.startMs < now }.sortedByDescending { it.startMs }
+    }
+    var message by remember { mutableStateOf<String?>(null) }
+    fun play(p: EpgProgramme) = actions.launch {
+        val found = runCatching { repository.catchup(channel, p) }.getOrNull()
+        if (found == null) message = "This programme is not in the channel's archive." else {
+            onDismiss()
+            WatchNav.open(WatchRoute.Play(found.first, com.cosmotune.watch.model.TitleSummary(found.first.key, com.cosmotune.watch.model.TitleType.FILM,
+                (found.first as? com.cosmotune.watch.model.PlayTarget.Item)?.name ?: channel.name, overview = channel.name, backdropUrl = channel.logoUrl, origin = "catchup"), found.second))
+        }
+    }
+    WatchDialog(channel.name, "Catch-up", onDismiss = onDismiss) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            WatchCardChip("Watch live", look.ink, fonts, onClick = onLive, solid = true, onSolid = look.ground, icon = CosmoIcons.Play)
+            val list = past
+            list?.firstOrNull { it.isOnAt(now) }?.let { on ->
+                WatchCardChip("From the start · ${on.title.substringAfter(": ")}", look.ink, fonts, onClick = { play(on) }, icon = CosmoIcons.Replay)
+            }
+            Text(message ?: "Earlier on ${channel.name}", style = fonts.body, color = look.dim, modifier = Modifier.padding(start = 6.dp, top = 8.dp))
+            when {
+                list == null -> repeat(3) { WatchSkeleton(look, Modifier.fillMaxWidth().height(56.dp), radius = 14.dp) }
+                list.none { !it.isOnAt(now) } -> Text("The guide has nothing earlier for this channel.", style = fonts.body, color = look.dim, modifier = Modifier.padding(start = 6.dp))
+                else -> list.filter { !it.isOnAt(now) }.take(40).forEach { p ->
+                    WatchRowFrame(look, height = 56.dp, onClick = { play(p) }) {
+                        Text(hm(p.startMs), style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp).width(52.dp))
+                        Text(p.title.substringAfter(": "), style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }

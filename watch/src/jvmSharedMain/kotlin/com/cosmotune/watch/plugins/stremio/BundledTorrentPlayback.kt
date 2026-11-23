@@ -17,7 +17,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.File
 import kotlin.concurrent.thread
 
-internal class BundledTorrentPlayback(private val executable: () -> File?) {
+internal class BundledTorrentPlayback(private val executable: () -> File?, private val engine: com.cosmotune.watch.torrent.TorrentEngine? = null) {
     suspend fun open(stream: Stream): WatchPlaybackLease {
         val hash = stream.url.removePrefix(MAGNET_PREFIX)
         require(HASH.matches(hash))
@@ -40,12 +40,14 @@ internal class BundledTorrentPlayback(private val executable: () -> File?) {
                     }
                     result.complete("")
                 }
-                val request = buildJsonObject {
+                val offer = buildJsonObject {
                     put("Hash", hash)
                     stream.torrentFileIndex?.let { put("Index", it) }
                     stream.filename?.take(512)?.let { put("Filename", it) }
                     put("Trackers", buildJsonArray { stream.torrentTrackers.take(8).forEach { add(it.take(256)) } })
                 }
+                // A .torrent file the listener opened goes with it, and the one connection chosen for torrents.
+                val request = engine?.streamRequest(offer, hash.lowercase()) ?: offer
                 process.outputStream.write("$request\n".toByteArray(Charsets.UTF_8))
                 process.outputStream.flush()
             }

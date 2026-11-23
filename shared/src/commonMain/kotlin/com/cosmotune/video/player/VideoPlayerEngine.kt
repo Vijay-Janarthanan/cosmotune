@@ -232,6 +232,30 @@ interface VideoPlayerEngine {
     /** Moves the subtitles [ms] later (negative: earlier). The default does nothing. */
     fun setSubtitleDelay(ms: Long) {}
 
+    /** Plays the sound as [mix] (Watch's Night and Clear voices); each [load] starts back at [AudioMix.NORMAL]. The default does nothing. */
+    fun setAudioMix(mix: AudioMix) {}
+
+    /** Decodes the picture in software only (for a device whose hardware decoder shows a broken picture); each [load] starts back at automatic. */
+    fun setSoftwareDecoding(on: Boolean) {}
+
+    /**
+     * Sends Dolby and DTS sound undecoded to an amplifier over HDMI or optical (desktop; Android does this on its own when the
+     * output takes it). Kept across loads. The default does nothing.
+     */
+    fun setAudioPassthrough(on: Boolean) {}
+
+    /** The picture looks this engine can draw ([PictureFilter.NORMAL] always); empty for an engine that draws none. */
+    val pictureFilters: Set<PictureFilter> get() = emptySet()
+
+    /** Draws the picture with [filter] (Watch's Picture menu), kept across loads. The default does nothing. */
+    fun setPictureFilter(filter: PictureFilter) {}
+
+    /** Whether this engine takes its player's own options ([setPlayerOptions]): the computer's mpv. */
+    val takesPlayerOptions: Boolean get() = false
+
+    /** The player's own options (mpv's, as in an mpv.conf, already checked), applied now and at every load; dropped ones go back to what they were. */
+    fun setPlayerOptions(options: Map<String, String>) {}
+
     /** Frees the player; the engine is not used again. */
     fun release()
 }
@@ -241,3 +265,9 @@ private val NoTracks: StateFlow<List<EngineTrack>> = MutableStateFlow(emptyList(
 
 /** The readout of an engine that smooths nothing; shared, never changes. */
 private val NoSmoothness: StateFlow<SmoothnessReadout> = MutableStateFlow(SmoothnessReadout.None)
+
+/** How the sound is mixed for the room: as made, evened out for the night, or with voices brought forward. */
+enum class AudioMix { NORMAL, NIGHT, VOICES }
+
+/** A look for the picture: as made, brighter for dark scenes, more vivid colour, softer (less grain and blocking), sharper. */
+enum class PictureFilter { NORMAL, BRIGHTER, VIVID, SOFTER, SHARPER }

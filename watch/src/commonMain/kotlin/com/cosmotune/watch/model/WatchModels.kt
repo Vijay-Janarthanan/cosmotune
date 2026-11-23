@@ -136,7 +136,15 @@ data class Episode(
     val airDate: String? = null,
     val runtimeMin: Int? = null,
     val ids: ExternalIds = ExternalIds(),
+    /** MyAnimeList marks this anime episode as filler or a recap; null for a story episode or one nothing is known of. */
+    val kind: EpisodeKind? = null,
+    /** The episode's own score, 0..10 (TMDB's vote average), when enough people rated it. */
+    val rating: Double? = null,
 )
+
+/** What MyAnimeList says an anime episode is, when it is not part of the story. */
+@Serializable
+enum class EpisodeKind(val label: String) { FILLER("Filler"), RECAP("Recap") }
 
 /** A catch-up template of an M3U or Xtream channel (Kodi pvr.iptvsimple modes: default, append, shift, flussonic, xc). */
 @Serializable data class Catchup(val mode: String, val days: Int, val source: String? = null)
@@ -163,6 +171,8 @@ data class Channel(
     val isRadio: Boolean = false,
     /** iptv-org's "Not 24/7", "Geo-blocked". */
     val labels: List<String> = emptyList(),
+    /** Minutes the guide's times are moved by for this channel (a playlist's `tvg-shift`, for a guide in another time zone). */
+    val epgShiftMinutes: Int = 0,
     /**
      * The same channel as other sources list it (same name, no country that differs), each under its own key and plugin: one
      * row in Live TV and search, and each source is asked for its own copy when it plays ([PlayTarget.Live]).
@@ -213,7 +223,19 @@ data class Subtitle(
     val hearingImpaired: Boolean = false,
     val forced: Boolean = false,
     val trackId: String? = null,
-)
+    /** The add-on or service that found it ("OpenSubtitles v3", "SubDL"), shown beside it in the subtitle menus. */
+    val provider: String? = null,
+) {
+    /** Where this subtitle comes from, in the menus' words: the add-on's name, else "In the video", "Your server" and so on. */
+    val sourceLabel: String get() = provider ?: when (origin) {
+        SubtitleOrigin.EMBEDDED -> "In the video"
+        SubtitleOrigin.STREAM -> "With this copy"
+        SubtitleOrigin.ADDON -> "Add-on"
+        SubtitleOrigin.OPENSUBTITLES -> "OpenSubtitles"
+        SubtitleOrigin.SERVER -> "Your server"
+        SubtitleOrigin.LOCAL_FILE -> "File beside the video"
+    }
+}
 
 /** An audio track inside a stream (an MKV's English 5.1 and Hindi stereo), or an HLS rendition. */
 @Serializable
@@ -257,6 +279,8 @@ data class Stream(
     /** Present on a Stremio torrent offer. Its magnet is resolved locally only when played. */
     val torrentFileIndex: Int? = null,
     val torrentTrackers: List<String> = emptyList(),
+    /** The item on the viewer's own server (a Jellyfin item id, a Plex rating key), for its intro markers and chapters. */
+    val serverItemId: String? = null,
 ) {
     val isPlayable: Boolean get() = protocol != StreamProtocol.EXTERNAL
     val isTorrent: Boolean get() = url.startsWith("magnet:?xt=urn:btih:")
@@ -315,7 +339,19 @@ sealed interface PlayTarget {
         val episodeIds: ExternalIds = ExternalIds(),
         val episodeName: String? = null,
         val year: Int? = null,
+        /** The episode counted from the first of the series (S2 E3 after a 12-episode season is 15), for add-ons that number anime that way. */
+        val absoluteEpisode: Int? = null,
     ) : PlayTarget
+
+    companion object {
+        /** [episode] of [season] counted from the series' first episode, over [seasons] (specials left out); null for season 1 or unknown counts. */
+        fun absoluteOf(seasons: List<Season>, season: Int, episode: Int): Int? {
+            if (season <= 1) return null
+            val before = seasons.filter { it.number in 1 until season }
+            if (before.size != season - 1 || before.any { it.episodeCount <= 0 }) return null
+            return before.sumOf { it.episodeCount } + episode
+        }
+    }
 
     @Serializable
     data class Live(val channel: Channel) : PlayTarget { override val key: WatchKey get() = channel.key }
@@ -323,4 +359,27 @@ sealed interface PlayTarget {
     /** An item only one plugin knows (`a:ia:...`, a server item with no TMDB id). */
     @Serializable
     data class Item(override val key: WatchKey, val pluginId: String, val itemId: String, val name: String) : PlayTarget
+}
+
+/** The genre a guide colours a programme by, read from its XMLTV categories (DVB's content groups and common words). */
+enum class EpgGenre(val label: String, private val words: List<String>) {
+    FILM("Film", listOf("movie", "film", "cinema", "drama", "thriller", "comedy", "romance", "action", "horror")),
+    NEWS("News", listOf("news", "current affairs", "weather", "politic")),
+    SPORT("Sport", listOf("sport", "football", "soccer", "cricket", "tennis", "racing", "motor", "golf", "basketball", "rugby", "boxing", "wrestling", "kabaddi")),
+    KIDS("Kids", listOf("children", "kids", "youth", "cartoon", "animation", "anime")),
+    MUSIC("Music", listOf("music", "ballet", "dance", "concert")),
+    FACTUAL("Factual", listOf("documentary", "education", "science", "factual", "nature", "history", "travel", "cooking", "lifestyle")),
+    SHOW("Show", listOf("show", "entertainment", "game", "reality", "talk", "variety", "serial", "soap", "series", "devotional"));
+
+    companion object {
+        /** The genre of the first category that names one, or null. */
+        fun of(categories: List<String>): EpgGenre? {
+            for (category in categories) {
+                val text = category.lowercase()
+                // Sport before film: "Football drama" is still a match.
+                listOf(SPORT, NEWS, KIDS, MUSIC, FACTUAL, FILM, SHOW).firstOrNull { g -> g.words.any { it in text } }?.let { return it }
+            }
+            return null
+        }
+    }
 }

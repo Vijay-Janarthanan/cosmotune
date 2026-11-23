@@ -8,8 +8,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Watch video casting to DLNA renderers on Android, Windows, Linux and macOS. Google Cast is not
- * supported for Watch.
+ * Watch video casting to DLNA renderers on Android, Windows, Linux and macOS, and to Google Cast
+ * devices on Android phones (through [WatchReceiverFinders.googleCast]).
  *
  * One cast session at a time, tied to the title and copy it was started with. Anything that
  * makes the phone or computer play something else (next episode, retry, another source, another
@@ -23,17 +23,17 @@ import kotlinx.coroutines.sync.withLock
 class WatchCasting(
     private val player: WatchPlayer,
     private val repository: WatchRepository,
-    private val receiverOf: (DlnaDevice) -> DlnaRenderer = { DlnaRenderer(it) },
+    private val receiverOf: (DlnaDevice) -> WatchReceiver = { DlnaWatchReceiver(DlnaRenderer(it)) },
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     val discovery by lazy { DlnaDiscovery() }
-    private val mutable = MutableStateFlow<DlnaRenderer?>(null)
-    val renderer: StateFlow<DlnaRenderer?> = mutable
+    private val mutable = MutableStateFlow<WatchReceiver?>(null)
+    val renderer: StateFlow<WatchReceiver?> = mutable
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
     @Volatile private var session: Session? = null
 
-    private inner class Session(val renderer: DlnaRenderer, val lease: WatchPlaybackLease, val opened: WatchPlayerState, val streamUrl: String,
+    private inner class Session(val renderer: WatchReceiver, val lease: WatchPlaybackLease, val opened: WatchPlayerState, val streamUrl: String,
         val relay: DlnaMediaRelay? = null) {
         val key: WatchKey? get() = opened.target?.key
         var follow: Job? = null
@@ -49,23 +49,27 @@ class WatchCasting(
         }
     }
 
-    fun whyNot(stream: Stream?): String? = when {
+    /** Why [stream] cannot be cast, or null when it can; [relays] says whether the receiver can fetch through this device. */
+    fun whyNot(stream: Stream?, relays: Boolean = true): String? = when {
         stream == null -> "Choose a playable video first"
         stream.isTorrent -> "This source cannot be sent to a TV. Choose a direct copy to cast."
         // A single file that needs headers goes through this device (see [relay]); a playlist's own parts cannot.
-        stream.headers.isNotEmpty() && stream.protocol == StreamProtocol.HLS -> "This stream needs headers a TV cannot send. Choose another copy."
+        stream.headers.isNotEmpty() && (stream.protocol == StreamProtocol.HLS || !relays) -> "This stream needs headers a TV cannot send. Choose another copy."
         stream.protocol !in setOf(StreamProtocol.PROGRESSIVE, StreamProtocol.HLS) -> "This receiver needs a direct video or HLS stream"
         !stream.url.startsWith("https://") && !stream.url.startsWith("http://") -> "This video is only available on this device"
         else -> null
     }
 
-    suspend fun connect(device: DlnaDevice) = lock.withLock {
+    suspend fun connect(device: DlnaDevice) = connect(receiverOf(device))
+
+    /** Hands the video on the player to [target], which then plays it in place of this device. */
+    suspend fun connect(target: WatchReceiver) = lock.withLock {
         val state = player.state.value
         val stream = state.stream
-        whyNot(stream)?.let { throw IllegalArgumentException(it) }
+        val relayHost = target.relayHost
+        whyNot(stream, relays = relayHost != null)?.let { throw IllegalArgumentException(it) }
         stream ?: return@withLock
         endLocked(stopReceiver = true)
-        val target = receiverOf(device)
         var opened: WatchPlaybackLease? = null
         // Headers the TV cannot send: it fetches from this device, which adds them (only while this cast lasts).
         val serving = if (stream.headers.isNotEmpty()) DlnaMediaRelay() else null
@@ -78,7 +82,7 @@ class WatchCasting(
                 stream.container == Container.MKV -> "video/x-matroska"
                 else -> "video/mp4"
             }
-            val address = serving?.publish(DlnaMediaRelay.Source.Remote(opened.url, stream.headers, mime), DlnaMediaRelay.hostOf(device.avTransportUrl)) ?: opened.url
+            val address = serving?.publish(DlnaMediaRelay.Source.Remote(opened.url, stream.headers, mime), relayHost!!) ?: opened.url
             target.load(DlnaMedia(address, mime, state.summary?.name ?: stream.label, state.subtitleLine.orEmpty(),
                 artworkUrl = state.summary?.posterUrl, durationMs = state.durationMs, video = true), player.engine.positionMs())
             check(!target.state.value.failed) { "The receiver could not play this copy" }
@@ -141,7 +145,7 @@ class WatchCasting(
             // A newer cast on the same TV has already replaced this one's video there; stopping it
             // now would stop the newer cast's playback, not this one's.
             val successor = synchronized(owners) { owners[player]?.takeIf { it !== this@WatchCasting } }
-            val replacedOnSameDevice = successor?.session?.renderer?.device?.id == ending.renderer.device.id
+            val replacedOnSameDevice = successor?.session?.renderer?.id == ending.renderer.id
             runCatching { ending.renderer.close(stopReceiver && !replacedOnSameDevice) }
             runCatching { ending.lease.close() }
             ending.relay?.close()

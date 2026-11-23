@@ -54,12 +54,35 @@ data class WatchDownload(
     val directoryPath: String? = null,
     /** One-way digest only: a different freshly resolved address must never append another file's bytes. */
     val sourceFingerprint: String? = null,
+    /** A torrent the listener opened, kept in the folder [fileName] names: which of its files, and how it is going. */
+    val torrent: TorrentJob? = null,
 ) {
     enum class Status { DOWNLOADING, DONE, FAILED, PAUSED }
 
     val fraction: Float? get() = totalBytes?.takeIf { it > 0 }?.let { (bytes.toFloat() / it).coerceIn(0f, 1f) }
     val target: PlayTarget? get() = film ?: episode ?: item
+    /** Seconds left at the speed of the last second, while a torrent downloads; null when it is not moving. */
+    val secondsLeft: Long? get() = torrent?.rate?.takeIf { it > 0 && status == Status.DOWNLOADING }?.let { rate -> totalBytes?.let { ((it - bytes).coerceAtLeast(0) + rate - 1) / rate } }
 }
+
+/** A torrent download's own part: its info hash, the chosen files (index and path), and the last second's speed, peers and sharing. */
+@Serializable
+data class TorrentJob(
+    val hash: String,
+    val indexes: List<Int>,
+    val paths: List<String> = emptyList(),
+    val trackers: List<String> = emptyList(),
+    val rate: Long = 0,
+    val peers: Int = 0,
+    val uploaded: Long = 0,
+    val seeding: Boolean = false,
+    /** Set when the listener paused it, so it is not picked up again when Cosmotune starts. */
+    val paused: Boolean = false,
+)
+
+/** A folder or file of the listener's own being shared as a torrent: its magnet link to send, and how much was sent. */
+data class TorrentShare(val id: String, val name: String, val path: String, val magnet: String? = null, val uploaded: Long = 0, val peers: Int = 0,
+    val running: Boolean = true, val error: String? = null)
 
 /**
  * Watch's downloads: a direct file (MP4, MKV or WebM from a user's server, an add-on or a free library such as the Internet
@@ -77,6 +100,10 @@ class WatchDownloads(
     private val freeBytes: (File) -> Long = { it.usableSpace },
     destinationOptions: List<File> = emptyList(),
     private val chooseFolder: (suspend () -> File?)? = null,
+    /** Whether the device is on mobile data (or another metered network) now: finished torrents are then not shared. */
+    private val metered: () -> Boolean = { false },
+    /** Picks a file or folder of the listener's own to share as a torrent; null where the device has no such picker. */
+    private val chooseShare: (suspend () -> File?)? = null,
 ) {
     private val downloader = RangeDownloader(client)
     private val index = File(directory, "downloads.json")
@@ -101,7 +128,184 @@ class WatchDownloads(
 
     /** Owned by this application-scoped download repository, never by a page's composition. */
     val batches: WatchBatchDownloads by lazy { WatchBatchDownloads(this, scope) }
-    fun bindRepository(repository: WatchRepository) { batches.bind(repository) }
+    @Volatile private var repository: WatchRepository? = null
+
+    fun bindRepository(repository: WatchRepository) {
+        this.repository = repository
+        batches.bind(repository)
+        val torrentRepository = repository as? DefaultWatchRepository ?: return
+        torrentEngine = torrentRepository.torrents
+        torrentSettings = { torrentRepository.torrentSettings.value }
+        // Torrents still downloading when Cosmotune closed carry on where they were (their pieces are checked, not fetched again).
+        state.value.filter { it.torrent != null && it.status == WatchDownload.Status.PAUSED && it.torrent.paused.not() && it.error == STOPPED_ON_CLOSE }
+            .forEach { resumeTorrent(it.id) }
+    }
+
+    @Volatile private var torrentEngine: com.cosmotune.watch.torrent.TorrentEngine? = null
+    @Volatile private var torrentSettings: () -> com.cosmotune.watch.torrent.TorrentSettings = { com.cosmotune.watch.torrent.TorrentSettings() }
+    private val sharesState = MutableStateFlow<List<TorrentShare>>(emptyList())
+    /** The listener's own files being shared as torrents in this run. */
+    val shares: StateFlow<List<TorrentShare>> = sharesState.asStateFlow()
+    private val shareJobs = HashMap<String, Job>()
+    val canTorrent: Boolean get() = torrentEngine != null
+    val canChooseShare: Boolean get() = chooseShare != null && torrentEngine != null
+
+    /** Whether a finished torrent may be shared now: the listener turned sharing on, and not on mobile data unless they allowed it. */
+    private fun seedNow(): Boolean = torrentSettings().let { it.seedAfterDownload && (it.seedOnMobileData || !runCatching(metered).getOrDefault(true)) }
+
+    /**
+     * Downloads [indexes] of the torrent [listing] (the listener chose them on its page) into a folder of its own in the chosen
+     * destination, with progress, speed and time left. Null when this device has no torrent engine.
+     */
+    @Synchronized
+    fun startTorrent(listing: com.cosmotune.watch.torrent.TorrentListing, indexes: List<Int>, trackers: List<String> = emptyList()): WatchDownload? {
+        val engine = torrentEngine ?: return null
+        val chosen = listing.files.filter { it.index in indexes }.ifEmpty { listing.videos }
+        if (chosen.isEmpty()) return null
+        val id = "torrent:${listing.hash}#" + MessageDigest.getInstance("SHA-256").digest(chosen.joinToString(",") { "${it.index}" }.toByteArray())
+            .take(6).joinToString("") { "%02x".format(it) }
+        current(id)?.let { existing -> if (existing.status != WatchDownload.Status.DONE) resumeTorrent(id); return existing }
+        val first = chosen.first()
+        val video = chosen.filter { it.video }.sortedWith(compareBy(com.cosmotune.watch.torrent.NaturalOrder) { it.path }).firstOrNull() ?: first
+        val target = com.cosmotune.watch.torrent.TorrentItems.target(listing, video)
+        val folder = "Torrent " + listing.hash.take(10)
+        val d = WatchDownload(
+            id = id, key = target.key, title = listing.name.take(200), line = if (chosen.size == 1) first.name.take(200) else "${chosen.size} files",
+            item = target, fileName = folder, totalBytes = chosen.sumOf { it.length }, addedAtMs = now(),
+            directoryPath = destinationState.value.canonicalPath,
+            torrent = TorrentJob(listing.hash, chosen.map { it.index }, chosen.map { it.path }, trackers.take(8)),
+        )
+        state.update { listOf(d) + it }
+        save()
+        runTorrent(d, engine)
+        return d
+    }
+
+    /** Starts a paused or stopped torrent download again, from where its folder is. */
+    @Synchronized
+    fun resumeTorrent(id: String): Boolean {
+        val d = current(id)?.takeIf { it.torrent != null } ?: return false
+        val engine = torrentEngine ?: return false
+        runTorrent(d.copy(status = if (d.status == WatchDownload.Status.DONE) WatchDownload.Status.DONE else WatchDownload.Status.DOWNLOADING, error = null,
+            torrent = d.torrent?.copy(paused = false)), engine, seedOnly = d.status == WatchDownload.Status.DONE)
+        return true
+    }
+
+    /** Shares a finished torrent download again (from Downloads), for the time chosen in settings. */
+    fun shareAgain(id: String): Boolean = current(id)?.takeIf { it.status == WatchDownload.Status.DONE && it.torrent != null }?.let { resumeTorrent(id) } ?: false
+
+    /** Stops sharing a finished torrent; the files stay. */
+    suspend fun stopSharing(id: String) {
+        val job = synchronized(jobs) { jobs[id] }
+        job?.cancelAndJoin()
+        synchronized(this) { current(id)?.let { d -> put(d.copy(torrent = d.torrent?.copy(seeding = false, rate = 0, peers = 0))) } }
+    }
+
+    private fun runTorrent(start: WatchDownload, engine: com.cosmotune.watch.torrent.TorrentEngine, seedOnly: Boolean = false) {
+        val id = start.id
+        val job0 = start.torrent ?: return
+        synchronized(jobs) {
+            if (jobs[id]?.isActive == true) return
+            put(start)
+            val seed = seedOnly || seedNow()
+            val minutes = torrentSettings().seedMinutes
+            val job = scope.launch(start = CoroutineStart.LAZY) {
+                try {
+                    val folder = fileOf(start)
+                    check(folder.isDirectory || folder.mkdirs()) { "The download folder is unavailable. Choose a writable folder and retry." }
+                    ensureSpace(folder, start.totalBytes, start.bytes)
+                    var failure: String? = null
+                    var completed = false
+                    engine.download(job0.hash, job0.trackers, folder, job0.indexes, seed, minutes).collect { event ->
+                        event.error?.let { failure = it }
+                        if (event.complete) completed = true
+                        synchronized(this@WatchDownloads) {
+                            val d = current(id) ?: return@collect
+                            val t = d.torrent ?: return@collect
+                            val done = completed || d.status == WatchDownload.Status.DONE
+                            val next = d.copy(
+                                bytes = if (event.total > 0) event.done else d.bytes, totalBytes = event.total.takeIf { it > 0 } ?: d.totalBytes,
+                                status = if (done) WatchDownload.Status.DONE else d.status,
+                                torrent = t.copy(rate = event.rateBytesPerSecond, peers = event.peers, uploaded = maxOf(t.uploaded, event.uploaded),
+                                    seeding = done && seed))
+                            if (next.status != d.status || event.complete) put(next) else state.update { list -> list.map { if (it.id == id) next else it } }
+                        }
+                    }
+                    synchronized(this@WatchDownloads) {
+                        val d = current(id) ?: return@synchronized
+                        when {
+                            failure != null && !completed && d.status != WatchDownload.Status.DONE ->
+                                put(d.copy(status = WatchDownload.Status.FAILED, error = failure?.take(200), torrent = d.torrent?.copy(rate = 0, peers = 0)))
+                            else -> put(d.copy(status = if (completed || d.status == WatchDownload.Status.DONE) WatchDownload.Status.DONE else WatchDownload.Status.FAILED,
+                                error = if (completed || d.status == WatchDownload.Status.DONE) null else "The torrent engine stopped. Resume to carry on.",
+                                torrent = d.torrent?.copy(rate = 0, peers = 0, seeding = false)))
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    fail(id, e, coroutineContext[Job])
+                } finally {
+                    synchronized(jobs) { if (jobs[id] === coroutineContext[Job]) jobs.remove(id) }
+                }
+            }
+            jobs[id] = job
+            job.start()
+        }
+    }
+
+    /** The videos of a finished torrent download, in name order, as files on this device. */
+    fun torrentVideos(d: WatchDownload): List<File> {
+        val t = d.torrent ?: return emptyList()
+        val root = fileOf(d).canonicalFile
+        return t.paths.filter { p -> VIDEO.any { p.lowercase().endsWith(it) } }.sortedWith(com.cosmotune.watch.torrent.NaturalOrder)
+            .map { File(root, it).canonicalFile }.filter { it.path.startsWith(root.path) && it.isFile }
+    }
+
+    /** A video of a finished torrent download as a copy the Watch player plays. */
+    fun streamOf(d: WatchDownload, video: File): Stream = Stream(
+        StreamSource("downloads", "Downloads", "ON DEVICE"), "On this device", video.name, video.toURI().toString(), StreamProtocol.LOCAL_FILE,
+        containerOf(Stream(StreamSource("", "", ""), "", url = video.name, protocol = StreamProtocol.LOCAL_FILE, filename = video.name)) ?: Container.UNKNOWN,
+        filename = video.name, sizeBytes = video.length(),
+    )
+
+    /** Picks a file or folder with the device's picker and shares it ([share]). */
+    suspend fun chooseAndShare(): TorrentShare? = chooseShare?.invoke()?.let { share(it) }
+
+    /**
+     * Makes a torrent of [path] (a file or a folder of the listener's own) and shares it while Cosmotune runs, for the time chosen in
+     * settings (or until stopped); its magnet link arrives in [shares] once the files are read.
+     */
+    fun share(path: File): TorrentShare? {
+        val engine = torrentEngine ?: return null
+        val share = TorrentShare("share:" + MessageDigest.getInstance("SHA-256").digest(path.canonicalPath.toByteArray()).take(6).joinToString("") { "%02x".format(it) },
+            path.name.ifBlank { path.path }.take(200), path.canonicalPath)
+        synchronized(shareJobs) {
+            if (shareJobs[share.id]?.isActive == true) return sharesState.value.firstOrNull { it.id == share.id }
+            sharesState.update { list -> listOf(share) + list.filter { it.id != share.id } }
+            shareJobs[share.id] = scope.launch {
+                try {
+                    engine.share(path, torrentSettings().seedMinutes).collect { event ->
+                        sharesState.update { list -> list.map { s -> if (s.id != share.id) s else s.copy(
+                            magnet = event.magnet ?: s.magnet, uploaded = maxOf(s.uploaded, event.uploaded), peers = event.peers, error = event.error ?: s.error) } }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    sharesState.update { list -> list.map { s -> if (s.id == share.id) s.copy(error = e.message?.take(200) ?: "Sharing stopped.") else s } }
+                } finally {
+                    sharesState.update { list -> list.map { s -> if (s.id == share.id) s.copy(running = false, peers = 0) else s } }
+                }
+            }
+        }
+        return share
+    }
+
+    /** Stops sharing one of the listener's own files and takes it off the list. */
+    fun stopShare(id: String) {
+        synchronized(shareJobs) { shareJobs.remove(id)?.cancel() }
+        sharesState.update { list -> list.filter { it.id != id } }
+    }
 
     fun fileOf(d: WatchDownload): File {
         require(safeFileName(d.fileName)) { "Invalid download filename." }
@@ -201,6 +405,7 @@ class WatchDownloads(
     @Synchronized
     fun retry(id: String): Boolean {
         val d = state.value.firstOrNull { it.id == id } ?: return false
+        if (d.torrent != null) return resumeTorrent(id)
         val stream = streams[id] ?: return false
         run(d.copy(status = WatchDownload.Status.DOWNLOADING, error = null), stream)
         return true
@@ -212,7 +417,8 @@ class WatchDownloads(
         job?.cancelAndJoin()
         synchronized(this) {
             current(id)?.takeIf { it.status == WatchDownload.Status.DOWNLOADING }?.let {
-                put(it.copy(status = WatchDownload.Status.PAUSED, bytes = partOf(it).length(), error = null))
+                put(if (it.torrent != null) it.copy(status = WatchDownload.Status.PAUSED, error = null, torrent = it.torrent.copy(paused = true, rate = 0, peers = 0))
+                    else it.copy(status = WatchDownload.Status.PAUSED, bytes = partOf(it).length(), error = null))
             }
         }
     }
@@ -223,8 +429,12 @@ class WatchDownloads(
         val job = synchronized(jobs) { jobs[id] }
         job?.cancel()
         val d = state.value.firstOrNull { it.id == id } ?: return
-        runCatching { fileOf(d).delete() }
+        if (d.torrent != null) runCatching { fileOf(d).deleteRecursively() } else runCatching { fileOf(d).delete() }
         runCatching { partOf(d).delete() }
+        if (d.torrent == null) runCatching {
+            DownloadExtras.posterFile(fileOf(d)).delete()
+            DownloadExtras.subtitleFiles(fileOf(d)).forEach { it.first.delete() }
+        }
         streams.remove(id)
         state.update { list -> list.filter { it.id != id } }
         save()
@@ -239,7 +449,35 @@ class WatchDownloads(
     fun streamOf(d: WatchDownload): Stream = Stream(
         StreamSource("downloads", "Downloads", "ON DEVICE"), "On this device", d.line, fileOf(d).toURI().toString(), StreamProtocol.LOCAL_FILE,
         d.container, filename = d.fileName, sizeBytes = d.totalBytes ?: fileOf(d).length(), durationMs = d.durationMs,
+        subtitles = savedSubtitles(d),
     )
+
+    /** The poster saved beside a finished download, for its row when offline; null when there is none. */
+    fun posterOf(d: WatchDownload): File? = DownloadExtras.posterFile(fileOf(d)).takeIf { it.isFile && it.length() > 0 }
+
+    /** The subtitle files saved beside a download, as the player's subtitles (they work with no connection). */
+    private fun savedSubtitles(d: WatchDownload): List<com.cosmotune.watch.model.Subtitle> = DownloadExtras.subtitleFiles(fileOf(d)).map { (file, language) ->
+        com.cosmotune.watch.model.Subtitle("dl:${d.id}:${file.name}", file.toURI().toString(), language, language.uppercase(), file.extension.lowercase(),
+            com.cosmotune.watch.model.SubtitleOrigin.LOCAL_FILE)
+    }
+
+    /**
+     * Keeps what the copy needs offline beside the file: its poster and backdrop, and up to [DownloadExtras.MAX_SUBTITLES] subtitle
+     * files (the copy's own, then what the subtitle add-ons find). A failure here never fails the download.
+     */
+    private suspend fun saveExtras(start: WatchDownload, stream: Stream) {
+        val file = fileOf(start)
+        runCatching {
+            (start.summary?.posterUrl ?: start.summary?.backdropUrl)?.takeIf { it.startsWith("http") }?.let { url ->
+                downloader.download(url, emptyMap(), DownloadExtras.posterFile(file), null) { _, _ -> }
+            }
+        }
+        val target: PlayTarget? = start.episode ?: start.film ?: start.item
+        val found = runCatching { target?.let { repository?.subtitles(it, stream, emptyList()) }.orEmpty() }.getOrDefault(emptyList())
+        DownloadExtras.pick(stream.subtitles + found).forEach { sub ->
+            runCatching { downloader.download(sub.url!!, emptyMap(), DownloadExtras.subtitleFile(file, sub), null) { _, _ -> } }
+        }
+    }
 
     private fun run(start: WatchDownload, stream: Stream, fresh: Boolean = false) {
         val id = start.id
@@ -265,6 +503,7 @@ class WatchDownloads(
                         }
                     }
                     finish(start, part, length, coroutineContext[Job])
+                    saveExtras(start, stream)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -321,7 +560,13 @@ class WatchDownloads(
         if (!index.isFile) return@runCatching emptyList()
         json.decodeFromString(serializer, index.readText().also { require(it.length < 8 * 1024 * 1024) })
             .filter { safeFileName(it.fileName) && (it.directoryPath == null || it.directoryPath in approved) }.map {
-            if (it.status == WatchDownload.Status.DOWNLOADING) it.copy(status = WatchDownload.Status.FAILED, error = "Stopped when Cosmotune closed.") else it
+            when {
+                it.torrent != null && it.status == WatchDownload.Status.DOWNLOADING -> it.copy(status = WatchDownload.Status.PAUSED, error = STOPPED_ON_CLOSE,
+                    torrent = it.torrent.copy(rate = 0, peers = 0, seeding = false))
+                it.torrent != null -> it.copy(torrent = it.torrent.copy(rate = 0, peers = 0, seeding = false))
+                it.status == WatchDownload.Status.DOWNLOADING -> it.copy(status = WatchDownload.Status.FAILED, error = "Stopped when Cosmotune closed.")
+                else -> it
+            }
         }
     }.getOrDefault(emptyList())
 
@@ -339,6 +584,8 @@ class WatchDownloads(
         }.isSuccess
 
     companion object {
+        private const val STOPPED_ON_CLOSE = "Stopped when Cosmotune closed."
+        private val VIDEO = listOf(".mkv", ".mp4", ".m4v", ".webm", ".mov", ".avi", ".ts", ".m2ts", ".mpg", ".mpeg")
         private fun safeFileName(name: String) = name.isNotBlank() && name != "." && name != ".." && name.none { it == '/' || it == '\\' || it == ':' || it.code < 32 }
         /** The container of a direct file, from the plugin's guess or the address; null for anything that is not MP4, MKV or WebM. */
         fun containerOf(stream: Stream): Container? {

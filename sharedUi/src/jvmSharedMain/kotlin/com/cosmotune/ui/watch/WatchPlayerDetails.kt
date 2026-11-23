@@ -1,5 +1,6 @@
 package com.cosmotune.ui.watch
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -90,7 +91,8 @@ internal fun WatchTitleFacts(shown: TitleSummary, title: Title?, fonts: OrbitFon
         title?.status?.takeUnless { it == "Released" },
     ).joinToString(" · ")
     if (extra.isNotEmpty()) Text(extra, style = fonts.body, color = look.dim)
-    title?.ratings?.takeIf { it.isNotEmpty() }?.let { ratings ->
+    val hidden = watchRepository().preferences.collectAsState().value.hiddenRatings
+    title?.ratings?.filter { it.source !in hidden }?.takeIf { it.isNotEmpty() }?.let { ratings ->
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ratings.forEach { rating -> com.cosmotune.ui.orbit.WatchBadge("${rating.source} ${rating.value}", fonts, look.ink) }
         }

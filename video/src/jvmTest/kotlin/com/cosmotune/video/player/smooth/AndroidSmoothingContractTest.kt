@@ -97,7 +97,8 @@ class AndroidSmoothingContractTest {
         assertTrue("VideoRenderersFactory(context)" in holder)
         val delay = code("$android/smooth/SmoothAudioDelay.kt")
         assertTrue("Util.isEncodingLinearPcm(" in delay)
-        assertTrue("setAudioProcessors(arrayOf(SmoothAudioDelayProcessor()))" in delay)
+        // Watch's sound mix (Night, Clear voices) runs first, then the held-back frame.
+        assertTrue("setAudioProcessors(arrayOf(SoundMixProcessor(), SmoothAudioDelayProcessor()))" in delay)
     }
 
     @Test

@@ -33,7 +33,7 @@ object SubDl {
             val format = text("format")?.lowercase()?.takeIf { it in setOf("srt", "vtt", "ass", "ssa") } ?: return@mapNotNull null
             val language = text("language")?.lowercase() ?: "und"
             Subtitle("subdl:$path", "https://dl.subdl.com$path", language, "SubDL · ${text("release_name") ?: text("name") ?: language}",
-                format = format, origin = SubtitleOrigin.ADDON, hearingImpaired = (item["hi"] as? JsonPrimitive)?.booleanOrNull == true)
+                format = format, origin = SubtitleOrigin.ADDON, provider = "SubDL", hearingImpaired = (item["hi"] as? JsonPrimitive)?.booleanOrNull == true)
         }
     }.distinctBy { it.url }
 }

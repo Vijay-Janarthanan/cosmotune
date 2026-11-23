@@ -132,7 +132,11 @@ class StremioPlugin(
         if (whereToWatchOnly || Capability.STREAMS !in capabilities) return emptyList()
         val (type, streamId) = streamRef(target) ?: return emptyList()
         if (!manifest().supports("stream", type, streamId)) return emptyList()
-        val raw = client.streams(type, streamId)
+        // An anime add-on that numbers episodes from the series' first (S1 E15, not S2 E3) is asked again that way when it has nothing.
+        val absolute = (target as? PlayTarget.EpisodeOf)?.absoluteEpisode?.takeIf { type == "series" && streamId.startsWith("tt") && streamId.count { it == ':' } == 2 }
+        val raw = client.streams(type, streamId).ifEmpty {
+            if (absolute == null) emptyList() else runCatching { client.streams(type, "${streamId.substringBefore(':')}:1:$absolute") }.getOrDefault(emptyList())
+        }
         val mapped = raw.mapNotNull { streamOf(it, type == "tv" || type == "channel") }
         if (!torrentsEnabled() && mapped.none { it.isPlayable } && type in setOf("movie", "series") &&
             raw.any { BundledTorrentPlayback.magnet(it.str("infoHash")) != null }) error(BundledTorrentPlayback.DISABLED)
@@ -163,7 +167,7 @@ class StremioPlugin(
             val lang = s.str("lang") ?: "und"
             Subtitle("$id:${s.str("id") ?: url.hashCode()}", url, lang, s.str("label") ?: languageName(lang),
                 url.substringBefore('?').substringAfterLast('.', "").lowercase().takeIf { it in setOf("srt", "vtt", "ass", "ssa", "ttml") } ?: "srt",
-                subtitleOrigin)
+                subtitleOrigin, provider = displayName)
         }
     }
 

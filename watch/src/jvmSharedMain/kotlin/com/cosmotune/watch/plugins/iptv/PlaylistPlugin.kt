@@ -72,8 +72,15 @@ open class PlaylistPlugin(
         if (M3uParser.isIptvOrgId(entry.tvgId)) WatchKey.channel("iptv", entry.tvgId!!.substringBefore('@'))
         else WatchKey.channel(id, (entry.tvgId ?: entry.name).replace(':', '_').take(40))
 
+    /** The local playlist files as they are now (path, time, size): a change reloads the list at once, as Kodi's IPTV Simple does. */
+    private var filesSeen: List<Triple<String, Long, Long>> = emptyList()
+    private fun localFiles() = playlists().filterNot { it.startsWith("http://") || it.startsWith("https://") }
+        .map { File(it).let { f -> Triple(it, f.lastModified(), f.length()) } }
+
     private suspend fun load(): Pair<List<Channel>, List<String>> = lock.withLock {
-        loaded?.takeIf { System.currentTimeMillis() - loadedAt < playlistTtlMs }?.let { return it }
+        val files = localFiles()
+        loaded?.takeIf { System.currentTimeMillis() - loadedAt < playlistTtlMs && files == filesSeen }?.let { return it }
+        filesSeen = files
         val all = mutableListOf<M3uEntry>()
         val guideUrls = mutableListOf<String>()
         var lastError: Exception? = null
@@ -98,7 +105,7 @@ open class PlaylistPlugin(
             val e = list.first()
             Channel(key, id, e.name, e.number, e.logo, e.groups.ifEmpty { listOf("General") },
                 e.countries.ifEmpty { listOfNotNull(defaultCountry ?: e.tvgId?.takeIf(M3uParser::isIptvOrgId)?.substringAfter('.')?.substringBefore('@')) },
-                e.languages, epgId = e.tvgId ?: e.tvgName ?: e.name, tvgId = e.tvgId, catchup = e.catchup, isRadio = e.radio)
+                e.languages, epgId = e.tvgId ?: e.tvgName ?: e.name, tvgId = e.tvgId, catchup = e.catchup, isRadio = e.radio, epgShiftMinutes = e.epgShiftMinutes)
         }
         val result = channels to (guides() + guideUrls).distinct()
         loaded = result; loadedAt = System.currentTimeMillis()

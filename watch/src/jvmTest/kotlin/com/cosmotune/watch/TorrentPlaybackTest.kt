@@ -33,7 +33,7 @@ class TorrentPlaybackTest {
             assertEquals(2, offers.size)
             assertTrue(offers.all { it.isTorrent && it.headers.isEmpty() && !it.isPublic })
             assertEquals(setOf(0, null), offers.map { it.torrentFileIndex }.toSet())
-            val engine = BundledTorrentPlayback { null }
+            val engine = BundledTorrentPlayback({ null })
             assertEquals("The torrent engine is missing from this Cosmotune build.",
                 assertFailsWith<IllegalStateException> { engine.open(offers.first()) }.message)
         }

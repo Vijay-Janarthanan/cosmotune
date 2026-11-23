@@ -49,7 +49,7 @@ class JellyfinPlugin(
 ) : WatchPlugin {
     override val kind = if (emby) PluginKind.EMBY else PluginKind.JELLYFIN
     override val badge = if (emby) "EMBY" else "JF"
-    override val capabilities = setOf(Capability.CATALOG, Capability.SEARCH, Capability.STREAMS, Capability.SUBTITLES)
+    override val capabilities = setOf(Capability.CATALOG, Capability.SEARCH, Capability.STREAMS, Capability.SUBTITLES, Capability.LIVE, Capability.EPG)
     private val server = normalise(server)
     private val auth = mapOf("X-Emby-Token" to session.token)
     private val source = StreamSource(id, displayName, badge)
@@ -122,7 +122,57 @@ class JellyfinPlugin(
             }
         }
         is PlayTarget.Item -> if (target.pluginId == id) items("Ids=${target.itemId}").firstOrNull()?.let { streamsOf(it) }.orEmpty() else emptyList()
-        is PlayTarget.Live -> emptyList()
+        is PlayTarget.Live -> if (target.channel.pluginId == id) liveStreams(target.channel.tvgId ?: target.channel.key.value.substringAfterLast(':')) else emptyList()
+    }
+
+    /** The server's Live TV channels (its tuners and playlists), numbered as it numbers them; none when it has no Live TV. */
+    override suspend fun channels(): List<com.cosmotune.watch.model.Channel> = runCatching {
+        http.getJson("$server/LiveTv/Channels?UserId=${session.userId}&EnableImages=true&EnableFavoriteSorting=true&SortBy=SortName", auth, 30 * 60_000L).list("Items")
+    }.getOrDefault(emptyList()).mapNotNull { channelOf(it) }
+
+    internal fun channelOf(item: JsonElement): com.cosmotune.watch.model.Channel? {
+        val channelId = item.str("Id") ?: return null
+        val logo = item.child("ImageTags")?.str("Primary")?.let { "$server/Items/$channelId/Images/Primary?tag=$it&maxHeight=120" }
+        return com.cosmotune.watch.model.Channel(WatchKey.channel(id, channelId), id, item.str("Name") ?: "Channel", item.str("ChannelNumber")?.toIntOrNull() ?: item.str("Number")?.toIntOrNull(),
+            logo, listOf(displayName), epgId = channelId, tvgId = channelId, isRadio = item.str("ChannelType") == "Radio")
+    }
+
+    /** What is on, from the server's own guide (its XMLTV or Schedules Direct), with the genres it marks. */
+    override suspend fun guide(channels: List<com.cosmotune.watch.model.Channel>, fromMs: Long, toMs: Long): List<com.cosmotune.watch.model.EpgProgramme> {
+        val ids = channels.filter { it.pluginId == id }.mapNotNull { it.epgId }
+        if (ids.isEmpty()) return emptyList()
+        val from = java.time.Instant.ofEpochMilli(fromMs).toString().urlEncode()
+        val to = java.time.Instant.ofEpochMilli(toMs).toString().urlEncode()
+        return ids.chunked(40).flatMap { chunk ->
+            runCatching {
+                http.getJson("$server/LiveTv/Programs?UserId=${session.userId}&ChannelIds=${chunk.joinToString(",")}&MinEndDate=$from&MaxStartDate=$to&Fields=Overview,Genres&EnableTotalRecordCount=false", auth, 15 * 60_000L).list("Items")
+            }.getOrDefault(emptyList()).mapNotNull { programmeOf(it) }
+        }
+    }
+
+    /**
+     * The server opens the channel's stream for this device: its own address for the tuner's stream as it comes, and the
+     * server's converted HLS when it offers one.
+     */
+    private suspend fun liveStreams(channelId: String): List<Stream> {
+        val body = buildJsonObject {
+            put("UserId", session.userId); put("AutoOpenLiveStream", true); put("IsPlayback", true); put("MaxStreamingBitrate", 40_000_000)
+            put("DeviceProfile", kotlinx.serialization.json.Json.parseToJsonElement(LIVE_PROFILE))
+        }.toString()
+        val info = http.postJson("$server/Items/$channelId/PlaybackInfo?UserId=${session.userId}", body, auth)
+        val playSession = info.str("PlaySessionId")
+        return info.list("MediaSources").flatMap { ms ->
+            val msId = ms.str("Id") ?: channelId
+            val live = ms.str("LiveStreamId")
+            val direct = if (ms.bool("SupportsDirectStream") != false) Stream(source, "Live · direct", "The tuner's stream as it comes",
+                "$server/Videos/$channelId/stream?static=true&MediaSourceId=${msId.urlEncode()}${live?.let { "&LiveStreamId=${it.urlEncode()}" } ?: ""}",
+                StreamProtocol.PROGRESSIVE, com.cosmotune.watch.model.Container.TS, auth, isLive = true, serverSession = playSession) else null
+            val hls = ms.str("TranscodingUrl")?.let { path ->
+                Stream(source, "Live · converted", "Converted by the server for this device", if (path.startsWith("http")) path else "$server$path",
+                    StreamProtocol.HLS, headers = auth, isLive = true, serverSession = playSession)
+            }
+            listOfNotNull(direct, hls)
+        }
     }
 
     private fun streamsOf(item: JsonElement): List<Stream> {
@@ -151,15 +201,96 @@ class JellyfinPlugin(
             val direct = Stream(source, "Direct play${codec?.let { " · ${it.uppercase()}" } ?: ""}", line, "$server/Videos/$itemId/stream?static=true&MediaSourceId=$msId",
                 StreamProtocol.PROGRESSIVE, StreamGuess.container("x.${container?.substringBefore(',')}"), auth, height, hdr, codec,
                 audioLanguages = audioTracks.mapNotNull { it.language }, audioTracks = audioTracks, subtitles = external, sizeBytes = size,
-                filename = ms.str("Path")?.substringAfterLast('/')?.substringAfterLast('\\') ?: ms.str("Name"), durationMs = durationMs)
+                filename = ms.str("Path")?.substringAfterLast('/')?.substringAfterLast('\\') ?: ms.str("Name"), durationMs = durationMs, serverItemId = itemId)
             val hls = direct.copy(label = "Transcoded · HLS", description = "Converted by the server for this device",
                 url = "$server/Videos/$itemId/master.m3u8?MediaSourceId=$msId&VideoCodec=h264&AudioCodec=aac&TranscodingMaxAudioChannels=2&SegmentContainer=ts&DeviceId=cosmotune",
                 protocol = StreamProtocol.HLS, height = height?.coerceAtMost(1080), hdr = null, videoCodec = "avc")
-            listOf(direct, hls)
+            // Styled (ASS) and picture (PGS, DVD) subtitles lose their look or do not show at all on many players: the server can draw
+            // them into the picture of its converted copy instead (Jellyfin's "always burn in subtitles when transcoding").
+            val styled = subs.filter { (it.str("Codec") ?: "").lowercase() in BURN_IN_CODECS }
+            val burn = styled.firstOrNull { it.bool("IsDefault") == true } ?: styled.firstOrNull()
+            val burnt = burn?.int("Index")?.let { index ->
+                hls.copy(label = "Transcoded · ${burn.str("Language")?.let { "${it.uppercase()} " } ?: ""}subtitles burnt in",
+                    description = "${burn.str("DisplayTitle") ?: "Subtitles"} drawn into the picture by the server",
+                    url = "${hls.url}&SubtitleStreamIndex=$index&SubtitleMethod=Encode", subtitles = emptyList())
+            }
+            listOfNotNull(direct, hls, burnt)
         }
     }
 
+    /**
+     * Jellyfin's media segments (10.10 and later: intro, recap, outro, preview) and the item's chapters; Emby marks its intro and
+     * credits as chapter markers instead. A server without segments answers with chapters alone.
+     */
+    override suspend fun playbackExtras(stream: Stream, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras {
+        val itemId = stream.serverItemId ?: return com.cosmotune.watch.model.PlaybackExtras()
+        val item = runCatching { http.getJson("$server/Users/${session.userId}/Items/$itemId?Fields=Chapters,Trickplay", auth, 10 * 60_000L) }.getOrNull()
+        val chapters = item?.list("Chapters").orEmpty()
+        val segments = if (emby) emptyList() else runCatching { http.getJson("$server/MediaSegments/$itemId", auth, 10 * 60_000L).list("Items") }.getOrDefault(emptyList())
+        return com.cosmotune.watch.model.PlaybackExtras(
+            com.cosmotune.watch.meta.IntroSkips.merge(segmentsOf(segments, durationMs), markersOf(chapters, durationMs)), chaptersOf(chapters),
+            if (emby) null else trickplayOf(item, itemId, stream.url.substringAfter("MediaSourceId=", "").substringBefore('&').ifBlank { itemId }))
+    }
+
+    /**
+     * Jellyfin's trickplay tiles (10.9 and later) for media source [msId], at the width nearest 320 px. The tiles are images, so
+     * the token goes in their address the way subtitle files' does.
+     */
+    internal fun trickplayOf(item: JsonElement?, itemId: String, msId: String): com.cosmotune.watch.model.SeekPreviews? {
+        val widths = (item.child("Trickplay").child(msId) as? kotlinx.serialization.json.JsonObject) ?: return null
+        val (width, info) = widths.entries.mapNotNull { (k, v) -> k.toIntOrNull()?.let { it to v } }.minByOrNull { kotlin.math.abs(it.first - 320) } ?: return null
+        val columns = info.int("TileWidth") ?: return null
+        val rows = info.int("TileHeight") ?: return null
+        val count = info.int("ThumbnailCount")?.takeIf { it > 0 } ?: return null
+        val interval = info.long("Interval")?.takeIf { it > 0 } ?: return null
+        val sheets = (count + columns * rows - 1) / (columns * rows)
+        return com.cosmotune.watch.model.SeekPreviews((0 until sheets).map { "$server/Videos/$itemId/Trickplay/$width/$it.jpg?MediaSourceId=$msId&api_key=${session.token}" },
+            info.int("Width") ?: width, info.int("Height") ?: (width * 9 / 16), columns, rows, interval, count)
+    }
+
     companion object {
+        private const val TICKS_PER_MS = 10_000L
+
+        /** What Cosmotune's players take: MPEG-TS, MP4 and MKV as they come, and H.264/AAC HLS when the server must convert. */
+        private const val LIVE_PROFILE = """{"MaxStreamingBitrate":40000000,
+            "DirectPlayProfiles":[{"Type":"Video","Container":"ts,mpegts,mp4,mkv,webm"}],
+            "TranscodingProfiles":[{"Type":"Video","Container":"ts","Protocol":"hls","VideoCodec":"h264","AudioCodec":"aac","Context":"Streaming","MaxAudioChannels":"2","BreakOnNonKeyFrames":true}]}"""
+
+        /** A guide entry from the server's `LiveTv/Programs`: its times, name, episode and genres (with its film, sport, news and kids marks). */
+        fun programmeOf(item: JsonElement): com.cosmotune.watch.model.EpgProgramme? {
+            val channel = item.str("ChannelId") ?: return null
+            val start = item.str("StartDate")?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() } ?: return null
+            val end = item.str("EndDate")?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() } ?: return null
+            val marks = listOfNotNull("Movie".takeIf { item.bool("IsMovie") == true }, "Sports".takeIf { item.bool("IsSports") == true },
+                "News".takeIf { item.bool("IsNews") == true }, "Kids".takeIf { item.bool("IsKids") == true })
+            val genres = (marks + item.list("Genres").mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }).distinct()
+            return com.cosmotune.watch.model.EpgProgramme(channel, start, end, item.str("Name") ?: return null, item.str("EpisodeTitle"), item.str("Overview"), genres)
+        }
+        private val BURN_IN_CODECS = setOf("ass", "ssa", "pgssub", "pgs", "hdmv_pgs_subtitle", "dvdsub", "dvd_subtitle", "vobsub", "dvbsub")
+
+        /** `/MediaSegments` items as skips: Intro, Recap, Outro and Preview (commercials and unknown stretches are not offered). */
+        fun segmentsOf(items: List<JsonElement>, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> = items.mapNotNull { s ->
+            val label = when (s.str("Type")) { "Intro" -> "Skip intro"; "Recap" -> "Skip recap"; "Outro" -> "Skip credits"; "Preview" -> "Skip preview"; else -> null } ?: return@mapNotNull null
+            val start = (s.long("StartTicks") ?: return@mapNotNull null) / TICKS_PER_MS
+            val end = ((s.long("EndTicks") ?: return@mapNotNull null) / TICKS_PER_MS).let { if (durationMs > 0) it.coerceAtMost(durationMs) else it }
+            if (start < 0 || end <= start) null else com.cosmotune.watch.model.WatchSkip(start, end, label)
+        }.sortedBy { it.startMs }
+
+        /** Emby's chapter markers: IntroStart to IntroEnd, and CreditsStart to the end. */
+        fun markersOf(chapters: List<JsonElement>, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> {
+            fun at(type: String) = chapters.firstOrNull { it.str("MarkerType") == type }?.long("StartPositionTicks")?.div(TICKS_PER_MS)
+            return listOfNotNull(
+                at("IntroStart")?.let { s -> at("IntroEnd")?.takeIf { it > s }?.let { com.cosmotune.watch.model.WatchSkip(s, it, "Skip intro") } },
+                at("CreditsStart")?.takeIf { durationMs > it }?.let { com.cosmotune.watch.model.WatchSkip(it, durationMs, "Skip credits") },
+            )
+        }
+
+        /** The item's chapters with a name, markers left out, in order. */
+        fun chaptersOf(chapters: List<JsonElement>): List<com.cosmotune.watch.model.WatchChapter> = chapters
+            .filter { it.str("MarkerType").let { m -> m == null || m == "Chapter" } }
+            .mapNotNull { c -> c.long("StartPositionTicks")?.let { com.cosmotune.watch.model.WatchChapter(it / TICKS_PER_MS, c.str("Name") ?: "Chapter") } }
+            .distinctBy { it.startMs }.sortedBy { it.startMs }
+
         /** The `/Items` query of Watch search's [query]: text, kind, genre (any of its spellings), dates and order. */
         fun itemsQuery(query: com.cosmotune.watch.WatchQuery, currentYear: Int): String = buildList {
             if (!query.browsing) add("SearchTerm=${query.trimmed.urlEncode()}")

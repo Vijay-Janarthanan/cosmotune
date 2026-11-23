@@ -10,6 +10,8 @@ interface WatchTracking {
     val statuses: StateFlow<List<WatchTrackingStatus>>
     /** Register a public client with the service. No client secret is embedded in the app. */
     suspend fun connect(service: WatchTracker, clientId: String)
+    /** The public client ID the profile in use connected [service] with, or null when it is not connected. */
+    fun clientIdOf(service: WatchTracker): String? = null
     suspend fun disconnect(service: WatchTracker)
     suspend fun sync(service: WatchTracker)
     suspend fun report(progress: com.cosmotune.watch.model.WatchProgress, action: String) {}

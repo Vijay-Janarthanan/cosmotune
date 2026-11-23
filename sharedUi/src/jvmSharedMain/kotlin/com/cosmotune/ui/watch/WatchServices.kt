@@ -114,6 +114,12 @@ sealed interface WatchRoute {
     /** [attached]: the player already holds [target] (the room opened it), so the page shows it as it is. */
     data class Play(val target: PlayTarget, val summary: TitleSummary? = null, val stream: Stream? = null, val episode: Episode? = null,
         val attached: Boolean = false) : WatchRoute
+    /** A torrent the listener opened: a magnet link or info hash pasted in Search ([text]), or a picked .torrent ([fileKey]). */
+    data class Torrent(val text: String? = null, val fileKey: String? = null) : WatchRoute
+    /** The Calendar of the followed series' new and coming episodes. */
+    data object Calendar : WatchRoute
+    /** What this profile played, by day. */
+    data object History : WatchRoute
 }
 
 /**

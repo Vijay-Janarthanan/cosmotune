@@ -4,6 +4,8 @@ The Cosmotune release workflow builds this helper from source with pinned Go mod
 
 Run `python native/watch-torrent/build.py desktop` before a local desktop build. For phone and TV, run `python native/watch-torrent/build.py android --ndk /path/to/ndk` before building the APKs. Both commands require Go 1.26 or newer and use the installed Go toolchain. Gradle picks up the generated files under `build/watch-torrent`.
 
+Besides streaming (the default), the request's `Mode` asks for `files` (the torrent's name, hash and file list), `download` (the chosen `Indexes` kept in `Dir`, which is also where a stopped download resumes; uploads only with `Seed`, for `SeedMinutes` after it is done) and `share` (a torrent made of `Path`, its magnet link sent, then seeded). `Torrent` carries a .torrent file the listener opened (base64) instead of `Hash`; its trackers are checked like an add-on's and its web seeds dropped. `Bind` names one network connection (a VPN's): the client listens only on its address and every mode stops as soon as it goes down. The helper never searches for torrents.
+
 Run `go test ./...` in this directory to stream and seek from a local BitTorrent peer without contacting public trackers.
 
 ## Dependency security refresh (2026-11-16)

@@ -86,6 +86,8 @@ import com.cosmotune.ui.watch.rememberWatchPip
 import com.cosmotune.watch.ChannelFilter
 import com.cosmotune.watch.model.Channel
 import com.cosmotune.ui.watch.WatchBackend
+import com.cosmotune.ui.watch.WatchEngineSubtitles
+import kotlinx.coroutines.launch
 import com.cosmotune.ui.watch.WatchNav
 import com.cosmotune.ui.watch.WatchPlayback
 import com.cosmotune.ui.watch.WatchRoute
@@ -93,6 +95,7 @@ import com.cosmotune.ui.watch.WatchSurfaceScale
 import com.cosmotune.ui.watch.WatchTab
 import com.cosmotune.watch.LiveNowItem
 import com.cosmotune.watch.WATCH_SKIP_MS
+import com.cosmotune.watch.detail
 import com.cosmotune.watch.WatchPlayer
 import com.cosmotune.watch.WatchPlayerState
 import com.cosmotune.watch.WatchPlayerStatus
@@ -165,6 +168,7 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
         player.open(route.target, route.summary, selected ?: route.stream, startMs = start)
     })
     val repository = LocalWatchRepository.current ?: WatchBackend.repository
+    val subtitleScope = androidx.compose.runtime.rememberCoroutineScope()
     // Picture-in-picture (Home on the remote, or the card's button): the picture alone in the system's small window, with play and
     // pause and, for an episode the next one, for a channel the next in its playlist. Closing it pauses the film.
     val pip = rememberPip(PipOwner.WATCH)
@@ -209,8 +213,8 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
             Key.MediaPlayPause -> { playPause(); true }
             Key.MediaPlay -> { player.engine.play(); true }
             Key.MediaPause -> { player.engine.pause(); true }
-            Key.MediaRewind -> { if (!state.isLive) seekBy(-WATCH_SKIP_MS); true }
-            Key.MediaFastForward -> { if (!state.isLive) seekBy(WATCH_SKIP_MS); true }
+            Key.MediaRewind -> { if (!state.isLive || com.cosmotune.watch.LiveShift.canShift(player.engine.snapshot.value.durationMs)) seekBy(-WATCH_SKIP_MS); true }
+            Key.MediaFastForward -> { if (!state.isLive || com.cosmotune.watch.LiveShift.canShift(player.engine.snapshot.value.durationMs)) seekBy(WATCH_SKIP_MS); true }
             else -> if (cardUp || failed) false else stageKey(e, state, onPlayPause = {
                 playPause()
                 flash = if (player.engine.snapshot.value.playing) TvFlash.Pause else TvFlash.Play
@@ -242,6 +246,12 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
             TvArtwork(url = still, shape = RectangleShape, px = 1280, modifier = Modifier.fillMaxSize())
         }
         playback.surface(scale, Modifier.fillMaxSize())
+        // The subtitles, in the viewer's look (the engine hands its cues to the app).
+        val watchPreferences by repository.preferences.collectAsState()
+        WatchEngineSubtitles(player.engine, watchPreferences.subtitles)
+        LaunchedEffect(player, watchPreferences.sound) { player.setSoundMix(watchPreferences.sound) }
+        LaunchedEffect(player, watchPreferences.softwareDecoding) { player.setSoftwareDecoding(watchPreferences.softwareDecoding) }
+        LaunchedEffect(player, watchPreferences.picture) { player.engine.setPictureFilter(watchPreferences.picture) }
         // The picture takes focus while the card is down, so the remote's keys reach [keys].
         Box(Modifier.fillMaxSize().focusRequester(stage).focusable().pointerInput(failed) {
             if (!failed) detectTapGestures { cardUp = !cardUp }
@@ -272,6 +282,9 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
 
         TvFlashGlyph(flash, flashTick, Modifier.align(Alignment.BottomCenter))
         TvSeekNote(seekNote, seekTick, Modifier.align(Alignment.BottomCenter))
+
+        // The time of day, top right, while the card is up (CloudStream's player clock).
+        if (cardUp && !failed) TvPlayerClock(Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = TvDimensions.SafeMarginHorizontal))
 
         AnimatedVisibility(
             visible = cardUp && !failed,
@@ -362,6 +375,16 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                         modifier = Modifier.tvInitialFocus(t.selected),
                     )
                 }
+                val sound = repository.preferences.collectAsState().value.sound
+                com.cosmotune.watch.WatchSoundChoice.all.forEach { choice ->
+                    TvListRow(
+                        title = choice.label,
+                        subtitle = choice.detail,
+                        value = if (choice.mix == sound) "On" else null,
+                        onClick = { menu = null; subtitleScope.launch { repository.setPreferences(repository.preferences.value.copy(sound = choice.mix)) } },
+                        modifier = Modifier.tvInitialFocus(state.audioTracks.size < 2 && choice.mix == sound),
+                    )
+                }
             }
         }
         TvWatchMenu.SUBTITLES -> TvDialog(onDismissRequest = { menu = null }, title = "Subtitles", width = 560.dp) {
@@ -375,16 +398,39 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                 state.subtitles.forEach { s ->
                     TvListRow(
                         title = s.label,
-                        subtitle = listOfNotNull(s.origin.name.lowercase().replaceFirstChar { it.uppercase() }, if (s.hearingImpaired) "SDH" else null).joinToString(" · "),
+                        subtitle = listOfNotNull(s.sourceLabel, if (s.hearingImpaired) "SDH" else null).joinToString(" · "),
                         value = if (s.id == state.selectedSubtitleId) "On" else null,
                         onClick = { menu = null; player.selectSubtitle(s.id) },
                         modifier = Modifier.tvInitialFocus(s.id == state.selectedSubtitleId),
                     )
                 }
                 TvListRow(title = "Find more subtitles", subtitle = "OpenSubtitles and your subtitle plugins", onClick = { menu = null; player.searchSubtitles() })
+                // The look, a step at a time with the remote (the full editor is in Watch settings on the phone and computer).
+                val look = repository.preferences.collectAsState().value.subtitles
+                fun keep(style: com.cosmotune.watch.WatchSubtitleStyle) = subtitleScope.launch {
+                    repository.setPreferences(repository.preferences.value.copy(subtitles = style))
+                }
+                TvListRow(title = "Subtitle size", value = "${look.sizePercent}%", onClick = {
+                    val sizes = com.cosmotune.watch.WatchSubtitleStyle.SIZES
+                    keep(look.copy(sizePercent = sizes[(sizes.indexOf(look.sizePercent) + 1).mod(sizes.size)]))
+                })
+                TvListRow(title = "Subtitle colour", value = look.colour.label, onClick = {
+                    val colours = com.cosmotune.watch.SubtitleColour.entries
+                    keep(look.copy(colour = colours[(look.colour.ordinal + 1) % colours.size]))
+                })
+                TvListRow(title = "Behind the words", value = look.background.label, onClick = {
+                    val backs = com.cosmotune.watch.SubtitleBackground.entries
+                    keep(look.copy(background = backs[(look.background.ordinal + 1) % backs.size]))
+                })
+                TvListRow(title = "Subtitle height", value = "${look.liftPercent}%", onClick = {
+                    val lifts = com.cosmotune.watch.WatchSubtitleStyle.LIFTS
+                    keep(look.copy(liftPercent = lifts[(lifts.indexOf(look.liftPercent) + 1).mod(lifts.size)]))
+                })
                 if (state.selectedSubtitleId != null) {
                     TvListRow(title = "Earlier by 0.5 s", value = "%+.1f s".format(state.subtitleDelayMs / 1000f), onClick = { player.setSubtitleDelay(state.subtitleDelayMs - 500) })
                     TvListRow(title = "Later by 0.5 s", onClick = { player.setSubtitleDelay(state.subtitleDelayMs + 500) })
+                    if (player.canAutoSync()) TvListRow(title = "Sync automatically", subtitle = state.subtitleSync.detail(),
+                        onClick = { if (state.subtitleSync != com.cosmotune.watch.SubtitleSyncState.Listening) player.autoSyncSubtitles() })
                 }
             }
         }
@@ -394,6 +440,11 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                     onClick = { menu = null; scale = WatchSurfaceScale.FIT }, modifier = Modifier.tvInitialFocus(scale == WatchSurfaceScale.FIT))
                 TvListRow(title = "Fill", subtitle = "Fills the screen, cuts the edges", value = if (scale == WatchSurfaceScale.CROP) "On" else null,
                     onClick = { menu = null; scale = WatchSurfaceScale.CROP }, modifier = Modifier.tvInitialFocus(scale == WatchSurfaceScale.CROP))
+                val picture = repository.preferences.collectAsState().value.picture
+                com.cosmotune.watch.WatchPictureChoice.of(player.engine).forEach { choice ->
+                    TvListRow(title = choice.label, subtitle = choice.detail, value = if (picture == choice.filter) "On" else null,
+                        onClick = { subtitleScope.launch { repository.setPreferences(repository.preferences.value.copy(picture = choice.filter)) } })
+                }
             }
         }
         TvWatchMenu.CHANNELS -> TvDialog(onDismissRequest = { menu = null }, title = "Channels", width = 560.dp) {
@@ -476,7 +527,7 @@ private fun TvFilmCard(
         tick
         val p = player.engine.positionMs()
         when {
-            state.isLive -> if (programme != null) "● Live · " + (summary?.name ?: channel?.name.orEmpty()) else "● Live"
+            state.isLive -> com.cosmotune.watch.LiveShift.label(durationMs, p) + if (programme != null) " · " + (summary?.name ?: channel?.name.orEmpty()) else ""
             state.status == WatchPlayerStatus.RESOLVING -> "Finding the best copy"
             state.status == WatchPlayerStatus.LOADING || state.status == WatchPlayerStatus.BUFFERING -> "Loading · ${clock(p)}"
             durationMs > 0 -> "${clock(p)} / ${clock(durationMs)}" + if (durationMs > p) " · " + left(durationMs - p) else ""
@@ -502,7 +553,7 @@ private fun TvFilmCard(
         playing = playing,
         onPlay = onPlayPause,
         height = 236.dp,
-        progress = if (durationMs > 0 && !state.isLive) ({ ringFrame.longValue; (player.engine.positionMs().toFloat() / durationMs).coerceIn(0f, 1f) }) else null,
+        progress = if (durationMs > 0 && (!state.isLive || com.cosmotune.watch.LiveShift.canShift(durationMs))) ({ ringFrame.longValue; (player.engine.positionMs().toFloat() / durationMs).coerceIn(0f, 1f) }) else null,
         spinning = playing,
         playFocus = playFocus,
         below = {
@@ -517,13 +568,18 @@ private fun TvFilmCard(
                     TvWatchRound(CosmoIcons.Forward30, "Forward 30 seconds", ink) { onSeek(WATCH_SKIP_MS) }
                 } else {
                     TvButton("Channels", onClick = { onMenu(TvWatchMenu.CHANNELS) })
-                    onLive?.let { TvButton("Jump to live", onClick = it) }
+                    // A channel whose window the player keeps can be rewound in it, and goes back to live in it.
+                    if (com.cosmotune.watch.LiveShift.canShift(durationMs)) {
+                        TvWatchRound(CosmoIcons.Replay30, "Back 30 seconds", ink) { onSeek(-WATCH_SKIP_MS) }
+                        TvWatchRound(CosmoIcons.Forward30, "Forward 30 seconds", ink) { onSeek(WATCH_SKIP_MS) }
+                        TvButton("Jump to live", onClick = { player.engine.seekTo(durationMs) })
+                    } else onLive?.let { TvButton("Jump to live", onClick = it) }
                 }
                 TvWatchRound(CosmoIcons.Expand, "Full screen", ink, onFullScreen)
                 onPip?.let { TvWatchRound(CosmoIcons.Pip, "Picture in picture", ink, it) }
                 TvButton(if (state.muted) "Unmute" else "Mute", onClick = player::toggleMute)
                 if (state.streams.isNotEmpty()) TvButton("Sources", onClick = { onMenu(TvWatchMenu.SOURCES) })
-                if (state.audioTracks.size > 1) TvButton("Audio", onClick = { onMenu(TvWatchMenu.AUDIO) })
+                TvButton("Audio", onClick = { onMenu(TvWatchMenu.AUDIO) })
                 TvButton("Subtitles", onClick = { onMenu(TvWatchMenu.SUBTITLES) })
                 TvWatchRound(CosmoIcons.Canvas, "Screen", ink) { onMenu(TvWatchMenu.SCREEN) }
             }
@@ -548,8 +604,9 @@ private fun TvNextEpisode(state: WatchPlayerState, player: WatchPlayer) {
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Column(Modifier.widthIn(max = 520.dp)) {
-            Text("NEXT EPISODE IN ${(inMs + 999) / 1000} S", style = TvType.Label, color = TvGlass.Peach)
-            Text("S${next.season} E${next.number} · ${next.name}", style = TvType.Headline, color = TvGlass.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val queued = state.target is PlayTarget.Item
+            Text((if (queued) "NEXT VIDEO IN " else "NEXT EPISODE IN ") + "${(inMs + 999) / 1000} S", style = TvType.Label, color = TvGlass.Peach)
+            Text(if (queued) next.name else "S${next.season} E${next.number} · ${next.name}", style = TvType.Headline, color = TvGlass.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         TvButton("Play now", onClick = player::playNextEpisode, isPrimary = true, modifier = Modifier.focusRequester(playNow))
         TvButton("Cancel", onClick = player::cancelNextEpisode)
@@ -614,4 +671,13 @@ private fun clock(ms: Long): String {
 private fun left(ms: Long): String {
     val min = ((ms + 59_999) / 60_000).toInt()
     return if (min >= 60) "${min / 60}h ${"%02d".format(min % 60)}m left" else "$min min left"
+}
+
+/** "21:40", the time now, refreshed on the minute. */
+@Composable
+private fun TvPlayerClock(modifier: Modifier) {
+    val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(60_000 - value % 60_000) } }
+    val text = remember(now) { java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) }
+    Text(text, style = TvType.Headline, color = TvGlass.TextPrimary,
+        modifier = modifier.clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 14.dp, vertical = 6.dp))
 }

@@ -39,6 +39,8 @@ class WatchTrackingService(private val client: OkHttpClient, private val store: 
     private fun session(service: WatchTracker, profile: String): Session? = store.state.value.settings[key(service, profile)]?.let {
         runCatching { json.decodeFromString<Session>(it) }.getOrNull()
     }
+    override fun clientIdOf(service: WatchTracker): String? = session(service, store.state.value.activeProfile)?.clientId
+
     private suspend fun save(service: WatchTracker, profile: String, value: Session?) {
         store.update { state -> state.copy(settings = if (value == null) state.settings - key(service, profile)
             else state.settings + (key(service, profile) to json.encodeToString(Session.serializer(), value))) }

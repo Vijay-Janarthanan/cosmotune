@@ -142,7 +142,9 @@ fun OrbitRoundButton(
 @Composable
 fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Modifier, onSeek: ((Float) -> Unit)? = null, moon: Dp = 6.dp, live: Boolean = false,
     /** Hears where a drag is (0 to 1) while it lasts, and null when it ends, for a preview of the place. */
-    onScrub: ((Float?) -> Unit)? = null) {
+    onScrub: ((Float?) -> Unit)? = null,
+    /** Drawn above the line, following the finger, while it is dragged (Watch's seek thumbnail); told where the drag is, 0..1. */
+    preview: (@Composable (Float) -> Unit)? = null) {
     var drag by remember { mutableStateOf<Float?>(null) }
     if (onScrub != null) LaunchedEffect(drag) { onScrub(drag) }
     val input = if (onSeek == null) Modifier else Modifier
@@ -158,14 +160,24 @@ fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Mo
                 if (live) drag?.let(onSeek)
             }
         }
-    Canvas(modifier.fillMaxWidth().height(moon * 2 + 8.dp).then(input)) {
-        val p = (drag ?: progress()).coerceIn(0f, 1f)
-        val y = size.height / 2
-        val w = 4.dp.toPx()
-        drawLine(ink.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width, y), w, StrokeCap.Round)
-        if (p > 0f) drawLine(ink, Offset(0f, y), Offset(size.width * p, y), w, StrokeCap.Round)
-        drawCircle(ink.copy(alpha = 0.18f), moon.toPx() + 4.dp.toPx(), Offset(size.width * p, y))
-        drawCircle(ink, moon.toPx(), Offset(size.width * p, y))
+    Box(modifier.fillMaxWidth()) {
+        Canvas(Modifier.fillMaxWidth().height(moon * 2 + 8.dp).then(input)) {
+            val p = (drag ?: progress()).coerceIn(0f, 1f)
+            val y = size.height / 2
+            val w = 4.dp.toPx()
+            drawLine(ink.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width, y), w, StrokeCap.Round)
+            if (p > 0f) drawLine(ink, Offset(0f, y), Offset(size.width * p, y), w, StrokeCap.Round)
+            drawCircle(ink.copy(alpha = 0.18f), moon.toPx() + 4.dp.toPx(), Offset(size.width * p, y))
+            drawCircle(ink, moon.toPx(), Offset(size.width * p, y))
+        }
+        val at = drag
+        if (preview != null && at != null) Box(Modifier.layout { measurable, constraints ->
+            val placeable = measurable.measure(androidx.compose.ui.unit.Constraints())
+            layout(constraints.maxWidth, 0) {
+                val x = (at * constraints.maxWidth - placeable.width / 2f).toInt().coerceIn(0, (constraints.maxWidth - placeable.width).coerceAtLeast(0))
+                placeable.place(x, -placeable.height - 8.dp.roundToPx())
+            }
+        }) { preview(at) }
     }
 }
 

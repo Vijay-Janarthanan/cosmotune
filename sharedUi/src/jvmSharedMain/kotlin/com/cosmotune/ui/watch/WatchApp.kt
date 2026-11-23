@@ -128,7 +128,7 @@ fun WatchApp(
         val pageWidth = if (railShown) maxWidth - com.cosmotune.ui.shell.CosmoNav.RAIL_WIDTH_DP.dp else maxWidth
         val wide = wideLayout ?: (pageWidth >= 840.dp)
         val header: (@Composable () -> Unit)? = when {
-            top != null -> ({ WatchBackHeader(when { top is WatchRoute.Playlists -> "Watch playlists"; top is WatchRoute.Page && top.summary.type == TitleType.SERIES -> "Series"; else -> "Film" }, fonts, look) })
+            top != null -> ({ WatchBackHeader(when { top is WatchRoute.Playlists -> "Watch playlists"; top is WatchRoute.Torrent -> "Torrent"; top is WatchRoute.Calendar -> "Calendar"; top is WatchRoute.History -> "History"; top is WatchRoute.Page && top.summary.type == TitleType.SERIES -> "Series"; else -> "Film" }, fonts, look) })
             // Downloads, Plugins and Settings are reached from the profile menu on the phone: they come back with a back button.
             showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader(if (tab == WatchTab.SETTINGS) "Watch settings" else tab.label, fonts, look) })
             showNavigation -> ({ WatchPhoneHeader(fonts, look) })
@@ -165,6 +165,9 @@ fun WatchApp(
                 is WatchRoute.Playlists -> WatchPlaylistsPage(top.id, actions, fonts, look, frame)
                 is WatchRoute.Play -> WatchPlayerPage(top, actions, fonts, look, frame)
                 is WatchRoute.Page -> WatchTitlePage(top.summary, actions, fonts, look, frame)
+                is WatchRoute.Torrent -> WatchTorrentPage(top, actions, fonts, look, frame)
+                is WatchRoute.Calendar -> WatchCalendarPage(actions, fonts, look, frame)
+                is WatchRoute.History -> WatchHistoryPage(actions, fonts, look, frame)
                 null -> when (tab) {
                     WatchTab.HOME -> WatchHomePage(null, actions, fonts, look, frame)
                     WatchTab.FILMS -> WatchHomePage(com.cosmotune.watch.HomeFilter.FILMS, actions, fonts, look, frame)
@@ -224,6 +227,7 @@ fun WatchApp(
         when (val link = opened) {
             is com.cosmotune.watch.WatchLinks.Link.Install -> WatchInstallSheet(link.raw, fonts, look, onDone = { com.cosmotune.watch.WatchLinks.handled() })
             is com.cosmotune.watch.WatchLinks.Link.Pack -> ImportPackDialog(repository, fonts, look, initialLink = link.raw) { com.cosmotune.watch.WatchLinks.handled() }
+            is com.cosmotune.watch.WatchLinks.Link.TrackerReturn -> AnimeSignInReturn(repository, link.raw) { com.cosmotune.watch.WatchLinks.handled() }
             null -> Unit
         }
     }

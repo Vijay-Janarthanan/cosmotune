@@ -359,6 +359,8 @@ private fun TvMainShell(
     // sheet waits ([com.cosmotune.ui.watch.WatchApp] draws it).
     val watchLink by com.cosmotune.watch.WatchLinks.pending.collectAsState()
     LaunchedEffect(watchLink != null) { if (watchLink != null) select(TvDestination.WATCH) }
+    // A video sent from a phone or computer opens Watch's player.
+    TvWatchReceiver { select(TvDestination.WATCH) }
     // Live now: the pill in the chips row while something followed is live, its page, and the reminders. Watch plays in Watch's player.
     val liveContext = androidx.compose.ui.platform.LocalContext.current
     val liveSettings = com.cosmotune.ui.live.rememberLiveNowSettings()

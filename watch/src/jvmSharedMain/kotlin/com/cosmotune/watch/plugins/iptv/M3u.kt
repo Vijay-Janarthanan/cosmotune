@@ -17,6 +17,8 @@ data class M3uEntry(
     val headers: Map<String, String> = emptyMap(),
     val radio: Boolean = false,
     val durationSec: Int = -1,
+    /** `tvg-shift` (hours, "-2.5" allowed) in minutes, or the playlist's own `tvg-shift` when the line has none. */
+    val epgShiftMinutes: Int = 0,
 )
 
 data class M3uPlaylist(val entries: List<M3uEntry>, val guideUrls: List<String>)
@@ -27,17 +29,31 @@ object M3uParser {
 
     fun parse(text: String): M3uPlaylist = parse(text.lineSequence())
 
+    /** A `tvg-shift` in hours ("2", "-1.5", "+5:30" read as 5.5) as minutes, within a day either way; null when absent or unreadable. */
+    fun shiftMinutes(text: String?): Int? {
+        val t = text?.trim()?.removePrefix("+")?.takeIf { it.isNotEmpty() } ?: return null
+        val hours = if (':' in t) {
+            val (h, m) = t.split(':', limit = 2)
+            val whole = h.toIntOrNull() ?: return null
+            val minutes = m.toIntOrNull() ?: return null
+            whole + (if (h.startsWith("-")) -minutes else minutes) / 60.0
+        } else t.toDoubleOrNull() ?: return null
+        return (hours * 60).toInt().takeIf { kotlin.math.abs(it) <= 24 * 60 }
+    }
+
     fun parse(lines: Sequence<String>): M3uPlaylist {
         val entries = mutableListOf<M3uEntry>()
         val guides = mutableListOf<String>()
         var pending: M3uEntry? = null
         var headers = mutableMapOf<String, String>()
         var group: String? = null
+        var playlistShift = 0
         for (raw in lines) {
             val line = raw.trim().removePrefix("﻿")
             if (line.isEmpty()) continue
             when {
                 line.startsWith("#EXTM3U") -> attrs(line).let { a ->
+                    playlistShift = shiftMinutes(a["tvg-shift"] ?: a["x-tvg-shift"]) ?: 0
                     listOfNotNull(a["url-tvg"], a["x-tvg-url"], a["tvg-url"]).flatMap { it.split(',') }.map { it.trim() }.filter { it.isNotEmpty() }.forEach(guides::add)
                 }
                 line.startsWith("#EXTINF") -> {
@@ -52,6 +68,7 @@ object M3uParser {
                         languages = a["tvg-language"]?.split(';', ',')?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }.orEmpty(),
                         countries = a["tvg-country"]?.split(';', ',')?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }.orEmpty(),
                         catchup = catchup, radio = a["radio"] == "true", durationSec = duration,
+                        epgShiftMinutes = shiftMinutes(a["tvg-shift"]) ?: playlistShift,
                     )
                     a["http-user-agent"]?.let { headers["User-Agent"] = it }
                     a["http-referrer"]?.let { headers["Referer"] = it }
@@ -60,6 +77,18 @@ object M3uParser {
                     val opt = line.removePrefix("#EXTVLCOPT:")
                     val key = opt.substringBefore('=').trim().lowercase(); val value = opt.substringAfter('=', "").trim()
                     when (key) { "http-user-agent" -> headers["User-Agent"] = value; "http-referrer", "http-referer" -> headers["Referer"] = value; "http-origin" -> headers["Origin"] = value }
+                }
+                // Kodi's inputstream.adaptive headers ("User-Agent=a&Referer=b") and TiviMate's #EXTHTTP JSON object.
+                line.startsWith("#KODIPROP:") -> {
+                    val opt = line.removePrefix("#KODIPROP:")
+                    if (opt.substringBefore('=').trim().lowercase() in setOf("inputstream.adaptive.stream_headers", "inputstream.adaptive.manifest_headers"))
+                        opt.substringAfter('=', "").split('&').forEach { kv -> kv.split('=', limit = 2).takeIf { it.size == 2 && it[0].isNotBlank() }?.let {
+                            headers[it[0].trim()] = runCatching { java.net.URLDecoder.decode(it[1], "UTF-8") }.getOrDefault(it[1]).trim() } }
+                }
+                line.startsWith("#EXTHTTP:") -> runCatching {
+                    (kotlinx.serialization.json.Json.parseToJsonElement(line.removePrefix("#EXTHTTP:")) as kotlinx.serialization.json.JsonObject).forEach { (k, v) ->
+                        (v as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content?.let { headers[k] = it }
+                    }
                 }
                 line.startsWith("#EXTGRP:") -> group = line.removePrefix("#EXTGRP:").trim()
                 line.startsWith("#") -> Unit
