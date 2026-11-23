@@ -119,7 +119,7 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
             frame.header?.let { header -> item(key = "watch:header") { header() } }
             item(key = "watch:heading") {
                 val label = remember(filter) {
-                    Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEE dd MMM — HH:mm", Locale.ENGLISH))
+                    Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEE d MMM · HH:mm", Locale.ENGLISH))
                 }
                 val title = when (fixed) { HomeFilter.FILMS -> "Films"; HomeFilter.SERIES -> "Series"; else -> "Tonight" }
                 val chips: @Composable () -> Unit = {
