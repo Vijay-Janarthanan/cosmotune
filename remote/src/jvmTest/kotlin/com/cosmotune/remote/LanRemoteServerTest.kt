@@ -199,4 +199,53 @@ class LanRemoteServerTest {
             assertEquals(0, quotes % 2, "unbalanced quote on script line ${i + 1}: ${line.take(60)}")
         }
     }
+
+    private fun maskedText(text: String): ByteArray {
+        val payload = text.toByteArray(Charsets.UTF_8)
+        val mask = byteArrayOf(1, 2, 3, 4)
+        return byteArrayOf(0x81.toByte(), (0x80 or payload.size).toByte()) + mask + ByteArray(payload.size) { (payload[it].toInt() xor mask[it % 4].toInt()).toByte() }
+    }
+
+    private fun serverFrame(input: java.io.InputStream): String {
+        val first = input.read(); val short = input.read()
+        assertEquals(0x81, first); assertTrue(short <= 126)
+        val length = if (short == 126) (input.read() shl 8) or input.read() else short
+        return ByteArray(length) { input.read().toByte() }.toString(Charsets.UTF_8)
+    }
+
+    private fun upgrade(server: LanRemoteServer, protocols: String): Pair<Socket, String> {
+        val uri = URI(server.session.origin)
+        val socket = Socket(uri.host, uri.port)
+        socket.soTimeout = 10_000
+        socket.getOutputStream().write(("GET /api/live HTTP/1.1\r\nHost: ${uri.rawAuthority}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
+            "Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Protocol: $protocols\r\n\r\n").toByteArray(Charsets.US_ASCII))
+        val head = StringBuilder()
+        val input = socket.getInputStream()
+        while (!head.endsWith("\r\n\r\n")) { val b = input.read(); if (b < 0) break; head.append(b.toChar()) }
+        return socket to head.toString()
+    }
+
+    @Test fun theLiveChannelPushesStatusAndTakesCommandsOnlyWithThePairingKey() {
+        val host = Host()
+        LanRemoteServer.start(host).use { server ->
+            assertEquals("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", LanRemoteLive.accept("dGhlIHNhbXBsZSBub25jZQ=="))
+            val (refused, refusedHead) = upgrade(server, "cosmotune, wrong")
+            refused.close()
+            assertTrue(refusedHead.startsWith("HTTP/1.1 401"))
+            val (socket, head) = upgrade(server, "cosmotune, ${key(server)}")
+            socket.use {
+                assertTrue(head.startsWith("HTTP/1.1 101"), head)
+                assertTrue(head.contains("Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo="))
+                assertTrue(head.contains("Sec-WebSocket-Protocol: cosmotune\r\n"))
+                val input = socket.getInputStream()
+                assertTrue(serverFrame(input).contains("Singer"), "the status comes first")
+                socket.getOutputStream().write(maskedText("{\"action\":\"NEXT\"}"))
+                assertEquals("{" + "\"ok\":true}", serverFrame(input))
+                socket.getOutputStream().write(maskedText("{\"action\":\"SEEK\"}"))
+                assertTrue(serverFrame(input).contains("Invalid command"))
+                assertEquals(listOf(RemoteAction.NEXT), host.commands.map { it.action })
+            }
+            assertNull(LanRemoteLive.offeredKey("chat, ${key(server)}"))
+        }
+    }
 }

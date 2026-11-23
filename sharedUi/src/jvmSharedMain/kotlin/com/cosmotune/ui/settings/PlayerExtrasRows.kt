@@ -2,6 +2,9 @@ package com.cosmotune.ui.settings
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.runtime.Composable
@@ -35,6 +38,12 @@ object PlayerExtrasText {
     const val NOTIFICATION_SLEEP = "Sleep timer on the notification"
     const val NOTIFICATION_SLEEP_LINE = "The notification's second button sets the sleep timer instead of Repeat: each tap goes 15, 30, 60 minutes, then off."
     const val WAVEFORM = "Waveform seek line"
+    const val MUSIC_SKIPS = "Skip the talking in music videos"
+    const val MUSIC_SKIPS_LINE = "Jumps over the parts of a music video that are not the song, a sponsor read or a plug, as SponsorBlock's listeners marked them."
+    const val SONG_NOTICES = "Song notifications"
+    const val SONG_NOTICES_LINE = "A notice names each new song while Cosmotune's window is behind other apps."
+    const val GLOBAL_SHORTCUTS = "Shortcuts in any app"
+    val GLOBAL_SHORTCUTS_LINE = "Works while another app is in front. " + com.cosmotune.listening.GlobalShortcuts.summary()
     const val WAVEFORM_LINE = "The seek line shows how loud the song gets once you have heard it, with dots where listeners left a comment about a moment."
 }
 
@@ -64,6 +73,27 @@ fun BestPartRow(settings: ExtrasSettings = Extras.settings) {
 fun NotificationSleepRow(settings: ExtrasSettings = Extras.settings) {
     val on by settings.notificationSleep.collectAsState()
     ExtrasSwitchRow(Icons.Rounded.Bedtime, PlayerExtrasText.NOTIFICATION_SLEEP, PlayerExtrasText.NOTIFICATION_SLEEP_LINE, on, settings::setNotificationSleep)
+}
+
+/** Skipping the marked parts of music videos that are not the song ([ExtrasSettings.musicSkips]); off until turned on. */
+@Composable
+fun MusicSkipsRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.musicSkips.collectAsState()
+    ExtrasSwitchRow(Icons.Rounded.FastForward, PlayerExtrasText.MUSIC_SKIPS, PlayerExtrasText.MUSIC_SKIPS_LINE, on, settings::setMusicSkips)
+}
+
+/** The desktop's notice for each new song while its window is behind others ([ExtrasSettings.songNotices]). */
+@Composable
+fun SongNoticesRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.songNotices.collectAsState()
+    ExtrasSwitchRow(Icons.Rounded.Notifications, PlayerExtrasText.SONG_NOTICES, PlayerExtrasText.SONG_NOTICES_LINE, on, settings::setSongNotices)
+}
+
+/** The desktop's Ctrl+Alt shortcuts that work in any app ([ExtrasSettings.globalShortcuts]); off until turned on. */
+@Composable
+fun GlobalShortcutsRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.globalShortcuts.collectAsState()
+    ExtrasSwitchRow(Icons.Rounded.Keyboard, PlayerExtrasText.GLOBAL_SHORTCUTS, PlayerExtrasText.GLOBAL_SHORTCUTS_LINE, on, settings::setGlobalShortcuts)
 }
 
 /** The waveform seek line with timed comments ([ExtrasSettings.waveformSeek]); on until turned off. */

@@ -312,3 +312,10 @@ as well, the history by days, weeks or months with source chips, Replay's weekda
 and the sleep timer button on the notification (`SleepButtonCycle.kt`); sharing a local song's file itself (`LocalFileShare.kt`, Kreate);
 AIFF on the phone (`AiffExtractor.kt`, written from Apple's AIFF and AIFF-C specifications) and AIFF and DSD in the desktop library
 (the idea from LastWave, GPL-3.0); each album and playlist page keeping its own order (`ListOrders.kt`, the idea from AETHER, GPL-3.0).
+Share links from the listener's own Subsonic server use the OpenSubsonic `createShare` call (the idea from Kreate, GPL-3.0); the fidelity
+score, stream stops and output clock in Audio details (`PlaybackHealth.kt`) follow LastWave's output screen (GPL-3.0); moving a music
+video's picture against the sound (`VideoTimings.kt`) and the kept download history with its finished notice (`DownloadHistory.kt`) follow
+Lokal (MIT); the WebDAV copy of automatic backups (`WebDavBackup.kt`) and Restore lost likes (`LostLikes.kt`) follow Mochy (GPL-3.0); the
+shortcuts in any app (`GlobalShortcuts.kt`), the remote's live WebSocket (`LanRemoteLive.kt`), skipping the parts of music videos that are
+not the song with SponsorBlock's data (`MusicSkips.kt`), the volume steps and the song notices follow th-ch's YouTube Music (MIT). All are
+written for Cosmotune without taking their code.

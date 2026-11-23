@@ -1,5 +1,6 @@
 package com.cosmotune.music.ui.player
 
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -263,13 +264,13 @@ private fun VolumeRow(routeKey: Any) {
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = if (level < 0.4f) CosmoIcons.VolumeLow else CosmoIcons.Volume,
-            contentDescription = null,
-            tint = look.ink,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(14.dp))
+        // A step down and a step up beside the line, and the level in figures, for a precise setting.
+        val step: (Float) -> Unit = { delta ->
+            level = preciseVolumeStep(level, delta)
+            system.set(level)
+        }
+        com.cosmotune.ui.components.CosmoIconButton(CosmoIcons.VolumeLow, "Volume down a step", { step(-VOLUME_STEP) }, size = 40.dp)
+        Spacer(Modifier.width(8.dp))
         OrbitProgressLine(
             progress = { level },
             ink = look.ink,
@@ -280,6 +281,11 @@ private fun VolumeRow(routeKey: Any) {
             },
             live = true,
         )
+        Spacer(Modifier.width(10.dp))
+        androidx.compose.material3.Text("${(level * 100).roundToInt()} %", style = com.cosmotune.ui.orbit.orbitFonts().body, color = look.dim,
+            modifier = Modifier.width(44.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 1)
+        Spacer(Modifier.width(4.dp))
+        com.cosmotune.ui.components.CosmoIconButton(CosmoIcons.Volume, "Volume up a step", { step(VOLUME_STEP) }, size = 40.dp)
     }
 }
 
@@ -297,6 +303,12 @@ internal fun audioOutputIcon(device: AudioOutputDevice): ImageVector = when (dev
     AudioOutputKind.HDMI -> Icons.Rounded.Tv
     AudioOutputKind.OTHER -> Icons.Rounded.Speaker
 }
+
+/** One press of the volume step buttons: two percent. */
+internal const val VOLUME_STEP = 0.02f
+
+/** The level after a step, kept between silence and full and on whole percents. */
+internal fun preciseVolumeStep(level: Float, delta: Float): Float = (((level + delta).coerceIn(0f, 1f)) * 100).roundToInt() / 100f
 
 /** How many times the level is re-read after a route change, and how far apart. */
 private const val VOLUME_REREADS = 4

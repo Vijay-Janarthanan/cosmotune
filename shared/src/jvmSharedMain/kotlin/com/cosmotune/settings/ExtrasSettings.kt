@@ -272,6 +272,24 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putString(KEY_VIDEO_TIMINGS, com.cosmotune.listening.VideoTimings.encode(next))
     }
 
+    private val musicSkipsFlow = MutableStateFlow(store.getBoolean(KEY_MUSIC_SKIPS, false))
+
+    /** Skip the marked parts of a music video that are not the song; see [com.cosmotune.listening.MusicSkips]. */
+    val musicSkips: StateFlow<Boolean> = musicSkipsFlow.asStateFlow()
+    fun setMusicSkips(value: Boolean) { musicSkipsFlow.value = value; store.putBoolean(KEY_MUSIC_SKIPS, value) }
+
+    private val songNoticesFlow = MutableStateFlow(store.getBoolean(KEY_SONG_NOTICES, false))
+
+    /** The desktop names each new song in a system notice while its window is in the background. */
+    val songNotices: StateFlow<Boolean> = songNoticesFlow.asStateFlow()
+    fun setSongNotices(value: Boolean) { songNoticesFlow.value = value; store.putBoolean(KEY_SONG_NOTICES, value) }
+
+    private val globalShortcutsFlow = MutableStateFlow(store.getBoolean(KEY_GLOBAL_SHORTCUTS, false))
+
+    /** The desktop's Ctrl+Alt shortcuts that work in any app; see [com.cosmotune.listening.GlobalShortcuts]. */
+    val globalShortcuts: StateFlow<Boolean> = globalShortcutsFlow.asStateFlow()
+    fun setGlobalShortcuts(value: Boolean) { globalShortcutsFlow.value = value; store.putBoolean(KEY_GLOBAL_SHORTCUTS, value) }
+
     private val backupToWebDavFlow = MutableStateFlow(store.getBoolean(KEY_BACKUP_TO_WEBDAV, false))
 
     /** Automatic backups also go to the listener's WebDAV server; see [com.cosmotune.music.data.webdav.WebDavBackup]. */
@@ -319,6 +337,9 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_VIDEO_TIMINGS = "extras_video_timings"
         const val KEY_DOWNLOAD_HISTORY = "extras_download_history"
         const val KEY_BACKUP_TO_WEBDAV = "extras_backup_to_webdav"
+        const val KEY_GLOBAL_SHORTCUTS = "extras_global_shortcuts"
+        const val KEY_MUSIC_SKIPS = "extras_music_skips"
+        const val KEY_SONG_NOTICES = "extras_song_notices"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"

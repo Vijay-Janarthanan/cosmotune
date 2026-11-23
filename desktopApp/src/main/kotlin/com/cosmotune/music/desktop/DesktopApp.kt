@@ -2000,6 +2000,23 @@ fun CosmotuneDesktopApp() {
         if (!com.cosmotune.podio.PodioPlaybackPolicy.isPodio(playbackEngine.state.value.song?.videoId)) playbackEngine.setPlaybackSpeed(playbackSpeed)
     }
     LaunchedEffect(volume) { playbackEngine.setVolume(volume) }
+    // Settings, Player, Shortcuts in any app: Ctrl+Alt keys that reach the player whichever app is in front (Windows).
+    val globalShortcuts by com.cosmotune.settings.Extras.settings.globalShortcuts.collectAsState()
+    DisposableEffect(globalShortcuts) {
+        if (globalShortcuts) DesktopGlobalHotkeys.start { action ->
+            scope.launch {
+                when (action) {
+                    com.cosmotune.listening.GlobalShortcuts.Action.PLAY_PAUSE -> togglePlayPauseFromUser()
+                    com.cosmotune.listening.GlobalShortcuts.Action.NEXT -> playNext()
+                    com.cosmotune.listening.GlobalShortcuts.Action.PREVIOUS -> playPrevious()
+                    com.cosmotune.listening.GlobalShortcuts.Action.VOLUME_UP, com.cosmotune.listening.GlobalShortcuts.Action.VOLUME_DOWN ->
+                        volume = com.cosmotune.listening.GlobalShortcuts.stepVolume(volume, action)
+                    com.cosmotune.listening.GlobalShortcuts.Action.LIKE -> playbackEngine.state.value.song?.let(::toggleLike)
+                }
+            }
+        }
+        onDispose { DesktopGlobalHotkeys.stop() }
+    }
     LaunchedEffect(audioQuality) { playbackEngine.setAudioQuality(audioQuality.name) }
     LaunchedEffect(automixPerformance) {
         playbackEngine.setAutomixPerformance(automixPerformance)
@@ -2122,6 +2139,10 @@ fun CosmotuneDesktopApp() {
     // The shared player reads the playhead off this one object, and only where it
     // draws it — see PlaybackPosition — so a tick never recomposes the player.
     val playerPosition = remember { PlaybackPosition() }
+    val musicSkipper = remember {
+        val client = com.cosmotune.video.segments.SponsorBlockClient()
+        com.cosmotune.listening.MusicSkipper(scope) { id, duration -> client.segments(id, com.cosmotune.listening.MusicSkips.CATEGORIES, duration) }
+    }
     SideEffect { DesktopMiniPlayer.position = playerPosition }
     // The playhead run on between engine reports, for the rings drawn from it: the playing row in the queue panel.
     val livePlayhead = com.cosmotune.music.playback.rememberLivePlayhead(playerPosition, playback.isPlaying, playbackEngine.playbackRate)
@@ -2134,6 +2155,15 @@ fun CosmotuneDesktopApp() {
             playerPosition.report(it.positionMs, it.positionSampledAtNanos)
             playerPosition.seeks = it.seeks
             playerPosition.advancing = !it.awaitingAudio
+            // Settings, Player, Skip the talking in music videos.
+            if (com.cosmotune.settings.Extras.settings.musicSkips.value && it.isPlaying && !it.awaitingAudio) {
+                musicSkipper.tick(it.song?.videoId, it.positionMs, it.durationMs.takeIf { d -> d > 0 })?.let { part ->
+                    if (!DesktopListenTogether.state.value.controlsLocked) {
+                        playbackEngine.seekTo(part.endMs)
+                        DesktopPlayerHost.showMessage(com.cosmotune.listening.MusicSkips.message(part))
+                    }
+                }
+            }
             // Stops to load and the output's clock, for the player's Audio details.
             if (it.positionSampledAtNanos > 0L) com.cosmotune.audio.PlaybackHealth.monitor.observe(
                 it.song?.videoId, it.positionMs, it.isPlaying, it.awaitingAudio || it.isLoading, playbackEngine.playbackRate,
@@ -2296,6 +2326,13 @@ fun CosmotuneDesktopApp() {
     // Now playing for other apps: the listener's webhook and the text file for OBS (Settings, Now playing for other apps).
     val nowPlayingWebhook by com.cosmotune.settings.Extras.settings.nowPlayingWebhook.collectAsState()
     val nowPlayingFileOn by com.cosmotune.settings.Extras.settings.nowPlayingFile.collectAsState()
+    // Settings, Player, Song notifications: each new song named in a system notice while the window is behind other apps.
+    val songNotices by com.cosmotune.settings.Extras.settings.songNotices.collectAsState()
+    val windowFocused by rememberUpdatedState(androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused)
+    LaunchedEffect(playback.song?.videoId) {
+        val song = playback.song ?: return@LaunchedEffect
+        if (songNotices && !windowFocused && playback.isPlaying) DesktopAwtTray.notify(song.title, song.artist)
+    }
     LaunchedEffect(nowPlayingWebhook, nowPlayingFileOn) { com.cosmotune.listening.NowPlayingOut.reset() }
     LaunchedEffect(playback.song?.videoId, playback.isPlaying, nowPlayingWebhook, nowPlayingFileOn) {
         val song = playback.song
@@ -6265,6 +6302,15 @@ private fun DesktopSettingsScreen(
                     }
                     if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM, com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM_LINE)) {
                         com.cosmotune.ui.settings.WaveformSeekRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.MUSIC_SKIPS, com.cosmotune.ui.settings.PlayerExtrasText.MUSIC_SKIPS_LINE)) {
+                        com.cosmotune.ui.settings.MusicSkipsRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SONG_NOTICES, com.cosmotune.ui.settings.PlayerExtrasText.SONG_NOTICES_LINE)) {
+                        com.cosmotune.ui.settings.SongNoticesRow()
+                    }
+                    if (DesktopGlobalHotkeys.supported && settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.GLOBAL_SHORTCUTS, com.cosmotune.ui.settings.PlayerExtrasText.GLOBAL_SHORTCUTS_LINE)) {
+                        com.cosmotune.ui.settings.GlobalShortcutsRow()
                     }
                     if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON, com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON_LINE)) {
                         com.cosmotune.ui.settings.ScreenOnRow()

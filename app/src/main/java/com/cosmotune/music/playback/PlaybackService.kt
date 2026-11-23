@@ -855,10 +855,23 @@ class PlaybackService : MediaLibraryService() {
                         it.playbackState == Player.STATE_BUFFERING, it.playbackParameters.speed, System.nanoTime(),
                         bufferedAheadMs = (it.bufferedPosition - it.currentPosition).takeIf { ahead -> ahead >= 0 },
                     )
+                    // Settings, Player, Skip the talking in music videos.
+                    if (com.cosmotune.settings.Extras.settings.musicSkips.value && it.isPlaying) {
+                        musicSkipper.tick(it.currentMediaItem?.mediaId, it.currentPosition, it.duration.takeIf { d -> d > 0 })?.let { part ->
+                            it.seekTo(part.endMs)
+                            android.widget.Toast.makeText(this@PlaybackService, com.cosmotune.listening.MusicSkips.message(part), android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
                 delay(1_000)
             }
         }
+    }
+
+    /** The marked parts of music videos to skip, fetched once per song while the setting is on. */
+    private val musicSkipper by lazy {
+        val client = com.cosmotune.video.segments.SponsorBlockClient()
+        com.cosmotune.listening.MusicSkipper(scope) { id, duration -> client.segments(id, com.cosmotune.listening.MusicSkips.CATEGORIES, duration) }
     }
 
     /** Canonical context owner for the active local bounded album/playlist. */

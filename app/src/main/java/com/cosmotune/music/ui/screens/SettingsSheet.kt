@@ -854,6 +854,9 @@ fun SettingsScreen(
             row(com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM, "waveform", "seek", "comments", "timestamps", summary = com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM_LINE) {
                 com.cosmotune.ui.settings.WaveformSeekRow()
             }
+            row(com.cosmotune.ui.settings.PlayerExtrasText.MUSIC_SKIPS, "sponsorblock", "skip", "music video", summary = com.cosmotune.ui.settings.PlayerExtrasText.MUSIC_SKIPS_LINE) {
+                com.cosmotune.ui.settings.MusicSkipsRow()
+            }
             row(com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON, "screen", "awake", "wakelock", "sleep", summary = com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON_LINE) {
                 com.cosmotune.ui.settings.ScreenOnRow()
             }
