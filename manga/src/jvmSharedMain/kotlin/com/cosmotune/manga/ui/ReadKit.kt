@@ -128,8 +128,8 @@ internal val ReadPosterMin = 100.dp
  * navigation ([com.cosmotune.ui.shell.CosmoNavShell]: the bottom bar under 600 dp, the rail from 600 dp) with Music's small player
  * ([com.cosmotune.ui.shell.LocalCosmoMusicMini]) above the bar or along the foot beside the rail, and a root page ([showHead])
  * starts with the mode pill and the account button. Without it (the desktop's sidebar carries the tabs) the page alone. [counts]
- * puts a count on a tab (Manga's Updates). The page gets the room it keeps free at its bottom (the dock or the navigation bar,
- * and a gutter).
+ * puts a count on a tab (Manga's Updates). [search] is the mode's round Search button beside the bar's tabs and at the head of the
+ * rail (while it is lit no tab is). The page gets the room it keeps free at its bottom (the dock or the navigation bar, and a gutter).
  */
 @Composable
 internal fun ReadModeFrame(
@@ -142,6 +142,7 @@ internal fun ReadModeFrame(
     showAccount: Boolean,
     modifier: Modifier = Modifier,
     counts: Map<String, Int> = emptyMap(),
+    search: com.cosmotune.ui.shell.CosmoNavSearch? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     if (!showNavigation) {
@@ -151,7 +152,7 @@ internal fun ReadModeFrame(
         }
         return
     }
-    val names = tabs.map { mangaText(if (it == MangaTabs.SOURCES) "More" else it) }
+    val names = tabs.map { mangaText(it) }
     val navTabs = remember(tabs, names, counts) { tabs.mapIndexed { index, tab -> readNavTab(tab, names[index], counts[tab]) } }
     val music = com.cosmotune.ui.shell.LocalCosmoMusicMini.current
     val stored = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value
@@ -164,6 +165,7 @@ internal fun ReadModeFrame(
             tabs = navTabs,
             selectedIndex = tabs.indexOf(selected),
             onTabSelected = { onSelect(tabs[it]) },
+            search = search,
             bottomChrome = { showTabs, _ ->
                 // Music's small player above the bar (Read and Manga play nothing of their own): music that keeps playing has its
                 // control on screen. The dock belongs to whichever of the two modes is stored, so it always draws here.
@@ -177,6 +179,7 @@ internal fun ReadModeFrame(
                     mode = stored ?: com.cosmotune.design.AppMode.MUSIC,
                     showTabs = showTabs,
                     ownMedia = true,
+                    search = search,
                 )
             },
         ) {
@@ -210,7 +213,6 @@ private fun readNavTab(tab: String, name: String, count: Int?): com.cosmotune.ui
         MangaTabs.UPDATES -> CosmoIcons.Bell to CosmoIcons.BellFill
         MangaTabs.BROWSE -> CosmoIcons.Explore to CosmoIcons.ExploreFill
         MangaTabs.HISTORY -> CosmoIcons.Clock to CosmoIcons.Clock
-        MangaTabs.SOURCES -> CosmoIcons.More to CosmoIcons.More
         BookTabs.BOOKMARKS -> outlined.BookmarkBorder to filled.Bookmark
         else -> CosmoIcons.Library to CosmoIcons.LibraryFill
     }

@@ -144,6 +144,24 @@ class ReadingCatalogueTest {
         }
     }
 
+    @Test fun anAuthorSearchAsksTheAuthorFieldAndALanguageIsSentAsTheCatalogueCode() = runBlocking<Unit> {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"numFound":0,"docs":[]}"""))
+            server.enqueue(MockResponse().setBody("""{"numFound":0,"docs":[]}"""))
+            val catalogue = OpenLibraryBookCatalogue("Cosmotune (test@example.invalid)", okhttp3.OkHttpClient(), server.url("/search.json"))
+            catalogue.search("kalki", author = true, language = "tam")
+            val byAuthor = server.takeRequest().requestUrl!!
+            assertEquals("kalki", byAuthor.queryParameter("author"))
+            assertNull(byAuthor.queryParameter("q"), "an author search does not also match titles")
+            assertEquals("tam", byAuthor.queryParameter("language"))
+            catalogue.search("ponniyin selvan")
+            val plain = server.takeRequest().requestUrl!!
+            assertEquals("ponniyin selvan", plain.queryParameter("q"))
+            assertNull(plain.queryParameter("language"))
+            assertNull(plain.queryParameter("author"))
+        }
+    }
+
     @Test fun editionsReportRealBindingsPublishersDatesAndIsbnsAndRepeatRequestsUseCache() = runBlocking<Unit> {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody("""{"size":2,"entries":[

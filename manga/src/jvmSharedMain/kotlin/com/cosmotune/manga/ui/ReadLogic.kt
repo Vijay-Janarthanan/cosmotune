@@ -30,8 +30,11 @@ internal object MangaTabs {
     const val HISTORY = "History"
     val all = listOf(LIBRARY, UPDATES, BROWSE, SOURCES, HISTORY)
 
-    /** The bottom bar's and the rail's order (the Manga board): Sources stands last, under the name More. */
-    val bar = listOf(LIBRARY, UPDATES, BROWSE, HISTORY, SOURCES)
+    /**
+     * The bottom bar's and the rail's order (the Manga board): four pages beside the round Search button. Sources is in the
+     * profile menu, as "Manga sources" ([mangaMenuEntries]).
+     */
+    val bar = listOf(LIBRARY, UPDATES, BROWSE, HISTORY)
 
     /** A tab name from the shared channel; one this mode does not have (Read's "Bookmarks", the old "Home") maps onto its own. */
     fun of(name: String): String = when (name) {
@@ -55,6 +58,32 @@ internal object BookTabs {
         else -> LIBRARY
     }
 }
+
+/** Manga search's two scopes (board 2): your library, or every source that is on. */
+internal const val MANGA_SCOPE_LIBRARY = "library"
+internal const val MANGA_SCOPE_SOURCES = "sources"
+
+/** The statuses a series' own details carry (its source's state), as Search's Status offers them. */
+internal val MANGA_STATUSES = listOf("ONGOING" to "Ongoing", "FINISHED" to "Finished", "PAUSED" to "On hold")
+
+/**
+ * The series of the library that match [query] (the title, another title or an author), with [genre] among their own genres (any
+ * case) and [status] as their source states it; blank filters keep everything. Nothing typed matches nothing.
+ */
+internal fun mangaLibrarySearch(books: List<MangaBook>, query: String, genre: String, status: String): List<MangaBook> {
+    val term = query.trim()
+    if (term.isEmpty()) return emptyList()
+    return books.filter { book ->
+        val names = sequenceOf(book.title) + book.parserData?.alternateTitles.orEmpty().asSequence() + book.authors.asSequence()
+        names.any { it.contains(term, ignoreCase = true) } &&
+            (genre.isBlank() || book.tags.any { it.equals(genre, ignoreCase = true) }) &&
+            (status.isBlank() || book.parserData?.state == status)
+    }
+}
+
+/** The genres the library's series carry, each once (the first spelling), in order, for Search's Genre. */
+internal fun mangaLibraryGenres(books: List<MangaBook>): List<String> =
+    books.flatMap { it.tags }.map(String::trim).filter(String::isNotEmpty).distinctBy(String::lowercase).sortedBy(String::lowercase).take(60)
 
 /** What the series page's main button does: open [chapter] (null when the series has no chapters yet), labelled [label]. */
 internal data class MangaContinue(val chapter: MangaChapter?, val label: String, val resumes: Boolean)

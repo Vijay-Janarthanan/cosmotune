@@ -27,15 +27,21 @@ class OpenLibraryBookCatalogue internal constructor(private val userAgent: Strin
     init { require(userAgent.isNotBlank() && userAgent.none { it == '\r' || it == '\n' }) { "Identify the app and its contact in the API user agent." } }
 
     /** One explicit user search/page; the caller must debounce, cache and respect the provider's published rate limits. */
-    suspend fun search(query: String, offset: Int = 0): ReadingSearchPage = searchPage(query, offset, null)
+    /**
+     * [author] asks the catalogue's author field alone (books by that author, not titles that hold the word); [language] is the
+     * catalogue's own three-letter language code ("eng", "tam"), sent as its `language` filter.
+     */
+    suspend fun search(query: String, offset: Int = 0, author: Boolean = false, language: String? = null): ReadingSearchPage =
+        searchPage(query, offset, null, author, language?.takeIf { it.matches(Regex("[a-z]{3}")) })
     // Provider-documented Lucene range: a bare wildcard is rejected by the public search API (HTTP 422).
     suspend fun trending(offset: Int = 0): ReadingSearchPage = searchPage("trending_z_score:{0 TO *]", offset, "trending")
 
-    private suspend fun searchPage(query: String, offset: Int, sort: String?): ReadingSearchPage = withContext(Dispatchers.IO) {
+    private suspend fun searchPage(query: String, offset: Int, sort: String?, author: Boolean = false, language: String? = null): ReadingSearchPage = withContext(Dispatchers.IO) {
         require(query.trim().length in 2..500 && offset in 0..10_000) { "Use a search of 2–500 characters and a bounded offset." }
-        val url = endpoint.newBuilder().addQueryParameter("q", query.trim()).addQueryParameter("offset", offset.toString())
+        val url = endpoint.newBuilder().addQueryParameter(if (author) "author" else "q", query.trim()).addQueryParameter("offset", offset.toString())
             .addQueryParameter("limit", PAGE_SIZE.toString())
             .addQueryParameter("fields", "key,title,author_name,language,isbn,cover_i,ebook_access,edition_key")
+            .apply { language?.let { addQueryParameter("language", it) } }
             .apply { sort?.let { addQueryParameter("sort", it) } }.build()
         currentCoroutineContext().ensureActive()
         val root = getJson(url)

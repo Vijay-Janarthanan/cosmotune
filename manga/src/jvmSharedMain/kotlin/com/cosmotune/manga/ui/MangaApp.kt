@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.drop
 
 /**
  * The Manga mode (Canvas repo, design/cosmotune/batch-be/board.html, section D): Library, Updates, Browse, Sources and History as
@@ -104,7 +105,17 @@ internal class MangaNavigation(tab: String, book: MangaBook?, chapter: MangaChap
     var page by mutableStateOf<String?>(null)
     var book by mutableStateOf(book)
     var chapter by mutableStateOf(chapter)
+    /** What Search's box holds (kept while a series opened from it stands over it), and its hold on the box. */
+    var query by mutableStateOf("")
+    val searchFocus = com.cosmotune.ui.search.CosmoSearchFocus()
     val atRoot: Boolean get() = source == null && page == null && book == null
+    val searching: Boolean get() = page == MangaPages.SEARCH
+
+    /** The round Search button: opens Search over the tab, or, on it, clears the box and focuses it. */
+    fun tapSearch() {
+        if (searching && book == null) query = "" else { book = null; source = null; page = MangaPages.SEARCH }
+        searchFocus.request()
+    }
 
     fun select(next: String) { tab = next; source = null; page = null; book = null }
 
@@ -167,6 +178,13 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
         ModeNav.mangaTab.collect { name -> val next = MangaTabs.of(name); if (next != navigation.tab) navigation.select(next) }
     }
     LaunchedEffect(navigation.tab) { ModeNav.mangaTab.value = navigation.tab }
+    // The desktop sidebar's Search row: lit while Search is open; its tap opens it (or clears and focuses it); another row closes it.
+    LaunchedEffect(navigation.searching) { ModeNav.mangaSearch.open.value = navigation.searching }
+    LaunchedEffect(Unit) {
+        val seen = ModeNav.mangaSearch.taps.value
+        launch { ModeNav.mangaSearch.taps.collect { if (it != seen) navigation.tapSearch() } }
+        ModeNav.mangaSearch.open.drop(1).collect { open -> if (!open && navigation.searching) navigation.page = null }
+    }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(repository.store.recoveryMessage) }
     val transfer = remember { MangaTransfer() }
@@ -221,11 +239,15 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
         }
         return
     }
-    // The bar and the rail: Library, Updates (its count: the new chapters), Browse, History and More (the sources and their settings).
+    // The bar and the rail: Library, Updates (its count: the new chapters), Browse and History beside the round Search button. The
+    // sources and their settings (once the bar's More) are in the profile menu, as "Manga sources" (board 3a).
     val newChapters = remember(state) { mangaUpdateDays(state).sumOf { it.entries.size } }
+    val menu = remember(navigation) { mangaMenuEntries(navigation) }
+    androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.chrome.LocalModeMenuEntries provides menu) {
     ReadModeFrame(MangaTabs.bar, navigation.tab, { navigation.select(it) }, showNavigation, showNavigation && navigation.atRoot, onMusic, showAccount,
         counts = mapOf(MangaTabs.UPDATES to newChapters),
-        modifier = Modifier.testTag("manga:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
+        modifier = Modifier.testTag("manga:root").padding(top = contentPadding.calculateTopPadding()),
+        search = com.cosmotune.ui.shell.CosmoNavSearch("Search", selected = navigation.searching, onClick = navigation::tapSearch)) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
         val pageScope = MangaScope(repository, navigation, transfer, updates, onMusic, showAccount, bottom, ::action, ::openBook) { error = it }
         Column(Modifier.fillMaxSize()) {
@@ -247,14 +269,16 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
             }
         }
     }
+    }
 }
 
-/** The round actions every tab's heading carries: the page's own, then Search. */
-@Composable
-internal fun androidx.compose.foundation.layout.RowScope.MangaRootActions(scope: MangaScope, page: @Composable () -> Unit = {}) {
-    page()
-    ReadIconButton(CosmoIcons.Search, "Search", { scope.navigation.page = MangaPages.SEARCH })
-}
+/**
+ * What Manga adds to the head of the profile menu: its sources and their settings (the Sources page, once the bar's More, which no
+ * longer fits beside the Search button at 360 dp).
+ */
+internal fun mangaMenuEntries(navigation: MangaNavigation): List<com.cosmotune.ui.chrome.CosmoDrawerEntry> = listOf(
+    com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Explore, "Manga sources") { navigation.select(MangaTabs.SOURCES) },
+)
 
 /** The cover of a series: its address, the first page of a local comic, or a signed cover fetched through its source. */
 @Composable
@@ -405,7 +429,6 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
         item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {
             ReadPageHead(mangaText("Library"), if (state.books.isEmpty()) mangaText("Your series") else "${state.books.size} series · $unread unread", Modifier.readBleed()) {
                 ReadIconButton(Icons.Rounded.Tune, "Library options", { options = true }, Modifier.testTag("manga:options"))
-                MangaRootActions(scope)
             }
         }
         // An empty library opens on its empty card; the collections and the grid wait until there is a series.
