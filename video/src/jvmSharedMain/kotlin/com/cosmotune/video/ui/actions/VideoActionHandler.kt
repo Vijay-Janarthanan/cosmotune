@@ -30,6 +30,7 @@ import com.cosmotune.video.resources.video_dl_already
 import com.cosmotune.video.resources.video_dl_in_downloads
 import com.cosmotune.video.resources.video_dl_toast_change
 import com.cosmotune.video.resources.video_dl_toast_started
+import com.cosmotune.video.resources.video_channel_hidden
 import com.cosmotune.video.resources.video_dl_view
 import com.cosmotune.video.resources.video_link_copied
 import com.cosmotune.video.shorts.ShortsOrigin
@@ -93,6 +94,10 @@ class VideoActionHandler internal constructor(
             VideoAction.Share -> sharer.share(video.title, shareUrl(video.id))
             VideoAction.OpenChannel -> video.channelId?.let { navigator.push(VideoRoute.Channel(it)) }
             VideoAction.RemoveFromHistory -> graph.library.removeFromHistory(video.id)
+            VideoAction.HideChannel -> video.channelId?.let { id ->
+                graph.settings.update { it.copy(hiddenChannels = it.hiddenChannels + (id to (video.channelName ?: id))) }
+                state.showToast(ActionToastKind.CHANNEL_HIDDEN)
+            }
             VideoAction.RemoveFromPlaylist -> if (context == VideoSheetContext.YOUR_PLAYLIST && playlistId != null) {
                 graph.library.removeFromPlaylist(playlistId, video.id)
             }
@@ -183,7 +188,7 @@ fun rememberVideoActions(): VideoActionHandler {
  * What a toast of the action host says: "Link copied"; the download host's (plan task Y-32, spec 5.16) "Downloading in 720p · Change",
  * "Added to Downloads · View", "Already downloaded" and "Already in Downloads · View".
  */
-internal enum class ActionToastKind { LINK_COPIED, DOWNLOAD_STARTED, DOWNLOAD_ADDED, ALREADY_DOWNLOADED, ALREADY_IN_DOWNLOADS }
+internal enum class ActionToastKind { CHANNEL_HIDDEN, LINK_COPIED, DOWNLOAD_STARTED, DOWNLOAD_ADDED, ALREADY_DOWNLOADED, ALREADY_IN_DOWNLOADS }
 
 /**
  * One toast; [serial] tells two toasts of the same kind apart, so a second copy shows again. [detail] fills its text (the quality of
@@ -258,6 +263,7 @@ private fun ActionToastHost(state: VideoActionsState, contentPadding: PaddingVal
     val toast = state.toast ?: return
     val message = when (toast.kind) {
         ActionToastKind.LINK_COPIED -> stringResource(Res.string.video_link_copied)
+        ActionToastKind.CHANNEL_HIDDEN -> stringResource(Res.string.video_channel_hidden)
         ActionToastKind.DOWNLOAD_STARTED -> stringResource(Res.string.video_dl_toast_started, toast.detail.orEmpty())
         ActionToastKind.DOWNLOAD_ADDED -> stringResource(Res.string.video_dl_added)
         ActionToastKind.ALREADY_DOWNLOADED -> stringResource(Res.string.video_dl_already)
@@ -266,7 +272,7 @@ private fun ActionToastHost(state: VideoActionsState, contentPadding: PaddingVal
     val actionLabel = when (toast.kind) {
         ActionToastKind.DOWNLOAD_STARTED -> stringResource(Res.string.video_dl_toast_change)
         ActionToastKind.DOWNLOAD_ADDED, ActionToastKind.ALREADY_IN_DOWNLOADS -> stringResource(Res.string.video_dl_view)
-        ActionToastKind.LINK_COPIED, ActionToastKind.ALREADY_DOWNLOADED -> null
+        ActionToastKind.LINK_COPIED, ActionToastKind.ALREADY_DOWNLOADED, ActionToastKind.CHANNEL_HIDDEN -> null
     }
     LaunchedEffect(toast) {
         delay(TOAST_MS)

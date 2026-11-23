@@ -9,6 +9,7 @@ import com.cosmotune.video.model.PageToken
 import com.cosmotune.video.model.SearchFilter
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.select.ShortsFilter
+import com.cosmotune.video.select.contentFilter
 import com.cosmotune.video.settings.VideoSettingsRepository
 import com.cosmotune.video.source.VideoSource
 import com.cosmotune.video.source.VideoSourceError
@@ -86,9 +87,10 @@ class ShortsQueueEngine(
 
         /** The channels of the kiosk, once it was read. */
         var kioskChannels: List<String>? = null
+        var filter: com.cosmotune.video.select.ContentFilter = com.cosmotune.video.select.ContentFilter.NONE
 
         fun offer(item: VideoItem, out: MutableList<VideoItem>) {
-            if (!isQueueable(item) || !seen.add(item.id)) return
+            if (!isQueueable(item) || !filter.keep(item) || !seen.add(item.id)) return
             out += item
             queued += item
         }
@@ -209,7 +211,7 @@ class ShortsQueueEngine(
 
     private fun newSession(origin: ShortsOrigin, id: String?): Session {
         counter += 1
-        val session = Session(id ?: "q$counter", origin)
+        val session = Session(id ?: "q$counter", origin).also { it.filter = settings.settings.value.contentFilter() }
         sessions.remove(session.id)
         sessions[session.id] = session
         while (sessions.size > SESSIONS) sessions.remove(sessions.keys.first())

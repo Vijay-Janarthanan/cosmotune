@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import org.jetbrains.compose.resources.stringResource
+import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_unlock_controls
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
@@ -307,6 +311,9 @@ private fun BoxScope.PlayerChrome(
     LaunchedEffect(controller, playing) { controller.send(if (playing) ChromeEvent.PLAY else ChromeEvent.PAUSE) }
 
     var settingsOpen by remember { mutableStateOf(false) }
+    // The phone's fullscreen lock: while it is on, touches do nothing but bring back the unlock button for a moment.
+    var locked by remember { mutableStateOf(false) }
+    if (layout != PlayerLayout.FULLSCREEN && locked) locked = false
     var statsShown by PlayerStatsSwitch::shown
     val scrubbing = remember { mutableStateOf(false) }
     val feedback = remember { GestureFeedback() }
@@ -350,8 +357,11 @@ private fun BoxScope.PlayerChrome(
             liftDp = metrics.subtitleLiftDp.dp,
         )
 
+        if (locked) {
+            PlayerLockLayer(onUnlock = { locked = false; controller.send(ChromeEvent.INPUT) }, modifier = Modifier.matchParentSize().zIndex(4f))
+        }
         // The gestures: under the controls while they show, over them while they are hidden (so the first tap only wakes them).
-        Box(
+        if (!locked) Box(
             Modifier
                 .matchParentSize()
                 .zIndex(if (shown) 0f else 2f)
@@ -378,7 +388,7 @@ private fun BoxScope.PlayerChrome(
         )
 
         // The controls, composed always (focus and assistive technology keep them), drawn at the chrome's opacity.
-        Box(Modifier.matchParentSize().zIndex(1f).graphicsLayer { alpha = visibility.value }) {
+        if (!locked) Box(Modifier.matchParentSize().zIndex(1f).graphicsLayer { alpha = visibility.value }) {
             ChromeControls(
                 playback = playback,
                 state = state,
@@ -395,6 +405,7 @@ private fun BoxScope.PlayerChrome(
                 onToggleFullscreen = onToggleFullscreen,
                 onEnterPip = onEnterPip,
                 onOpenSettings = { settingsOpen = true; controller.send(ChromeEvent.SHEET_OPEN) },
+                onLock = if (layout == PlayerLayout.FULLSCREEN) ({ locked = true }) else null,
                 settingsMenu = if (layout == PlayerLayout.WINDOW && settingsOpen) {
                     {
                         PlayerSettingsMenu(

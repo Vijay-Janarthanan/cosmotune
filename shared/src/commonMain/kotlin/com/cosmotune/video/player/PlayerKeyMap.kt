@@ -40,12 +40,18 @@ sealed interface PlayerKeyAction {
 
     /** P: the desktop's picture-in-picture window. */
     data object PictureInPicture : PlayerKeyAction
+
+    /** Shift+Right: the next chapter. */
+    data object NextChapter : PlayerKeyAction
+
+    /** Shift+Left: the start of this chapter, or the one before it. */
+    data object PreviousChapter : PlayerKeyAction
 }
 
 /**
  * The desktop's keys over a video (spec 6.6; pure): Space or K play and pause; J and L back and forward 10 s; Left and Right 5 s; Up
  * and Down volume; M mute; F full window; T theatre; C captions; Shift+N next; Shift+P previous; `<` and `>` speed; 0 to 9 jump to
- * 0 % to 90 %; P picture-in-picture (the desktop window); Esc leaves full window.
+ * 0 % to 90 %; P picture-in-picture (the desktop window); Esc leaves full window; Shift+Left and Shift+Right the chapters.
  *
  * A key is named as the caller's key event names it: a letter or a digit as itself (letters in either case), or one of `Space`,
  * `Left`, `Right`, `Up`, `Down`, `Escape`, `Comma`, `Period`, or the characters `<` and `>` (which most layouts type as Shift+Comma
@@ -69,8 +75,8 @@ object PlayerKeyMap {
         if (ctrlOrCmd) return null
         return when (key) {
             "Space" -> PlayerKeyAction.TogglePlay
-            "Left" -> PlayerKeyAction.SeekBy(-ARROW_SEEK_MS)
-            "Right" -> PlayerKeyAction.SeekBy(ARROW_SEEK_MS)
+            "Left" -> if (shift) PlayerKeyAction.PreviousChapter else PlayerKeyAction.SeekBy(-ARROW_SEEK_MS)
+            "Right" -> if (shift) PlayerKeyAction.NextChapter else PlayerKeyAction.SeekBy(ARROW_SEEK_MS)
             "Up" -> PlayerKeyAction.Volume(VOLUME_STEP)
             "Down" -> PlayerKeyAction.Volume(-VOLUME_STEP)
             "Escape" -> PlayerKeyAction.ExitFullWindow

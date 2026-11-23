@@ -122,7 +122,7 @@ class VideoBlocksStructureTest {
         assertEquals(listOf("DEFAULT", "HISTORY", "YOUR_PLAYLIST"), VideoSheetContext.entries.map { it.name })
         val declared = Regex("""data object (\w+) : VideoAction""").findAll(src).map { it.groupValues[1] }.toList()
         assertEquals(
-            listOf("Play", "AddToQueue", "PlayAsSong", "SaveToPlaylist", "WatchLater", "Download", "Share", "OpenChannel", "RemoveFromHistory", "RemoveFromPlaylist"),
+            listOf("Play", "AddToQueue", "PlayAsSong", "SaveToPlaylist", "WatchLater", "Download", "Share", "OpenChannel", "RemoveFromHistory", "RemoveFromPlaylist", "HideChannel"),
             declared,
         )
         assertTrue("sealed interface VideoAction {" in src)
@@ -382,7 +382,7 @@ class VideoBlocksStructureTest {
             VideoAction.Play, VideoAction.AddToQueue, VideoAction.PlayAsSong, VideoAction.SaveToPlaylist, VideoAction.WatchLater,
             VideoAction.Download, VideoAction.Share, VideoAction.OpenChannel,
         )
-        assertEquals(common, videoActionsFor(video, VideoSheetContext.DEFAULT))
+        assertEquals(common + VideoAction.HideChannel, videoActionsFor(video, VideoSheetContext.DEFAULT))
         assertEquals(common + VideoAction.RemoveFromHistory, videoActionsFor(video, VideoSheetContext.HISTORY))
         assertEquals(common + VideoAction.RemoveFromPlaylist, videoActionsFor(video, VideoSheetContext.YOUR_PLAYLIST))
     }

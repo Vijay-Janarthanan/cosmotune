@@ -6,6 +6,7 @@ import com.cosmotune.ui.orbit.OrbitHeaderButton
 import com.cosmotune.ui.orbit.OrbitHeaderSkeleton
 import com.cosmotune.ui.orbit.OrbitCardColors
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.graphics.graphicsLayer
@@ -57,6 +58,13 @@ import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.design.VideoText
 import com.cosmotune.video.model.ChannelItem
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_bell_off
+import com.cosmotune.video.resources.video_bell_on
+import com.cosmotune.video.resources.video_channel_podcasts
+import com.cosmotune.video.resources.video_channel_courses
+import com.cosmotune.video.resources.video_channel_releases
+import com.cosmotune.video.resources.video_channel_posts
+import com.cosmotune.video.resources.video_channel_search
 import com.cosmotune.video.resources.video_channel_about
 import com.cosmotune.video.resources.video_channel_live
 import com.cosmotune.video.resources.video_channel_playlists
@@ -110,6 +118,8 @@ internal fun ChannelCard(
     onDownload: () -> Unit,
     onAbout: (() -> Unit)?,
     onPlayLatest: (() -> Unit)? = null,
+    bell: Boolean? = null,
+    onBell: () -> Unit = {},
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -140,11 +150,26 @@ internal fun ChannelCard(
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to colors.fill.copy(alpha = 0.55f), 0.55f to colors.fill.copy(alpha = 0.92f), 1f to colors.fill)))
         }),
     ) { colors ->
+      // the row scrolls sideways on a narrow phone, so no action is cut off
+      androidx.compose.foundation.layout.Row(
+        Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
         SubscribePill(subscribed = subscribed, onClick = onSubscribe, ink = colors.ink, fill = colors.fill)
+        if (bell != null) {
+            OrbitHeaderButton(
+                if (bell) CosmoIcons.BellFill else CosmoIcons.Bell,
+                stringResource(if (bell) Res.string.video_bell_on else Res.string.video_bell_off),
+                colors,
+                onBell,
+            )
+        }
         Box(Modifier.graphicsLayer { alpha = if (preparing) 0.45f else 1f }) {
             OrbitHeaderButton(CosmoIcons.Download, latest, colors, { if (!preparing) onDownload() })
         }
         OrbitHeaderButton(CosmoIcons.Share, share, colors, onShare)
+      }
     }
 }
 
@@ -163,6 +188,11 @@ internal fun sectionLabel(section: ChannelSection): String = stringResource(
         ChannelSection.LIVE -> Res.string.video_channel_live
         ChannelSection.PLAYLISTS -> Res.string.video_channel_playlists
         ChannelSection.ABOUT -> Res.string.video_channel_about
+        ChannelSection.PODCASTS -> Res.string.video_channel_podcasts
+        ChannelSection.COURSES -> Res.string.video_channel_courses
+        ChannelSection.RELEASES -> Res.string.video_channel_releases
+        ChannelSection.POSTS -> Res.string.video_channel_posts
+        ChannelSection.SEARCH -> Res.string.video_channel_search
     },
 )
 

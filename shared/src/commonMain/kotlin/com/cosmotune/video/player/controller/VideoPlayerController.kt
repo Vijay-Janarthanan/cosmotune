@@ -929,7 +929,8 @@ class VideoPlayerController(
     private fun evaluateSegments(l: Load, positionMs: Long) {
         val s = settings.settings.value
         var changed = false
-        if (!s.sponsorBlock || l.segments.isEmpty()) {
+        val excluded = (l.item ?: l.knownItem)?.channelId?.let { it in s.sponsorBlockExcluded } == true
+        if (!s.sponsorBlock || excluded || l.segments.isEmpty()) {
             if (l.mutedSegment != null) {
                 endMute(l)
                 changed = true

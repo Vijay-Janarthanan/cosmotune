@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.subscriptions
 
+import com.cosmotune.video.ui.blocks.rememberContentFilter
+import com.cosmotune.video.feed.FeedChannelGroup
+import com.cosmotune.video.feed.FeedGroups
+
 import com.cosmotune.video.ui.blocks.VideoPageHeading
 import com.cosmotune.video.resources.video_subscriptions_label
 import com.cosmotune.ui.orbit.OrbitSelectChip
@@ -160,15 +164,27 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
     // The two feeds are merged by date and each grows: what is shown is kept (with the page, for the way back from a video) and new
     // uploads slip in by date without the shown ones changing places.
     val feedKeep = rememberKept("subscriptions-feed") { StableFeed(newestFirst = true) }
-    val items = remember(feedState.items, onAccount.items) { feedKeep.update("feed", AccountLists.mergeFeed(onAccount.items, feedState.items, System.currentTimeMillis())) }
+    val contentFilter = rememberContentFilter()
+    val items = remember(feedState.items, onAccount.items, contentFilter) {
+        contentFilter.filter(feedKeep.update("feed", AccountLists.mergeFeed(onAccount.items, feedState.items, System.currentTimeMillis()))) { it }
+    }
     var filter by rememberSaveable { mutableStateOf(FeedFilter.ALL) }
     val watchedNow = remember(history) { history.associateBy { it.item.id } }
     val clockNow = LocalVideoNowMs.current
-    val shown = remember(items, selectedId, filter, watchedNow, clockNow) {
-        SubscriptionsFeedPlan.filtered(SubscriptionsFeedPlan.forChannel(items, selectedId), filter, watchedNow, FeedDay.startOfToday(clockNow ?: System.currentTimeMillis()))
+    // The listener's channel groups: a picked group keeps the feed and the strip to its channels.
+    val settingsNow by graph.settings.settings.collectAsState()
+    val feedGroups = settingsNow.feedGroups
+    var groupId by rememberSaveable { mutableStateOf<String?>(null) }
+    val group = feedGroups.firstOrNull { it.id == groupId }
+    var editing by remember { mutableStateOf<Pair<FeedChannelGroup, Boolean>?>(null) }
+    val groupItems = remember(items, group) { FeedGroups.itemsOf(items, group) }
+    val shown = remember(groupItems, selectedId, filter, watchedNow, clockNow) {
+        SubscriptionsFeedPlan.filtered(SubscriptionsFeedPlan.forChannel(groupItems, selectedId), filter, watchedNow, FeedDay.startOfToday(clockNow ?: System.currentTimeMillis()))
     }
     val shelf = remember(shown, hideShorts) { SubscriptionsFeedPlan.shelf(shown, hideShorts) }
-    val strip = remember(channels, items) { SubscriptionsFeedPlan.stripOrder(channels, items) }
+    val strip = remember(channels, items, group) {
+        SubscriptionsFeedPlan.stripOrder(if (group == null) channels else channels.filter { it.channelId in group.channelIds }, items)
+    }
     val clock = LocalVideoNowMs.current
     val groups = remember(shown, clock) { SubscriptionsFeedPlan.groups(shown, clock ?: System.currentTimeMillis()) }
     val watched = remember(history) { history.associateBy { it.item.id } }
@@ -226,6 +242,16 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                                 item(key = KEY_ACCOUNT, contentType = "account") {
                                     AccountExpiredNotice(Modifier.padding(horizontal = if (wide) WIDE_INSET else 0.dp))
                                 }
+                            }
+                            item(key = KEY_GROUPS, contentType = "groups") {
+                                FeedGroupChips(
+                                    groups = feedGroups,
+                                    selectedId = group?.id,
+                                    onSelect = { groupId = it; picked = null },
+                                    onNew = { editing = FeedChannelGroup(FeedGroups.newId(feedGroups, System.currentTimeMillis()), "", emptySet()) to true },
+                                    onEdit = { editing = it to false },
+                                    inset = if (wide) WIDE_INSET else 0.dp,
+                                )
                             }
                             feedHead(
                                 model = model,
@@ -287,6 +313,24 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
         }
     }
 
+    editing?.let { (editGroup, isNew) ->
+        FeedGroupSheet(
+            group = editGroup,
+            isNew = isNew,
+            channels = channels.sortedBy { it.name.lowercase() },
+            onSave = { saved ->
+                graph.settings.update { it.copy(feedGroups = FeedGroups.save(it.feedGroups, saved)) }
+                groupId = saved.id
+                editing = null
+            },
+            onDelete = {
+                graph.settings.update { it.copy(feedGroups = FeedGroups.delete(it.feedGroups, editGroup.id)) }
+                groupId = null
+                editing = null
+            },
+            onDismiss = { editing = null },
+        )
+    }
     sheetFor?.let { item ->
         VideoActionsSheet(
             item = item,
@@ -396,6 +440,7 @@ private fun OpenChannelChip(onOpen: () -> Unit, modifier: Modifier = Modifier) {
 
 private const val KEY_TITLE = "feed:title"
 private const val KEY_FILTERS = "feed:filters"
+private const val KEY_GROUPS = "feed:groups"
 private const val KEY_FILTER_EMPTY = "feed:filter-empty"
 private const val KEY_STRIP = "feed:strip"
 private const val KEY_SHORTS = "feed:shorts"

@@ -9,6 +9,7 @@ import com.cosmotune.video.downloads.SubtitlePick
 import com.cosmotune.video.model.PlaylistItem
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.segments.SegmentCategory
+import com.cosmotune.video.select.ContentFilter
 import com.cosmotune.video.settings.CodecPreference
 import com.cosmotune.video.settings.SegmentBehaviour
 import com.cosmotune.video.settings.TitleCase
@@ -350,6 +351,19 @@ internal data class SettingsDocument(
     val homeAccountEnabled: Boolean = DEFAULTS.homeAccountEnabled,
     val homeHiddenVideos: Set<String> = emptySet(),
     val homeHiddenChannels: Set<String> = emptySet(),
+    val hiddenWords: List<String> = emptyList(),
+    val hiddenChannels: Map<String, String> = emptyMap(),
+    val commentMinLikes: Long = 0,
+    val feedGroups: List<com.cosmotune.video.feed.FeedChannelGroup> = emptyList(),
+    val bellChannels: Set<String> = emptySet(),
+    val uploadAlertsSeenMs: Long = 0,
+    val sponsorBlockExcluded: Map<String, String> = emptyMap(),
+    val volumeBoost: Int = 100,
+    val voiceBoost: Boolean = false,
+    val skipSilence: Boolean = false,
+    val channelHideWatched: Boolean = false,
+    val autoBackupDays: Int = 0,
+    val autoBackupLastMs: Long = 0,
     val smoothness: SmoothnessDto = SmoothnessDto(),
 )
 
@@ -409,6 +423,19 @@ internal fun VideoSettings.toDocument() = SettingsDocument(
     homeAccountEnabled = homeAccountEnabled,
     homeHiddenVideos = homeHiddenVideos.takeLastBounded(1000),
     homeHiddenChannels = homeHiddenChannels.takeLastBounded(300),
+    hiddenWords = ContentFilter.cleanWords(hiddenWords),
+    hiddenChannels = hiddenChannels.entries.take(500).associate { it.key to it.value },
+    commentMinLikes = commentMinLikes,
+    feedGroups = com.cosmotune.video.feed.FeedGroups.clean(feedGroups),
+    bellChannels = bellChannels.take(500).toSet(),
+    uploadAlertsSeenMs = uploadAlertsSeenMs,
+    sponsorBlockExcluded = sponsorBlockExcluded.entries.take(500).associate { it.key to it.value },
+    volumeBoost = volumeBoost,
+    voiceBoost = voiceBoost,
+    skipSilence = skipSilence,
+    channelHideWatched = channelHideWatched,
+    autoBackupDays = autoBackupDays,
+    autoBackupLastMs = autoBackupLastMs,
     smoothness = smoothness.toDto(),
 )
 
@@ -452,6 +479,19 @@ internal fun SettingsDocument.toSettings(): VideoSettings {
         homeAccountEnabled = homeAccountEnabled,
         homeHiddenVideos = homeHiddenVideos.takeLastBounded(1000),
         homeHiddenChannels = homeHiddenChannels.takeLastBounded(300),
+        hiddenWords = ContentFilter.cleanWords(hiddenWords),
+        hiddenChannels = hiddenChannels.filterKeys { it.isNotBlank() }.entries.take(500).associate { it.key to it.value },
+        commentMinLikes = commentMinLikes.coerceAtLeast(0),
+        feedGroups = com.cosmotune.video.feed.FeedGroups.clean(feedGroups),
+        bellChannels = bellChannels.filter { it.isNotBlank() }.take(500).toSet(),
+        uploadAlertsSeenMs = uploadAlertsSeenMs.coerceAtLeast(0),
+        sponsorBlockExcluded = sponsorBlockExcluded.filterKeys { it.isNotBlank() }.entries.take(500).associate { it.key to it.value },
+        volumeBoost = volumeBoost.coerceIn(100, 200),
+        voiceBoost = voiceBoost,
+        skipSilence = skipSilence,
+        channelHideWatched = channelHideWatched,
+        autoBackupDays = autoBackupDays.takeIf { it in com.cosmotune.video.library.AutoBackup.CHOICES } ?: 0,
+        autoBackupLastMs = autoBackupLastMs.coerceAtLeast(0),
         smoothness = smoothness.toDomain(),
     )
 }

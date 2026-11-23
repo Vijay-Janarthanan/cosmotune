@@ -1,5 +1,6 @@
 package com.cosmotune.video.graph
 
+import com.cosmotune.video.settings.needsBackgroundWork
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import com.cosmotune.ui.theme.LocalCosmoShell
@@ -59,6 +60,15 @@ fun stopVideoForMusic() {
 fun desktopVideoGraph(build: Boolean = true): VideoGraph? =
     if (build || DesktopVideoProcess.audio != null) DesktopVideoProcess.graph else null
 
+/**
+ * The desktop's new-video alerts: a little after start and then every hour, while a bell is on for some channel, the feed is read and
+ * the new uploads are handed to [notify] (the tray's message). The settings file is peeked first, so Video's graph is built only when
+ * a bell is on. Call once.
+ */
+fun watchNewUploads(notify: (title: String, text: String) -> Unit) {
+    DesktopVideoProcess.watchUploads(notify)
+}
+
 /** The desktop's graph: built on first use, then shared by every visit to Video. */
 private object DesktopVideoProcess {
     val relay = HostLinksRelay()
@@ -73,6 +83,32 @@ private object DesktopVideoProcess {
         private set
 
     val graph: VideoGraph by lazy { build() }
+
+    private var watching = false
+
+    @Synchronized
+    fun watchUploads(notify: (String, String) -> Unit) {
+        if (watching) return
+        watching = true
+        scope.launch {
+            kotlinx.coroutines.delay(UPLOAD_FIRST_MS)
+            while (true) {
+                val wanted = runCatching {
+                    if (audio != null) graph.settings.settings.value.needsBackgroundWork()
+                    else com.cosmotune.video.settings.settingsNeedBackgroundWork(FileLibraryFiles(videoLibraryDir(LibraryPlatform.Desktop)))
+                }.getOrDefault(false)
+                if (wanted) {
+                    val items = runCatching { com.cosmotune.video.alerts.checkNewUploads(graph) }.getOrDefault(emptyList())
+                    com.cosmotune.video.feed.UploadAlerts.text(items)?.let { (title, text) -> notify(title, text) }
+                    runCatching { com.cosmotune.video.alerts.runAutoBackupIfDue(graph, com.cosmotune.video.alerts.FileBackupFolder.desktop()) }
+                }
+                kotlinx.coroutines.delay(UPLOAD_EVERY_MS)
+            }
+        }
+    }
+
+    private const val UPLOAD_FIRST_MS = 3 * 60_000L
+    private const val UPLOAD_EVERY_MS = 60 * 60_000L
 
     // One slot per line, a blank line between slots: the wiring task replaces its lines, the Shorts task only its own.
     private fun build(): VideoGraph {
@@ -126,6 +162,7 @@ private object DesktopVideoProcess {
         val device = Locale.getDefault()
         scope.followRegion(settings, source, device.country, device.language)
         scope.followSmoothness(settings, playback.engine)
+        scope.followAudio(settings, playback.engine)
         scope.prepareVideoStart(source)
         Runtime.getRuntime().addShutdownHook(
             Thread({

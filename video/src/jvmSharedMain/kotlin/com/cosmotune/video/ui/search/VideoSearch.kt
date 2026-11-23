@@ -164,7 +164,8 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
     // The results of this search with this filter: the tab the session cache holds for them, loaded when the page shows them.
     val tab = if (mode == SearchMode.RESULTS) remember(source, submitted, filter) { SearchSessions.tab(source, submitted, filter) } else null
     if (tab != null) LaunchedEffect(tab) { tab.start(scope) }
-    val visible: List<ListItem> = if (tab != null) remember(tab.items, hideShorts) { visibleResults(tab.items, hideShorts) } else emptyList()
+    val contentFilter = com.cosmotune.video.ui.blocks.rememberContentFilter()
+    val visible: List<ListItem> = if (tab != null) remember(tab.items, hideShorts, contentFilter) { visibleResults(tab.items, hideShorts, contentFilter) } else emptyList()
     val videos = remember(visible) { visible.mapNotNull { (it as? ListItem.Video)?.item } }
 
     val suggestions by rememberSuggestions(source, typed, active = mode == SearchMode.TYPING)

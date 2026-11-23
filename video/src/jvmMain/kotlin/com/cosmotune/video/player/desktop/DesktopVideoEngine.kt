@@ -189,6 +189,16 @@ class DesktopVideoEngine internal constructor(
         post { playerRef?.set("volume", value.toString()) }
     }
 
+    /** mpv's audio filters for the volume and voice boosts ("" for none); kept so a new player starts with them. */
+    @Volatile private var audioFilter = ""
+
+    override fun setAudioBoost(boost: Int, voice: Boolean) {
+        val filter = mpvAudioFilter(boost, voice)
+        if (filter == audioFilter) return
+        audioFilter = filter
+        post { playerRef?.set("af", filter) }
+    }
+
     override fun setMuted(muted: Boolean) {
         snapshotFlow.update { it.copy(muted = muted) }
         post { playerRef?.set("mute", if (muted) "yes" else "no") }
@@ -425,6 +435,7 @@ class DesktopVideoEngine internal constructor(
                     if (renderer.start()) {
                         this.renderer = renderer
                         playerRef = player
+                        audioFilter.takeIf { it.isNotEmpty() }?.let { player.set("af", it) }
                         return player
                     }
                     renderer.close()
@@ -581,3 +592,12 @@ class DesktopVideoEngine internal constructor(
                 .map { "${it.key}: ${it.value}" }
     }
 }
+
+/**
+ * mpv's `af` for the boosts: a gain over 100 % and, for the voice, a cut of the rumble under 100 Hz, a lift of the speech band
+ * round 2.5 kHz and ffmpeg's dynamic normaliser so soft talk comes up to the loud parts. "" when both are off.
+ */
+internal fun mpvAudioFilter(boost: Int, voice: Boolean): String = buildList {
+    if (voice) add("lavfi=[highpass=f=100,equalizer=f=2500:t=q:w=1.2:g=5,dynaudnorm=f=150:g=15]")
+    if (boost > 100) add("lavfi=[volume=${"%.2f".format(java.util.Locale.ROOT, boost.coerceAtMost(200) / 100f)}]")
+}.joinToString(",")

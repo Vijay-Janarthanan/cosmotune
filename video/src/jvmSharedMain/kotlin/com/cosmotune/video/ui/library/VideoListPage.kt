@@ -1,5 +1,6 @@
 package com.cosmotune.video.ui.library
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -112,6 +113,10 @@ fun VideoListPage(kind: VideoListKind, contentPadding: PaddingValues, wide: Bool
     val shown = reorder.order ?: if (reordering) stored else merged
     val current by rememberUpdatedState(shown)
     val canReorder = kind == VideoListKind.WATCH_LATER && reordering && stored.size > 1
+    val selection = remember(kind) { VideoSelection() }
+    val selectText = selectLabel()
+
+    Box(Modifier.fillMaxSize()) {
 
     LibraryList(contentPadding, wide, listState) { cell ->
         item(key = "heading") {
@@ -130,6 +135,9 @@ fun VideoListPage(kind: VideoListKind, contentPadding: PaddingValues, wide: Bool
                         size = 40.dp,
                     )
                 }
+                if (merged.isNotEmpty() && !reordering) {
+                    CosmoIconButton(CosmoIcons.Check, selectText, { if (selection.active) selection.close() else selection.start() }, style = CosmoIconButtonStyle.TONAL, size = 40.dp, on = selection.active)
+                }
                 if (kind == VideoListKind.WATCH_LATER && stored.size > 1) {
                     CosmoIconButton(CosmoIcons.Sort, reorderLabel, { reordering = !reordering }, style = CosmoIconButtonStyle.TONAL, size = 40.dp, on = reordering)
                 }
@@ -137,6 +145,9 @@ fun VideoListPage(kind: VideoListKind, contentPadding: PaddingValues, wide: Bool
         }
         if (onAccount.expired) {
             item(key = "account-expired") { AccountExpiredNotice(cell) }
+        }
+        if (selection.active) {
+            item(key = "select-head") { VideoSelectionHead(selection, shown, cell) }
         }
         if (shown.isEmpty()) {
             item(key = "empty") {
@@ -166,12 +177,14 @@ fun VideoListPage(kind: VideoListKind, contentPadding: PaddingValues, wide: Bool
             SwipeToRemove(enabled = !canReorder, onRemove = remove, modifier = cell.then(placement)) {
                 LibraryVideoRow(
                     item = video,
-                    onClick = { actions.play(video, current) },
+                    onClick = { if (selection.active) selection.toggle(video.id) else actions.play(video, current) },
                     onMore = { sheetFor = video },
                     wide = wide,
                     modifier = Modifier.semantics { customActions = moves },
                     downloaded = video.id in downloadedIds,
-                    trailing = if (canReorder) {
+                    trailing = if (selection.active) {
+                        { SelectionCheck(selection, video) }
+                    } else if (canReorder) {
                         {
                             DragHandle(
                                 Modifier.pointerInput(video.id) {
@@ -193,6 +206,17 @@ fun VideoListPage(kind: VideoListKind, contentPadding: PaddingValues, wide: Bool
                 )
             }
         }
+    }
+
+    VideoSelectionBar(
+        selection, shown, actions, contentPadding, title,
+        remove = com.cosmotune.ui.orbit.OrbitBarAction(CosmoIcons.Close, removeLabel) {
+            selection.chosen(shown).forEach { video ->
+                removeFrom(library, kind, video)
+                onAccount.removeOnAccount(video.id)
+            }
+        },
+    )
     }
 
     // A move that was written shows the stored list again once the store has it (until then the dragged order stays, so nothing jumps back).

@@ -2,7 +2,9 @@ package com.cosmotune.video.graph
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.cosmotune.video.account.InnerTubeLiveChat
 import com.cosmotune.video.account.SignedOutVideoAccount
+import com.cosmotune.video.chat.LiveChatSource
 import com.cosmotune.video.account.VideoAccount
 import com.cosmotune.video.downloads.DownloadController
 import com.cosmotune.video.feed.SubscriptionFeed
@@ -47,6 +49,10 @@ class VideoGraph(
     val metered: () -> Boolean,
     val shorts: ShortsFeed,
     val account: VideoAccount = SignedOutVideoAccount,
+    /** The chat of live streams and the replay of finished ones (the watch page's Chat). */
+    val liveChat: LiveChatSource = InnerTubeLiveChat(),
+    /** A channel page's search, its Podcasts, Courses, Releases and Posts tabs. */
+    val channelExtras: com.cosmotune.video.source.ChannelExtras = com.cosmotune.video.account.InnerTubeChannelExtras(),
 ) {
     /** A card the pointer rests on: its streams are resolved ahead of the click ([VideoPlayback.prefetch]). One instance per graph. */
     val preResolve: (VideoItem) -> Unit = { playback.prefetch(it.id) }

@@ -61,7 +61,7 @@ class ShellStructureTest {
         val header = src.substringAfter("class VideoGraph(").substringBefore("\n)")
         val declared = Regex("""val (\w+):""").findAll(header).map { it.groupValues[1] }.toList()
         // the thirteen slots, then the listener's account (it defaults to signed out, so a graph built without it still works)
-        assertEquals(slots + "account", declared)
+        assertEquals(slots + "account" + "liveChat" + "channelExtras", declared)
         assertTrue("val LocalVideoGraph = staticCompositionLocalOf<VideoGraph>" in src)
     }
 

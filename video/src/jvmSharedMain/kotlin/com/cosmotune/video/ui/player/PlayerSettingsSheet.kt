@@ -39,6 +39,7 @@ import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.PlayerKeyMap
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_sb_channel_skips
 import com.cosmotune.video.resources.video_audio_descriptive
 import com.cosmotune.video.resources.video_audio_dubbed
 import com.cosmotune.video.resources.video_audio_original
@@ -201,6 +202,17 @@ internal fun PlayerSettingsPanel(
                 CosmoActionRow(CosmoIcons.Devices, "Play on a TV", value = tvNow?.device?.name, menu = menu) { page = SettingsPage.TV }
             }
             CosmoActionRow(CosmoIcons.Repeat, stringResource(Res.string.video_loop), value = if (state.loop) on else off, menu = menu) { playback.setLoop(!state.loop) }
+            val channelId = state.item?.channelId
+            if (settings.sponsorBlock && channelId != null && !local) {
+                val skips = channelId !in settings.sponsorBlockExcluded
+                val graph = com.cosmotune.video.graph.LocalVideoGraph.current
+                CosmoActionRow(VideoIcons.SkipSegment, stringResource(Res.string.video_sb_channel_skips), value = if (skips) on else off, menu = menu) {
+                    val name = state.item?.channelName ?: channelId
+                    graph.settings.update {
+                        it.copy(sponsorBlockExcluded = if (skips) it.sponsorBlockExcluded + (channelId to name) else it.sponsorBlockExcluded - channelId)
+                    }
+                }
+            }
             CosmoActionRow(VideoIcons.Info, stringResource(Res.string.video_stats), value = if (statsShown) on else off, menu = menu) { onToggleStats() }
             if (local) LocalSettingsRows(menu, onAspect = { localPage = LocalSettingsPage.ASPECT }, onDone = onDone)
         }

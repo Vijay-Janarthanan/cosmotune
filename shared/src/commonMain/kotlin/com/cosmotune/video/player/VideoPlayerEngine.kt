@@ -152,6 +152,8 @@ data class EngineCapabilities(
     val autoCeilingHeight: Int?,
     val frameSmoothing: Boolean = false,
     val frameSmoothingExperimental: Boolean = false,
+    /** Whether [VideoPlayerEngine.setSkipSilence] does anything (the phone's player can; the desktop's cannot keep the picture in step). */
+    val skipSilence: Boolean = false,
 )
 
 /**
@@ -231,6 +233,15 @@ interface VideoPlayerEngine {
 
     /** Moves the subtitles [ms] later (negative: earlier). The default does nothing. */
     fun setSubtitleDelay(ms: Long) {}
+
+    /**
+     * Makes quiet videos louder: [boost] is the volume in percent over the normal level (100 is none, up to 200); [voice] lifts
+     * the speech band and evens out loud and soft parts. The default does nothing.
+     */
+    fun setAudioBoost(boost: Int, voice: Boolean) {}
+
+    /** Skips the silent parts (lectures, podcasts filmed as video). The default does nothing ([EngineCapabilities.skipSilence]). */
+    fun setSkipSilence(on: Boolean) {}
 
     /** Frees the player; the engine is not used again. */
     fun release()

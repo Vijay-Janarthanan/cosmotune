@@ -47,3 +47,14 @@ class VideoSettingsStore(
     /** Writes a change that is still waiting for its 500 ms now, on the calling thread. Call it when the app goes away. */
     fun flush() = writer.flush()
 }
+
+/**
+ * Whether the settings kept in [files] ask for background work (a channel's bell, or automatic backups), read without opening the
+ * store (the desktop's timer asks before it builds Video's graph).
+ */
+fun settingsNeedBackgroundWork(files: LibraryFiles): Boolean = runCatching {
+    files.read(LibraryFile.SETTINGS.fileName)?.let { LibraryCodec.decodeSettings(it).needsBackgroundWork() } == true
+}.getOrDefault(false)
+
+/** A bell is on, or automatic backups are. */
+fun VideoSettings.needsBackgroundWork(): Boolean = bellChannels.isNotEmpty() || autoBackupDays > 0

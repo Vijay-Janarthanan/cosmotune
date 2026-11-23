@@ -45,6 +45,17 @@ import com.cosmotune.video.nav.VideoRoute
 import com.cosmotune.video.player.QualityOption
 import com.cosmotune.video.player.rememberPictureInPicture
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_set_filters
+import com.cosmotune.video.resources.video_set_auto_backup
+import com.cosmotune.video.resources.video_set_auto_backup_where
+import com.cosmotune.video.resources.video_set_backup_daily
+import com.cosmotune.video.resources.video_set_backup_weekly
+import com.cosmotune.video.resources.video_set_volume_boost
+import com.cosmotune.video.resources.video_set_voice_boost
+import com.cosmotune.video.resources.video_set_voice_boost_note
+import com.cosmotune.video.resources.video_set_skip_silence
+import com.cosmotune.video.resources.video_set_filters_off
+import com.cosmotune.video.resources.video_set_filters_on
 import com.cosmotune.video.resources.video_case_as_given
 import com.cosmotune.video.resources.video_case_sentence
 import com.cosmotune.video.resources.video_case_title
@@ -132,7 +143,7 @@ import androidx.compose.runtime.setValue
 internal typealias SettingsUpdate = ((VideoSettings) -> VideoSettings) -> Unit
 
 /** The choices that open a [ChoiceSheet] (a category of SponsorBlock opens its own, see [CategoryChoiceSheet]). */
-private enum class SettingsChoice { WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE }
+private enum class SettingsChoice { WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP }
 
 /** What the page asks about before it clears something. */
 private enum class Confirm { CLEAR_HISTORY, CLEAR_SEARCHES }
@@ -176,14 +187,14 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
                 .padding(contentPadding),
         ) {
             com.cosmotune.video.ui.blocks.VideoPageHeading(stringResource(Res.string.video_drawer_settings), stringResource(Res.string.video_settings_label))
-            PlaybackSettings(settings, update, pip.supported) { choice = it }
+            PlaybackSettings(settings, update, pip.supported, remember(engine) { engine.capabilities.skipSilence }) { choice = it }
             SmoothnessSettingsGroup(settings.smoothness, update, canSmooth, smoothReadout, smoothExperimental)
             CaptionSettings(settings, update, locale) { choice = it }
             SponsorBlockSettings(settings, update) { category = it }
             TitleSettings(settings, update) { choice = it }
             DislikeSettings(settings, update)
             ContentSettings(settings, update, locale) { choice = it }
-            LibrarySettings(historyPaused, graph.library::setHistoryPaused, { confirm = it }, { navigator.push(VideoRoute.Import) })
+            LibrarySettings(historyPaused, graph.library::setHistoryPaused, { confirm = it }, { navigator.push(VideoRoute.Import) }, settings.autoBackupDays) { choice = SettingsChoice.AUTO_BACKUP }
             DownloadSettings(settings, update, platform, locale)
             AboutSettings()
             Spacer(Modifier.height(PAGE_END))
@@ -214,7 +225,7 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
 // ---- Playback ---------------------------------------------------------------------------------------------------------------------
 
 @Composable
-private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pipSupported: Boolean, open: (SettingsChoice) -> Unit) {
+private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pipSupported: Boolean, skipSilenceSupported: Boolean, open: (SettingsChoice) -> Unit) {
     val auto = stringResource(Res.string.video_quality_auto)
     val codecs = CodecPreference.entries.map { codecLabel(it) }
     CosmoSettingsGroup(header = stringResource(Res.string.video_set_playback)) {
@@ -255,6 +266,17 @@ private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pi
         SwitchRow(CosmoIcons.Next, stringResource(Res.string.video_set_autoplay), settings.autoplay) { value -> update { it.copy(autoplay = value) } }
         SwitchRow(VideoIcons.History, stringResource(Res.string.video_set_resume_short), settings.resume) { value -> update { it.copy(resume = value) } }
         SwitchRow(CosmoIcons.Volume, stringResource(Res.string.video_set_background_short), settings.background) { value -> update { it.copy(background = value) } }
+        CosmoRowDivider()
+        CosmoSettingsRow(
+            icon = CosmoIcons.Volume,
+            title = stringResource(Res.string.video_set_volume_boost),
+            subtitle = boostLabel(settings.volumeBoost),
+            onClick = { open(SettingsChoice.VOLUME_BOOST) },
+        )
+        SwitchRow(CosmoIcons.Waveform, stringResource(Res.string.video_set_voice_boost), settings.voiceBoost, subtitle = stringResource(Res.string.video_set_voice_boost_note)) { value -> update { it.copy(voiceBoost = value) } }
+        if (skipSilenceSupported) {
+            SwitchRow(CosmoIcons.Forward10, stringResource(Res.string.video_set_skip_silence), settings.skipSilence) { value -> update { it.copy(skipSilence = value) } }
+        }
         // Picture in picture is the phone's: the desktop (and a phone without it) is not asked.
         if (pipSupported) {
             SwitchRow(VideoIcons.Pip, stringResource(Res.string.video_pip), settings.autoPip, subtitle = stringResource(Res.string.video_set_pip_when)) { value -> update { it.copy(autoPip = value) } }
@@ -334,6 +356,14 @@ private fun ContentSettings(settings: VideoSettings, update: SettingsUpdate, loc
     CosmoSettingsGroup(header = stringResource(Res.string.video_set_content)) {
         SwitchRow(CosmoIcons.User, stringResource(Res.string.video_home_use_account), settings.homeAccountEnabled) { value -> update { it.copy(homeAccountEnabled = value) } }
         SwitchRow(VideoIcons.Shorts, stringResource(Res.string.video_set_hide_shorts), settings.hideShorts) { value -> update { it.copy(hideShorts = value) } }
+        val hidden = settings.hiddenWords.size + settings.hiddenChannels.size
+        CosmoSettingsRow(
+            icon = CosmoIcons.Sort,
+            title = stringResource(Res.string.video_set_filters),
+            subtitle = if (hidden == 0 && settings.commentMinLikes <= 0) stringResource(Res.string.video_set_filters_off)
+            else stringResource(Res.string.video_set_filters_on, settings.hiddenWords.size, settings.hiddenChannels.size),
+            onClick = { open(SettingsChoice.FILTERS) },
+        )
         CosmoRowDivider()
         CosmoSettingsRow(
             icon = CosmoIcons.Pin,
@@ -351,7 +381,7 @@ private fun ContentSettings(settings: VideoSettings, update: SettingsUpdate, loc
 }
 
 @Composable
-private fun LibrarySettings(historyPaused: Boolean, setHistoryPaused: (Boolean) -> Unit, ask: (Confirm) -> Unit, openImport: () -> Unit) {
+private fun LibrarySettings(historyPaused: Boolean, setHistoryPaused: (Boolean) -> Unit, ask: (Confirm) -> Unit, openImport: () -> Unit, autoBackupDays: Int = 0, openAutoBackup: () -> Unit = {}) {
     CosmoSettingsGroup(header = stringResource(Res.string.video_set_library)) {
         SwitchRow(
             icon = CosmoIcons.Pause,
@@ -366,6 +396,12 @@ private fun LibrarySettings(historyPaused: Boolean, setHistoryPaused: (Boolean) 
         // Export lives on the Import page, with the importers.
         CosmoSettingsRow(icon = VideoIcons.Upload, title = stringResource(Res.string.video_set_import), onClick = openImport)
         CosmoSettingsRow(icon = CosmoIcons.Download, title = stringResource(Res.string.video_set_export), onClick = openImport)
+        CosmoSettingsRow(
+            icon = CosmoIcons.Clock,
+            title = stringResource(Res.string.video_set_auto_backup),
+            subtitle = backupLabel(autoBackupDays) + " · " + stringResource(Res.string.video_set_auto_backup_where),
+            onClick = openAutoBackup,
+        )
     }
 }
 
@@ -447,6 +483,21 @@ private fun AboutSettings() {
 @Composable
 private fun SettingsChoiceSheet(choice: SettingsChoice, settings: VideoSettings, update: SettingsUpdate, locale: Locale, onDismiss: () -> Unit) {
     when (choice) {
+        SettingsChoice.FILTERS -> ContentFilterSheet(settings, update, onDismiss)
+        SettingsChoice.AUTO_BACKUP -> ChoiceSheet(
+            title = stringResource(Res.string.video_set_auto_backup),
+            options = com.cosmotune.video.library.AutoBackup.CHOICES.map { ChoiceOption(it, backupLabel(it)) },
+            selected = settings.autoBackupDays,
+            onSelect = { value -> update { it.copy(autoBackupDays = value) } },
+            onDismiss = onDismiss,
+        )
+        SettingsChoice.VOLUME_BOOST -> ChoiceSheet(
+            title = stringResource(Res.string.video_set_volume_boost),
+            options = VOLUME_BOOSTS.map { ChoiceOption(it, boostLabel(it)) },
+            selected = settings.volumeBoost,
+            onSelect = { value -> update { it.copy(volumeBoost = value) } },
+            onDismiss = onDismiss,
+        )
         SettingsChoice.WIFI_QUALITY -> QualitySheet(stringResource(Res.string.video_set_quality_wifi), settings.wifiQuality, { value -> update { it.copy(wifiQuality = value) } }, onDismiss)
         SettingsChoice.MOBILE_QUALITY -> QualitySheet(stringResource(Res.string.video_set_quality_mobile), settings.meteredQuality, { value -> update { it.copy(meteredQuality = value) } }, onDismiss)
         SettingsChoice.SPEED -> ChoiceSheet(
@@ -611,3 +662,18 @@ private val LINK_START = 8.dp
 private val NOTE_BOTTOM = 12.dp
 private const val NOTE_SP = 13f
 private const val NOTE_LINE = 1.35f
+
+/** The volume boost's choices, in percent of the normal level. */
+internal val VOLUME_BOOSTS = listOf(100, 125, 150, 200)
+
+@Composable
+private fun boostLabel(boost: Int): String = if (boost <= 100) stringResource(Res.string.video_off) else "$boost %"
+
+@Composable
+private fun backupLabel(days: Int): String = stringResource(
+    when (days) {
+        1 -> Res.string.video_set_backup_daily
+        7 -> Res.string.video_set_backup_weekly
+        else -> Res.string.video_off
+    },
+)

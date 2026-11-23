@@ -50,6 +50,7 @@ import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.nav.VideoRoute
 import com.cosmotune.video.ui.blocks.rememberSubscribeToggle
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_channel_hide_watched
 import com.cosmotune.video.resources.video_shorts
 import com.cosmotune.video.select.ShortsFilter
 import com.cosmotune.video.ui.watch.rememberWatchedFraction
@@ -150,12 +151,17 @@ private fun ChannelReady(
     val scope = rememberCoroutineScope()
     val settings by graph.settings.settings.collectAsState()
     val subscriptions by graph.library.subscriptions.collectAsState()
+    val history by graph.library.history.collectAsState()
+    val watchedIds = remember(history) { history.filter { it.isWatched }.mapTo(HashSet()) { it.item.id } }
     val downloaded = rememberDownloadedIds()
     val sharer = rememberShareVideo(onCopied = { VideoActionsState.shared.showToast(ActionToastKind.LINK_COPIED) })
     val channel = page.channel
     val hideShorts = settings.hideShorts
 
-    val sections = remember(page.tabs, hideShorts) { ChannelSections.of(page.tabs, hideShorts) }
+    // The tabs the source does not list (Podcasts, Courses, Releases, Posts) and the search inside the channel.
+    val extras = remember(graph, channel.id) { ChannelExtrasModel(graph.channelExtras, channel.id, scope) }
+    LaunchedEffect(extras) { extras.start() }
+    val sections = remember(page.tabs, hideShorts, extras.tabs) { ChannelExtrasModel.withExtras(ChannelSections.of(page.tabs, hideShorts), extras.tabs.keys) }
     var wanted by rememberSaveable { mutableStateOf(ChannelSections.sectionOf(route.tab).name) }
     val section = ChannelSections.resolve(ChannelSections.parse(wanted, ChannelSections.sectionOf(route.tab)), sections)
     val shortsOffered = ChannelSection.SHORTS in sections
@@ -203,6 +209,16 @@ private fun ChannelReady(
         onMore = { item, list -> menu = MenuTarget(item, list) },
         onOpenShort = { item, list -> navigator.openShort(item, ShortsOrigin.Channel(channel.id), list) },
         onOpenPlaylist = { navigator.push(VideoRoute.Playlist(it)) },
+        extras = extras,
+        watchedIds = watchedIds,
+        hideWatched = settings.channelHideWatched,
+        onHideWatched = { graph.settings.update { it.copy(channelHideWatched = !it.channelHideWatched) } },
+        bell = if (subscribed) channel.id in settings.bellChannels else null,
+        onBell = {
+            graph.settings.update {
+                it.copy(bellChannels = if (channel.id in it.bellChannels) it.bellChannels - channel.id else it.bellChannels + channel.id)
+            }
+        },
     )
 
     if (section == ChannelSection.SHORTS) {
@@ -243,6 +259,15 @@ private class ChannelUi(
     val onMore: (VideoItem, List<VideoItem>) -> Unit,
     val onOpenShort: (VideoItem, List<VideoItem>) -> Unit,
     val onOpenPlaylist: (String) -> Unit,
+    val extras: ChannelExtrasModel? = null,
+    /** The videos watched to the end (the history's), for Hide watched. */
+    val watchedIds: Set<String> = emptySet(),
+    /** Whether the Videos and Live tabs leave out what was watched to the end. */
+    val hideWatched: Boolean = false,
+    val onHideWatched: () -> Unit = {},
+    /** The bell beside Subscribe: on, off, or null while the channel is not followed (no bell then). */
+    val bell: Boolean? = null,
+    val onBell: () -> Unit = {},
 )
 
 /**
@@ -292,6 +317,7 @@ private fun HeaderParts(ui: ChannelUi, line: PageLine) {
             preparing = ui.preparing, onSubscribe = ui.onSubscribe, onShare = ui.onShare, onDownload = ui.onDownload,
             onAbout = if (ChannelSection.ABOUT in ui.sections) ({ ui.onSelect(ChannelSection.ABOUT) }) else null,
             onPlayLatest = latest?.let { first -> { ui.actions.play(first, uploads) } },
+            bell = ui.bell, onBell = ui.onBell,
         )
         ChannelTabChips(ui.sections, ui.section, ui.onSelect, line.fit(Modifier.padding(top = 16.dp, bottom = 8.dp)))
     }
@@ -307,6 +333,15 @@ private fun PageItems.channelItems(ui: ChannelUi, line: PageLine) {
         ChannelSection.PLAYLISTS -> playlistItems(ui, line)
         ChannelSection.ABOUT -> full("about", "about") { ChannelAbout(ui.page, line, ui.wide) }
         ChannelSection.SHORTS -> Unit // the Shorts grid is its own page (ShortsTab)
+        ChannelSection.PODCASTS, ChannelSection.COURSES, ChannelSection.RELEASES -> {
+            val tab = ChannelExtrasModel.tabOf(ui.section)
+            val paged = tab?.let { ui.extras?.list(it) }
+            if (paged != null) extraListItems(paged, "extra-${ui.section}", line, ui.wide, ui.onOpenPlaylist)
+        }
+        ChannelSection.POSTS -> ui.extras?.posts()?.let { paged ->
+            postItems(paged, line, onPlay = { ui.actions.play(it, listOf(it)) }, onMore = { ui.onMore(it, listOf(it)) })
+        }
+        ChannelSection.SEARCH -> ui.extras?.let { extras -> channelSearchItems(extras, line, onPlay = { item, list -> ui.actions.play(item, list) }, onMore = ui.onMore) }
     }
 }
 
@@ -314,7 +349,15 @@ private fun PageItems.channelItems(ui: ChannelUi, line: PageLine) {
 private fun PageItems.uploadItems(ui: ChannelUi, line: PageLine) {
     val tab = ChannelSections.tabOf(ui.section) ?: return
     val paged = ui.model.tab(tab)
-    val videos = ShortsFilter.filter(videosOf(paged.items), ui.hideShorts) { it }
+    val all = ShortsFilter.filter(videosOf(paged.items), ui.hideShorts) { it }
+    val watchedIds = ui.watchedIds
+    val videos = if (ui.hideWatched) all.filter { it.id !in watchedIds } else all
+    full("hide-watched", "chips") {
+        com.cosmotune.ui.orbit.OrbitSelectChip(
+            stringResource(Res.string.video_channel_hide_watched), ui.hideWatched, com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook(),
+            onClick = ui.onHideWatched, modifier = line.fit(Modifier.padding(bottom = 8.dp)),
+        )
+    }
     if (ui.section == ChannelSection.VIDEOS && ui.shortsOffered) {
         val shorts = videosOf(ui.model.tab(ChannelTab.SHORTS).items)
         if (shorts.isNotEmpty()) {

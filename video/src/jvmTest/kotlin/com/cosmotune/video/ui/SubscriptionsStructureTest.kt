@@ -38,7 +38,7 @@ class SubscriptionsStructureTest {
 
     @Test fun theDirectoryHoldsTheBriefsTwoFiles() {
         val names = File(VideoSourceContract.root, dir).listFiles { f -> f.extension == "kt" }!!.map { it.nameWithoutExtension }.toSet()
-        assertEquals(setOf("SubscriptionsPage", "FeedStatusLine"), names)
+        assertEquals(setOf("SubscriptionsPage", "FeedStatusLine", "FeedGroupSheet"), names)
     }
 
     @Test fun thePageKeepsTheBriefsSignature() {

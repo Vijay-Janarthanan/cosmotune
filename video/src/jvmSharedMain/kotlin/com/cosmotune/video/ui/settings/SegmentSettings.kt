@@ -7,6 +7,8 @@ import com.cosmotune.ui.settings.CosmoSettingsGroup
 import com.cosmotune.ui.settings.CosmoSettingsRow
 import com.cosmotune.ui.settings.CosmoSettingsSubRow
 import com.cosmotune.video.resources.Res
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.video.resources.video_sb_channel_excluded
 import com.cosmotune.video.resources.video_seg_ask
 import com.cosmotune.video.resources.video_seg_mute
 import com.cosmotune.video.resources.video_seg_off
@@ -68,6 +70,18 @@ internal fun SponsorBlockSettings(
             onCheckedChange = { value -> update { it.copy(countSkips = value) } },
             subtitle = stringResource(Res.string.video_set_sponsorblock_count_summary),
         )
+        // The channels where nothing is skipped ("Don't skip on this channel" in the player's settings); a tap takes one off.
+        if (settings.sponsorBlockExcluded.isNotEmpty()) {
+            CosmoRowDivider()
+            for ((id, name) in settings.sponsorBlockExcluded) {
+                CosmoSettingsRow(
+                    icon = CosmoIcons.Close,
+                    title = name.ifBlank { id },
+                    subtitle = stringResource(Res.string.video_sb_channel_excluded),
+                    onClick = { update { it.copy(sponsorBlockExcluded = it.sponsorBlockExcluded - id) } },
+                )
+            }
+        }
         CosmoRowDivider()
         for (category in SegmentCategory.entries) {
             CosmoSettingsRow(

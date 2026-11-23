@@ -284,6 +284,15 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     override fun load(request: PlaybackRequest) {
         if (released) return
         smoothing.onLoad()
+        // The boosts and skip silence ride on the service player's audio session, which a new player changes: bound again once it plays.
+        val reapply = Runnable {
+            if (!released) {
+                audioBoost.apply()
+                VideoPlayerHolder.player?.skipSilenceEnabled = skipSilence
+            }
+        }
+        main.post(reapply)
+        main.postDelayed(reapply, AUDIO_REBIND_MS)
         val from = request.startMs.coerceAtLeast(0)
         // A live stream starts at its default position, the live edge less the target offset (Y-28, spec 5.13, 6.2): a start of 0
         // would be the oldest moment of its window.
@@ -369,6 +378,18 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     override fun setVolume(volume: Float) {
         this.volume = volume.coerceIn(0f, 1f)
         command { it.volume = effectiveVolume() }
+    }
+
+    private val audioBoost = AudioBoost()
+    @Volatile private var skipSilence = false
+
+    override fun setAudioBoost(boost: Int, voice: Boolean) {
+        main.post { if (!released) audioBoost.set(boost, voice) }
+    }
+
+    override fun setSkipSilence(on: Boolean) {
+        skipSilence = on
+        main.post { if (!released) VideoPlayerHolder.player?.skipSilenceEnabled = on }
     }
 
     override fun setMuted(muted: Boolean) {
@@ -480,6 +501,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     override fun release() {
         released = true
         onMain {
+            audioBoost.release()
             pending.clear()
             stopTicker()
             disconnect()
@@ -992,3 +1014,6 @@ private fun Modifier.videoFrame(video: IntSize, scale: VideoScale): Modifier = l
     val placeable = measurable.measure(Constraints.fixed(width.coerceAtLeast(0), height.coerceAtLeast(0)))
     layout(boxWidth, boxHeight) { placeable.place((boxWidth - width) / 2, (boxHeight - height) / 2) }
 }
+
+/** How long after a load the boosts are bound again, once the service's player has its audio session. */
+private const val AUDIO_REBIND_MS = 1_500L

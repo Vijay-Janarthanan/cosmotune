@@ -61,6 +61,8 @@ import com.cosmotune.video.player.ScrubberGeometry
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoUiError
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_next_chapter
+import com.cosmotune.video.resources.video_lock_controls
 import com.cosmotune.video.resources.video_badge_live
 import com.cosmotune.video.resources.video_badge_upcoming
 import com.cosmotune.video.resources.video_captions
@@ -202,9 +204,18 @@ internal fun BoxScope.ChromeControls(
     settingsMenu: (@Composable () -> Unit)?,
     onInput: () -> Unit,
     onScrub: (Boolean) -> Unit,
+    onLock: (() -> Unit)? = null,
 ) {
     val step = settings.doubleTapSeconds
     val tools: @Composable () -> Unit = {
+        if (onLock != null) {
+            PlayerButton(
+                icon = VideoIcons.LockOpen,
+                contentDescription = stringResource(Res.string.video_lock_controls),
+                onClick = { onInput(); onLock() },
+                size = VideoMetrics.CHROME_ICON_DP.dp,
+            )
+        }
         CaptionsButton(playback, state, settings, onInput, floatingPlain = fullWindow)
         Box {
             PlayerButton(
@@ -283,6 +294,15 @@ internal fun BoxScope.ChromeControls(
     ) {
         if (state.live) LiveStatus(playback, state, playhead, onInput) else TimeText(playhead, state.durationMs, onGlass = false, onInput = onInput)
         Spacer(Modifier.weight(1f))
+        val chapters = state.details?.chapters.orEmpty()
+        if (chapters.size > 1 && !state.live) {
+            PlayerButton(
+                icon = CosmoIcons.ChevronRight,
+                contentDescription = stringResource(Res.string.video_next_chapter),
+                onClick = { onInput(); skipChapter(playback, state, forward = true) },
+                size = VideoMetrics.CHROME_ICON_DP.dp,
+            )
+        }
         val fullscreen = layout == PlayerLayout.FULLSCREEN
         PlayerButton(
             icon = if (fullscreen) VideoIcons.FullscreenExit else VideoIcons.Fullscreen,
@@ -686,6 +706,8 @@ fun performPlayerKey(
         PlayerKeyAction.Theatre -> (onTheatre ?: return false).invoke()
         PlayerKeyAction.ExitFullWindow -> (onExitFullWindow ?: return false).invoke()
         PlayerKeyAction.PictureInPicture -> (onPictureInPicture ?: return false).invoke()
+        PlayerKeyAction.NextChapter -> return skipChapter(playback, state, forward = true)
+        PlayerKeyAction.PreviousChapter -> return skipChapter(playback, state, forward = false)
     }
     return true
 }

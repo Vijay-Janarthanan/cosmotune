@@ -98,6 +98,12 @@ object VideoIcons {
     /** Three lines: the guide's button (not in the plan's table of 22, which [all] lists). */
     val Menu by icon("menu") { stroke("M4 6.5h16"); stroke("M4 12h16"); stroke("M4 17.5h16") }
 
+    /** A padlock, shut: the fullscreen player's lock (touches do nothing until it is opened). */
+    val Lock by icon("lock") { rect(5f, 10.5f, 14f, 9.5f, 2.5f); stroke("M8 10.5V8a4 4 0 0 1 8 0v2.5") }
+
+    /** A padlock, open. */
+    val LockOpen by icon("lock-open") { rect(5f, 10.5f, 14f, 9.5f, 2.5f); stroke("M8 10.5V8a4 4 0 0 1 7.6-1.7") }
+
     /** Every icon with its name, in the order of the plan's table: 22. */
     val all: List<Pair<String, ImageVector>> by lazy {
         listOf(

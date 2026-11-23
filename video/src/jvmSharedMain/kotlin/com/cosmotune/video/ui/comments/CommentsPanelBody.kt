@@ -217,7 +217,8 @@ private fun CommentsContent(
         )
         state.empty -> CosmoEmptyState(message = stringResource(Res.string.video_comments_empty), icon = VideoIcons.Comment)
         else -> CommentsList(
-            state = state,
+            // the listener's hidden words, channels and like floor (Settings, Content, Filters)
+            state = rememberFilteredComments(state),
             listState = listState,
             expanded = expanded,
             onReplies = { onReplyTo(it) },
@@ -291,3 +292,10 @@ internal fun CommentsCloseButton(onDismiss: () -> Unit) {
 /** The cross-fade between the comments and the replies: the controls' own fast spring, or 150 ms under reduced motion. */
 private fun fade(reduced: Boolean): FiniteAnimationSpec<Float> =
     if (reduced) tween(Springs.REDUCED_MS) else spring(dampingRatio = Springs.EFFECTS.dampingRatio, stiffness = Springs.EFFECTS.stiffness)
+
+/** [state] without the comments the listener's filter hides (pinned ones and the creator's always stay). */
+@Composable
+private fun rememberFilteredComments(state: CommentsState): CommentsState {
+    val filter = com.cosmotune.video.ui.blocks.rememberContentFilter()
+    return remember(state, filter) { if (filter.isEmpty) state else state.copy(items = state.items.filter(filter::keepComment)) }
+}

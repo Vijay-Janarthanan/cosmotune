@@ -53,6 +53,32 @@ data class VideoSettings(
     val homeAccountEnabled: Boolean = true,
     val homeHiddenVideos: Set<String> = emptySet(),
     val homeHiddenChannels: Set<String> = emptySet(),
+    /** Words (or /expressions/) whose videos and comments are hidden everywhere. */
+    val hiddenWords: List<String> = emptyList(),
+    /** Channels hidden everywhere (id to the name shown in Settings). */
+    val hiddenChannels: Map<String, String> = emptyMap(),
+    /** Comments with fewer likes than this are hidden (0: none). */
+    val commentMinLikes: Long = 0,
+    /** The listener's channel groups (Subscriptions' group chips). */
+    val feedGroups: List<com.cosmotune.video.feed.FeedChannelGroup> = emptyList(),
+    /** Channels whose new videos are announced (the bell beside Subscribe). */
+    val bellChannels: Set<String> = emptySet(),
+    /** Uploads up to this time have been announced already. */
+    val uploadAlertsSeenMs: Long = 0,
+    /** Channels where SponsorBlock never skips or mutes (id to name); their segments still show on the bar. */
+    val sponsorBlockExcluded: Map<String, String> = emptyMap(),
+    /** The volume over the normal level, in percent (100: none; up to 200). */
+    val volumeBoost: Int = 100,
+    /** Lifts speech and evens out loud and soft parts. */
+    val voiceBoost: Boolean = false,
+    /** Skips silent parts (where the player can). */
+    val skipSilence: Boolean = false,
+    /** Channel pages leave out videos watched to the end. */
+    val channelHideWatched: Boolean = false,
+    /** Automatic library backup every this many days (0: off). */
+    val autoBackupDays: Int = 0,
+    /** When the last automatic backup was written. */
+    val autoBackupLastMs: Long = 0,
     val smoothness: SmoothnessSettings = SmoothnessSettings() /* frame smoothing: off, so frames are shown as they come */,
 ) {
     companion object {

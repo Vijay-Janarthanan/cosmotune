@@ -40,6 +40,7 @@ import com.cosmotune.video.resources.video_play
 import com.cosmotune.video.resources.video_play_as_song
 import com.cosmotune.video.resources.video_remove_from_history
 import com.cosmotune.video.resources.video_remove_from_playlist
+import com.cosmotune.video.resources.video_hide_channel
 import com.cosmotune.video.resources.video_save_to_playlist
 import com.cosmotune.video.resources.video_share
 import com.cosmotune.video.resources.video_watch_later
@@ -73,6 +74,7 @@ sealed interface VideoAction {
     data object OpenChannel : VideoAction
     data object RemoveFromHistory : VideoAction
     data object RemoveFromPlaylist : VideoAction
+    data object HideChannel : VideoAction
 }
 
 /**
@@ -96,6 +98,7 @@ internal fun videoActionsFor(item: VideoItem, context: VideoSheetContext): List<
         VideoSheetContext.HISTORY -> add(VideoAction.RemoveFromHistory)
         VideoSheetContext.YOUR_PLAYLIST -> add(VideoAction.RemoveFromPlaylist)
     }
+    if (item.channelId != null && context == VideoSheetContext.DEFAULT) add(VideoAction.HideChannel)
 }
 
 private fun VideoAction.label(): StringResource = when (this) {
@@ -109,6 +112,7 @@ private fun VideoAction.label(): StringResource = when (this) {
     VideoAction.OpenChannel -> Res.string.video_open_channel
     VideoAction.RemoveFromHistory -> Res.string.video_remove_from_history
     VideoAction.RemoveFromPlaylist -> Res.string.video_remove_from_playlist
+    VideoAction.HideChannel -> Res.string.video_hide_channel
 }
 
 private fun VideoAction.icon(downloaded: Boolean): ImageVector = when (this) {
@@ -122,6 +126,7 @@ private fun VideoAction.icon(downloaded: Boolean): ImageVector = when (this) {
     VideoAction.OpenChannel -> CosmoIcons.User
     VideoAction.RemoveFromHistory -> CosmoIcons.Close
     VideoAction.RemoveFromPlaylist -> CosmoIcons.Close
+    VideoAction.HideChannel -> CosmoIcons.VideoOff
 }
 
 /** The sheet's head (`.sh-head`, as part two's song sheet has it): padding 0 20 16, 14 dp of gap, the title 17 sp weight 700. */
