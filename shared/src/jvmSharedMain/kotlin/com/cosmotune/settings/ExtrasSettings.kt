@@ -1,5 +1,6 @@
 package com.cosmotune.settings
 
+import com.cosmotune.audio.SoundEffect
 import com.cosmotune.audio.SpatialPreset
 import com.cosmotune.music.data.NetworkPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -112,6 +113,40 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putString(KEY_SPATIAL_PRESET, value.name)
     }
 
+    private val soundEffectFlow = MutableStateFlow(SoundEffect.named(store.getString(KEY_SOUND_EFFECT, SoundEffect.NONE.name)))
+    private val soundEffectStrengthFlow = MutableStateFlow(store.getInt(KEY_SOUND_EFFECT_STRENGTH, 70).coerceIn(10, 100))
+
+    /** The one sound effect put on everything that plays (8D, echo, reverb and the rest); [SoundEffect.NONE] while off. */
+    val soundEffect: StateFlow<SoundEffect> = soundEffectFlow.asStateFlow()
+
+    /** How much of [soundEffect] is heard, in percent, 10..100. */
+    val soundEffectStrength: StateFlow<Int> = soundEffectStrengthFlow.asStateFlow()
+
+    private val volumeBoostFlow = MutableStateFlow(store.getInt(KEY_VOLUME_BOOST, 100).coerceIn(100, MAX_BOOST_PERCENT))
+
+    /** Volume boost in percent, 100 (none) to [MAX_BOOST_PERCENT]: raises quiet songs past full volume under a limiter. */
+    val volumeBoostPercent: StateFlow<Int> = volumeBoostFlow.asStateFlow()
+
+    /** The gain [volumeBoostPercent] stands for, 1.0 with no boost. */
+    val volumeBoostGain: Float get() = volumeBoostFlow.value / 100f
+
+    fun setVolumeBoostPercent(value: Int) {
+        val clamped = value.coerceIn(100, MAX_BOOST_PERCENT)
+        volumeBoostFlow.value = clamped
+        store.putInt(KEY_VOLUME_BOOST, clamped)
+    }
+
+    fun setSoundEffect(value: SoundEffect) {
+        soundEffectFlow.value = value
+        store.putString(KEY_SOUND_EFFECT, value.name)
+    }
+
+    fun setSoundEffectStrength(value: Int) {
+        val clamped = value.coerceIn(10, 100)
+        soundEffectStrengthFlow.value = clamped
+        store.putInt(KEY_SOUND_EFFECT_STRENGTH, clamped)
+    }
+
     fun setSpatialSurround(value: Boolean) {
         spatialSurroundFlow.value = value
         store.putBoolean(KEY_SPATIAL_SURROUND, value)
@@ -211,6 +246,10 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_AUTO_LYRICS_OFFSET = "extras_auto_lyrics_offset"
         const val KEY_SPATIAL_PRESET = "extras_spatial_preset"
         const val KEY_SPATIAL_SURROUND = "extras_spatial_surround"
+        const val KEY_SOUND_EFFECT = "extras_sound_effect"
+        const val KEY_VOLUME_BOOST = "extras_volume_boost_percent"
+        const val MAX_BOOST_PERCENT = 200
+        const val KEY_SOUND_EFFECT_STRENGTH = "extras_sound_effect_strength"
         const val KEY_SONG_RECOGNITION = "extras_song_recognition"
         const val KEY_LYRIC_STYLE = "extras_lyric_style"
         const val KEY_LYRIC_STYLE_SONGS = "extras_lyric_style_songs"

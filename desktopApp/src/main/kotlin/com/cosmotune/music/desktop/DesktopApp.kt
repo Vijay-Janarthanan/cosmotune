@@ -6082,8 +6082,14 @@ private fun DesktopSettingsScreen(
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.SURROUND, com.cosmotune.ui.settings.SoundExtrasText.SURROUND_LINE)) {
                         com.cosmotune.ui.settings.BinauralSurroundRow()
                     }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS, com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS_LINE)) {
+                        com.cosmotune.ui.settings.SoundEffectsRows()
+                    }
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME, com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME_LINE)) {
                         com.cosmotune.ui.settings.MaxVolumeRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.VOLUME_BOOST, com.cosmotune.ui.settings.SoundExtrasText.VOLUME_BOOST_LINE)) {
+                        com.cosmotune.ui.settings.VolumeBoostRow()
                     }
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.PITCH, com.cosmotune.ui.settings.SoundExtrasText.PITCH_LINE)) {
                         com.cosmotune.ui.settings.PitchRow()

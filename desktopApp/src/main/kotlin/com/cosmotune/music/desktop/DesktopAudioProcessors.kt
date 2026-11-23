@@ -14,6 +14,9 @@ internal class DesktopSpatialAudio(private val channels: Int, sampleRate: Int) {
 
     private val dsp = com.cosmotune.audio.SpatialDsp(sampleRate, channels)
 
+    /** The listener's sound effect and volume boost (Settings > Sound), after the spatial stage; stereo only. */
+    private val effects = if (channels == 2) com.cosmotune.audio.SoundEffectsDsp(sampleRate) else null
+
     /** Stereo, or a 3- to 8-channel mix for the binaural surround option. */
     val applies: Boolean = dsp.applies
 
@@ -22,9 +25,13 @@ internal class DesktopSpatialAudio(private val channels: Int, sampleRate: Int) {
         if (!applies) return
         val extras = com.cosmotune.settings.Extras.settings
         dsp.process(samples, count, enabled, extras.spatialPreset.value, extras.spatialSurround.value)
+        effects?.process(samples, count, extras.soundEffect.value, extras.soundEffectStrength.value / 100f, extras.volumeBoostGain)
     }
 
-    fun reset() = dsp.reset()
+    fun reset() {
+        dsp.reset()
+        effects?.reset()
+    }
 }
 
 /** Skips long silences, after Media3's `SilenceSkippingAudioProcessor`. */

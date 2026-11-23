@@ -29,6 +29,7 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
     private var sampleRate: Int = 0
     private var channelCount: Int = 0
     private var dsp: SpatialDsp? = null
+    private var effects: com.cosmotune.audio.SoundEffectsDsp? = null
     private var scratch = FloatArray(0)
 
     private val preset: SpatialPreset get() = Extras.settings.spatialPreset.value
@@ -39,7 +40,22 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
         this.sampleRate = sampleRate
         this.channelCount = channelCount
         dsp = if (sampleRate > 0 && (channelCount == 2 || channelCount in 3..8)) SpatialDsp(sampleRate, channelCount) else null
+        effects = if (sampleRate > 0 && channelCount == 2) com.cosmotune.audio.SoundEffectsDsp(sampleRate) else null
     }
+
+    /** The listener's sound effect and volume boost (Settings > Sound), after the spatial stage; stereo only. */
+    private fun applyEffects(samples: FloatArray, count: Int) {
+        val fx = effects ?: return
+        val extras = Extras.settings
+        fx.process(samples, count, extras.soundEffect.value, extras.soundEffectStrength.value / 100f, extras.volumeBoostGain)
+    }
+
+    /** Whether the effect stage has anything to do, so the 16-bit path can pass a block straight through otherwise. */
+    private val effectsWanted: Boolean
+        get() = effects != null && (Extras.settings.soundEffect.value != com.cosmotune.audio.SoundEffect.NONE || Extras.settings.volumeBoostGain > 1f || effectsTail > 0)
+
+    /** Blocks still to run after the effect was turned off, so its fade-out and the boost's glide down are heard. */
+    private var effectsTail = 0
 
     /** Processes interleaved Float32 audio samples in [block] in place. Headroom is kept; nothing is clamped. */
     fun process(block: AudioBlock) {
@@ -47,6 +63,7 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
         val processor = dsp ?: return
         if (block.channelCount != channelCount) return
         processor.process(block.samples, block.sampleCount, enabled, preset, surround)
+        if (channelCount == 2) applyEffects(block.samples, block.sampleCount)
     }
 
     /**
@@ -79,10 +96,12 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
 
     override fun onFlush() {
         dsp?.reset()
+        effects?.reset()
     }
 
     override fun onReset() {
         dsp = null
+        effects = null
         channelCount = 0
         sampleRate = 0
     }
@@ -92,7 +111,12 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
         if (frameCount == 0) return
         val outputBuffer = replaceOutputBuffer(frameCount * BYTES_PER_FRAME)
         val processor = dsp
-        if (!enabled || processor == null) {
+        val withEffects = effectsWanted
+        effectsTail = when {
+            Extras.settings.soundEffect.value != com.cosmotune.audio.SoundEffect.NONE || Extras.settings.volumeBoostGain > 1f -> EFFECT_TAIL_BLOCKS
+            else -> (effectsTail - 1).coerceAtLeast(0)
+        }
+        if ((!enabled && !withEffects) || processor == null) {
             outputBuffer.put(inputBuffer)
             outputBuffer.flip()
             return
@@ -104,11 +128,13 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
         val invScale = 1.0f / 32768.0f
         for (i in 0 until count) scratch[i] = inputBuffer.short.toFloat() * invScale
         processor.process(scratch, count, enabled, preset, renderSurround = false)
+        if (withEffects) applyEffects(scratch, count)
         for (i in 0 until count) outputBuffer.putShort(PcmBoundary.clamp16FromFloat(scratch[i]))
         outputBuffer.flip()
     }
 
     private companion object {
         const val BYTES_PER_FRAME = 4 // stereo, 16-bit
+        const val EFFECT_TAIL_BLOCKS = 200
     }
 }

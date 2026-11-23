@@ -18,6 +18,8 @@ import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.SurroundSound
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material.icons.rounded.VpnLock
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,6 +62,11 @@ object SoundExtrasText {
     const val PLAYBACK_START_LINE = "Choose when playback starts and whether a better recording can replace it."
     const val MAX_VOLUME = "Maximum volume"
     const val MAX_VOLUME_LINE = "The loudest Cosmotune plays, whatever the volume is set to. For hearing safety."
+    const val SOUND_EFFECTS = "Sound effects"
+    const val SOUND_EFFECTS_LINE = "Put one effect on everything that plays: 8D, echo, room or hall reverb, chorus, vocal remover or night mode."
+    const val EFFECT_STRENGTH = "Effect strength"
+    const val VOLUME_BOOST = "Volume boost"
+    const val VOLUME_BOOST_LINE = "Plays quiet songs louder than full volume. A limiter keeps it from crackling; turn it down if it sounds squashed."
     const val PITCH = "Pitch"
     const val PITCH_LINE = "Shifts the key without changing the speed, which stays its own setting."
     const val SPATIAL_STYLE = "Spatial audio style"
@@ -104,6 +111,53 @@ fun MaxVolumeRow(settings: ExtrasSettings = Extras.settings) {
         onSliderValue = { settings.setMaxVolumePercent((it / 5f).roundToInt() * 5) },
         valueRange = ExtrasSettings.MIN_VOLUME_PERCENT.toFloat()..100f,
         steps = (100 - ExtrasSettings.MIN_VOLUME_PERCENT) / 5 - 1,
+    )
+}
+
+/** One sound effect for everything that plays, as chips under the row, and how strong it is once one is chosen. */
+@Composable
+fun SoundEffectsRows(settings: ExtrasSettings = Extras.settings) {
+    val effect by settings.soundEffect.collectAsState()
+    val strength by settings.soundEffectStrength.collectAsState()
+    Column(Modifier.fillMaxWidth()) {
+        CosmoSettingsRow(
+            icon = Icons.Rounded.GraphicEq,
+            title = SoundExtrasText.SOUND_EFFECTS,
+            subtitle = if (effect == com.cosmotune.audio.SoundEffect.NONE) SoundExtrasText.SOUND_EFFECTS_LINE else "${effect.label}: ${effect.detail}.",
+        )
+        FlowRow(UNDER_ROW, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.cosmotune.audio.SoundEffect.entries.forEach { option ->
+                CosmoSettingsChip(label = option.label, selected = option == effect, onClick = { settings.setSoundEffect(option) })
+            }
+        }
+        if (effect != com.cosmotune.audio.SoundEffect.NONE) {
+            CosmoSliderRow(
+                icon = Icons.Rounded.Tune,
+                title = SoundExtrasText.EFFECT_STRENGTH,
+                subtitle = null,
+                value = "$strength%",
+                sliderValue = strength.toFloat(),
+                onSliderValue = { settings.setSoundEffectStrength((it / 10f).roundToInt() * 10) },
+                valueRange = 10f..100f,
+                steps = 8,
+            )
+        }
+    }
+}
+
+/** Louder than full volume, 10 % at a time up to twice as loud; 100 % reads "Off". */
+@Composable
+fun VolumeBoostRow(settings: ExtrasSettings = Extras.settings) {
+    val boost by settings.volumeBoostPercent.collectAsState()
+    CosmoSliderRow(
+        icon = Icons.Rounded.Speaker,
+        title = SoundExtrasText.VOLUME_BOOST,
+        subtitle = SoundExtrasText.VOLUME_BOOST_LINE,
+        value = if (boost <= 100) "Off" else "$boost%",
+        sliderValue = boost.toFloat(),
+        onSliderValue = { settings.setVolumeBoostPercent((it / 10f).roundToInt() * 10) },
+        valueRange = 100f..ExtrasSettings.MAX_BOOST_PERCENT.toFloat(),
+        steps = (ExtrasSettings.MAX_BOOST_PERCENT - 100) / 10 - 1,
     )
 }
 
