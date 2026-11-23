@@ -147,12 +147,34 @@ class PlexPlugin(
                     url, StreamGuess.protocol(url, part.str("container")?.let { if (it == "mpd") "application/dash+xml" else null }), StreamGuess.container(url, media.str("container")),
                     h, height, videoCodec = media.str("videoCodec"), audioLanguages = audio.mapNotNull { it.language }, audioTracks = audio,
                     sizeBytes = part.long("size"), filename = part.str("file")?.substringAfterLast('/'), durationMs = part.long("duration") ?: media.long("duration"),
-                    hasAds = free)
+                    hasAds = free, serverItemId = if (free) null else full.str("ratingKey"))
             }
         }
     }
 
+    /** A Plex server's intro and credits markers and the item's chapters (`includeMarkers`, `includeChapters`). */
+    override suspend fun playbackExtras(stream: Stream, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras {
+        val rk = stream.serverItemId?.takeIf { !free } ?: return com.cosmotune.watch.model.PlaybackExtras()
+        val item = runCatching { get("/library/metadata/$rk?includeMarkers=1&includeChapters=1", 10 * 60_000L).list("Metadata").firstOrNull() }.getOrNull()
+            ?: return com.cosmotune.watch.model.PlaybackExtras()
+        return extrasOf(item, durationMs)
+    }
+
     companion object {
+        /** Plex metadata's `Marker` (intro, credits) and `Chapter` lists. */
+        fun extrasOf(item: JsonElement, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras {
+            val skips = item.list("Marker").mapNotNull { m ->
+                val label = when (m.str("type")) { "intro" -> "Skip intro"; "credits" -> "Skip credits"; else -> null } ?: return@mapNotNull null
+                val start = m.long("startTimeOffset") ?: return@mapNotNull null
+                val end = (m.long("endTimeOffset") ?: durationMs).let { if (durationMs > 0) it.coerceAtMost(durationMs) else it }
+                if (start < 0 || end <= start) null else com.cosmotune.watch.model.WatchSkip(start, end, label)
+            }.sortedBy { it.startMs }
+            val chapters = item.list("Chapter").mapNotNull { c ->
+                c.long("startTimeOffset")?.let { com.cosmotune.watch.model.WatchChapter(it, c.str("tag") ?: "Chapter ${c.int("index") ?: ""}".trim()) }
+            }.distinctBy { it.startMs }.sortedBy { it.startMs }
+            return com.cosmotune.watch.model.PlaybackExtras(skips, chapters)
+        }
+
         /** Plex's free catalogue for clients with no account: an anonymous token from plex.tv. */
         suspend fun anonymousToken(http: WatchHttp, clientId: String, plexTv: String = "https://plex.tv"): String =
             http.postJson("$plexTv/api/v2/users/anonymous", "", mapOf("X-Plex-Client-Identifier" to clientId, "X-Plex-Product" to "Cosmotune"))

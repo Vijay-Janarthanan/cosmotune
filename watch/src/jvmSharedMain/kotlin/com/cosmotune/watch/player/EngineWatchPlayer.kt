@@ -282,12 +282,13 @@ class EngineWatchPlayer(
         }
         val duration = if (snap.durationMs > 0) snap.durationMs else s.durationMs
         val position = engine.positionMs()
-        val skipKey = "${s.target?.key}:$duration"
-        if (!s.isLive && s.target is PlayTarget.EpisodeOf && duration > 0 && skipLookupKey != skipKey) {
+        val skipKey = "${s.target?.key}:${s.stream?.url}:$duration"
+        val skipTarget = s.target
+        if (!s.isLive && skipTarget != null && skipTarget !is PlayTarget.Live && duration > 0 && skipLookupKey != skipKey) {
             skipLookupKey = skipKey
             scope.launch {
-                val intervals = repository.skipIntervals(s.target, duration)
-                mutable.update { if (it.target?.key == s.target.key) it.copy(skipIntervals = intervals) else it }
+                val extras = runCatching { repository.playbackExtras(skipTarget, stream, duration) }.getOrDefault(com.cosmotune.watch.model.PlaybackExtras())
+                mutable.update { if (it.target?.key == skipTarget.key && it.stream?.url == stream?.url) it.copy(skipIntervals = extras.skips, chapters = extras.chapters) else it }
             }
         }
         val remaining = duration - position
@@ -295,6 +296,7 @@ class EngineWatchPlayer(
         val countdown = if (next != null && !countdownCancelled && !s.isLive && duration > 0 && remaining in 0..countdownMs) remaining else null
         val note = if (s.isLive) null else com.cosmotune.watch.WatchRoom.lengthNote(roomDurationMs, snap.durationMs.takeIf { it > 0 })
         mutable.update { it.copy(status = status, durationMs = duration, nextEpisodeInMs = countdown, lengthNote = note,
+            val stream = s.stream
             failover = if (status == WatchPlayerStatus.PLAYING) null else it.failover) }
         if (!s.isLive && (status == WatchPlayerStatus.PLAYING) && now() - lastSavedAt >= saveEveryMs) saveNow()
         if (status == WatchPlayerStatus.PAUSED && (s.status != WatchPlayerStatus.PAUSED || now() - lastSavedAt >= saveEveryMs)) saveNow()

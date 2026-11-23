@@ -921,11 +921,26 @@ class DefaultWatchRepository(
         update { it.copy(settings = if (malId == null) it.settings - key else it.settings + (key to malId.toString())) }
     }
     override suspend fun skipIntervals(target: PlayTarget, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> {
-        if (!preferences.value.animeSkips || target !is PlayTarget.EpisodeOf) return emptyList()
-        val series = target.key.seriesKey ?: return emptyList()
-        val mal = store.state.value.settings["watch.mal.${series.value}.${target.season}"]?.toIntOrNull()
-            ?: target.seriesIds.mal?.takeIf { target.season == 1 } ?: return emptyList()
-        return runCatching { com.cosmotune.watch.meta.AniSkip.fetch(http, mal, target.episode, durationMs) }.getOrDefault(emptyList())
+        if (!preferences.value.animeSkips || durationMs <= 0) return emptyList()
+        val anime = (target as? PlayTarget.EpisodeOf)?.let { episode ->
+            val series = episode.key.seriesKey ?: return@let emptyList()
+            val mal = store.state.value.settings["watch.mal.${series.value}.${episode.season}"]?.toIntOrNull()
+                ?: episode.seriesIds.mal?.takeIf { episode.season == 1 } ?: return@let emptyList()
+            runCatching { com.cosmotune.watch.meta.AniSkip.fetch(http, mal, episode.episode, durationMs) }.getOrDefault(emptyList())
+        }.orEmpty()
+        val database = when (target) {
+            is PlayTarget.EpisodeOf -> com.cosmotune.watch.meta.IntroSkips.fetch(http, target.seriesIds.tmdb, target.seriesIds.imdb, target.season, target.episode, durationMs)
+            is PlayTarget.Film -> com.cosmotune.watch.meta.IntroSkips.fetch(http, target.ids.tmdb, target.ids.imdb, null, null, durationMs)
+            else -> emptyList()
+        }
+        return com.cosmotune.watch.meta.IntroSkips.merge(anime, database)
+    }
+    override suspend fun playbackExtras(target: PlayTarget, stream: Stream?, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras {
+        val server = stream?.takeIf { it.serverItemId != null }?.let { s ->
+            activePlugins().firstOrNull { it.id == s.source.pluginId }?.let { p -> runCatching { p.playbackExtras(s, durationMs) }.getOrNull() }
+        } ?: com.cosmotune.watch.model.PlaybackExtras()
+        val skips = if (!preferences.value.animeSkips) emptyList() else com.cosmotune.watch.meta.IntroSkips.merge(server.skips, skipIntervals(target, durationMs))
+        return com.cosmotune.watch.model.PlaybackExtras(skips, server.chapters)
     }
     private val profilesState = MutableStateFlow(store.state.value.allProfiles().values.toList())
     override val profiles: StateFlow<List<com.cosmotune.watch.model.WatchProfile>> = profilesState.asStateFlow()

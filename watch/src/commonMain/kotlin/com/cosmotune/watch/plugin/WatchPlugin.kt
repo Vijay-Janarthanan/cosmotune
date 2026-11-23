@@ -74,6 +74,8 @@ interface WatchPlugin {
     suspend fun streams(target: PlayTarget): List<Stream> = emptyList()
     suspend fun subtitles(target: PlayTarget, stream: Stream?): List<Subtitle> = emptyList()
     suspend fun whereToWatch(target: PlayTarget): List<WatchProvider> = emptyList()
+    /** A server's own intro, recap and credits markers and chapters for one of its copies ([Stream.serverItemId]). */
+    suspend fun playbackExtras(stream: Stream, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras = com.cosmotune.watch.model.PlaybackExtras()
 
     suspend fun channels(): List<Channel> = emptyList()
     /** The guide of [channels] between [fromMs] and [toMs], keyed by [Channel.epgId]. */

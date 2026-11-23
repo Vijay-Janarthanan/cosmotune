@@ -36,6 +36,8 @@ data class WatchPlayerState(
     val error: String? = null,
     val isLive: Boolean = false,
     val skipIntervals: List<com.cosmotune.watch.model.WatchSkip> = emptyList(),
+    /** The chapters of what plays, in order (a server's list, or the file's own). */
+    val chapters: List<com.cosmotune.watch.model.WatchChapter> = emptyList(),
     /** In a room: "Your copy is 4 min longer: a different cut, so positions may not line up". */
     val lengthNote: String? = null,
     val muted: Boolean = false,

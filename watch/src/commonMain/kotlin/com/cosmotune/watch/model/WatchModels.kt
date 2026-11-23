@@ -257,6 +257,8 @@ data class Stream(
     /** Present on a Stremio torrent offer. Its magnet is resolved locally only when played. */
     val torrentFileIndex: Int? = null,
     val torrentTrackers: List<String> = emptyList(),
+    /** The item on the viewer's own server (a Jellyfin item id, a Plex rating key), for its intro markers and chapters. */
+    val serverItemId: String? = null,
 ) {
     val isPlayable: Boolean get() = protocol != StreamProtocol.EXTERNAL
     val isTorrent: Boolean get() = url.startsWith("magnet:?xt=urn:btih:")

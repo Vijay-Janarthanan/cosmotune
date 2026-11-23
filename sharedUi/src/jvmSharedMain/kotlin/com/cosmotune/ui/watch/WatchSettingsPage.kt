@@ -49,7 +49,7 @@ private enum class WatchSettingsDialog { FOLDER, DENSITY, ADD_PROFILE, PIN, REMO
 /**
  * Watch settings on the same rows Video's settings use ([CosmoSettingsGroup], [CosmoSettingsRow]): Sources and add-ons first
  * (Plugins, where new downloads are saved), then Profiles (one row per viewer, a tick on this one, Add, PIN, Delete), Display
- * (poster size, the anime skips) and Connected services (tracking, service keys, debrid). Each row says its current value; the
+ * (poster size, the subtitle look, the intro and credits skips) and Connected services (tracking, service keys, debrid). Each row says its current value; the
  * ones that need words typed open a small dialog. Reached from the profile menu on the phone and from the sidebar on the desktop.
  */
 @Composable
@@ -108,10 +108,13 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
         item(key = "settings:display") {
             CosmoSettingsGroup(header = "Display") {
                 CosmoSettingsRow(Icons.Rounded.GridView, "Poster size", subtitle = preferences.density.label, onClick = { dialog = WatchSettingsDialog.DENSITY })
-                CosmoSettingsRow(Icons.Rounded.SkipNext, "Skip anime openings and endings", subtitle = "When the times are known",
+                val sub = preferences.subtitles
+                CosmoSettingsRow(CosmoIcons.Lyrics, "Subtitle look", subtitle = "${sub.sizePercent}% · ${sub.colour.label} · ${sub.background.label.lowercase()} behind",
+                    onClick = { dialog = WatchSettingsDialog.SUBTITLES })
+                CosmoSettingsRow(Icons.Rounded.SkipNext, "Skip intros, recaps and credits", subtitle = "A button shows when the times are known",
                     trailing = {
                         OrbitSwitch(preferences.animeSkips, { on -> scope.launch { repository.setPreferences(preferences.copy(animeSkips = on)) } }, look,
-                            "Skip anime openings and endings")
+                            "Skip intros, recaps and credits")
                     })
             }
         }

@@ -237,6 +237,9 @@ interface WatchRepository {
     /** The film or series page; null when nothing knows the key. */
     suspend fun title(key: WatchKey): Title?
     suspend fun episodes(series: WatchKey, season: Int): List<Episode>
+    /** The skips and chapters of [stream]: the server's own markers first, then [skipIntervals]' databases where they do not overlap. */
+    suspend fun playbackExtras(target: PlayTarget, stream: Stream?, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras =
+        com.cosmotune.watch.model.PlaybackExtras(skipIntervals(target, durationMs))
     suspend fun nextUp(series: WatchKey): NextUp?
     /** The target Play uses for a card, a page or an episode row. */
     fun targetOf(summary: TitleSummary): PlayTarget

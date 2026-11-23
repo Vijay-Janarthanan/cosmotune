@@ -151,7 +151,7 @@ class JellyfinPlugin(
             val direct = Stream(source, "Direct play${codec?.let { " · ${it.uppercase()}" } ?: ""}", line, "$server/Videos/$itemId/stream?static=true&MediaSourceId=$msId",
                 StreamProtocol.PROGRESSIVE, StreamGuess.container("x.${container?.substringBefore(',')}"), auth, height, hdr, codec,
                 audioLanguages = audioTracks.mapNotNull { it.language }, audioTracks = audioTracks, subtitles = external, sizeBytes = size,
-                filename = ms.str("Path")?.substringAfterLast('/')?.substringAfterLast('\\') ?: ms.str("Name"), durationMs = durationMs)
+                filename = ms.str("Path")?.substringAfterLast('/')?.substringAfterLast('\\') ?: ms.str("Name"), durationMs = durationMs, serverItemId = itemId)
             val hls = direct.copy(label = "Transcoded · HLS", description = "Converted by the server for this device",
                 url = "$server/Videos/$itemId/master.m3u8?MediaSourceId=$msId&VideoCodec=h264&AudioCodec=aac&TranscodingMaxAudioChannels=2&SegmentContainer=ts&DeviceId=cosmotune",
                 protocol = StreamProtocol.HLS, height = height?.coerceAtMost(1080), hdr = null, videoCodec = "avc")
@@ -159,7 +159,45 @@ class JellyfinPlugin(
         }
     }
 
+    /**
+     * Jellyfin's media segments (10.10 and later: intro, recap, outro, preview) and the item's chapters; Emby marks its intro and
+     * credits as chapter markers instead. A server without segments answers with chapters alone.
+     */
+    override suspend fun playbackExtras(stream: Stream, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras {
+        val itemId = stream.serverItemId ?: return com.cosmotune.watch.model.PlaybackExtras()
+        val item = runCatching { http.getJson("$server/Users/${session.userId}/Items/$itemId?Fields=Chapters", auth, 10 * 60_000L) }.getOrNull()
+        val chapters = item?.list("Chapters").orEmpty()
+        val segments = if (emby) emptyList() else runCatching { http.getJson("$server/MediaSegments/$itemId", auth, 10 * 60_000L).list("Items") }.getOrDefault(emptyList())
+        return com.cosmotune.watch.model.PlaybackExtras(
+            com.cosmotune.watch.meta.IntroSkips.merge(segmentsOf(segments, durationMs), markersOf(chapters, durationMs)), chaptersOf(chapters))
+    }
+
     companion object {
+        private const val TICKS_PER_MS = 10_000L
+
+        /** `/MediaSegments` items as skips: Intro, Recap, Outro and Preview (commercials and unknown stretches are not offered). */
+        fun segmentsOf(items: List<JsonElement>, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> = items.mapNotNull { s ->
+            val label = when (s.str("Type")) { "Intro" -> "Skip intro"; "Recap" -> "Skip recap"; "Outro" -> "Skip credits"; "Preview" -> "Skip preview"; else -> null } ?: return@mapNotNull null
+            val start = (s.long("StartTicks") ?: return@mapNotNull null) / TICKS_PER_MS
+            val end = ((s.long("EndTicks") ?: return@mapNotNull null) / TICKS_PER_MS).let { if (durationMs > 0) it.coerceAtMost(durationMs) else it }
+            if (start < 0 || end <= start) null else com.cosmotune.watch.model.WatchSkip(start, end, label)
+        }.sortedBy { it.startMs }
+
+        /** Emby's chapter markers: IntroStart to IntroEnd, and CreditsStart to the end. */
+        fun markersOf(chapters: List<JsonElement>, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> {
+            fun at(type: String) = chapters.firstOrNull { it.str("MarkerType") == type }?.long("StartPositionTicks")?.div(TICKS_PER_MS)
+            return listOfNotNull(
+                at("IntroStart")?.let { s -> at("IntroEnd")?.takeIf { it > s }?.let { com.cosmotune.watch.model.WatchSkip(s, it, "Skip intro") } },
+                at("CreditsStart")?.takeIf { durationMs > it }?.let { com.cosmotune.watch.model.WatchSkip(it, durationMs, "Skip credits") },
+            )
+        }
+
+        /** The item's chapters with a name, markers left out, in order. */
+        fun chaptersOf(chapters: List<JsonElement>): List<com.cosmotune.watch.model.WatchChapter> = chapters
+            .filter { it.str("MarkerType").let { m -> m == null || m == "Chapter" } }
+            .mapNotNull { c -> c.long("StartPositionTicks")?.let { com.cosmotune.watch.model.WatchChapter(it / TICKS_PER_MS, c.str("Name") ?: "Chapter") } }
+            .distinctBy { it.startMs }.sortedBy { it.startMs }
+
         /** The `/Items` query of Watch search's [query]: text, kind, genre (any of its spellings), dates and order. */
         fun itemsQuery(query: com.cosmotune.watch.WatchQuery, currentYear: Int): String = buildList {
             if (!query.browsing) add("SearchTerm=${query.trimmed.urlEncode()}")
