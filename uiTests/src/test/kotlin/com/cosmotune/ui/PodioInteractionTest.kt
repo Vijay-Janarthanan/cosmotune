@@ -69,8 +69,9 @@ class PodioInteractionTest {
                     onToggle = {}, onSeek = {}, onSpeed = {}, onMusic = {},
                     directory = directory)
             } } }
-            // Search is the heading's round button; its page lists every station of the directory's answer.
+            // Search is the round button at the head of the rail; its page lists every station of the directory's answer.
             compose.onNodeWithContentDescription("Search").performClick()
+            searchFor("test")
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test Radio").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithContentDescription("Save favourite").performClick()
             // The UI publishes the saved state only after the rename commits. Reopening the
@@ -115,9 +116,10 @@ class PodioInteractionTest {
             listOf("Radio", "Podcasts", "Following", "Downloads").forEach { compose.onNode(podioTab(it)).assertExists() }
             snapshot("podio-phone-radio.png")
             compose.onNodeWithContentDescription("Search").performClick()
+            searchFor("test")
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test Radio").fetchSemanticsNodes().isNotEmpty() }
             snapshot("podio-phone.png")
-            compose.onNodeWithContentDescription("Close search").performClick()
+            // A tab leaves the search.
             podcastsTab().performClick()
             waitForDirectory()
             snapshot("podio-phone-podcasts.png")
@@ -142,8 +144,8 @@ class PodioInteractionTest {
             compose.waitUntil(10_000) {
                 requests.any { it.contains("different%20podcast") || it.contains("different+podcast") }
             }
-            compose.onNodeWithContentDescription("Close search").performClick()
-            // The page head's line names the chart again ("POPULAR · TOP CHARTS"), not the search.
+            podcastsTab().performClick()
+            // Its tab leaves the search; the page head's line names the chart again ("POPULAR · TOP CHARTS"), not the search.
             compose.waitUntil(10_000) {
                 compose.onAllNodesWithText("Popular ·", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
             }
@@ -245,6 +247,12 @@ class PodioInteractionTest {
     }
 
     /** The Podcasts tab of the dock or the rail (the page's own title says "Podcasts" too). */
+    /** Types [text] in the search page's box and searches it. */
+    private fun searchFor(text: String) {
+        val field = compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("podio:search")))
+        field.performTextInput(text)
+        field.performImeAction()
+    }
     private fun podcastsTab() = compose.onNode(podioTab("Podcasts") and hasAnyAncestor(hasTestTag("podio:root")) and !hasAnyAncestor(hasTestTag("podio:search")))
 
     private fun snapshot(name: String) {

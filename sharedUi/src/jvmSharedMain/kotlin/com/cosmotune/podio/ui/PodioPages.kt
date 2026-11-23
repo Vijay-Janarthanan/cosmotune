@@ -29,6 +29,18 @@ import com.cosmotune.ui.kit.KitSheet
 import com.cosmotune.ui.orbit.*
 import com.cosmotune.ui.room.RoomPlayButton
 import com.cosmotune.ui.room.roomItem
+import com.cosmotune.ui.search.CosmoRecent
+import com.cosmotune.ui.search.CosmoRecentSearches
+import com.cosmotune.ui.search.CosmoSearchChoice
+import com.cosmotune.ui.search.CosmoSearchFilter
+import com.cosmotune.ui.search.CosmoSearchFocus
+import com.cosmotune.ui.search.CosmoSearchPage
+import com.cosmotune.ui.search.CosmoSearchRecents
+import com.cosmotune.ui.search.CosmoSearchStatus
+import com.cosmotune.ui.search.searchCountLabel
+import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** "1 episode", "12 episodes"; nothing for none. */
 internal fun episodeCount(count: Int): String = when (count) { 0 -> ""; 1 -> "1 episode"; else -> "$count episodes" }
@@ -93,7 +105,7 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
  * colour card; New episodes with their count and All ›; your shows as small discs; then Discover with its own chips (genres,
  * region, language) over the chart as ranked rows (two columns when wide, ten and Show all).
  */
-@Composable internal fun PodcastsPage(m: PodioModel, env: PodioEnv, onSearch: () -> Unit) {
+@Composable internal fun PodcastsPage(m: PodioModel, env: PodioEnv) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val list = rememberLazyListState()
@@ -109,7 +121,6 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = env.bottom + 16.dp)) {
             item(key = "head") {
                 PodioHead("Podcasts", label, fonts, look, side, env.onMusic) {
-                    OrbitPageButton(CosmoIcons.Search, "Search", onSearch)
                     OrbitPageButton(CosmoIcons.Plus, "Add by RSS address", { m.addFeed = true })
                 }
             }
@@ -467,64 +478,140 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
         end = if (remove != null && !now) ({ OrbitRoundButton(CosmoIcons.Close, "Remove downloaded episode", look.ink, remove, size = 36.dp) }) else null)
 }
 
-// ---- Search ----------------------------------------------------------------------------------------------------------------
+/// ---- Search ----------------------------------------------------------------------------------------------------------------
+
+/** What Podio's search asks for: stations (Radio Browser), podcasts (Apple and fyyd) or episodes (Apple's episode index). */
+internal enum class PodioSearchKind(val id: String, val label: String) {
+    STATIONS("stations", "Stations"), PODCASTS("podcasts", "Podcasts"), EPISODES("episodes", "Episodes");
+    companion object { fun of(id: String) = entries.firstOrNull { it.id == id } ?: STATIONS }
+}
+
+internal val PodioModel.searchKind: PodioSearchKind
+    get() = when { searchEpisodes -> PodioSearchKind.EPISODES; searchShows -> PodioSearchKind.PODCASTS; else -> PodioSearchKind.STATIONS }
+
+/** The key of Podio's recent searches, kept on this device. */
+private const val PODIO_RECENT = "podio"
 
 /**
- * Podio's search: back and the search pill, Stations or Shows, the region and language chips, then the results. Stations show their
- * count ("40 stations · India") and are what the globe draws; shows open their page.
+ * Podio's search, on the shared page ([CosmoSearchPage]): Stations, Podcasts or Episodes, then the region (for all three: the
+ * station directory's country, the podcast storefront) and, for stations only, the language (the directory's own language field;
+ * the podcast directories have none to filter by). Before anything is searched: the recent searches, then regions and podcast
+ * topics to browse. A station plays; a podcast opens its show page and an episode its own sheet.
  */
-@Composable internal fun SearchContent(m: PodioModel, env: PodioEnv, focus: FocusRequester, onClose: () -> Unit, modifier: Modifier = Modifier) {
+@Composable internal fun SearchContent(m: PodioModel, env: PodioEnv, focus: CosmoSearchFocus, modifier: Modifier = Modifier) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    val stations = !m.searchShows
-    BoxWithConstraints(modifier.fillMaxSize().testTag("podio:search")) {
-        val side = orbitPageSide(maxWidth)
-        Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = side, end = side, top = 14.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OrbitPageButton(CosmoIcons.ChevronLeft, "Close search", onClose)
-                OrbitSearchPill(m.query, { m.query = it }, { m.browse(); m.request++ }, if (stations) "Find a station" else "Find a podcast", fonts, look, focus, Modifier.weight(1f))
-            }
-            OrbitChipRow(side, Modifier.padding(top = 14.dp)) {
-                OrbitSelectChip("Stations", stations, fonts, look, { m.browse(); m.searchShows = false }, icon = CosmoIcons.Radio, haptic = false)
-                OrbitSelectChip("Shows", !stations, fonts, look, { m.browse(); m.searchShows = true }, icon = Icons.Outlined.Podcasts, haptic = false)
-            }
-            OrbitChipRow(side, Modifier.padding(top = 8.dp)) { FilterChips(m, fonts, look) }
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = env.bottom + 16.dp)) {
-                if (stations) {
-                    if (!m.directoryLoading) item(key = "count") {
-                        Text(m.stationCount(), style = fonts.body, color = look.dim, modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 10.dp))
+    val kind = m.searchKind
+    val recent by CosmoRecentSearches.of(PODIO_RECENT).collectAsState()
+    // What was searched (blank: a browse, a region's stations or a topic's chart); null while nothing has been asked.
+    var searched by rememberSaveable { mutableStateOf<String?>(null) }
+    if (m.query.isBlank() && searched?.isNotBlank() == true) searched = null
+    fun run(text: String = m.query) {
+        m.query = text
+        // A typed search is the words alone; a topic chosen while browsing is left behind.
+        if (text.isNotBlank()) { CosmoRecentSearches.add(PODIO_RECENT, text); m.genre = "" }
+        searched = text.trim()
+        m.browse(); m.request++
+    }
+    fun choose(next: PodioSearchKind) {
+        if (next == m.searchKind) return
+        m.browse(); m.searchShows = next == PodioSearchKind.PODCASTS; m.searchEpisodes = next == PodioSearchKind.EPISODES
+        if (searched != null) m.request++
+    }
+    LaunchedEffect(kind, m.request, m.country) {
+        if (kind == PodioSearchKind.EPISODES && searched != null) withContext(Dispatchers.Main.immediate) { m.loadEpisodes() }
+    }
+    val filters = buildList {
+        add(CosmoSearchFilter("country", "Region", REGIONS.map { (id, name) -> CosmoSearchChoice(id, name) }, m.country) { m.browse(); m.country = it })
+        if (kind == PodioSearchKind.STATIONS) {
+            add(CosmoSearchFilter("language", "Language", LANGUAGES.map { (id, name) -> CosmoSearchChoice(id, name) }, m.language) { m.browse(); m.language = it })
+        }
+    }
+    val filtered = m.country.isNotBlank() || (kind == PodioSearchKind.STATIONS && m.language.isNotBlank())
+    val status = when {
+        searched == null -> CosmoSearchStatus.Idle
+        kind == PodioSearchKind.STATIONS -> when {
+            m.directoryLoading && m.radio.isEmpty() -> CosmoSearchStatus.Searching
+            m.error != null && m.radio.isEmpty() -> CosmoSearchStatus.Failed("Couldn't reach the stations.") { m.request++ }
+            m.radio.isEmpty() -> CosmoSearchStatus.Empty()
+            else -> CosmoSearchStatus.Results(m.radio.size, m.stationCount())
+        }
+        kind == PodioSearchKind.PODCASTS -> when {
+            m.directoryLoading && m.shows.isEmpty() -> CosmoSearchStatus.Searching
+            m.error != null && m.shows.isEmpty() -> CosmoSearchStatus.Failed("Couldn't reach the podcast directory.") { m.request++ }
+            m.shows.isEmpty() -> CosmoSearchStatus.Empty()
+            else -> CosmoSearchStatus.Results(m.shows.size, searchCountLabel(m.shows.size, "podcast", "podcasts"))
+        }
+        else -> when {
+            m.episodesLoading -> CosmoSearchStatus.Searching
+            m.episodesError != null -> CosmoSearchStatus.Failed(m.episodesError.orEmpty()) { m.request++ }
+            searched.isNullOrBlank() -> CosmoSearchStatus.Empty("Type what the episode is about")
+            m.episodes.isEmpty() -> CosmoSearchStatus.Empty()
+            else -> CosmoSearchStatus.Results(m.episodes.size, searchCountLabel(m.episodes.size, "episode", "episodes"))
+        }
+    }
+    CosmoSearchPage(
+        eyebrow = "Podio",
+        query = m.query,
+        onQueryChange = { m.query = it },
+        onSubmit = { run() },
+        placeholder = when (kind) { PodioSearchKind.STATIONS -> "Find a station"; PodioSearchKind.PODCASTS -> "Find a podcast"; else -> "Find an episode" },
+        status = status,
+        modifier = modifier.testTag("podio:search"),
+        focus = focus,
+        contentPadding = PaddingValues(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 6.dp, bottom = env.bottom + 16.dp),
+        kinds = PodioSearchKind.entries.map { CosmoSearchChoice(it.id, it.label) },
+        kind = kind.id,
+        onKind = { choose(PodioSearchKind.of(it)) },
+        filters = filters,
+        onClearFilters = if (filtered) ({ m.browse(); m.country = ""; m.language = ""; m.request++ }) else null,
+        recents = CosmoSearchRecents(
+            recent.map { CosmoRecent(it, it) },
+            onPick = { run(it.title) },
+            onRemove = { CosmoRecentSearches.remove(PODIO_RECENT, it.title) },
+            onClear = { CosmoRecentSearches.clear(PODIO_RECENT) },
+        ),
+        browse = { side ->
+            item(key = "browse:regions") {
+                Column {
+                    Text("Stations by region", style = fonts.body, color = look.dim, modifier = Modifier.padding(start = side + 4.dp, bottom = 8.dp))
+                    OrbitChipRow(side) {
+                        REGIONS.drop(1).forEach { (id, name) ->
+                            OrbitSelectChip(name, false, fonts, look, { choose(PodioSearchKind.STATIONS); m.country = id; run("") }, icon = CosmoIcons.Radio, haptic = false)
+                        }
                     }
-                    when {
-                        m.directoryLoading && m.radio.isEmpty() -> item(key = "loading") { PodioSkeletonRows(5, look, side, Modifier.testTag("podio:loading")) }
-                        m.error != null && m.radio.isEmpty() -> item(key = "error") {
-                            PodioMessage("Radio Browser", "Couldn't reach the stations", m.error.orEmpty(), fonts, look, side, "Retry") { m.request++ }
+                }
+            }
+            item(key = "browse:topics") {
+                Column(Modifier.padding(top = 20.dp)) {
+                    Text("Podcasts by topic", style = fonts.body, color = look.dim, modifier = Modifier.padding(start = side + 4.dp, bottom = 8.dp))
+                    OrbitChipRow(side) {
+                        PODCAST_GENRES.forEach { (id, name) ->
+                            OrbitSelectChip(name, false, fonts, look, { choose(PodioSearchKind.PODCASTS); m.genre = id; run("") }, icon = Icons.Outlined.Podcasts, haptic = false)
                         }
-                        m.radio.isEmpty() -> item(key = "empty") { PodioMessage("Stations", "No stations found", "Try another name, country or language.", fonts, look, side) }
-                        else -> items(m.radio.take(400), key = { it.id }) { station ->
-                            val current = env.playback.id == station.item().id
-                            StationRow(station, env.saved.stations.any { it.id == station.id }, current, current && env.playback.playing, { m.playStation(station) },
-                                { m.toggleFavourite(station) }, fonts, look, Modifier.padding(horizontal = side))
-                        }
+                    }
+                }
+            }
+        },
+    ) { listModifier, side ->
+        LazyColumn(listModifier, contentPadding = PaddingValues(top = 4.dp, bottom = env.bottom + 16.dp)) {
+            when (kind) {
+                PodioSearchKind.STATIONS -> {
+                    items(m.radio.take(400), key = { it.id }) { station ->
+                        val current = env.playback.id == station.item().id
+                        StationRow(station, env.saved.stations.any { it.id == station.id }, current, current && env.playback.playing, { m.playStation(station) },
+                            { m.toggleFavourite(station) }, fonts, look, Modifier.padding(horizontal = side))
                     }
                     item(key = "credit") { PodioCredit("Stations: Radio Browser · Imagery: NASA GIBS", fonts, look, side) }
-                } else {
-                    if (m.showsTitle.isNotBlank() && m.shows.isNotEmpty()) item(key = "title") {
-                        OrbitPageSection(m.showsTitle, Modifier.padding(horizontal = side + 4.dp).padding(top = 10.dp, bottom = 10.dp))
-                    }
-                    when {
-                        m.directoryLoading && m.shows.isEmpty() -> item(key = "loading") { PodioSkeletonRows(5, look, side, Modifier.testTag("podio:loading")) }
-                        m.error != null && m.shows.isEmpty() -> item(key = "error") {
-                            PodioMessage("Podcasts", "Couldn't reach the directory", m.error.orEmpty(), fonts, look, side, "Retry") { m.request++ }
-                        }
-                        m.shows.isEmpty() -> item(key = "empty") {
-                            PodioMessage("Podcasts", "Nothing found", "Try another search, language or topic, or add a show by its RSS address.", fonts, look, side)
-                        }
-                        else -> items(m.shows, key = { it.id }) { show ->
-                            OrbitSongRow(show.title.ifBlank { "Podcast" }, show.author, show.artwork.takeIf(String::isNotBlank), fonts, look, { m.open(show) },
-                                Modifier.fillMaxWidth().padding(horizontal = side))
-                        }
-                    }
+                }
+                PodioSearchKind.PODCASTS -> items(m.shows, key = { it.id }) { show ->
+                    OrbitSongRow(show.title.ifBlank { "Podcast" }, show.author, show.artwork.takeIf(String::isNotBlank), fonts, look, { m.open(show) },
+                        Modifier.fillMaxWidth().padding(horizontal = side))
+                }
+                PodioSearchKind.EPISODES -> items(m.episodes, key = { "episode:${it.episode.id}" }) { entry ->
+                    val episode = entry.episode
+                    OrbitSongRow(episode.title, PodioFormat.episodeMeta(entry.show.title, PodioFormat.duration(episode.durationSeconds)),
+                        entry.item().artwork.takeIf(String::isNotBlank), fonts, look, { m.episodeSheet = entry }, Modifier.fillMaxWidth().padding(horizontal = side))
                 }
             }
         }

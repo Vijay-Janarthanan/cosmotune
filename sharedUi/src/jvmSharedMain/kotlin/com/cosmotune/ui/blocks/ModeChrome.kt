@@ -26,6 +26,20 @@ object ModeNav {
     /** The open station page of Podio on the desktop; the bottom bar sets it when a radio station is clicked. */
     val podioDetail = kotlinx.coroutines.flow.MutableStateFlow(false)
     val mangaTab = kotlinx.coroutines.flow.MutableStateFlow("Library")
+    /** Podio's Search row in the desktop sidebar and the page's search. */
+    val podioSearch = ModeSearchNav()
+    /** Read's and Manga's Search row in the desktop sidebar and the page's search (one of the two modes is open at a time). */
+    val mangaSearch = ModeSearchNav()
+}
+
+/**
+ * A desktop sidebar's Search row and the mode's search page: the page says whether its search is [open] (the row is lit then), and
+ * the row's [tap] asks the page to open its search, or, when it is open already, to clear the box and focus it.
+ */
+class ModeSearchNav {
+    val open = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val taps = kotlinx.coroutines.flow.MutableStateFlow(0)
+    fun tap() { taps.value++ }
 }
 
 /** The owning platform supplies the same account/mode menu used by its Music header. */

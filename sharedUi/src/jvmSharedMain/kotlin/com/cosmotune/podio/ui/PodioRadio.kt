@@ -147,11 +147,11 @@ private fun stationsLine(m: PodioModel): String {
 }
 
 /**
- * Radio (board frame 6): the heading with Search; the Globe, region and language chips; the station on air as the colour card (only
+ * Radio (board frame 6): the heading; the Globe, region and language chips; the station on air as the colour card (only
  * while one plays) with "Next: …" under previous and next, the heart and the sleep timer; your stations as small discs; then every
  * station, as a grid of discs or as rows with place, language and bitrate (the switch beside the title).
  */
-@Composable internal fun RadioPage(m: PodioModel, env: PodioEnv, onAir: OnAir, onSearch: () -> Unit, timer: PodioTimer? = null, onGlobe: () -> Unit) {
+@Composable internal fun RadioPage(m: PodioModel, env: PodioEnv, onAir: OnAir, timer: PodioTimer? = null, onGlobe: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val list = rememberLazyListState()
@@ -165,9 +165,7 @@ private fun stationsLine(m: PodioModel): String {
         if (featured != null) WatchWash(stationCardColors(featured).fill, look)
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = env.bottom + 16.dp)) {
             item(key = "head") {
-                PodioHead("Radio", if (m.radio.isEmpty()) "Radio Browser" else m.stationCount(), fonts, look, side, env.onMusic) {
-                    OrbitPageButton(CosmoIcons.Search, "Search", onSearch)
-                }
+                PodioHead("Radio", if (m.radio.isEmpty()) "Radio Browser" else m.stationCount(), fonts, look, side, env.onMusic)
             }
             item(key = "chips") {
                 OrbitChipRow(side, Modifier.padding(top = 18.dp)) {

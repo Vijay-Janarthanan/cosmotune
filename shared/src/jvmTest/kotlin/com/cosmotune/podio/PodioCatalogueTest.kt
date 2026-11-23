@@ -56,6 +56,28 @@ class PodioCatalogueTest {
         } }
     }
 
+    @Test fun episodeSearchAsksApplesEpisodeIndexInTheStorefrontAndKeepsTheShowsFeed() = runBlocking {
+        MockWebServer().use { apple ->
+            apple.enqueue(MockResponse().setBody("""{"results":[
+                {"trackName":"Episode one","collectionName":"Stories","episodeUrl":"https://example.com/1.mp3","feedUrl":"https://example.com/feed",
+                 "artworkUrl600":"https://example.com/a.jpg","trackTimeMillis":1800000,"releaseDate":"2026-11-20T08:00:00Z","description":"About it"},
+                {"trackName":"No audio","collectionName":"Stories","feedUrl":"https://example.com/feed"},
+                {"trackName":"No feed","collectionName":"Stories","episodeUrl":"https://example.com/2.mp3"}]}"""))
+            val catalogue = PodioCatalogue(appleBase = apple.url("/").toString().trimEnd('/'))
+            val found = catalogue.searchEpisodes(" stories ", "in")
+            val url = requireNotNull(apple.takeRequest().requestUrl)
+            assertEquals("podcastEpisode", url.queryParameter("entity"))
+            assertEquals("stories", url.queryParameter("term"))
+            assertEquals("in", url.queryParameter("country"))
+            val (episode, show) = found.single()
+            assertEquals("Episode one", episode.title)
+            assertEquals("https://example.com/1.mp3", episode.url)
+            assertEquals(1800L, episode.durationSeconds)
+            assertEquals("Stories", show.title)
+            assertEquals("https://example.com/feed", show.feed)
+            assertTrue(catalogue.searchEpisodes("  ", "in").isEmpty())
+        }
+    }
     @Test fun podcastDirectoriesDeduplicateFeedsAndOneFailureDoesNotHideTheOther() = runBlocking {
         MockWebServer().use { apple -> MockWebServer().use { fyyd ->
             apple.enqueue(MockResponse().setBody("""{"results":[{"collectionName":"Stories","artistName":"Host","feedUrl":"https://example.com/feed"}]}"""))
