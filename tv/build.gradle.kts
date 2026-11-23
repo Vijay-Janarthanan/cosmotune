@@ -438,6 +438,8 @@ dependencies {
     // turn into a real stream — see [com.cosmotune.music.playback.cast.CastPlayback].
     implementation("com.google.android.gms:play-services-cast-framework:22.2.0")
     implementation("com.google.android.gms:play-services-wearable:20.0.1")
+    // The phone code this build shares calls Device sync's code scanner (Google's scanner UI, no ML model in the APK).
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     implementation("androidx.wear:wear-remote-interactions:1.1.0")
     implementation("com.github.MuntashirAkon:libadb-android:3.1.1") { exclude(group = "org.bouncycastle") }
     implementation("org.conscrypt:conscrypt-android:2.5.3")
