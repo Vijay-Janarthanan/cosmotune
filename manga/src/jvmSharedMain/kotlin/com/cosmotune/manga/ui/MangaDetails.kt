@@ -310,3 +310,19 @@ private fun LazyListScope.chapterItems(scope: MangaScope, book: MangaBook, liste
         )
     }
 }
+
+/** "Related": the series the source suggests beside this one (Komikku's suggestions), as a shelf of covers; nothing when it has none. */
+@Composable
+private fun SeriesRelated(scope: MangaScope, book: MangaBook) {
+    var related by remember(book.id) { mutableStateOf(emptyList<MangaBook>()) }
+    LaunchedEffect(book.id) {
+        related = try { scope.repository.related(book) } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
+    }
+    if (related.isEmpty()) return
+    Column(Modifier.fillMaxWidth().padding(top = 16.dp).testTag("manga:related")) {
+        ReadSection(mangaText("Related"))
+        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = ReadMargin), horizontalArrangement = Arrangement.spacedBy(ReadGutter)) {
+            items(related, key = { "related:${it.id}" }) { item -> MangaBookCard(scope, item, null, width = 112.dp) }
+        }
+    }
+}

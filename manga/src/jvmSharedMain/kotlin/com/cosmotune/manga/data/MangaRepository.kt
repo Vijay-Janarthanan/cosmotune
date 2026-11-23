@@ -179,6 +179,23 @@ class MangaRepository(val store: MangaStore,
         }
     }
 
+    /** The series [book]'s source suggests beside it (the series page's Related row); empty when it suggests none. */
+    suspend fun related(book: MangaBook): List<MangaBook> = withContext(Dispatchers.IO) {
+        if (book.sourceId == "local" || store.state.value.sources.none { it.id == book.sourceId && it.enabled }) emptyList()
+        else parserRequest(book.sourceId) { sourceApi { source(book.sourceId).related(book) } }
+    }
+
+    /** The orders [sourceId] lists its catalogue in, for Browse's feed and its top lists. */
+    suspend fun orders(sourceId: String): Set<MangaListOrder> = withContext(Dispatchers.IO) { runCatching { source(sourceId).orders }.getOrDefault(emptySet()) }
+
+    /** A source's catalogue in [order], cached like [browse]. */
+    suspend fun catalogue(sourceId: String, order: MangaListOrder, offset: Int = 0): MangaBrowsePage = withContext(Dispatchers.IO) {
+        val config = enabledConfig(sourceId)
+        catalogues.get(BrowseKey(config, "order:" + order.name, offset, sourceChanges.value)) {
+            parserRequest(sourceId) { sourceApi { source(sourceId).catalogue(order, offset) } }
+        }
+    }
+
     /** The catalogue languages of a multi-language source; empty when the source has one language. */
     suspend fun languages(sourceId: String): List<String> = withContext(Dispatchers.IO) { parserRequest(sourceId) { sourceApi { source(sourceId).languages() } } }
 

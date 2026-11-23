@@ -39,16 +39,25 @@ class KotatsuSource(override val config: MangaSourceConfig, private val context:
         val results = parser.getList(offset, parser.availableSortOrders.first(), MangaListFilter(query = query.takeIf { it.isNotBlank() }, locale = locale))
         MangaBrowsePage(results.map(::convert), if (results.isEmpty()) null else offset + results.size)
     }
-    override suspend fun details(book: MangaBook): MangaBook = guarded {
-        val raw = ParserBook(
+    override suspend fun details(book: MangaBook): MangaBook = guarded { convert(parser.getDetails(raw(book))).copy(addedAtMs = book.addedAtMs) }
+
+    override suspend fun related(book: MangaBook): List<MangaBook> = guarded { parser.getRelatedManga(raw(book)).map(::convert).filter { it.id != book.id }.take(30) }
+
+    override val orders: Set<MangaListOrder> get() = ORDERS.filterValues { it in parser.availableSortOrders }.keys
+
+    override suspend fun catalogue(order: MangaListOrder, offset: Int): MangaBrowsePage = guarded {
+        val sort = ORDERS[order]?.takeIf { it in parser.availableSortOrders } ?: parser.availableSortOrders.first()
+        val results = parser.getList(offset, sort, MangaListFilter(locale = locale))
+        MangaBrowsePage(results.map(::convert), if (results.isEmpty()) null else offset + results.size)
+    }
+
+    private fun raw(book: MangaBook): ParserBook = ParserBook(
             id = book.id.substringAfterLast(':').toLong(), title = book.title, altTitles = book.parserData?.alternateTitles.orEmpty(),
             url = book.url, publicUrl = book.parserData?.publicUrl ?: book.url, rating = book.parserData?.rating ?: -1f,
             contentRating = book.parserData?.contentRating?.let { ContentRating.valueOf(it) }, coverUrl = book.coverUrl,
             tags = book.parserData?.tagKeys.orEmpty().map { (key, title) -> MangaTag(title, key, source) }.toSet(),
             state = book.parserData?.state?.let { MangaState.valueOf(it) }, authors = book.authors.toSet(), source = source,
         )
-        convert(parser.getDetails(raw)).copy(addedAtMs = book.addedAtMs)
-    }
     override suspend fun pages(chapter: MangaChapter): List<MangaPage> = guarded {
         val raw = ParserChapter(
             id = chapter.id.substringAfterLast(':').toLong(), title = chapter.title, number = chapter.number,
@@ -93,6 +102,13 @@ class KotatsuSource(override val config: MangaSourceConfig, private val context:
     }
     companion object {
         const val LOCALE = MANGA_LANGUAGE_SETTING
+        private val ORDERS = mapOf(
+            MangaListOrder.LATEST to org.koitharu.kotatsu.parsers.model.SortOrder.UPDATED,
+            MangaListOrder.POPULAR to org.koitharu.kotatsu.parsers.model.SortOrder.POPULARITY,
+            MangaListOrder.TOP_DAY to org.koitharu.kotatsu.parsers.model.SortOrder.POPULARITY_TODAY,
+            MangaListOrder.TOP_WEEK to org.koitharu.kotatsu.parsers.model.SortOrder.POPULARITY_WEEK,
+            MangaListOrder.TOP_MONTH to org.koitharu.kotatsu.parsers.model.SortOrder.POPULARITY_MONTH,
+        )
         fun catalogue(bundle: ParsersBundle = bundledParsers()): List<MangaSourceDescriptor> = bundle.sources.filter { !it.isBroken && allowed(it) }.map {
             MangaSourceDescriptor("kotatsu:${it.name}", it.title, it.locale)
         }.filterNot { MangaSourcePolicy.blocked(it.id, it.title) }.sortedWith(compareBy({ it.language }, { it.title }))

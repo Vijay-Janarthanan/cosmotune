@@ -23,6 +23,14 @@ class MihonSource(override val config: MangaSourceConfig, private val source: So
         val result = if (query.isBlank()) source.getPopularManga(page) else source.getSearchManga(page, query, source.getFilterList())
         MangaBrowsePage(result.mangas.map(::convert), if (result.hasNextPage) offset + 1 else null)
     }
+    override val orders: Set<MangaListOrder> get() = if (runCatching { source.supportsLatest }.getOrDefault(false)) setOf(MangaListOrder.LATEST, MangaListOrder.POPULAR) else setOf(MangaListOrder.POPULAR)
+
+    override suspend fun catalogue(order: MangaListOrder, offset: Int): MangaBrowsePage =
+        if (order != MangaListOrder.LATEST || MangaListOrder.LATEST !in orders) browse("", offset) else withContext(Dispatchers.IO) {
+            val result = source.getLatestUpdates(offset + 1)
+            MangaBrowsePage(result.mangas.map(::convert), if (result.hasNextPage) offset + 1 else null)
+        }
+
     override suspend fun details(book: MangaBook): MangaBook = withContext(Dispatchers.IO) {
         val manga = SManga.create().apply {
             url = book.url; title = book.title; author = book.authors.firstOrNull(); thumbnail_url = book.coverUrl

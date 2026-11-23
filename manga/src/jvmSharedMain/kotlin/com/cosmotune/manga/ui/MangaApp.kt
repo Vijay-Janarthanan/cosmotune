@@ -387,6 +387,9 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
         horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {
             ReadPageHead(mangaText("Library"), if (state.books.isEmpty()) mangaText("Your series") else "${state.books.size} series · $unread unread", Modifier.readBleed()) {
+                // While incognito the heading says so, and a tap turns it off.
+                if (state.incognito) ReadIconButton(CosmoIcons.Close, "Incognito is on. Turn it off", { scope.action { repository.store.update { it.copy(incognito = false) } } },
+                    Modifier.testTag("manga:incognito"), on = true)
                 ReadIconButton(Icons.Rounded.Tune, "Library options", { options = true }, Modifier.testTag("manga:options"))
                 MangaRootActions(scope)
             }
@@ -405,7 +408,8 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
             if (reading != null) item(key = "continue:${reading.id}", span = { GridItemSpan(maxLineSpan) }) { MangaContinueRow(scope, reading, state) }
             if (books.isEmpty()) item(key = "none", span = { GridItemSpan(maxLineSpan) }) {
                 Column(Modifier.readBleed()) {
-                    ReadEmpty("Nothing here", if (unreadOnly) "Every series in this view is read." else "No series in this collection yet.")
+                    ReadEmpty("Nothing here", if (filters.isNotEmpty()) "No series match these filters." else "No series in this collection yet.",
+                        actionLabel = if (filters.isNotEmpty()) "Clear filters" else null, onAction = { filters = emptyList() })
                 }
             }
         }

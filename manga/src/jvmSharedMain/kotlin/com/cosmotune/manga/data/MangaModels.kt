@@ -200,7 +200,16 @@ interface MangaSource {
     suspend fun pages(chapter: MangaChapter): List<MangaPage>
     /** Catalogue languages a multi-language source can filter by (BCP 47 tags); the choice is [MANGA_LANGUAGE_SETTING]. */
     suspend fun languages(): List<String> = emptyList()
+    /** Series the source itself suggests next to [book] ("Related"); empty where it has no such list. */
+    suspend fun related(book: MangaBook): List<MangaBook> = emptyList()
+    /** The orders this source can list its catalogue in besides its default; see [catalogue]. */
+    val orders: Set<MangaListOrder> get() = emptySet()
+    /** The catalogue in [order] (newest updates, most popular, top of the day, week or month); [browse] is the default order. */
+    suspend fun catalogue(order: MangaListOrder, offset: Int = 0): MangaBrowsePage = browse("", offset)
 }
+
+/** The orders a catalogue can be listed in for Browse's feed and its top lists. */
+enum class MangaListOrder { LATEST, POPULAR, TOP_DAY, TOP_WEEK, TOP_MONTH }
 
 /** Source setting holding the chosen catalogue language of a multi-language source; blank means the source's default. */
 const val MANGA_LANGUAGE_SETTING = "cosmotune.locale"

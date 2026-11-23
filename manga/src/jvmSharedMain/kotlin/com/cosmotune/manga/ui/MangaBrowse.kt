@@ -207,7 +207,7 @@ internal fun MangaBrowse(scope: MangaScope) {
             ReadEmpty(mangaText("Nothing to browse yet"), mangaText("No sources are enabled. Manage sources to choose a catalogue."),
                 actionLabel = mangaText("Manage sources"), onAction = { scope.navigation.select(MangaTabs.SOURCES) }, modifier = Modifier.readBleed())
         } else {
-            item(key = "discover:${enabled.first().id}", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.readBleed()) { MangaDiscoverShelf(scope, enabled.first()) } }
+            item(key = "feed", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.readBleed()) { MangaFeed(scope) } }
             item(key = "sources:heading", span = { GridItemSpan(maxLineSpan) }) {
                 Column(Modifier.readBleed(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ReadSection("Sources", subtitle = mangaText("A source opens its own catalogue"))
