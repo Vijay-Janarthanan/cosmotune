@@ -62,6 +62,12 @@ class DesktopPlaybackEngine(
     private val _state = MutableStateFlow(DesktopPlaybackState())
     val state: StateFlow<DesktopPlaybackState> = _state.asStateFlow()
 
+    // The computer stays awake while something plays (DesktopKeepAwake).
+    private val keepAwakeJob = scope.launch {
+        var playing = false
+        state.collect { snapshot -> if (snapshot.isPlaying != playing) { playing = snapshot.isPlaying; DesktopKeepAwake.playing(playing) } }
+    }
+
     private val podioSkipper = com.cosmotune.podio.PodioSkipper()
     private val skipLibrary by lazy { com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile()) }
 
