@@ -13,6 +13,7 @@ object DesktopMangaLibrary {
     val repository: MangaRepository by lazy {
         val home = System.getProperty("user.home")
         val os = System.getProperty("os.name").lowercase()
+        com.cosmotune.manga.data.MangaCbz.defaultFolder = { File(File(home, "Documents"), "Cosmotune Manga") }
         val root = when {
             "win" in os -> File(System.getenv("APPDATA") ?: home, "Cosmotune/manga")
             "mac" in os -> File(home, "Library/Application Support/Cosmotune/manga")

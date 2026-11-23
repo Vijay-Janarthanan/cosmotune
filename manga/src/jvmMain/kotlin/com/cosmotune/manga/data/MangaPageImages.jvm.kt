@@ -51,6 +51,19 @@ actual object MangaPageImages {
         } finally { image.close() }
     }
 
+    actual fun slice(source: File, top: Int, bottom: Int, target: File): Boolean = runCatching {
+        val image = Image.makeFromEncoded(source.readBytes())
+        try {
+            val height = (bottom - top).coerceAtLeast(1)
+            val surface = Surface.makeRasterN32Premul(image.width, height)
+            try {
+                surface.canvas.drawImageRect(image, Rect.makeLTRB(0f, top.toFloat(), image.width.toFloat(), bottom.toFloat()), Rect.makeWH(image.width.toFloat(), height.toFloat()))
+                val data = surface.makeImageSnapshot().encodeToData(EncodedImageFormat.JPEG, 92) ?: return@runCatching false
+                target.writeBytes(data.bytes); true
+            } finally { surface.close() }
+        } finally { image.close() }
+    }.getOrDefault(false)
+
     actual fun size(file: File): Pair<Int, Int>? = runCatching {
         val codec = org.jetbrains.skia.Codec.makeFromData(org.jetbrains.skia.Data.makeFromBytes(file.readBytes()))
         try { codec.width to codec.height } finally { codec.close() }

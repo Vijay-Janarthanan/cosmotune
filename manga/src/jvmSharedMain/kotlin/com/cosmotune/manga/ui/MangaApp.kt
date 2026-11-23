@@ -94,6 +94,10 @@ fun MangaApp(
         val locks by ready.store.state.collectAsState()
         MangaSecureScreen(locks.secureScreen)
         MangaWebDavAutoSync(ready)
+        LaunchedEffect(ready) {
+            // Mihon's clear chapter cache on launch: once a run, when it is on.
+            if (ready.store.state.value.clearCacheOnStart && MangaStartCleanup.pending) { MangaStartCleanup.pending = false; runCatching { ready.clearCache() } }
+        }
         MangaLockGate(locks.lockManga, locks.lockPin) {
             androidx.compose.runtime.CompositionLocalProvider(LocalMangaPages provides pages) {
                 MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
@@ -643,3 +647,5 @@ internal fun MangaWebDavAutoSync(repository: MangaRepository) {
     LaunchedEffect(repository) { runCatching { repository.syncWebDav() } }
 }
 
+/** Whether this run has not cleared page storage yet. */
+internal object MangaStartCleanup { @Volatile var pending = true }

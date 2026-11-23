@@ -46,3 +46,6 @@ internal expect val mangaPlaysAnimation: Boolean
 /** Plays a moving page scaled like a still one: the full width at its own height when [fillWidth], otherwise fitted. */
 @Composable internal expect fun MangaAnimatedPage(file: java.io.File, fillWidth: Boolean, filter: androidx.compose.ui.graphics.ColorFilter?, modifier: androidx.compose.ui.Modifier)
 
+/** Opens the computer's folder chooser for where CBZ archives go; null on a phone, whose archives stay in the app's Manga folder. */
+@Composable internal expect fun rememberMangaFolderPicker(onPicked: (String) -> Unit): (() -> Unit)?
+

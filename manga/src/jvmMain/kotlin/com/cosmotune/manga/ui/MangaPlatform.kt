@@ -165,3 +165,19 @@ private fun desktopFrames(file: File): List<Pair<androidx.compose.ui.graphics.Im
     return bitmaps.mapIndexed { frame, bitmap -> bitmap.asComposeImageBitmap() to (details.getOrNull(frame)?.duration ?: 100) }
 }
 
+@Composable internal actual fun rememberMangaFolderPicker(onPicked: (String) -> Unit): (() -> Unit)? {
+    val scope = rememberCoroutineScope()
+    val latest = rememberUpdatedState(onPicked)
+    return remember(scope) { { scope.launch {
+        val chosen = withContext(Dispatchers.IO) {
+            var picked: String? = null
+            SwingUtilities.invokeAndWait {
+                val chooser = JFileChooser().apply { fileSelectionMode = JFileChooser.DIRECTORIES_ONLY; dialogTitle = "Folder for CBZ archives" }
+                if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) picked = chooser.selectedFile?.path
+            }
+            picked
+        }
+        chosen?.let { latest.value(it) }
+    }; Unit } }
+}
+

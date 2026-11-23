@@ -18,6 +18,8 @@ internal object AndroidMangaLibrary {
         val app = context.applicationContext
         val connectivity = app.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
         com.cosmotune.manga.data.MangaNetwork.metered = { connectivity?.isActiveNetworkMetered == true }
+        // Archives go where file managers and other readers can see them: Android/data/<app>/files/Manga.
+        com.cosmotune.manga.data.MangaCbz.defaultFolder = { app.getExternalFilesDir("Manga") }
         val store = MangaStore(File(app.filesDir, "manga"), platformMangaFileProtection())
         MangaRepository(store) { config, parser -> com.cosmotune.manga.extensions.MangaExtensions(app, store, parser).source(config) }
     }.also { instance = it }

@@ -37,6 +37,15 @@ actual object MangaPageImages {
         } finally { full.recycle() }
     }
 
+    @Suppress("DEPRECATION")
+    actual fun slice(source: File, top: Int, bottom: Int, target: File): Boolean = runCatching {
+        val decoder = android.graphics.BitmapRegionDecoder.newInstance(source.path, false) ?: return@runCatching false
+        try {
+            val piece = decoder.decodeRegion(android.graphics.Rect(0, top, decoder.width, bottom), null) ?: return@runCatching false
+            try { target.outputStream().use { piece.compress(Bitmap.CompressFormat.JPEG, 92, it) } } finally { piece.recycle() }
+        } finally { decoder.recycle() }
+    }.getOrDefault(false)
+
     actual fun size(file: File): Pair<Int, Int>? {
         val probe = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.path, probe)

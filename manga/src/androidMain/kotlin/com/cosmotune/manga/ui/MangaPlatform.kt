@@ -179,3 +179,5 @@ internal actual val mangaPlaysAnimation: Boolean get() = android.os.Build.VERSIO
     }
 }
 
+@Composable internal actual fun rememberMangaFolderPicker(onPicked: (String) -> Unit): (() -> Unit)? = null
+

@@ -68,4 +68,7 @@ expect object MangaPageImages {
 
     /** The width and height of the image in [file], without decoding all of it where the platform allows; null if unreadable. */
     fun size(file: File): Pair<Int, Int>?
+
+    /** Writes rows [top] to [bottom] of the image in [source] to [target] as a JPEG; false when it could not be read. */
+    fun slice(source: File, top: Int, bottom: Int, target: File): Boolean
 }

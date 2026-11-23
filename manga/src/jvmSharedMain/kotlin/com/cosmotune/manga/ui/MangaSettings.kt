@@ -112,6 +112,8 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
                 Text("${state.cacheLimitBytes / (1024 * 1024)} MB page storage", style = ReadType.rowTitle(), color = Color(palette.textPrimary), modifier = Modifier.weight(1f).padding(end = 12.dp))
                 ReadTextButton(mangaText("Clear cache"), { action { repository.clearCache() } })
             }
+            OrbitSwitchRow(mangaText("Clear page storage when Manga starts"), state.clearCacheOnStart, { on -> action { repository.store.update { it.copy(clearCacheOnStart = on) } } },
+                plain = true, detail = mangaText("Downloads stay"))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(128L, 256L, 512L, 1024L).forEach { mb ->
                     ReadChip("$mb", state.cacheLimitBytes == mb * 1024 * 1024, { action { repository.store.update { it.copy(cacheLimitBytes = mb * 1024 * 1024) } } })
@@ -297,3 +299,18 @@ private fun MangaHiddenImagesSettings(state: MangaLibraryState, update: ((MangaL
     if (!all && listed.size > 5) ReadTextButton(mangaText("See all") + " ${listed.size}", { all = true })
 }
 
+/** Save downloads as CBZ files, where they go (a computer can choose the folder), and Split tall pages. */
+@Composable
+private fun MangaCbzSettings(state: MangaLibraryState, update: ((MangaLibraryState) -> MangaLibraryState) -> Unit) {
+    val pick = rememberMangaFolderPicker { folder -> update { it.copy(cbzFolder = folder) } }
+    val folder = remember(state.cbzFolder) { MangaCbz.folder(state)?.path }
+    OrbitSwitchRow(mangaText("Save downloads as CBZ files"), state.saveCbz, { on -> update { it.copy(saveCbz = on) } }, plain = true,
+        detail = folder?.let { mangaText("Also writes each downloaded chapter to") + " $it" } ?: mangaText("Also writes each downloaded chapter as a comic archive"))
+    if (!state.saveCbz) return
+    if (pick != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ReadTextButton(mangaText("Change folder"), pick, modifier = Modifier.testTag("manga:cbz:folder"))
+        if (state.cbzFolder != null) ReadTextButton(mangaText("Use the usual folder"), { update { it.copy(cbzFolder = null) } })
+    }
+    OrbitSwitchRow(mangaText("Split tall pages"), state.cbzSplitTall, { on -> update { it.copy(cbzSplitTall = on) } }, plain = true,
+        detail = mangaText("Long webtoon pages go into the archive in pieces"))
+}

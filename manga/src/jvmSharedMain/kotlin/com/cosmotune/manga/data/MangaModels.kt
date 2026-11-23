@@ -173,6 +173,12 @@ data class MangaLibraryState(
     val readerPreloadPages: Int = 2,
     /** Pages ahead and chapters ahead are fetched only on Wi-Fi or another unmetered network. */
     val aheadOnWifiOnly: Boolean = false,
+    /** Each finished download is also written as a CBZ archive in [cbzFolder] (or the platform's Manga folder) ([MangaCbz]). */
+    val saveCbz: Boolean = false,
+    val cbzSplitTall: Boolean = false,
+    val cbzFolder: String? = null,
+    /** Page storage is emptied each time Manga starts (Mihon's clear chapter cache on launch); downloads stay. */
+    val clearCacheOnStart: Boolean = false,
     /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
     val readLog: Map<String, Long> = emptyMap(),
     /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */

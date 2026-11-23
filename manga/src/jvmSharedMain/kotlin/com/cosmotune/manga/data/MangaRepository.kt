@@ -326,8 +326,24 @@ class MangaRepository(val store: MangaStore,
                 onProgress(index + 1, pages.size)
             }
             store.update { it.copy(downloads = it.downloads - "pending:${chapter.id}" + (chapter.id to downloaded.toList())) }
+            saveCbz(chapter, downloaded)
         } finally {
             withContext(NonCancellable) { transfers.withLock { inFlightPins.remove(chapter.id) } }
+        }
+    }
+
+    /** Writes a finished download as `Series/Chapter.cbz` when Save as CBZ is on; a failure leaves the download as it is. */
+    private suspend fun saveCbz(chapter: MangaChapter, pages: List<MangaPage>) {
+        val state = store.state.value
+        if (!state.saveCbz) return
+        val folder = MangaCbz.folder(state) ?: return
+        val series = state.books.find { it.id == chapter.bookId }?.title ?: chapter.bookId
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val files = pages.mapNotNull { page -> page.localFile?.let(::File)?.takeIf { it.isFile } }
+                MangaCbz.write(File(File(folder, MangaCbz.safeName(series)), MangaCbz.safeName(chapter.title) + ".cbz"), files, state.cbzSplitTall,
+                    sizeOf = MangaPageImages::size, slice = MangaPageImages::slice)
+            }
         }
     }
 
