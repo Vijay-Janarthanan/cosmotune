@@ -35,6 +35,8 @@ import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.opencanvas.core.sync.CanvasSyncDefaults
 import com.opencanvas.core.sync.CanvasSyncPolicy
 import com.opencanvas.core.sync.CanvasStallWatch
+import com.opencanvas.core.sync.CanvasStreamChoice
+import kotlinx.coroutines.async
 import com.cosmotune.music.data.canvas.CanvasSource
 import com.cosmotune.music.ui.player.CanvasContentMode
 import com.cosmotune.music.ui.player.CanvasVideoSpec
@@ -196,6 +198,8 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
         var stallReason = ""
         // Only for the subject framing, which samples frames as bytes; reused, and made only when it is on.
         var analysisPixels: ByteArray? = null
+        // A taller stream being opened beside the one playing, when the box needs more than it has (see CanvasStreamChoice).
+        var upgrade: kotlinx.coroutines.Deferred<Pair<DesktopCanvasPlayback, String>?>? = null
         val watching = launch {
             while (isActive) {
                 delay(CanvasSyncDefaults.CHECK_INTERVAL_MS)
@@ -285,8 +289,25 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
             var shownPts = Long.MIN_VALUE
             var firstFrameLogged = false
             var stalledAtMs = 0L
+            var upgradeAskedFor = IntSize.Zero
             watch.repositioned(System.currentTimeMillis())
             while (isActive) {
+                // The taller stream is ready: it takes over at the place the map gives for the song, the last frame of the
+                // shorter one staying up until its first, so the picture sharpens without a jump.
+                upgrade?.takeIf { it.isCompleted && !reopenWanted }?.let { ready ->
+                    upgrade = null
+                    ready.getCompleted()?.let { (next, label) ->
+                        val previous = playback
+                        playback = next
+                        previous.close()
+                        how = label
+                        positioned = false
+                        watch.repositioned(System.currentTimeMillis())
+                        val (w, h) = next.decoder.sourceSize
+                        DesktopTrackLog.log("canvas: switched to the ${w}x$h stream ($label) at song ${sync.songMs()} ms, " +
+                            "decoded at ${next.decoder.width}x${next.decoder.height}")
+                    }
+                }
                 if (reopenWanted) {
                     val now = System.currentTimeMillis()
                     if (stalledAtMs == 0L) stalledAtMs = now
@@ -372,6 +393,16 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                 shownPts = pts
                 showDecoded()
                 watch.framePresented(System.currentTimeMillis())
+                if (upgrade == null && decodeSize != upgradeAskedFor && canvas.videoId != null && playback.isStreaming) {
+                    upgradeAskedFor = decodeSize
+                    val (w, h) = playback.decoder.sourceSize
+                    val cap = com.opencanvas.core.models.OpenCanvasResolution.fromLabel(DesktopAppearanceSettings.openCanvasResolution.value)
+                    CanvasStreamChoice.upgradeHeight(decodeSize.width, decodeSize.height, w, h, cap.maxHeight)?.let { wanted ->
+                        DesktopTrackLog.log("canvas: the ${w}x$h stream is drawn ${CanvasStreamChoice.drawnHeight(decodeSize.width, decodeSize.height, w, h)} px " +
+                            "tall; asking for ${wanted}p (setting ${cap.label})")
+                        upgrade = async(Dispatchers.IO) { openTaller(canvas.videoId!!, wanted, h) }
+                    }
+                }
                 if (stalledAtMs != 0L) {
                     DesktopTrackLog.log("canvas: video back after ${System.currentTimeMillis() - stalledAtMs} ms ($how) at video $pts ms, " +
                         "song ${sync.songMs()} ms")
@@ -380,14 +411,18 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                 if (!firstFrameLogged) {
                     firstFrameLogged = true
                     val millis = (System.nanoTime() - startedAt) / 1_000_000
+                    val (w, h) = playback.decoder.sourceSize
                     DesktopTrackLog.log(
                         "canvas: synced first frame in $millis ms (${attempt.how}) at video $pts ms, song ${sync.songMs()} ms, " +
-                            "decoded at ${playback.decoder.width}x${playback.decoder.height}",
+                            "from the ${w}x$h stream, decoded at ${playback.decoder.width}x${playback.decoder.height} for a " +
+                            "${decodeSize.width}x${decodeSize.height} px box",
                     )
                 }
             }
         } finally {
             watching.cancel()
+            upgrade?.cancel()
+            upgrade?.takeIf { it.isCompleted && !it.isCancelled }?.getCompleted()?.first?.close()
             playback.close()
         }
     }
@@ -566,4 +601,25 @@ internal object CanvasFrameFailures {
         lastLoggedMs = now
         DesktopTrackLog.log("canvas: could not draw a video frame ($why); skipped $skipped so far, the cover shows meanwhile")
     }
+}
+
+/**
+ * A taller stream of [videoId] ([wanted]p at most), opened and ready to decode, with how it was opened; null when none taller
+ * than [currentHeight] can be had. The caller seeks it to the song's place and closes the one it replaces.
+ */
+private suspend fun openTaller(videoId: String, wanted: Int, currentHeight: Int): Pair<DesktopCanvasPlayback, String>? {
+    val resolution = com.opencanvas.core.models.OpenCanvasResolution.fromLabel("${wanted}p")
+    val fresh = runCatching { com.opencanvas.core.OpenCanvas.freshVideoStream(videoId, resolution) }.getOrNull() ?: return null
+    if (fresh.height in 1..currentHeight) {
+        DesktopTrackLog.log("canvas: no taller stream than ${currentHeight}p (got ${fresh.height}p); staying")
+        return null
+    }
+    val next = DesktopCanvasPlayback()
+    val opened = next.open(listOf(fresh.url), fresh.headers)
+    if (opened.result.isFailure) {
+        DesktopTrackLog.log("canvas: the ${fresh.height}p stream would not open (${opened.result.exceptionOrNull()?.message}); staying")
+        next.close()
+        return null
+    }
+    return next to "${opened.how}, ${fresh.height}p"
 }
