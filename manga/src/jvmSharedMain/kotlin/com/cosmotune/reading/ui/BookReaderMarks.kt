@@ -38,12 +38,26 @@ import kotlinx.serialization.json.*
 /** Words selected on a chapter: offsets into its text, where they sit, and the words. */
 internal data class ReadingSelection(val text: String, val start: Int, val end: Int, val progression: Double)
 
+/** What the page reported: a selection, a tapped highlight, a tapped note mark (its words, or the address of the note) or picture. */
+internal data class PageEvent(val selection: ReadingSelection?, val tapped: String?, val noteText: String? = null, val noteAddress: String? = null, val image: String? = null)
+
+internal fun parsePageEvent(raw: String?): PageEvent {
+    val (selection, tapped) = parseSelection(raw)
+    if (raw.isNullOrBlank()) return PageEvent(null, null)
+    return runCatching {
+        val value = Json.parseToJsonElement(raw).jsonObject
+        val note = value["note"] as? JsonObject
+        PageEvent(selection, tapped, note?.get("text")?.jsonPrimitive?.contentOrNull, note?.get("href")?.jsonPrimitive?.contentOrNull,
+            (value["image"] as? JsonPrimitive)?.contentOrNull)
+    }.getOrDefault(PageEvent(selection, tapped))
+}
+
 /** What [ReadingEpubScripts.selection] gave: a selection, a tapped highlight's id, or neither. */
 internal fun parseSelection(raw: String?): Pair<ReadingSelection?, String?> {
     if (raw.isNullOrBlank()) return null to null
     return runCatching {
         val value = Json.parseToJsonElement(raw).jsonObject
-        val tapped = value["tapped"]?.jsonPrimitive?.contentOrNull
+        val tapped = (value["tapped"] as? JsonPrimitive)?.contentOrNull
         val text = value["text"]?.jsonPrimitive?.contentOrNull
         val start = value["start"]?.jsonPrimitive?.intOrNull
         val end = value["end"]?.jsonPrimitive?.intOrNull

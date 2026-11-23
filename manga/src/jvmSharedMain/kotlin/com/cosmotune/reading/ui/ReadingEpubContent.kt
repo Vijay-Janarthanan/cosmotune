@@ -69,10 +69,18 @@ internal class ReadingEpubContent(val document: ReadingDocument.Epub, val origin
             }
         }
         stripDeclarations(dom)
+        val viewport = if (svg) null else dom.select("meta[name=viewport]").attr("content").let { content ->
+            val width = Regex("width\\s*=\\s*(\\d+)").find(content)?.groupValues?.get(1)?.toIntOrNull()
+            val height = Regex("height\\s*=\\s*(\\d+)").find(content)?.groupValues?.get(1)?.toIntOrNull()
+            if (width != null && height != null && width in 100..10_000 && height in 100..10_000) "$width,$height" else null
+        }
         dom.select("script, iframe, frame, frameset, object, embed, applet, form, input, button, textarea, select, base, meta, foreignObject, animate, animateMotion, animateTransform, set, audio, video, source, track").remove()
         val allowed = setOf("id", "class", "title", "lang", "xml:lang", "dir", "style", "alt", "width", "height", "colspan", "rowspan", "scope", "role", "aria-label",
             "xmlns", "xmlns:xlink", "viewbox", "viewBox", "d", "x", "y", "x1", "x2", "y1", "y2", "cx", "cy", "r", "rx", "ry", "points", "transform", "fill", "stroke", "stroke-width",
-            "fill-rule", "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "clip-path", "preserveAspectRatio", "preserveaspectratio", "offset", "stop-color", "stop-opacity", "gradientUnits", "gradientTransform", "font-size", "font-family")
+            "fill-rule", "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "clip-path", "preserveAspectRatio", "preserveaspectratio", "offset", "stop-color", "stop-opacity", "gradientUnits", "gradientTransform", "font-size", "font-family",
+            // Footnote marks and MathML's own presentation attributes (formulas render natively in WebView and WebKit).
+            "epub:type", "mathvariant", "display", "displaystyle", "scriptlevel", "linethickness", "stretchy", "fence", "separator", "separators", "lspace", "rspace",
+            "accent", "accentunder", "columnalign", "rowalign", "columnspan", "mathsize", "open", "close", "notation", "largeop", "movablelimits", "symmetric", "form")
         dom.getAllElements().forEach { element ->
             element.attributes().asList().forEach { attribute ->
                 val key = attribute.key.lowercase()
@@ -92,6 +100,9 @@ internal class ReadingEpubContent(val document: ReadingDocument.Epub, val origin
             if (element.normalName() == "link" && element.attr("rel").lowercase() != "stylesheet") element.remove()
         }
         if (!svg) {
+            viewport?.let { dom.selectFirst("html")?.attr("data-cosmo-fixed", it) }
+            val html = dom.selectFirst("html")
+            if (html != null && !html.hasAttr("dir") && document.book.language.substringBefore('-').lowercase() in setOf("ar", "he", "fa", "ur", "yi", "ps", "dv", "ckb")) html.attr("dir", "rtl")
             dom.head().prepend("<meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src $origin; style-src $origin 'unsafe-inline'; font-src $origin; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">")
             dom.head().appendElement("style").attr("id", "cosmotune-reader-style").text("html{overflow-wrap:break-word}body{max-width:56em;margin:0 auto;padding:24px;font-size:20px;line-height:1.5}img,svg{max-width:100%;height:auto}mark.cosmotune-match{background:#ffd85a;color:#211a00}")
         }
@@ -141,7 +152,10 @@ internal object ReadingEpubScripts {
         }
         val css = "html{background:$bg!important;color:$fg!important;}body{background:$bg!important;color:$fg!important;${family}font-size:${20 * value.fontScale.coerceIn(.6f, 2.5f)}px!important;line-height:${value.lineHeight.coerceIn(1f, 2.5f)}!important;padding:${value.marginDp.coerceIn(8, 80)}px!important;}img,svg{max-width:100%;height:auto}a{color:inherit}mark.cosmotune-match{background:#ffd85a!important;color:#211a00!important}$HIGHLIGHT_CSS"
         val mark = if (columns) "document.documentElement.setAttribute('data-cosmo-columns','2');" else "document.documentElement.removeAttribute('data-cosmo-columns');"
-        return "(function(){var e=document.getElementById('cosmotune-reader-style');if(e)e.textContent=${quote(fontFace + css + extra)};$mark})()"
+        // A fixed-layout page keeps the publisher's look and is zoomed to fit the screen.
+        return "(function(){var e=document.getElementById('cosmotune-reader-style'),f=document.documentElement.getAttribute('data-cosmo-fixed');" +
+            "if(e)e.textContent=f?'':${quote(fontFace + css + extra)};$mark" +
+            "if(f){var p=f.split(',');document.documentElement.style.zoom=Math.min(window.innerWidth/p[0],window.innerHeight/p[1]);}})()"
     }
 
     /** A screen on or back ([forward]): a page of two columns sideways, else nine tenths of the screen down. */
@@ -170,14 +184,22 @@ internal object ReadingEpubScripts {
      * {tapped} when a highlight was tapped since the last call (a click listener the first call puts on the page).
      */
     val selection = """(function(){$NODES
-        if(!window.__cosmoTap){window.__cosmoTap=1;document.addEventListener('click',function(e){var m=e.target&&e.target.closest?e.target.closest('mark.cosmotune-hl'):null;if(m)window.__cosmoTapped=m.getAttribute('data-id');},true);}
-        var tapped=window.__cosmoTapped||null;window.__cosmoTapped=null;
-        var s=window.getSelection();if(!s||s.rangeCount<1||s.isCollapsed||!s.toString().trim())return tapped?JSON.stringify({tapped:tapped}):'';
+        if(!window.__cosmoTap){window.__cosmoTap=1;document.addEventListener('click',function(e){var t=e.target;if(!t||!t.closest)return;
+        var a=t.closest('a[href]');if(a){var h=a.getAttribute('href')||'',i=h.indexOf('#'),hash=i>=0?h.substring(i+1):'';if(!hash)return;
+        var same=a.href.split('#')[0]===location.href.split('#')[0],target=same?document.getElementById(decodeURIComponent(hash)):null;
+        var kind=(a.getAttribute('epub:type')||'')+' '+(a.getAttribute('role')||''),aim=target?((target.getAttribute('epub:type')||'')+' '+(target.getAttribute('role')||'')+' '+(target.className||'')+' '+target.tagName):'';
+        var word=a.textContent.trim(),note=/noteref/.test(kind)||/footnote|endnote|rearnote|note|ASIDE/.test(aim)||(word.length<=4&&(!!a.closest('sup')||/^\[?[*\u2020\u2021]?\d{0,3}\]?$/.test(word)));
+        if(note){e.preventDefault();e.stopPropagation();window.__cosmoNote=target?{text:(target.closest('li,aside,p,div')||target).innerText.substring(0,6000)}:{href:a.href};}return;}
+        if(t.tagName==='IMG'&&!t.closest('a'))window.__cosmoImage=t.src;
+        var m=t.closest('mark.cosmotune-hl');if(m)window.__cosmoTapped=m.getAttribute('data-id');},true);}
+        var tapped=window.__cosmoTapped||null,noted=window.__cosmoNote||null,image=window.__cosmoImage||null;window.__cosmoTapped=null;window.__cosmoNote=null;window.__cosmoImage=null;
+        var extra={};if(tapped)extra.tapped=tapped;if(noted)extra.note=noted;if(image)extra.image=image;
+        var s=window.getSelection();if(!s||s.rangeCount<1||s.isCollapsed||!s.toString().trim())return (tapped||noted||image)?JSON.stringify(extra):'';
         var r=s.getRangeAt(0),nodes=cosmoNodes(),off=0,start=-1,end=-1;
         for(var i=0;i<nodes.length;i++){var n=nodes[i],len=n.nodeValue.length;if(r.intersectsNode(n)){if(start<0)start=off+(n===r.startContainer?r.startOffset:0);end=off+(n===r.endContainer?r.endOffset:len);}off+=len;}
         if(start<0||end<=start)return '';
         var rect=r.getBoundingClientRect(),y=window.scrollY+rect.top;
-        return JSON.stringify({text:s.toString().substring(0,4000),start:start,end:end,progression:Math.min(1,Math.max(0,y/Math.max(1,document.documentElement.scrollHeight-window.innerHeight)))});
+        return JSON.stringify({tapped:tapped,note:noted,image:image,text:s.toString().substring(0,4000),start:start,end:end,progression:Math.min(1,Math.max(0,y/Math.max(1,document.documentElement.scrollHeight-window.innerHeight)))});
         })()""".trimIndent()
 
     const val clearSelection = "(function(){var s=window.getSelection();if(s)s.removeAllRanges();return '';})()"

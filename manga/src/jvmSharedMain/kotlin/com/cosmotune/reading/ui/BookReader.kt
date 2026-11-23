@@ -96,6 +96,8 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     var noting by remember(document) { mutableStateOf<ReadingSelection?>(null) }
     var reveal by remember(document) { mutableStateOf<String?>(null) }
     var lookingUp by remember(document) { mutableStateOf<String?>(null) }
+    var footnote by remember(document) { mutableStateOf<String?>(null) }
+    var picture by remember(document) { mutableStateOf<java.io.File?>(null) }
     val speech = if (epub != null) rememberReadingSpeech() else null
     val latestPreferences by rememberUpdatedState(preferences)
     val aloud = remember(document, speech) { if (speech == null || epub == null) null else
@@ -114,9 +116,12 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     if (epub != null) LaunchedEffect(page) {
         while (true) {
             kotlinx.coroutines.delay(450)
-            val (now, tapped) = parseSelection(page.run(ReadingEpubScripts.selection))
-            if (now != selection) selection = now
-            if (tapped != null) editing = tapped
+            val event = parsePageEvent(page.run(ReadingEpubScripts.selection))
+            if (event.selection != selection) selection = event.selection
+            event.tapped?.let { editing = it }
+            event.noteText?.let { footnote = it }
+            event.noteAddress?.let { address -> footnote = epub?.let { readingNoteText(it, address) } ?: "This note could not be found in the book." }
+            event.image?.let { address -> picture = epub?.let { readingResourceFile(it, address) } }
         }
     }
     fun highlight(words: ReadingSelection, style: ReadingMarkStyle, note: String = "") {
@@ -262,10 +267,12 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     when (panel) {
         "Contents" -> KitSheet(onDismiss = { panel = "" }) {
             ReadSheetHeader("Contents", onDone = { panel = "" }, doneLabel = "Close")
-            val navigation = epub?.navigation.orEmpty().flatNavigation()
+            val navigation = epub?.navigation.orEmpty().nestedNavigation()
+            val here = locator.resourceHref?.substringBefore('#')
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
-                if (navigation.isNotEmpty()) items(navigation) { item ->
-                    ReadSheetRow(item.title.ifBlank { "Untitled chapter" }, null, { saveLocation(ReadingLocator(resourceHref = item.href)); panel = "" })
+                if (navigation.isNotEmpty()) items(navigation) { (item, depth) ->
+                    ReadSheetRow(item.title.ifBlank { "Untitled chapter" }, if (item.href.substringBefore('#') == here) CosmoIcons.Check else null,
+                        { saveLocation(ReadingLocator(resourceHref = item.href)); panel = "" }, Modifier.padding(start = (depth * 16).dp))
                 } else items(epub?.spine.orEmpty(), key = { it.href }) { item ->
                     ReadSheetRow(item.title.ifBlank { "Chapter ${(epub?.spine?.indexOf(item) ?: 0) + 1}" }, null, { saveLocation(ReadingLocator(resourceHref = item.href)); panel = "" })
                 }
@@ -311,11 +318,50 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
             onNote = { note -> guarded { repository.updateHighlight(mark.id, note = note) } },
             onRemove = { guarded { repository.removeHighlight(mark.id) } }, onDismiss = { editing = null })
     }
+    footnote?.let { text ->
+        KitSheet(onDismiss = { footnote = null }) {
+            ReadSheetHeader("Note", onDone = { footnote = null }, doneLabel = "Close")
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                item { Text(text.trim(), style = ReadType.body(), color = look.ink, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).testTag("books:footnote")) }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+    picture?.let { file ->
+        KitSheet(onDismiss = { picture = null }, expanded = true) {
+            ReadSheetHeader("Picture", onDone = { picture = null }, doneLabel = "Close")
+            coil3.compose.AsyncImage(model = file, contentDescription = "A picture from ${book.title}", contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).padding(horizontal = 16.dp).testTag("books:picture"))
+            ReadChipRow(Modifier.padding(vertical = 12.dp)) {
+                ReadChip("Save picture", false, { save(file.name, "image/*", file.readBytes()) }, Modifier.testTag("books:picture:save"), icon = CosmoIcons.Download)
+            }
+        }
+    }
     lookingUp?.let { words -> LookupSheet(repository, words, book.language, onDismiss = { lookingUp = null }) }
     noting?.let { words -> NoteSheet(words.text, onSave = { note -> highlight(words, ReadingMarkStyle.YELLOW, note) }, onDismiss = { noting = null }) }
 }
 
 internal fun List<ReadingNavigation>.flatNavigation(): List<ReadingNavigation> = flatMap { listOf(it) + it.children.flatNavigation() }
+
+/** The contents with each entry's depth (0 for a part, 1 for its chapters…), at most four deep. */
+internal fun List<ReadingNavigation>.nestedNavigation(depth: Int = 0): List<Pair<ReadingNavigation, Int>> =
+    flatMap { listOf(it to depth.coerceAtMost(3)) + it.children.nestedNavigation(depth + 1) }
+
+/** The book's file a page address ([address], as the page sees it) points at, or null outside the book. */
+internal fun readingResourceFile(document: ReadingDocument.Epub, address: String): java.io.File? {
+    val path = runCatching { java.net.URLDecoder.decode(address.substringBefore('#').substringBefore('?').replace("+", "%2B"), "UTF-8") }.getOrNull() ?: return null
+    return document.resources.entries.firstOrNull { (href, _) -> path.endsWith("/$href") }?.value?.file?.takeIf { it.isFile }
+}
+
+/** The words of the note [address] points at in another chapter of [document]. */
+internal fun readingNoteText(document: ReadingDocument.Epub, address: String): String? {
+    val id = address.substringAfter('#', "").let { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrDefault(it) }.ifEmpty { return null }
+    val file = readingResourceFile(document, address) ?: return null
+    if (file.length() > 8L * 1024 * 1024) return null
+    val target = org.jsoup.Jsoup.parse(file.readText()).getElementById(id) ?: return null
+    val holder = target.parents().firstOrNull { it.normalName() in setOf("li", "aside") } ?: target.takeIf { it.text().isNotBlank() } ?: target.parent() ?: target
+    return holder.text().take(6000).ifBlank { null }
+}
 
 /**
  * The appearance sheet (board frame 9): page colour, typeface, size, line spacing, margins, pages or scroll, then brightness and
