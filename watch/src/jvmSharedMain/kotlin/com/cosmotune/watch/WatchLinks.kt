@@ -22,11 +22,12 @@ object WatchLinks {
     private val state = MutableStateFlow<Link?>(null)
     val pending: StateFlow<Link?> = state.asStateFlow()
 
-    /** True when [link] is a Watch install or pack link and is now pending. */
+    /** True when [link] is a Watch install or pack link and is now pending, or an AniList or MyAnimeList sign-in's return. */
     fun offer(link: String?): Boolean {
         val t = link?.trim()?.takeIf { it.isNotEmpty() && it.length <= 8_192 } ?: return false
         state.value = when {
-            AnimeTracker.entries.any { t.startsWith(it.redirect) } -> Link.TrackerReturn(t)
+            // AniList and MyAnimeList returns: the app's one sign-in hands Manga's to Manga; Watch's wait for Watch's sheet.
+            AnimeTracker.entries.any { t.startsWith(it.redirect) } -> if (com.cosmotune.watch.tracking.ListSignIn.deliver(t)) return true else Link.TrackerReturn(t)
             InstallLinks.isPackLink(t) -> Link.Pack(t)
             InstallLinks.isInstallLink(t) -> Link.Install(t)
             else -> return false

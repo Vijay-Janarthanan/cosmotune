@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 /*
  * Watch mode's data and playback layer: films, series and live TV. The models, the plugin contract, the repository the
@@ -15,6 +16,32 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// AniList and MyAnimeList public client ids (no secrets) for the one sign-in Watch and Manga share: watch/tracker-clients.properties or -Pcosmotune.anilistClientId / -Pcosmotune.malClientId.
+val trackerClients = Properties().apply {
+    val config = layout.projectDirectory.file("tracker-clients.properties").asFile
+    if (config.isFile) config.inputStream().use(::load)
+}
+val generateTrackerClients by tasks.registering {
+    val output = layout.buildDirectory.dir("generated/trackerClients/kotlin")
+    val anilist = providers.gradleProperty("cosmotune.anilistClientId").orNull ?: trackerClients.getProperty("anilist", "")
+    val myanimelist = providers.gradleProperty("cosmotune.malClientId").orNull ?: trackerClients.getProperty("myanimelist", "")
+    inputs.property("anilist", anilist)
+    inputs.property("myanimelist", myanimelist)
+    outputs.dir(output)
+    doLast {
+        listOf(anilist, myanimelist).forEach { require(it.isEmpty() || it.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "A tracker client id is letters, digits, - and _" } }
+        val file = output.get().file("com/cosmotune/watch/tracking/BundledTrackerClients.kt").asFile
+        file.parentFile.mkdirs()
+        file.writeText("""
+            package com.cosmotune.watch.tracking
+            internal object BundledTrackerClients {
+                const val ANILIST = "$anilist"
+                const val MYANIMELIST = "$myanimelist"
+            }
+        """.trimIndent() + "\n")
+    }
+}
+
 kotlin {
     androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
     jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
@@ -23,6 +50,7 @@ kotlin {
     val jvmSharedMain by sourceSets.creating { dependsOn(sourceSets.commonMain.get()) }
     sourceSets.androidMain.get().dependsOn(jvmSharedMain)
     sourceSets.jvmMain.get().dependsOn(jvmSharedMain)
+    jvmSharedMain.kotlin.srcDir(generateTrackerClients)
     sourceSets.jvmMain.get().resources.srcDir(rootProject.layout.buildDirectory.dir("watch-torrent/desktop"))
     sourceSets.commonMain.dependencies {
         // The Video contracts (VideoPlayerEngine, MediaInput) and the room models (PartyTrack) live in :shared.

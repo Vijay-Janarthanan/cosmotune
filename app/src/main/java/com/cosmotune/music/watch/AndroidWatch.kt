@@ -70,8 +70,6 @@ object AndroidWatch {
     /** A `stremio://` or `cosmotune://watch/...` link opened from another app: the Install sheet shows it. */
     fun consume(intent: Intent?): Boolean {
         if (intent?.action != Intent.ACTION_VIEW) return false
-        // A Manga AniList or MyAnimeList sign-in comes back on Watch's tracker address; Manga takes only its own.
-        if (com.cosmotune.manga.data.MangaTrackerLinks.offer(intent.dataString)) return true
         return WatchLinks.offer(intent.dataString)
     }
 }

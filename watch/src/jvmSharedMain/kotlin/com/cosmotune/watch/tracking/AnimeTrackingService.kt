@@ -17,7 +17,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -42,7 +41,8 @@ import java.util.concurrent.TimeUnit
 
 /**
  * AniList (GraphQL, implicit sign-in) and MyAnimeList (REST v2, PKCE) against their public APIs, with the client id the
- * viewer saved. Tokens stay in Watch's sealed store, per viewer profile; the client id is per device.
+ * viewer saved (or the app's own). Tokens stay in Watch's sealed store, per viewer profile; the client id is per device. The
+ * sign-in itself is the app's one AniList and MyAnimeList sign-in, [ListSignIn], which Manga uses too.
  */
 class AnimeTrackingService(
     client: OkHttpClient,
@@ -53,25 +53,23 @@ class AnimeTrackingService(
     private val malApi: String = "https://api.myanimelist.net/v2",
     private val malAuth: String = "https://myanimelist.net/v1/oauth2",
 ) : AnimeTracking {
-    @Serializable private data class Session(val token: String, val refresh: String = "", val expiresAtMs: Long = 0, val user: String? = null)
-    private data class Pending(val service: AnimeTracker, val state: String, val verifier: String, val profile: String, val clientId: String)
+    private val endpoints = ListSignIn.Endpoints(anilistApi, malApi, malAuth)
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val network = client.newBuilder().callTimeout(20, TimeUnit.SECONDS).build()
     private val lock = Mutex()
-    @Volatile private var pending: Pending? = null
     private val mutable = MutableStateFlow(AnimeTracker.entries.map { AnimeTrackingStatus(it) })
     override val statuses: StateFlow<List<AnimeTrackingStatus>> = mutable
 
     private fun clientKey(service: AnimeTracker) = "anime.client.${service.name}"
     private fun sessionKey(service: AnimeTracker, profile: String) = "anime.$profile.${service.name}"
-    private fun clientId(service: AnimeTracker) = store.state.value.settings[clientKey(service)]
-    private fun session(service: AnimeTracker, profile: String = store.state.value.activeProfile): Session? =
-        store.state.value.settings[sessionKey(service, profile)]?.let { runCatching { json.decodeFromString<Session>(it) }.getOrNull() }
+    private fun clientId(service: AnimeTracker) = ListSignIn.clientId(service)
+    private fun session(service: AnimeTracker, profile: String = store.state.value.activeProfile): ListSignIn.Session? =
+        store.state.value.settings[sessionKey(service, profile)]?.let { runCatching { json.decodeFromString<ListSignIn.Session>(it) }.getOrNull() }
 
-    private suspend fun save(service: AnimeTracker, profile: String, value: Session?) = store.update { state ->
+    private suspend fun save(service: AnimeTracker, profile: String, value: ListSignIn.Session?) = store.update { state ->
         state.copy(settings = if (value == null) state.settings - sessionKey(service, profile)
-            else state.settings + (sessionKey(service, profile) to json.encodeToString(Session.serializer(), value)))
+            else state.settings + (sessionKey(service, profile) to json.encodeToString(ListSignIn.Session.serializer(), value)))
     }
 
     private fun publish() {
@@ -84,6 +82,7 @@ class AnimeTrackingService(
         mutable.update { list -> list.map { if (it.service == service) it.copy(message = message, busy = busy) else it } }
 
     init {
+        ListSignIn.savedClientId = { service -> store.state.value.settings[clientKey(service)] }
         scope.launch { store.state.map { it.activeProfile }.distinctUntilChanged().collect { publish() } }
     }
 
@@ -94,35 +93,18 @@ class AnimeTrackingService(
         publish()
     }
 
-    override fun signInUrl(service: AnimeTracker): String? {
-        val id = clientId(service) ?: return null
-        val started = Pending(service, Auth.randomToken(32), Auth.randomToken(64), store.state.value.activeProfile, id)
-        pending = started
-        return Auth.authorizeUrl(service, id, started.state, started.verifier, malAuth)
-    }
+    override fun signInUrl(service: AnimeTracker): String? = ListSignIn.start(service, ListSignIn.Asker.WATCH, store.state.value.activeProfile, malAuth)
 
     override suspend fun finish(link: String): String = lock.withLock {
-        val back = Auth.parseReturn(link) ?: return@withLock "That is not a sign-in return address."
-        val started = pending?.takeIf { it.service == back.service } ?: return@withLock "Start the ${back.service.label} sign-in again from Watch settings."
-        if (back.error != null) { pending = null; return@withLock "${back.service.label} sign-in was not allowed." }
-        if (back.state != null && back.state != started.state || back.state == null && back.service == AnimeTracker.MYANIMELIST)
-            return@withLock "This sign-in return is from another attempt. Start again."
+        val parsed = Auth.parseReturn(link) ?: return@withLock "That is not a sign-in return address."
+        // A return pasted here that answers Manga's sign-in goes on to Manga.
+        if (ListSignIn.deliver(link)) return@withLock "Finishing the ${parsed.service.label} sign-in in Manga."
+        val back = ListSignIn.claim(link) ?: return@withLock "Start the ${parsed.service.label} sign-in again from Watch settings."
+        if (back.error != null) return@withLock "${back.service.label} sign-in was not allowed."
         say(back.service, null, busy = true)
         try {
-            val session = when (back.service) {
-                AnimeTracker.ANILIST -> {
-                    val token = back.accessToken ?: error("AniList sent no sign-in")
-                    Session(token, expiresAtMs = now() + (back.expiresInS ?: 31_536_000L) * 1000)
-                }
-                AnimeTracker.MYANIMELIST -> {
-                    val code = back.code ?: error("MyAnimeList sent no sign-in code")
-                    malToken(FormBody.Builder().add("client_id", started.clientId).add("grant_type", "authorization_code").add("code", code)
-                        .add("code_verifier", started.verifier).add("redirect_uri", AnimeTracker.MYANIMELIST.redirect).build())
-                }
-            }
-            val named = session.copy(user = runCatching { userName(back.service, session.token) }.getOrNull())
-            save(back.service, started.profile, named)
-            pending = null
+            val named = ListSignIn.finish(back, network, now(), endpoints)
+            save(back.service, back.started.profile, named)
             publish()
             "Connected to ${back.service.label}${named.user?.let { " as $it" } ?: ""}. Finished anime episodes now move your list on."
         } catch (cancelled: CancellationException) { throw cancelled }
@@ -175,24 +157,12 @@ class AnimeTrackingService(
             .patch(FormBody.Builder().add("status", if (update.completed) "completed" else "watching").add("num_watched_episodes", update.episodes.toString()).build()).build())
     }
 
-    private suspend fun refreshed(saved: Session, profile: String): Session {
+    private suspend fun refreshed(saved: ListSignIn.Session, profile: String): ListSignIn.Session {
         if (saved.expiresAtMs == 0L || saved.expiresAtMs - now() > 86_400_000L || saved.refresh.isBlank()) return saved
-        val id = clientId(AnimeTracker.MYANIMELIST) ?: return saved
-        val next = malToken(FormBody.Builder().add("client_id", id).add("grant_type", "refresh_token").add("refresh_token", saved.refresh).build())
-            .copy(user = saved.user)
+        if (clientId(AnimeTracker.MYANIMELIST) == null) return saved
+        val next = ListSignIn.renew(saved, network, now(), endpoints)
         save(AnimeTracker.MYANIMELIST, profile, next)
         return next
-    }
-
-    private suspend fun malToken(form: FormBody): Session {
-        val token = call(Request.Builder().url("$malAuth/token").post(form).build())
-        return Session(token.text("access_token") ?: error("no token"), token.text("refresh_token").orEmpty(),
-            now() + (token.long("expires_in") ?: 2_678_400L) * 1000)
-    }
-
-    private suspend fun userName(service: AnimeTracker, token: String): String? = when (service) {
-        AnimeTracker.ANILIST -> graphql(token, "query{Viewer{name}}", JsonObject(emptyMap())).obj("data")?.obj("Viewer")?.text("name")
-        AnimeTracker.MYANIMELIST -> call(Request.Builder().url("$malApi/users/@me").header("Authorization", "Bearer $token").build()).text("name")
     }
 
     private suspend fun graphql(token: String, query: String, variables: JsonObject): JsonObject {

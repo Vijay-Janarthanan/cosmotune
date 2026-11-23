@@ -101,5 +101,5 @@ object DesktopWatch {
     val api: WatchRepository get() = repository
 
     /** A link given on the command line or by the operating system (stremio://, cosmotune://watch/...): the Install sheet shows it. */
-    fun offer(link: String?): Boolean = com.cosmotune.manga.data.MangaTrackerLinks.offer(link) || WatchLinks.offer(link)
+    fun offer(link: String?): Boolean = WatchLinks.offer(link)
 }

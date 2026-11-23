@@ -1,5 +1,7 @@
 package com.cosmotune.manga.data
 
+import com.cosmotune.watch.AnimeTracker
+import com.cosmotune.watch.tracking.ListSignIn
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -129,8 +131,8 @@ class MangaUpdatesTracker(private val client: OkHttpClient, private val base: St
  * series marks the finished book read on the listener's server. Failures stay quiet here (the next finished chapter sends the
  * count again); [MangaLibraryState.trackFailures] says which series could not be sent.
  */
-class MangaTracking(private val store: MangaStore, client: OkHttpClient, internal val mangaUpdates: MangaUpdatesTracker = MangaUpdatesTracker(client),
-    internal val lists: MangaListApi = MangaListApi(client), private val signIns: MangaListSignIn = MangaTrackerLinks.signIn,
+class MangaTracking(private val store: MangaStore, private val client: OkHttpClient, internal val mangaUpdates: MangaUpdatesTracker = MangaUpdatesTracker(client),
+    internal val lists: MangaListApi = MangaListApi(client),
     private val server: suspend (MangaSourceConfig, String) -> Unit = { config, chapter ->
         when (config.kind) { "komga" -> KomgaSource(config, client).markRead(chapter); "suwayomi" -> SuwayomiSource(config, client).markRead(chapter) }
     }) {
@@ -144,25 +146,33 @@ class MangaTracking(private val store: MangaStore, client: OkHttpClient, interna
     /** How the last AniList or MyAnimeList sign-in went, in the listener's words, while it is news. */
     val signInNews: kotlinx.coroutines.flow.StateFlow<String?> = signInMessage
 
-    /** The AniList or MyAnimeList sign-in page to open in the browser; null without a client id. */
-    fun signInPage(service: MangaListService): String? { signInMessage.value = null; return signIns.start(service) }
+    /** The AniList or MyAnimeList sign-in page to open in the browser (the app's one sign-in, shared with Watch); null without a client id. */
+    fun signInPage(service: MangaListService): String? {
+        signInMessage.value = null
+        return ListSignIn.start(service.tracker, ListSignIn.Asker.MANGA)
+    }
 
     /** Finishes a sign-in [back] from the browser and keeps the account. */
-    suspend fun finish(back: MangaListReturn) {
+    suspend fun finish(back: ListSignIn.Back) {
+        val service = MangaListService.of(back.service)
         signInMessage.value = try {
-            val account = lists.finish(back, signIns.clientId(back.service) ?: error("Sign-in needs a client id"))
+            val session = ListSignIn.finish(back, client)
+            val account = MangaTrackerAccount(service.key, session.user ?: service.label, session.token, session.refresh, session.expiresAtMs)
             store.update { it.copy(trackerAccounts = it.trackerAccounts + (account.service to account)) }
-            "Signed in to ${back.service.label} as ${account.user}"
+            "Signed in to ${service.label} as ${account.user}"
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { failure.message ?: "${back.service.label} could not be reached" }
+        catch (failure: Exception) { failure.message ?: "${service.label} could not be reached" }
     }
 
     /** The account for [service], renewed when it has expired (and kept); null when it is signed out or cannot be renewed. */
-    private suspend fun account(service: String): MangaTrackerAccount? {
+    private suspend fun account(service: String, now: Long = System.currentTimeMillis()): MangaTrackerAccount? {
         val saved = store.state.value.trackerAccounts[service] ?: return null
-        if (service == MangaTrackers.MANGAUPDATES) return saved
-        val fresh = lists.fresh(saved, MangaListService.of(service)?.let(signIns::clientId)) ?: return null
-        if (fresh != saved) store.update { it.copy(trackerAccounts = it.trackerAccounts + (service to fresh)) }
+        if (service == MangaTrackers.MANGAUPDATES || saved.expiresAtMs == 0L || now < saved.expiresAtMs - 60_000) return saved
+        // Only MyAnimeList's session can be renewed (with its refresh token); an expired AniList one needs a new sign-in.
+        if (service != MangaTrackers.MYANIMELIST || saved.refresh.isBlank() || ListSignIn.clientId(AnimeTracker.MYANIMELIST) == null) return null
+        val renewed = ListSignIn.renew(ListSignIn.Session(saved.token, saved.refresh, saved.expiresAtMs, saved.user), client, now)
+        val fresh = saved.copy(token = renewed.token, refresh = renewed.refresh, expiresAtMs = renewed.expiresAtMs)
+        store.update { it.copy(trackerAccounts = it.trackerAccounts + (service to fresh)) }
         return fresh
     }
 
@@ -203,7 +213,8 @@ class MangaTracking(private val store: MangaStore, client: OkHttpClient, interna
      * their series on. The state when watching starts is the baseline, so opening the app sends nothing.
      */
     fun watch(scope: kotlinx.coroutines.CoroutineScope) = scope.launch {
-        launch { MangaTrackerLinks.received.collect { back -> finish(back) } }
+        // Manga's AniList and MyAnimeList sign-ins come back through the app's link handler ([ListSignIn.deliver]).
+        launch { ListSignIn.returns.collect { back -> if (back.started.asker == ListSignIn.Asker.MANGA) finish(back) } }
         var known = store.state.value.readChapters
         store.state.collect { state ->
             val added = state.readChapters - known

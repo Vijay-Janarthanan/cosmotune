@@ -1266,6 +1266,8 @@ class DefaultWatchRepository(
     }
 
     init {
+        // The client ids saved in Watch settings also serve Manga's AniList and MyAnimeList sign-in (one registered app).
+        com.cosmotune.watch.tracking.ListSignIn.savedClientId = { service -> store.state.value.settings["anime.client.${service.name}"] }
         scope.launch { combine(store.state, status) { state, _ -> state }.collect { refresh(it) } }
         // The cache is brought under its limit once a run, oldest files first.
         scope.launch { runCatching { WatchCacheFiles.trim(config.cacheDir, cacheLimitState.value * 1_000_000L) } }

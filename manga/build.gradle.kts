@@ -55,32 +55,6 @@ val tikaChmJar by tasks.registering(Jar::class) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-// AniList and MyAnimeList public client ids (no secrets): manga/tracker-clients.properties or -Pcosmotune.anilistClientId / -Pcosmotune.malClientId.
-val trackerClients = Properties().apply {
-    val config = layout.projectDirectory.file("tracker-clients.properties").asFile
-    if (config.isFile) config.inputStream().use(::load)
-}
-val generateTrackerClients by tasks.registering {
-    val output = layout.buildDirectory.dir("generated/trackerClients/kotlin")
-    val anilist = providers.gradleProperty("cosmotune.anilistClientId").orNull ?: trackerClients.getProperty("anilist", "")
-    val myanimelist = providers.gradleProperty("cosmotune.malClientId").orNull ?: trackerClients.getProperty("myanimelist", "")
-    inputs.property("anilist", anilist)
-    inputs.property("myanimelist", myanimelist)
-    outputs.dir(output)
-    doLast {
-        listOf(anilist, myanimelist).forEach { require(it.isEmpty() || it.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "A tracker client id is letters, digits, - and _" } }
-        val file = output.get().file("com/cosmotune/manga/data/BundledTrackerClients.kt").asFile
-        file.parentFile.mkdirs()
-        file.writeText("""
-            package com.cosmotune.manga.data
-            internal object BundledTrackerClients {
-                const val ANILIST = "$anilist"
-                const val MYANIMELIST = "$myanimelist"
-            }
-        """.trimIndent() + "\n")
-    }
-}
-
 kotlin {
     androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
     jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
@@ -88,7 +62,6 @@ kotlin {
     compilerOptions { freeCompilerArgs.add("-Xexpect-actual-classes") }
     val jvmSharedMain by sourceSets.creating { dependsOn(sourceSets.commonMain.get()) }
     jvmSharedMain.kotlin.srcDir(generateParserChannel)
-    jvmSharedMain.kotlin.srcDir(generateTrackerClients)
     sourceSets.androidMain.get().dependsOn(jvmSharedMain)
     sourceSets.jvmMain.get().dependsOn(jvmSharedMain)
     sourceSets.commonMain.dependencies {

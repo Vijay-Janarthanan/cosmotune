@@ -163,7 +163,7 @@ private fun MangaListAccountRow(repository: MangaRepository, service: MangaListS
     val coroutines = rememberCoroutineScope()
     val uri = LocalUriHandler.current
     val news by repository.tracking.signInNews.collectAsState()
-    val missing = service.unavailable(MangaListClients.bundled)
+    val missing = service.unavailable()
     Column(Modifier.fillMaxWidth().padding(top = 8.dp).testTag("manga:tracking:${service.key}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (account != null) {
             val linked = repository.store.state.value.tracks.values.count { list -> list.any { it.service == service.key } }
