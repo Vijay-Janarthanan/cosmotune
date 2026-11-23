@@ -46,8 +46,12 @@ internal fun MangaTrackingSheet(scope: MangaScope, book: MangaBook, onDismiss: (
     val state by repository.store.state.collectAsState()
     val look = orbitLook()
     val coroutines = rememberCoroutineScope()
-    val account = state.trackerAccounts[MangaTrackers.MANGAUPDATES]
-    val track = state.tracks[book.id].orEmpty().find { it.service == MangaTrackers.MANGAUPDATES }
+    // The list this sheet works on: the one the series is linked to, else the first one signed in to, else MangaUpdates.
+    var service by remember(book.id) { mutableStateOf(state.tracks[book.id].orEmpty().firstOrNull()?.service
+        ?: MangaTrackers.lists.firstOrNull { it in state.trackerAccounts } ?: MangaTrackers.MANGAUPDATES) }
+    val name = MangaTrackers.name(service)
+    val account = state.trackerAccounts[service]
+    val track = state.tracks[book.id].orEmpty().find { it.service == service }
     var query by remember(book.id) { mutableStateOf(book.title) }
     var results by remember(book.id) { mutableStateOf<List<MangaTrackerMatch>?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -56,7 +60,7 @@ internal fun MangaTrackingSheet(scope: MangaScope, book: MangaBook, onDismiss: (
         busy = true; message = null
         try { block() }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { message = failure.message ?: "MangaUpdates could not be reached" }
+        catch (failure: Exception) { message = failure.message ?: "$name could not be reached" }
         finally { busy = false }
     }
     KitSheet(onDismiss = onDismiss) {
@@ -64,28 +68,34 @@ internal fun MangaTrackingSheet(scope: MangaScope, book: MangaBook, onDismiss: (
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).testTag("manga:tracking"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (book.sourceId.startsWith("komga:") || book.sourceId.startsWith("suwayomi:")) Text(mangaText(if (state.serverWriteBack) "Finished chapters are also marked read on your server."
                 else "Marking chapters read on your server is off in Settings › Manga."), style = ReadType.meta(), color = look.dim)
+            // AniList and MyAnimeList stand beside MangaUpdates once they are signed in to (Settings › Manga › Tracking).
+            val offered = MangaTrackers.lists.filter { it == MangaTrackers.MANGAUPDATES || it in state.trackerAccounts }
+            if (offered.size > 1) ReadChipRow(inset = 0.dp) {
+                offered.forEach { item -> ReadChip(MangaTrackers.name(item), service == item, { service = item; results = null; message = null }, Modifier.testTag("manga:tracking:service:$item")) }
+            }
             when {
+                account == null && service != MangaTrackers.MANGAUPDATES -> Text(mangaText("Sign in to $name in Settings › Manga › Tracking."), style = ReadType.meta(), color = look.dim)
                 account == null -> MangaUpdatesSignIn(repository, Modifier.fillMaxWidth())
                 track != null -> {
                     Text(track.title, style = ReadType.rowTitle(), color = look.ink)
-                    Text(if (track.chapter > 0) "Chapter ${track.chapter} on your MangaUpdates list" else mangaText("On your MangaUpdates Reading list"), style = ReadType.meta(), color = look.dim)
+                    Text(if (track.chapter > 0) "Chapter ${track.chapter} on your $name list" else "On your $name list", style = ReadType.meta(), color = look.dim)
                     if (scope.repository.store.state.value.trackFailures.contains(book.id)) Text(mangaText("The last chapter could not be sent. It is sent again with the next one."),
                         style = ReadType.meta(), color = look.dim)
                     Spacer(Modifier.height(4.dp))
                     val uri = LocalUriHandler.current
-                    if (track.url.startsWith("https://")) ReadSheetRow(mangaText("Open on MangaUpdates"), Icons.AutoMirrored.Rounded.OpenInNew, { runCatching { uri.openUri(track.url) } })
-                    ReadSheetRow(mangaText("Unlink"), CosmoIcons.Close, { run { repository.tracking.unlink(book.id, MangaTrackers.MANGAUPDATES) } }, enabled = !busy)
+                    if (track.url.startsWith("https://")) ReadSheetRow("Open on $name", Icons.AutoMirrored.Rounded.OpenInNew, { runCatching { uri.openUri(track.url) } })
+                    ReadSheetRow(mangaText("Unlink"), CosmoIcons.Close, { run { repository.tracking.unlink(book.id, service) } }, enabled = !busy)
                 }
                 else -> {
-                    Text(mangaText("Find this series on MangaUpdates. Finished chapters then update your Reading list."), style = ReadType.meta(), color = look.dim)
+                    Text("Find this series on $name. Finished chapters then update your list.", style = ReadType.meta(), color = look.dim)
                     OrbitInputField(query, { query = it.take(200) }, mangaText("Title"), modifier = Modifier.fillMaxWidth().testTag("manga:tracking:query"))
-                    ReadButton(mangaText(if (busy) "Searching…" else "Search"), { run { results = repository.tracking.search(query) } }, enabled = !busy && query.isNotBlank(),
+                    ReadButton(mangaText(if (busy) "Searching…" else "Search"), { run { results = repository.tracking.search(query, service) } }, enabled = !busy && query.isNotBlank(),
                         kind = ReadKind.TONAL, modifier = Modifier.padding(top = 4.dp))
                     results?.let { found ->
                         if (found.isEmpty()) Text(mangaText("No series found. Try a shorter title."), style = ReadType.meta(), color = look.dim)
                         found.forEach { match ->
                             ReadSheetRow(match.title + if (match.detail.isNotBlank()) " · " + match.detail else "", CosmoIcons.Plus,
-                                { run { repository.tracking.link(book, match) } }, enabled = !busy, modifier = Modifier.testTag("manga:tracking:match:${match.remoteId}"))
+                                { run { repository.tracking.link(book, match, service) } }, enabled = !busy, modifier = Modifier.testTag("manga:tracking:match:${match.remoteId}"))
                         }
                     }
                 }
@@ -137,7 +147,36 @@ internal fun MangaTrackingSettings(repository: MangaRepository) {
             Text(if (linked == 1) "1 series linked" else "$linked series linked", style = ReadType.meta(), color = look.dim)
             ReadTextButton(mangaText("Sign out"), { coroutines.launch { runCatching { repository.tracking.signOut(MangaTrackers.MANGAUPDATES) } } })
         }
+        MangaListService.entries.forEach { service -> MangaListAccountRow(repository, service, state.trackerAccounts[service.key]) }
         OrbitSwitchRow(mangaText("Mark chapters read on your server"), state.serverWriteBack, { on -> coroutines.launch { runCatching { repository.store.update { it.copy(serverWriteBack = on) } } } },
             plain = true, detail = mangaText("When you finish a chapter from Komga or Suwayomi"))
+    }
+}
+
+/**
+ * An AniList or MyAnimeList account in Settings › Manga › Tracking: who is signed in with Sign out, or Sign in, which opens the
+ * service's own page in the browser. Without a client id in the app's config the row says so and its button is off.
+ */
+@Composable
+private fun MangaListAccountRow(repository: MangaRepository, service: MangaListService, account: MangaTrackerAccount?) {
+    val look = orbitLook()
+    val coroutines = rememberCoroutineScope()
+    val uri = LocalUriHandler.current
+    val news by repository.tracking.signInNews.collectAsState()
+    val missing = service.unavailable(MangaListClients.bundled)
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp).testTag("manga:tracking:${service.key}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (account != null) {
+            val linked = repository.store.state.value.tracks.values.count { list -> list.any { it.service == service.key } }
+            Text("${service.label} · ${account.user}", style = ReadType.rowTitle(), color = look.ink)
+            Text(if (linked == 1) "1 series linked" else "$linked series linked", style = ReadType.meta(), color = look.dim)
+            ReadTextButton(mangaText("Sign out"), { coroutines.launch { runCatching { repository.tracking.signOut(service.key) } } })
+        } else {
+            Text(service.label, style = ReadType.rowTitle(), color = look.ink)
+            Text(mangaText(missing ?: "Sign in on ${service.label}'s own page; finished chapters then update your list there."), style = ReadType.meta(), color = look.dim)
+            ReadButton(mangaText("Sign in to ${service.label}"), {
+                repository.tracking.signInPage(service)?.let { page -> runCatching { uri.openUri(page) } }
+            }, enabled = missing == null, kind = ReadKind.TONAL, modifier = Modifier.padding(top = 4.dp).testTag("manga:tracking:${service.key}:signin"))
+        }
+        news?.takeIf { service.label in it }?.let { Text(it, style = ReadType.meta(), color = look.ink) }
     }
 }
