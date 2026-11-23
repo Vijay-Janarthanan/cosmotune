@@ -67,6 +67,9 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- Floating lyrics (Settings > Lyrics), only once the listener allows "Display over other apps". -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <application
         android:name=".CosmotuneApplication"
         android:allowBackup="true"
@@ -125,6 +128,13 @@
           uiMode is deliberately *not* in the list: a day/night change should
           still recreate the Activity so the theme is rebuilt from resources.
         -->
+        <!-- Rescue, from the launcher icon's long-press shortcut (CosmotuneApplication): a backup and the crash note. -->
+        <activity
+            android:name=".RescueActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.cosmotune.rescue"
+            android:theme="@style/Theme.Cosmotune" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -309,6 +319,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="cosmotune" android:host="import" android:path="/playlist" />
+            </intent-filter>
+
+            <!-- A computer's sign-in code, scanned with the camera: its page opens this link (see PhoneSignIn). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="cosmotune" android:host="signin" />
             </intent-filter>
 
             <!-- Playlist shares and YouTube links can arrive with text around the URL. -->

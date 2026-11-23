@@ -90,9 +90,15 @@ internal fun CosmoLookSettingsRows() {
         RowDivider()
         com.cosmotune.ui.settings.CosmoRowSizeSetting()
         RowDivider()
+        com.cosmotune.ui.settings.CosmoInterfaceSizeSetting()
+        RowDivider()
+        com.cosmotune.ui.settings.CosmoTextFontSetting()
+        RowDivider()
         com.cosmotune.ui.settings.HomeSectionsSetting()
         RowDivider()
         com.cosmotune.ui.settings.MusicBlocksRows()
+        RowDivider()
+        com.cosmotune.ui.settings.PlaylistAddPlaceRow()
         RowDivider()
         SettingsRow(
             icon = Icons.Rounded.Visibility,

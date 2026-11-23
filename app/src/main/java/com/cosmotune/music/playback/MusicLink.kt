@@ -34,6 +34,9 @@ sealed interface LinkRequest {
 
     /** A song file another app opened with Cosmotune ("Open with" from a file manager or a download): its `content:` or `file:` address. */
     data class AudioFile(val uri: String) : LinkRequest
+
+    /** A computer's sign-in code scanned with the camera: sign Cosmotune there in with this phone's account, once agreed. */
+    data class SignInComputer(val link: com.cosmotune.remote.PhoneSignIn.Link) : LinkRequest
 }
 
 /**
@@ -72,7 +75,8 @@ object MusicLink {
         if (intent == null || intent.getBooleanExtra(EXTRA_CONSUMED, false)) return false
         val request = when (intent.action) {
             Intent.ACTION_VIEW -> intent.data?.let { uri ->
-                if (uri.scheme == "cosmotune") SharedPlaylistLink.fromOpenUri(uri.toString())?.let(LinkRequest::ImportPlaylist)
+                if (uri.scheme == "cosmotune" && uri.host == "signin") com.cosmotune.remote.PhoneSignIn.Link.parse(uri.toString())?.let(LinkRequest::SignInComputer)
+                else if (uri.scheme == "cosmotune") SharedPlaylistLink.fromOpenUri(uri.toString())?.let(LinkRequest::ImportPlaylist)
                 else if (uri.scheme == "content" || uri.scheme == "file") {
                     if (isAudioFile(intent.type, uri.lastPathSegment)) LinkRequest.AudioFile(uri.toString()) else null
                 }
@@ -106,6 +110,11 @@ object MusicLink {
      */
     fun handled() {
         _pending.value = null
+    }
+
+    /** A request from inside the app, served the same way: a YouTube link pasted into Search. */
+    fun offer(request: LinkRequest) {
+        _pending.value = request
     }
 
     /** A song file by its type, or by its name when the opening app gave no type; a video or anything else is not Music's. */

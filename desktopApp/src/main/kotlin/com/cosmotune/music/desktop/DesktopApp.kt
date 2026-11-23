@@ -852,8 +852,7 @@ fun CosmotuneDesktopApp() {
         persistence.saveString("queue_index", liveQueue.index.toString())
     }
 
-    /** Opens whatever the queue is currently pointing at. */
-    fun playCurrent(startPlaying: Boolean = true, startAtMs: Long = 0) {
+    fun playCurrentNow(startPlaying: Boolean, startAtMs: Long) {
         val song = liveQueue.current ?: return
         com.cosmotune.podio.PodioPlaybackPolicy.speedOnTransition(playbackEngine.state.value.song?.videoId, song.videoId, playbackSpeed)
             ?.let(playbackEngine::setPlaybackSpeed)
@@ -865,6 +864,26 @@ fun CosmotuneDesktopApp() {
         playbackEngine.load(song, startPlaying, startAtMs)
         partySyncHolder[0]?.onLocalIntent(song.videoId)
         scope.launch { DesktopScrobbling.updateNowPlaying(song) }
+    }
+
+    /** Opens whatever the queue is currently pointing at. */
+    fun playCurrent(startPlaying: Boolean = true, startAtMs: Long = 0) {
+        val song = liveQueue.current ?: return
+        // Prefer the song to its video (Settings): the music video gives way to the catalogue's recording, when one matches.
+        if (song.isVideo && startAtMs == 0L && !DesktopListenTogether.state.value.inParty && persistence.boolean(KEY_PREFER_MUSIC_ONLY, false)) {
+            val at = liveQueue.index
+            scope.launch {
+                val audio = withContext(Dispatchers.IO) { runCatching { YtMusicRepository.resolveAudio(song) }.getOrNull() }
+                    ?.takeIf { it.videoId != song.videoId && !it.isVideo }
+                if (liveQueue.index != at || liveQueue.current?.videoId != song.videoId) return@launch
+                if (audio != null) liveQueue = liveQueue.copy(songs = liveQueue.songs.toMutableList().also {
+                    it[at] = audio.copy(queueEntryId = song.queueEntryId, queueTier = song.queueTier)
+                })
+                playCurrentNow(startPlaying, startAtMs)
+            }
+            return
+        }
+        playCurrentNow(startPlaying, startAtMs)
     }
 
     fun partyTrackChangeBlocked(): Boolean {
@@ -1715,7 +1734,8 @@ fun CosmotuneDesktopApp() {
         var grew = false
         playlists = playlists.map { current ->
             if (current.id != playlist.id) return@map current
-            val merged = (current.songs + adding).distinctBy(Song::videoId)
+            // Settings, "Add to the top of playlists": new songs go first.
+            val merged = (if (com.cosmotune.settings.Extras.settings.playlistAddToStart.value) adding + current.songs else current.songs + adding).distinctBy(Song::videoId)
             grew = merged.size > current.songs.size
             current.copy(songs = merged)
         }
@@ -1791,7 +1811,12 @@ fun CosmotuneDesktopApp() {
         playlistBusy = true
         playlistError = null
         scope.launch {
-            DesktopSearchClient.addToPlaylist(playlist.playlistId, listOf(song.videoId))
+            val added = if (com.cosmotune.settings.Extras.settings.playlistAddToStart.value) {
+                com.cosmotune.music.data.YtMusicRepository.addToPlaylistStart(playlist.playlistId, playlist.browseId, listOf(song.videoId))
+            } else {
+                DesktopSearchClient.addToPlaylist(playlist.playlistId, listOf(song.videoId))
+            }
+            added
                 .onSuccess { closePlaylistDialogs() }
                 .onFailure {
                     DesktopTrackLog.log("playlist: could not add ${song.videoId}: ${it.message}")
@@ -2233,6 +2258,9 @@ fun CosmotuneDesktopApp() {
     // opens the player. Run from the player page instead, nothing was fetched until it was opened,
     // and a track half a minute in then showed a skeleton and arrived mid-song.
     var lyrics by remember { mutableStateOf<DesktopLyrics?>(null) }
+    // The floating lyrics window reads the same lines, the listener's own ones first.
+    val ownFloatingLyrics = com.cosmotune.music.ui.player.rememberOwnLyricsLines(selectedSong?.videoId.orEmpty())
+    LaunchedEffect(lyrics, ownFloatingLyrics) { DesktopFloatingLyrics.publish(ownFloatingLyrics ?: lyrics?.lines) }
     // The provider picked for this track in the player's lyrics drawer, if any.
     var lyricsOnly by remember(selectedSong?.videoId) { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
@@ -2651,6 +2679,27 @@ fun CosmotuneDesktopApp() {
 
     fun search() {
         if (query.isBlank() || searchLoading) return
+        // A pasted YouTube or YouTube Music link plays the song or opens the page instead of searching for the address.
+        if (!searchAddons) when (val link = com.cosmotune.music.data.YouTubeLinks.parse(query)) {
+            is com.cosmotune.music.data.YouTubeLink.Song -> {
+                searchTyping = false
+                searchSuggestions = emptyList()
+                scope.launch {
+                    DesktopSearchClient.trackLinks(link.videoId).fold(
+                        onSuccess = { playSong(it, source = DesktopQueueSource(DesktopStrings["search", "Search"], PlaybackSourceType.SHARED_LINK)) },
+                        onFailure = { searchError = "Couldn't open that link" },
+                    )
+                }
+                return
+            }
+            is com.cosmotune.music.data.YouTubeLink.Page -> {
+                searchTyping = false
+                searchSuggestions = emptyList()
+                if (link.isArtist) openArtist(link.browseId, "") else openCollection(link.browseId)
+                return
+            }
+            null -> Unit
+        }
         overlays.settingsPage = null
         destination = DesktopDestination.SEARCH
         searchTyping = false
@@ -3130,6 +3179,8 @@ fun CosmotuneDesktopApp() {
         DesktopTrayMenu.publish(title = title, playing = playing)
     }
     LaunchedEffect(Unit) {
+        // Up for a while: this start counts as one that got going (DesktopRescue).
+        launch { kotlinx.coroutines.delay(20_000); DesktopRescue.started() }
         DesktopMiniPlayer.actions = DesktopMiniPlayer.Actions(
             playPause = {
                 if (DesktopTrayVideo.active(playback.isPlaying)) DesktopTrayVideo.playPause()
@@ -4091,6 +4142,11 @@ fun CosmotuneDesktopApp() {
                             DesktopMiniPlayer.toggle()
                             true
                         }
+                        // Ctrl/Command+Shift+L opens or closes the floating lyrics window.
+                        event.key == Key.L && event.isShiftPressed && (event.isCtrlPressed || event.isMetaPressed) -> {
+                            DesktopFloatingLyrics.toggle()
+                            true
+                        }
                         event.key == Key.DirectionLeft && event.isAltPressed && !overlays.nowPlaying -> {
                             goBack()
                             true
@@ -4612,6 +4668,7 @@ fun CosmotuneDesktopApp() {
                                     }
                                 }
                             },
+                            onPhoneSession = { cookie -> scope.launch { signIn(cookie, "Your phone") } },
                             onPaste = { pasted ->
                                 scope.launch {
                                     if (!DesktopBrowserCookies.hasSigningSecret(pasted)) {
@@ -5877,6 +5934,7 @@ private fun DesktopFrame(
 /** What the mesh is averaged from — coarse by design. */
 /** Whether AutoPlay may offer a song this session has already played or suggested. */
 internal const val KEY_DONT_REPEAT_SUGGESTIONS = "dont_repeat_suggestions"
+internal const val KEY_PREFER_MUSIC_ONLY = "prefer_music_only"
 
 internal const val KEY_LIBRARY_SORT = "library_sort"
 
@@ -6025,6 +6083,7 @@ private fun DesktopDeviceMusic(
         onFindMusic = onFindMusic,
         currentSong = currentSong,
         isPlaying = isPlaying,
+        beats = com.cosmotune.ui.library.rememberTempoBeats(songs) { DesktopAnalysisRuntime.analysisHome() },
     )
 }
 
@@ -6355,6 +6414,13 @@ private fun DesktopSettingsScreen(
                         onLoudnessNormalizationChange,
                     )
                     val eqOn by DesktopEqualizerSettings.enabled.collectAsState()
+                    // As the phone's: a music video in the queue plays as its song, when the catalogue has the same recording.
+                    var preferSong by remember { mutableStateOf(DesktopPersistence().boolean(KEY_PREFER_MUSIC_ONLY, false)) }
+                    SettingsToggle(
+                        "Prefer the song to its video",
+                        "A music video plays as the song from the album when there is one, with the album's sound and cover",
+                        preferSong,
+                    ) { preferSong = it; DesktopPersistence().saveBoolean(KEY_PREFER_MUSIC_ONLY, it) }
                     SettingsToggle(
                         DesktopStrings["skip_silence", "Skip silence"],
                         DesktopStrings["d_shorten_long_gaps_rather_than_playing_them_out", "Shorten long gaps rather than playing them out"],
@@ -6374,8 +6440,14 @@ private fun DesktopSettingsScreen(
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.SURROUND, com.cosmotune.ui.settings.SoundExtrasText.SURROUND_LINE)) {
                         com.cosmotune.ui.settings.BinauralSurroundRow()
                     }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS, com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS_LINE)) {
+                        com.cosmotune.ui.settings.SoundEffectsRows()
+                    }
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME, com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME_LINE)) {
                         com.cosmotune.ui.settings.MaxVolumeRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.VOLUME_BOOST, com.cosmotune.ui.settings.SoundExtrasText.VOLUME_BOOST_LINE)) {
+                        com.cosmotune.ui.settings.VolumeBoostRow()
                     }
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.PITCH, com.cosmotune.ui.settings.SoundExtrasText.PITCH_LINE)) {
                         com.cosmotune.ui.settings.PitchRow()
@@ -6672,8 +6744,16 @@ private fun DesktopSettingsScreen(
                     SettingsRow(Icons.Rounded.Folder, "SMB share", if (smb.configured) "${smb.host}/${smb.share}" else "Play the songs in a shared folder on Windows, Samba or a NAS") {
                         shareDialog = "smb"
                     }
+                    val jellyfin = remember(shareRevision) { DesktopNetworkShares.jellyfin() }
+                    SettingsRow(Icons.Rounded.Cloud, "Jellyfin server", jellyfin?.url ?: "Play the music on your own Jellyfin server") {
+                        shareDialog = "jellyfin"
+                    }
                     val shareChanged = { shareRevision++; onLocalMusicFolderChanged() }
                     when (shareDialog) {
+                        "jellyfin" -> com.cosmotune.ui.providers.JellyfinServerDialog(jellyfin,
+                            onSignedIn = { DesktopNetworkShares.saveJellyfin(it); shareChanged(); shareDialog = null },
+                            onSignOut = { DesktopNetworkShares.saveJellyfin(null); shareChanged(); shareDialog = null },
+                            onDismiss = { shareDialog = null })
                         "webdav" -> DesktopWebDavDialog(onChanged = shareChanged, onDismiss = { shareDialog = null })
                         "smb" -> DesktopSmbDialog(onChanged = shareChanged, onDismiss = { shareDialog = null })
                     }
@@ -6903,6 +6983,32 @@ private fun DesktopSettingsScreen(
                             )
                         }
                     }
+                    }
+                    if (settingsRowVisible(DOWNLOAD_FOLDER_TITLE, "Where new downloads are saved, on any drive or external storage")) {
+                        var folderLabel by remember { mutableStateOf(DesktopDownloadFolder.label()) }
+                        val folderChosen = remember(folderLabel) { DesktopDownloadFolder.chosen() != null }
+                        Box(Modifier.fillMaxWidth().settingsHighlight(DOWNLOAD_FOLDER_TITLE)) {
+                            Column(Modifier.fillMaxWidth()) {
+                                com.cosmotune.ui.settings.CosmoSettingsRow(
+                                    icon = com.cosmotune.ui.components.CosmoIcons.Download,
+                                    title = DOWNLOAD_FOLDER_TITLE,
+                                    subtitle = "$folderLabel. New downloads go here; any drive will do.",
+                                    onClick = {
+                                        DesktopDownloadFolder.choose()?.let { DesktopDownloadFolder.set(it); folderLabel = DesktopDownloadFolder.label() }
+                                    },
+                                )
+                                if (folderChosen) {
+                                    Row(Modifier.fillMaxWidth().padding(start = com.cosmotune.ui.settings.CosmoSettingsInsets.textStart, end = settingsInset, bottom = 12.dp)) {
+                                        com.cosmotune.ui.orbit.OrbitPillButton(
+                                            "Use Music/Cosmotune again",
+                                            { DesktopDownloadFolder.set(null); folderLabel = DesktopDownloadFolder.label() },
+                                            com.cosmotune.ui.orbit.orbitFonts(),
+                                            com.cosmotune.ui.orbit.orbitLook(),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                     if (settingsRowVisible(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE, com.cosmotune.ui.settings.SMART_DOWNLOADS_LINE)) {
                         Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE)) {
@@ -8319,3 +8425,6 @@ private fun phraseBarsDetail(bars: Int): String = when (bars) {
     16 -> DesktopStrings["automix_phrase_16_detail", "Mixes over exactly 16 bars, both edges on the beat grid"]
     else -> DesktopStrings["automix_phrase_auto_detail", "Chooses each transition's length from the two tracks"]
 }
+
+/** Settings > Downloads: where downloads are saved. */
+private const val DOWNLOAD_FOLDER_TITLE = "Download folder"

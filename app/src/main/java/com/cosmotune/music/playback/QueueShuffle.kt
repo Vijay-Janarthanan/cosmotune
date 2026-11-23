@@ -204,10 +204,11 @@ object QueueShuffle {
         val userQueue = rest.filter { it.queueTier == QueueTier.USER_QUEUE }
         val context = rest.filter { it.queueTier == QueueTier.CONTEXT }
         val shuffledContext = if (context.size > 1) {
-            val s = context.shuffled()
+            // Fresh shuffle: songs heard lately tend to come later (Player options).
+            val s = QueueTimeline.fresh(context) { it.videoId }
             if (s == context) s.drop(1) + s.first() else s
         } else context
-        val autoplay = rest.filter { it.queueTier == QueueTier.AUTOPLAY }.shuffled()
+        val autoplay = QueueTimeline.fresh(rest.filter { it.queueTier == QueueTier.AUTOPLAY }) { it.videoId }
         return listOf(songs[startIndex]) + userQueue + shuffledContext + autoplay
     }
 
@@ -254,7 +255,7 @@ object QueueShuffle {
         val autoplayIndices = upcoming.indices.filter { upcoming[it].queueTier == QueueTier.AUTOPLAY }
 
         val shuffledContext = if (contextIndices.size > 1) {
-            avoidIdentityShuffle(contextIndices, contextIndices.shuffled())
+            avoidIdentityShuffle(contextIndices, QueueTimeline.fresh(contextIndices) { upcoming[it].mediaId })
         } else {
             contextIndices
         }

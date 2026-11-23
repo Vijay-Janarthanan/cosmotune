@@ -142,6 +142,7 @@ internal object RoomMapping {
             maxMembers = (metaJson.long("maxMembers") ?: 5).toInt(),
             hostOnlyControl = metaJson.flag("hostOnlyControl") ?: false,
             autoplay = metaJson.flag("autoplay") ?: false,
+            coHosts = metaJson.obj("coHosts")?.filterValues { (it as? JsonPrimitive)?.booleanOrNull == true }?.keys.orEmpty(),
         )
         val members = children(o.obj("members")).mapNotNull { (seat, m) ->
             val uid = m.text("uid") ?: return@mapNotNull null
@@ -168,11 +169,12 @@ internal object RoomMapping {
     }
 
     /** The same room as the party screens already understand, so existing Listen Together UI and playback code can read it. */
-    fun snapshotOf(room: RoomState): PartySnapshot = PartySnapshot(
+    fun snapshotOf(room: RoomState, selfUid: String? = null): PartySnapshot = PartySnapshot(
         code = room.code,
         createdAtMs = room.meta.createdAtMs,
         maxMembers = room.meta.maxMembers,
-        hostOnlyControl = room.meta.hostOnlyControl,
+        // A co-host is not held back by host-only control: to their player the room is open.
+        hostOnlyControl = room.meta.hostOnlyControl && (selfUid == null || selfUid !in room.meta.coHosts),
         members = room.members.map {
             PartyMember(it.uid, it.uid, it.name, it.avatarUrl, it.isHost, it.connected, it.joinedAtMs, it.lastSeenMs)
         },

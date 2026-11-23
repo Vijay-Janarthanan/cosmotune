@@ -47,6 +47,13 @@ import kotlin.math.roundToInt
 class AndroidPlayerHost(context: Context) : PlayerHost {
     override val bluetoothReconnectSupported = true
     private val app = context.applicationContext
+
+    override fun analysisDirectory(): java.io.File = app.filesDir
+
+    override fun localChapters(song: Song): List<com.cosmotune.podio.PodcastChapter> =
+        song.localUri?.takeIf { it.startsWith("content:") }?.let { uri ->
+            runCatching { app.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use(com.cosmotune.podio.Id3Chapters::readStream) }.getOrNull()
+        } ?: super.localChapters(song)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val main = Handler(Looper.getMainLooper())
 

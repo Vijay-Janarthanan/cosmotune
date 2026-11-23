@@ -68,6 +68,10 @@ internal fun rememberOwnLyrics(videoId: String): OwnLyrics.Saved? {
     return all[videoId]
 }
 
+/** The listener's own lyrics for [videoId] as lines (for the desktop's floating lyrics window); null without them. */
+@Composable
+fun rememberOwnLyricsLines(videoId: String): List<com.cosmotune.music.data.lyrics.LyricLine>? = rememberOwnLyrics(videoId)?.lines
+
 /** Where the song is now: the last reading of [position], carried forward by the time since it was taken while it plays. */
 internal fun livePlayheadMs(position: PlaybackPosition, isPlaying: Boolean): Long {
     val since = if (isPlaying && position.advancing && position.sampledAtNanos > 0) (System.nanoTime() - position.sampledAtNanos) / 1_000_000 else 0L

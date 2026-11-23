@@ -13,7 +13,12 @@ data class RoomMeta(
     val maxMembers: Int,
     val hostOnlyControl: Boolean = false,
     val autoplay: Boolean = false,
-)
+    /** Members the host made co-hosts: with [hostOnlyControl] on they drive the music too (Jam's co-hosts). */
+    val coHosts: Set<String> = emptySet(),
+) {
+    /** Whether the member [uid] may drive the music. */
+    fun canControl(uid: String?): Boolean = !hostOnlyControl || (uid != null && (uid == hostUid || uid in coHosts))
+}
 
 /** One person in the room. [mic] is what they chose; [connected] is whether they were heard from lately, which is the only presence there is. */
 data class RoomMember(

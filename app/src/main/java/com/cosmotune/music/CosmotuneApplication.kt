@@ -54,6 +54,15 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
             runCatching { com.cosmotune.diagnostics.CrashNotes.record(failure) }
             uncaught?.uncaughtException(thread, failure)
         }
+        // Rescue on the launcher icon's long-press menu, kept there from the first start so it is at hand once something breaks.
+        runCatching {
+            androidx.core.content.pm.ShortcutManagerCompat.pushDynamicShortcut(this,
+                androidx.core.content.pm.ShortcutInfoCompat.Builder(this, "rescue")
+                    .setShortLabel("Rescue").setLongLabel("Rescue: backup and crash note")
+                    .setIcon(androidx.core.graphics.drawable.IconCompat.createWithResource(this, R.mipmap.ic_launcher))
+                    .setIntent(android.content.Intent(this, RescueActivity::class.java).setAction(android.content.Intent.ACTION_VIEW))
+                    .build())
+        }
         if (android.os.Build.VERSION.SDK_INT >= 28 && Application.getProcessName().let { it.endsWith(":provider_auth") || it.endsWith(":mangaverification") }) return
         com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
         // Watch's Play on a TV lists Google Cast devices next to DLNA ones.
@@ -180,6 +189,13 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         // service alone: Video and Watch play on a service of their own.
         com.cosmotune.music.playback.SleepTimerWatcher.start(this)
         com.cosmotune.ui.sleep.SleepTimerUi.control = com.cosmotune.music.playback.AndroidSleepTimerControl
+        // The music player's Comments: Video mode's sheet, over its own graph (built the first time it is opened).
+        val app = this
+        com.cosmotune.ui.nowplaying.MusicComments.sheet = { videoId, onDismiss ->
+            androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.video.graph.LocalVideoGraph provides com.cosmotune.video.graph.androidVideoGraph(app)) {
+                com.cosmotune.video.ui.comments.CommentsSheet(videoId, onDismiss)
+            }
+        }
         // Before anything resolves a track: an addon with `checkValidLossless`
         // is gated on this, and the gate reads "no" until it has looked.
         com.cosmotune.music.playback.audio.LosslessOutput.init(this)

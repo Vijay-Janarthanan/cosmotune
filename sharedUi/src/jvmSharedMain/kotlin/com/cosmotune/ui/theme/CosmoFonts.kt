@@ -1,6 +1,8 @@
 package com.cosmotune.ui.theme
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -58,5 +60,13 @@ internal fun cosmoFontFamilies(): Pair<FontFamily, FontFamily> {
     val text = CosmoFontSpecs.textWeights.map {
         Font(Res.font.hanken_grotesk_variable, FontWeight(it), FontStyle.Normal, FontVariation.Settings(FontVariation.weight(it)))
     }
-    return remember(display, text) { FontFamily(display) to FontFamily(text) }
+    // Look and colours, Text font: the body text in Cosmotune's own, the device's or a serif; headings stay Cosmotune's.
+    val choice by com.cosmotune.ui.settings.rememberCosmoLookSettings().textFont.collectAsState()
+    return remember(display, text, choice) {
+        FontFamily(display) to when (choice) {
+            com.cosmotune.settings.TextFont.SYSTEM -> FontFamily.SansSerif
+            com.cosmotune.settings.TextFont.SERIF -> FontFamily.Serif
+            com.cosmotune.settings.TextFont.COSMOTUNE -> FontFamily(text)
+        }
+    }
 }

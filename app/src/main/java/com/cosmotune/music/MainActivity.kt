@@ -593,6 +593,7 @@ private fun CosmotuneApp(
     var creatingPlaylist by remember { mutableStateOf(false) }
     var showSpotifyImportDialog by remember { mutableStateOf(false) }
     var sharedPlaylistLink by rememberSaveable { mutableStateOf<String?>(null) }
+    var computerSignIn by remember { mutableStateOf<com.cosmotune.remote.PhoneSignIn.Link?>(null) }
     // Which album or playlist the collection menu is open on, or null when it
     // is shut. One slot for every surface that can open it â€” the shelves on
     // three tabs, the search rows, the artist page's carousels, the release
@@ -1830,6 +1831,11 @@ private fun CosmotuneApp(
             MusicLink.handled()
             return@LaunchedEffect
         }
+        if (request is LinkRequest.SignInComputer) {
+            computerSignIn = request.link
+            MusicLink.handled()
+            return@LaunchedEffect
+        }
         // Nothing here can be served without somewhere to play it â€” even the
         // branches that only push a page are a beat away from a tap on one of
         // its rows, and half-serving a request would spend it.
@@ -1889,7 +1895,7 @@ private fun CosmotuneApp(
                     play(listOf(song), 0)
                 }
             }
-            is LinkRequest.ImportPlaylist -> Unit
+            is LinkRequest.ImportPlaylist, is LinkRequest.SignInComputer -> Unit
         }
         MusicLink.handled()
     }
@@ -3547,7 +3553,14 @@ private fun CosmotuneApp(
                             history = searchHistory,
                             suggestions = searchSuggestions,
                             typeaheadResults = viewModel.typeaheadResults.collectAsStateWithLifecycle().value,
-                            onSubmit = viewModel::submitSearch,
+                            // A pasted YouTube or YouTube Music link plays the song or opens the page, like a shared one.
+                            onSubmit = {
+                                when (val link = com.cosmotune.music.data.YouTubeLinks.parse(query)) {
+                                    is com.cosmotune.music.data.YouTubeLink.Song -> MusicLink.offer(LinkRequest.Track(link.videoId))
+                                    is com.cosmotune.music.data.YouTubeLink.Page -> MusicLink.offer(LinkRequest.Page(link.browseId))
+                                    null -> viewModel.submitSearch()
+                                }
+                            },
                             // Suggestions land in search history via searchFor â†’ recordSearch.
                             // History items (onHistoryClick) navigate/play without re-logging.
                             onSuggestionClick = viewModel::searchFor,
@@ -4709,6 +4722,9 @@ private fun CosmotuneApp(
             }
         }
 
+        computerSignIn?.let { link ->
+            com.cosmotune.music.ui.ComputerSignInDialog(link, hazeState = hazeState, onDone = { computerSignIn = null })
+        }
         if (showSpotifyImportDialog || sharedPlaylistLink != null) {
             androidx.compose.runtime.key(sharedPlaylistLink) {
                 SpotifyImportAlert(

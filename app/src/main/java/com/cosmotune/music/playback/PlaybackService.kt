@@ -879,6 +879,19 @@ class PlaybackService : MediaLibraryService() {
                 delay(1_000)
             }
         }
+        // SponsorBlock in YouTube podcast episodes (Player options > Skip sponsors in podcasts).
+        com.cosmotune.podio.PodioSponsorSkip.watch(scope, { com.cosmotune.settings.Extras.settings.podioSkipSponsors.value },
+            { player?.let { p -> p.currentMediaItem?.mediaId to p.currentPosition } }, { at -> player?.seekTo(at) })
+        // Aâ€“B repeat (Player menu > Bookmarks): back to A each time the song reaches B, a few times a second while one is set.
+        scope.launch {
+            com.cosmotune.settings.Extras.settings.abLoop.collectLatest { loop ->
+                if (loop?.endMs == null) return@collectLatest
+                while (isActive) {
+                    player?.let { p -> loop.seekTarget(p.currentMediaItem?.mediaId, p.currentPosition)?.let(p::seekTo) }
+                    delay(100)
+                }
+            }
+        }
     }
 
     /** The marked parts of music videos to skip, fetched once per song while the setting is on. */
@@ -1026,6 +1039,8 @@ class PlaybackService : MediaLibraryService() {
     private var serviceLyrics: List<LyricLine>? = null
     private var lastPublishedSubtitle: String? = null
     private var lyricsTickerJob: Job? = null
+    private val statusBarLyrics by lazy { StatusBarLyrics(this) }
+    private val floatingLyrics by lazy { FloatingLyricsOverlay(this) }
 
     /**
      * Everything the service books against the player it is currently on.
@@ -7112,6 +7127,7 @@ class PlaybackService : MediaLibraryService() {
 
     private fun applySongTuning(player: ExoPlayer) {
         val id = player.currentMediaItem?.mediaId
+        com.cosmotune.settings.Extras.settings.playingSongId = id
         if (!com.cosmotune.podio.PodioPlaybackPolicy.isPodio(id)) player.setPlaybackSpeed(musicTuning(id).speed)
         applyPitch(player)
     }
@@ -8119,6 +8135,8 @@ class PlaybackService : MediaLibraryService() {
         serviceLyricsJob?.cancel()
         serviceLyricsJob = null
         serviceLyrics = null
+        statusBarLyrics.clear()
+        floatingLyrics.clear()
         SleepTimerWatcher.removePauser(sleepPauser)
         SleepTimerWatcher.removeFader(sleepFader)
         cancelPrefetch()
@@ -8305,22 +8323,17 @@ class PlaybackService : MediaLibraryService() {
 
     private fun updateLyricSubtitle() {
         val exoPlayer = player ?: return
-        val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return
+        val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return statusBarLyrics.clear().also { floatingLyrics.clear() }
         val lines = serviceLyrics
         val pos = exoPlayer.currentPosition
         // The lyrics widget follows the same line (it draws nothing unless one is placed).
         com.cosmotune.music.widget.LyricWidget.show(this, com.cosmotune.music.data.lyrics.LyricWidgetState.at(currentSong.title, currentSong.artist, lines, pos))
-        val subtitleText = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
-            val idx = lines.indexOfLast { it.timeMs <= pos }
-            val currentLine = lines.getOrNull(idx)
-            if (currentLine != null && !currentLine.isGap && currentLine.text.isNotBlank()) {
-                "♪ ${currentLine.text}"
-            } else {
-                currentSong.artist
-            }
-        } else {
-            currentSong.artist
-        }
+        val sung = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
+            lines.getOrNull(lines.indexOfLast { it.timeMs <= pos })?.takeIf { !it.isGap && it.text.isNotBlank() }?.text
+        } else null
+        statusBarLyrics.show(sung?.takeIf { AppSettings.statusBarLyrics.value && exoPlayer.isPlaying })
+        floatingLyrics.show(sung?.takeIf { AppSettings.floatingLyrics.value && exoPlayer.isPlaying })
+        val subtitleText = if (sung != null) "♪ $sung" else currentSong.artist
 
         if (subtitleText != lastPublishedSubtitle) {
             lastPublishedSubtitle = subtitleText

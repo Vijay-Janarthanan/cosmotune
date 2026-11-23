@@ -58,6 +58,11 @@
           "autoplay": {
             ".validate": "newData.isBoolean()"
           },
+          "coHosts": {
+            "$uid": {
+              ".validate": "newData.isBoolean()"
+            }
+          },
           "$other": {
             ".validate": false
           }
@@ -102,7 +107,7 @@
         },
         "state": {
           ".read": "auth != null && (root.child('rooms').child($code).child('meta').child('createdAt').val() + 86400000 > now) && root.child('rooms').child($code).child('uids').child(auth.uid).exists()",
-          ".write": "auth != null && (root.child('rooms').child($code).child('meta').child('createdAt').val() + 86400000 > now) && root.child('rooms').child($code).child('uids').child(auth.uid).exists() && (root.child('rooms').child($code).child('meta').child('hostOnlyControl').val() !== true || root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid) && newData.child('seq').val() === (data.exists() ? data.child('seq').val() + 1 : 1)",
+          ".write": "auth != null && (root.child('rooms').child($code).child('meta').child('createdAt').val() + 86400000 > now) && root.child('rooms').child($code).child('uids').child(auth.uid).exists() && (root.child('rooms').child($code).child('meta').child('hostOnlyControl').val() !== true || root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid || root.child('rooms').child($code).child('meta').child('coHosts').child(auth.uid).val() === true) && newData.child('seq').val() === (data.exists() ? data.child('seq').val() + 1 : 1)",
           ".validate": "newData.hasChildren(['seq', 'positionMs', 'anchorMs', 'isPlaying', 'updatedBy'])",
           "seq": {
             ".validate": "newData.isNumber()"
@@ -211,7 +216,7 @@
         },
         "queue": {
           ".read": "auth != null && (root.child('rooms').child($code).child('meta').child('createdAt').val() + 86400000 > now) && root.child('rooms').child($code).child('uids').child(auth.uid).exists()",
-          ".write": "auth != null && (root.child('rooms').child($code).child('meta').child('createdAt').val() + 86400000 > now) && root.child('rooms').child($code).child('uids').child(auth.uid).exists() && (root.child('rooms').child($code).child('meta').child('hostOnlyControl').val() !== true || root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid) && newData.child('seq').val() === (data.exists() ? data.child('seq').val() + 1 : 1)",
+          ".write": "auth != null && (root.child('rooms').child($code).child('meta').child('createdAt').val() + 86400000 > now) && root.child('rooms').child($code).child('uids').child(auth.uid).exists() && (root.child('rooms').child($code).child('meta').child('hostOnlyControl').val() !== true || root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid || root.child('rooms').child($code).child('meta').child('coHosts').child(auth.uid).val() === true) && newData.child('seq').val() === (data.exists() ? data.child('seq').val() + 1 : 1)",
           ".validate": "newData.hasChildren(['seq'])",
           "seq": {
             ".validate": "newData.isNumber()"

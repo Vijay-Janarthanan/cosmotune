@@ -31,6 +31,10 @@ fun DesktopListeningTools(
 ) {
     ListeningTools(open, ListeningToolsHost(
         file = desktopListeningFile(), library = library, queue = queue,
+        onNewReleases = { found ->
+            val (title, lines) = com.cosmotune.listening.ReleaseChecks.notificationText(found)
+            com.cosmotune.music.desktop.DesktopAwtTray.notify(title, lines.joinToString(LINE_BREAK))
+        },
         replay = { window ->
             val period = if (window == ReplayWindow.MONTH) DesktopReplayPeriod.THIS_MONTH else DesktopReplayPeriod.THIS_YEAR
             val summary = DesktopListeningStats.summary(period)
@@ -60,6 +64,7 @@ fun DesktopListeningTools(
         ),
         likeSongs = likeSongs,
         addHistory = addHistory,
+        recordHistory = { plays -> withContext(Dispatchers.IO) { com.cosmotune.music.desktop.DesktopListeningStats.importPlays(plays) } },
         importPlaylistFile = {
             chooseCosmotuneFile("", saving = false, title = "Import music playlist")?.let { selected -> withContext(Dispatchers.IO) {
                 val file = selected.canonicalFile
@@ -125,3 +130,6 @@ internal fun desktopTrash(): (suspend (List<Song>) -> Int)? {
 
 /** The desktop's SQLite reader (sqlite-jdbc) for a backup's database. */
 private fun JdbcSqliteRowsFor(path: String): com.cosmotune.video.importers.SqliteRows = com.cosmotune.video.importers.JdbcSqliteRows(path)
+
+/** Between the lines of a release notification. */
+private const val LINE_BREAK = "\n"

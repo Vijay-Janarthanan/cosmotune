@@ -46,8 +46,8 @@ data class RoomUiState(
 ) {
     val self get() = room?.member(selfUid)
     val isHost get() = room?.meta?.hostUid == selfUid
-    /** Whether this person may drive the music: everyone, unless the host switched on host-only control. */
-    val canControl get() = room != null && (!room.meta.hostOnlyControl || isHost)
+    /** Whether this person may drive the music: everyone, unless the host switched on host-only control (then the host and co-hosts). */
+    val canControl get() = room != null && room.meta.canControl(selfUid)
 }
 
 /** What a person can do in the room screen. Every one is a call into the platform's room client or player; none blocks the screen. */
@@ -74,6 +74,8 @@ interface RoomActions {
     /** Host only. */
     fun setHostOnlyControl(enabled: Boolean)
     fun removeMember(uid: String)
+    /** Host only: makes a member a co-host, who drives the music with host-only control on, or takes it back. */
+    fun setCoHost(uid: String, coHost: Boolean) {}
 
     fun copyInviteCode(code: String)
     fun shareInvite(code: String)

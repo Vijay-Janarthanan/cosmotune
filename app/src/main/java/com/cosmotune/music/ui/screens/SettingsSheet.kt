@@ -839,8 +839,14 @@ fun SettingsScreen(
             row(com.cosmotune.ui.settings.SoundExtrasText.SURROUND, "5.1", "7.1", "binaural", "surround", summary = com.cosmotune.ui.settings.SoundExtrasText.SURROUND_LINE) {
                 com.cosmotune.ui.settings.BinauralSurroundRow()
             }
+            row(com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS, "8D", "3D room", "spatial", "echo", "reverb", "chorus", "karaoke", "vocal remover", "night mode", "compressor", summary = com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS_LINE) {
+                com.cosmotune.ui.settings.SoundEffectsRows()
+            }
             row(com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME, "volume cap", "hearing", "limit", summary = com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME_LINE) {
                 com.cosmotune.ui.settings.MaxVolumeRow()
+            }
+            row(com.cosmotune.ui.settings.SoundExtrasText.VOLUME_BOOST, "louder", "amplify", "gain", summary = com.cosmotune.ui.settings.SoundExtrasText.VOLUME_BOOST_LINE) {
+                com.cosmotune.ui.settings.VolumeBoostRow()
             }
             row(com.cosmotune.ui.settings.SoundExtrasText.PITCH, "key", "semitone", "transpose", summary = com.cosmotune.ui.settings.SoundExtrasText.PITCH_LINE) {
                 com.cosmotune.ui.settings.PitchRow()
@@ -1089,6 +1095,20 @@ fun SettingsScreen(
                     subtitle = "Music/Cosmotune".takeIf { exportDownloads },
                 )
             }
+            val cardContext = androidx.compose.ui.platform.LocalContext.current
+            val card = remember(exportDownloads) { com.cosmotune.music.download.DownloadStore.cardVolume(cardContext) }
+            // Only with downloads in the Music folder and a memory card in: private downloads stay in the app's own storage.
+            if (exportDownloads && card != null) {
+                val downloadsOnCard by AppSettings.downloadsOnCard.collectAsStateWithLifecycle()
+                row(DOWNLOADS_ON_CARD, "sd card", "memory card", "external storage", divided = false) {
+                    SettingsSubRow(
+                        title = DOWNLOADS_ON_CARD,
+                        checked = downloadsOnCard,
+                        onCheckedChange = AppSettings::setDownloadsOnCard,
+                        subtitle = if (downloadsOnCard) "New downloads go to Music/Cosmotune on the card" else "New downloads stay on the phone",
+                    )
+                }
+            }
             row(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE, "most played", "offline", "automatic", summary = com.cosmotune.ui.settings.SMART_DOWNLOADS_LINE) {
                 val smartContext = androidx.compose.ui.platform.LocalContext.current
                 com.cosmotune.ui.settings.SmartDownloadsRows(com.cosmotune.ui.settings.cosmoLookSettings(smartContext))
@@ -1246,6 +1266,34 @@ fun SettingsScreen(
                     },
                     onClick = { AppSettings.setSyncedLyrics(!syncedLyrics) },
                 )
+            }
+            if (syncedLyrics) {
+                val statusBarLyrics by AppSettings.statusBarLyrics.collectAsStateWithLifecycle()
+                row(STATUS_BAR_LYRICS, "status bar", "meizu", "flyme", "lyric getter", divided = false) {
+                    SettingsSubRow(
+                        title = STATUS_BAR_LYRICS,
+                        checked = statusBarLyrics,
+                        onCheckedChange = AppSettings::setStatusBarLyrics,
+                        subtitle = STATUS_BAR_LYRICS_LINE,
+                    )
+                }
+                // Over other apps: Android asks the listener to allow that first, on its own page.
+                val floating by AppSettings.floatingLyrics.collectAsStateWithLifecycle()
+                val overlayContext = androidx.compose.ui.platform.LocalContext.current
+                row(FLOATING_LYRICS, "floating", "bubble", "overlay", "over other apps", divided = false) {
+                    SettingsSubRow(
+                        title = FLOATING_LYRICS,
+                        checked = floating,
+                        onCheckedChange = { on ->
+                            AppSettings.setFloatingLyrics(on)
+                            if (on && !android.provider.Settings.canDrawOverlays(overlayContext)) runCatching {
+                                overlayContext.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:" + overlayContext.packageName)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        },
+                        subtitle = FLOATING_LYRICS_LINE,
+                    )
+                }
             }
             // Nothing to choose between while the feature is off, and the
             // sources are third-party services being reached on the user's
@@ -2774,3 +2822,12 @@ internal fun SegmentedControl(
 ) {
     com.cosmotune.ui.settings.CosmoSettingsSegmented(options = options, selectedIndex = selectedIndex, onSelect = onSelect, modifier = modifier, enabled = enabled)
 }
+
+/** Settings > Downloads: the switch that puts exported downloads on the memory card. */
+private const val DOWNLOADS_ON_CARD = "Save to the memory card"
+
+/** Settings > Lyrics: the line being sung in the status bar. */
+private const val STATUS_BAR_LYRICS = "Lyrics in the status bar"
+private const val FLOATING_LYRICS = "Floating lyrics"
+private const val FLOATING_LYRICS_LINE = "The line being sung in a small bar over other apps; drag it where you like. Android asks you to allow display over other apps."
+private const val STATUS_BAR_LYRICS_LINE = "The line being sung, shown in the status bar on Meizu phones, or on others with a status bar lyrics module"

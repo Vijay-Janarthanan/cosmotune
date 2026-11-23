@@ -182,7 +182,7 @@ fun Song.matchesSearch(query: String): Boolean =
 /** A device folder's running order, per the sort its top bar menu picked. */
 fun List<Song>.sortedForLibrary(order: LocalMusicSort): List<Song> = when (order) {
     LocalMusicSort.TITLE_ASC -> sortedByTitle()
-    LocalMusicSort.TITLE_DESC -> sortedWith(compareByDescending<Song> { it.title.lowercase(Locale.ROOT) })
+    LocalMusicSort.TITLE_DESC -> sortedWith(compareByDescending(com.cosmotune.listening.NaturalOrder) { it.title })
     LocalMusicSort.DATE_ADDED -> sortedWith(
         compareByDescending<Song> { it.localDateAddedSeconds ?: Long.MIN_VALUE }
             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
@@ -194,7 +194,7 @@ fun List<Song>.sortedForLibrary(order: LocalMusicSort): List<Song> = when (order
 }
 
 private fun List<Song>.sortedByTitle(): List<Song> =
-    sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+    sortedWith(compareBy(com.cosmotune.listening.NaturalOrder) { it.title })
 
 /**
  * Release order for one tag-derived album: by the file's own track number,

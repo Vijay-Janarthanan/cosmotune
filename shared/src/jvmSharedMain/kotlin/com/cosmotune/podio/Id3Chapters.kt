@@ -22,6 +22,19 @@ object Id3Chapters {
         }
     } catch (_: Exception) { emptyList() }
 
+    /** The same from a stream (a song on the phone's storage); reads the tag only. */
+    fun readStream(input: java.io.InputStream): List<PodcastChapter> = try {
+        val data = java.io.DataInputStream(input)
+        val header = ByteArray(10).also(data::readFully)
+        val size = tagSize(header)
+        if (size == null) emptyList() else {
+            val bytes = ByteArray(10 + minOf(size, MAX_TAG))
+            header.copyInto(bytes)
+            data.readFully(bytes, 10, bytes.size - 10)
+            read(bytes)
+        }
+    } catch (_: Exception) { emptyList() }
+
     private fun tagSize(header: ByteArray): Int? {
         if (header.size < 10 || header[0] != 'I'.code.toByte() || header[1] != 'D'.code.toByte() || header[2] != '3'.code.toByte()) return null
         if (header[3].toInt() !in 3..4) return null

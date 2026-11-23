@@ -193,7 +193,7 @@ class PhoneRoomLauncher internal constructor(
     override val inRoom: Boolean get() = code.value != null
 
     override val canControl: Boolean
-        get() = room.value?.let { !it.meta.hostOnlyControl || it.meta.hostUid == PhoneRooms.selfUid } == true
+        get() = room.value?.meta?.canControl(PhoneRooms.selfUid) == true
 
     override val memberCount: Int get() = room.value?.members?.size ?: 0
 

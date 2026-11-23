@@ -281,20 +281,26 @@ object QueueTimeline {
         val rest = songs.filterIndexed { i, _ -> i != at }
         return listOf(songs[at]) +
             rest.filter { it.queueTier == QueueTier.USER_QUEUE } +
-            rest.filter { it.queueTier == QueueTier.CONTEXT }.shuffled() +
-            rest.filter { it.queueTier == QueueTier.AUTOPLAY }.shuffled()
+            fresh(rest.filter { it.queueTier == QueueTier.CONTEXT }) { it.videoId } +
+            fresh(rest.filter { it.queueTier == QueueTier.AUTOPLAY }) { it.videoId }
+    }
+
+    /** A shuffled [items], with songs heard lately further back while Fresh shuffle is on ([FreshShuffle]). */
+    fun <T> fresh(items: List<T>, id: (T) -> String?): List<T> {
+        val settings = com.cosmotune.settings.Extras.settings
+        return FreshShuffle.order(items) { item -> id(item)?.let(settings::lastPlayedAt) }
     }
 
     /**
      * Shuffle applied to what is still to come: USER_QUEUE is never shuffled, CONTEXT and AUTOPLAY
      * are shuffled within their own sections. Returned as a permutation of indices into [upcoming].
      */
-    fun shuffledUpcomingOrder(upcoming: List<QueueTier>): List<Int> {
+    fun shuffledUpcomingOrder(upcoming: List<QueueTier>, ids: List<String>? = null): List<Int> {
         val user = upcoming.indices.filter { upcoming[it] == QueueTier.USER_QUEUE }
         val context = upcoming.indices.filter { upcoming[it] == QueueTier.CONTEXT }
         val autoplay = upcoming.indices.filter { upcoming[it] == QueueTier.AUTOPLAY }
-        return user + avoidIdentityShuffle(context, context.shuffled()) +
-            avoidIdentityShuffle(autoplay, autoplay.shuffled())
+        return user + avoidIdentityShuffle(context, fresh(context) { ids?.getOrNull(it) }) +
+            avoidIdentityShuffle(autoplay, fresh(autoplay) { ids?.getOrNull(it) })
     }
 
     /**

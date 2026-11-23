@@ -75,6 +75,7 @@ object CosmoIcons {
     val Queue by icon("queue") { stroke("M4 6.5h12"); stroke("M4 11.5h12"); stroke("M4 16.5h6.5"); fill("M14.5 14.2v5.6a.5.5 0 0 0 .8.4l4.2-2.8a.5.5 0 0 0 0-.8l-4.2-2.8a.5.5 0 0 0-.8.4z") }
     val Lyrics by icon("lyrics") { stroke("M4 7h8.5"); stroke("M4 12h8.5"); stroke("M4 17h11"); stroke("M17.5 13.5V5.2l3 .9"); circle(15.9f, 13.6f, 1.7f) }
     val Devices by icon("devices") { rect(3.5f, 3.5f, 10.5f, 17f, 2.5f); circle(8.75f, 14.25f, 2.75f); circle(8.75f, 7.6f, .6f, true); rect(16.5f, 9f, 4f, 10f, 1.2f) }
+    val Comments by icon("comments") { stroke("M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H10l-4 3.5v-3.5H5A1.5 1.5 0 0 1 3.5 15V7A1.5 1.5 0 0 1 5 5.5z") }
     val Together by icon("together") {
         circle(12f, 12f, 2f); stroke("M8.3 8.3a5.2 5.2 0 0 0 0 7.4"); stroke("M15.7 8.3a5.2 5.2 0 0 1 0 7.4")
         stroke("M5.9 5.9a8.6 8.6 0 0 0 0 12.2"); stroke("M18.1 5.9a8.6 8.6 0 0 1 0 12.2")

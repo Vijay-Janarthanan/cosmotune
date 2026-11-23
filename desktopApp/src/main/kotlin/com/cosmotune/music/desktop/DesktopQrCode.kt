@@ -32,9 +32,9 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** A cached, theme-independent invite QR for a nearby phone to scan. */
+/** A cached, theme-independent QR code (a party invite, a phone sign-in) for a nearby phone to scan. */
 @Composable
-internal fun DesktopQrCode(content: String, size: Dp = 104.dp) {
+internal fun DesktopQrCode(content: String, size: Dp = 104.dp, description: String = "Party invite QR code") {
     val density = LocalDensity.current
     val quietZone = 9.dp
     val sidePx = with(density) { (size - quietZone * 2).roundToPx() }
@@ -47,7 +47,7 @@ internal fun DesktopQrCode(content: String, size: Dp = 104.dp) {
             .background(Color.White)
             .padding(quietZone),
     ) {
-        image?.let { Image(it, contentDescription = "Party invite QR code", modifier = Modifier.fillMaxSize()) }
+        image?.let { Image(it, contentDescription = description, modifier = Modifier.fillMaxSize()) }
     }
 }
 

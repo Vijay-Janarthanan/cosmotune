@@ -68,6 +68,17 @@ interface PlayerHost {
     @Composable
     fun rememberRemoteArtworkUrl(song: Song?): String?
 
+    /**
+     * Chapters written into a song file's own tag (ID3 CHAP frames), for Bookmarks. Called off the main thread. The default reads
+     * a file path; the phone also opens its storage's content links.
+     */
+    fun localChapters(song: Song): List<com.cosmotune.podio.PodcastChapter> =
+        (song.localPath ?: song.localUri?.takeIf { it.startsWith("file:") }?.let { runCatching { java.io.File(java.net.URI(it)).path }.getOrNull() })
+            ?.let { com.cosmotune.podio.Id3Chapters.readFile(java.io.File(it)) }.orEmpty()
+
+    /** Where Automix keeps its song analyses, for the mix view; null where there is none. */
+    fun analysisDirectory(): java.io.File? = null
+
     /** The system output level the player's volume bar drives, if it drives one. */
     val volume: SystemVolume
 

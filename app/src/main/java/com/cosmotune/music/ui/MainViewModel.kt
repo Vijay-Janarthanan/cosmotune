@@ -1131,6 +1131,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private enum class AddOutcome { ADDED, ALREADY_THERE, FAILED }
 
+    /** Adds to the end of [playlist], or to its start while "Add songs to the start of playlists" is on. */
+    private suspend fun addSongsTo(playlist: UserPlaylist, videoIds: List<String>): Result<Map<String, String>> =
+        if (com.cosmotune.settings.Extras.settings.playlistAddToStart.value) {
+            YtMusicRepository.addToPlaylistStart(playlist.playlistId, playlist.browseId, videoIds)
+        } else {
+            YtMusicRepository.addToPlaylist(playlist.playlistId, videoIds)
+        }
+
     /**
      * A whole album or playlist into each of [playlists] (an album menu's "Add to playlists", from upstream 1.10): the songs a
      * playlist already has are left out, the rest go in one request per playlist. [onResult] counts playlists: those that took
@@ -1152,7 +1160,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val known = (openSongs ?: YtMusicRepository.allSongs(playlist.browseId).getOrNull()).orEmpty().mapTo(HashSet()) { it.videoId }
                 val fresh = wanted.filterNot { it.videoId in known }
                 if (fresh.isEmpty()) { already++; continue }
-                YtMusicRepository.addToPlaylist(playlist.playlistId, fresh.map { it.videoId }).fold(
+                addSongsTo(playlist, fresh.map { it.videoId }).fold(
                     onSuccess = { ids ->
                         libraryStale = true
                         fresh.forEach { appendToOpenPlaylist(playlist.browseId, it, ids[it.videoId]) }
@@ -1171,7 +1179,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val known = openSongs
             ?: YtMusicRepository.allSongs(playlist.browseId).getOrNull()
         if (known?.any { it.videoId == song.videoId } == true) return AddOutcome.ALREADY_THERE
-        return YtMusicRepository.addToPlaylist(playlist.playlistId, listOf(song.videoId)).fold(
+        return addSongsTo(playlist, listOf(song.videoId)).fold(
             onSuccess = { added ->
                 libraryStale = true
                 // The playlist's page may be open behind the picker — it is
@@ -2790,6 +2798,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 R.string.smb_empty,
                 com.cosmotune.music.data.smb.SmbRepository::getSongs,
             )
+        com.cosmotune.music.data.jellyfin.JellyfinLibrary.BROWSE_ID ->
+            RemoteLibrary(R.string.jellyfin_empty) {
+                AppSettings.jellyfinSession.value?.let { com.cosmotune.music.data.jellyfin.JellyfinLibrary.songs(it).getOrThrow() }.orEmpty()
+            }
         else -> null
     }
 

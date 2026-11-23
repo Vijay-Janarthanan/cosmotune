@@ -137,6 +137,11 @@ class AuthStore(context: Context) {
         get() = prefs.getString(KEY_WEBDAV_PASSWORD, null)
         set(value) = prefs.edit().putString(KEY_WEBDAV_PASSWORD, value).apply()
 
+    /** The Jellyfin server's address, user and access token (never the password), encrypted like the rest. */
+    var jellyfinSession: String?
+        get() = prefs.getString("jellyfin_session", null)
+        set(value) = prefs.edit().putString("jellyfin_session", value).apply()
+
     /**
      * The SMB share password. Encrypted like every other credential here:
      * exports carry the server, share and username in plain prefs, but never

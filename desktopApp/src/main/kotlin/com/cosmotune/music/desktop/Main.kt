@@ -103,12 +103,15 @@ fun main(args: Array<String>) {
             failure.stackTrace.take(30).joinToString("\n") { "    at $it" })
     }
     com.cosmotune.diagnostics.CrashNotes.configure(com.cosmotune.desktop.DesktopWatch.dataDir.parentFile)
+    // Rescue first when asked for, or when the last two starts never got going (DesktopRescue).
+    if (DesktopRescue.due(args, DesktopRescue.beginStart())) { DesktopRescue.show(); DesktopRescue.beginStart() }
     // The player's waveform seek line keeps each song's shape (72 bytes) for its next play.
     com.cosmotune.music.data.audio.SongWaveforms.install(java.io.File(com.cosmotune.desktop.DesktopWatch.dataDir.parentFile, "waveforms"))
     val shutdown = Thread({ instance.close() }, "cosmotune-instance-cleanup")
     Runtime.getRuntime().addShutdownHook(shutdown)
     try {
         instance.use { runDesktop() }
+        DesktopRescue.started()
     } finally {
         runCatching { Runtime.getRuntime().removeShutdownHook(shutdown) }
     }
@@ -139,6 +142,14 @@ private fun runDesktop() {
     // The player is the phone's, from the shared UI module; this is what it reads underneath.
     PlayerPlatform.install(DesktopPlayerHost)
     com.cosmotune.ui.sleep.SleepTimerUi.control = DesktopSleepTimerControl
+    // The music player's Comments: Video mode's sheet, over its own graph (built the first time it is opened).
+    com.cosmotune.ui.nowplaying.MusicComments.sheet = { videoId, onDismiss ->
+        com.cosmotune.video.graph.desktopVideoGraph(build = true)?.let { graph ->
+            androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.video.graph.LocalVideoGraph provides graph) {
+                com.cosmotune.video.ui.comments.CommentsSheet(videoId, onDismiss)
+            }
+        }
+    }
     com.cosmotune.music.ui.AppUi.install(DesktopAppUiHost)
     // The data layer both apps share logs through here, and keeps translated
     // lyrics beside the rest of the desktop's cache.
@@ -392,6 +403,8 @@ private fun desktopMain() = application {
     }
     // The compact always-on-top mini player, beside the main window.
     DesktopMiniPlayerWindow()
+    // The floating lyrics window, the same way.
+    DesktopFloatingLyricsWindow()
     // What a click on the tray icon opens.
     DesktopTrayFlyoutWindow()
     // The taskbar's buttons and cover, and the Dock menu, follow what is playing.

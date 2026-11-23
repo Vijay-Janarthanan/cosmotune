@@ -1,5 +1,6 @@
 package com.cosmotune.settings
 
+import com.cosmotune.audio.SoundEffect
 import com.cosmotune.audio.SpatialPreset
 import com.cosmotune.music.data.NetworkPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,17 @@ class ExtrasSettings(private val store: KeyValueStore) {
         val next=SongPlaybackMemory.with(songPlaybackFlow.value,id,tuning)
         songPlaybackFlow.value=next; store.putString(KEY_SONG_PLAYBACK,SongPlaybackMemory.encode(next))
     }
+    private val playlistAddToStartFlow = MutableStateFlow(store.getBoolean(KEY_PLAYLIST_ADD_TO_START, false))
+
+    /** Songs added to a playlist go to its start instead of its end. */
+    val playlistAddToStart: StateFlow<Boolean> = playlistAddToStartFlow.asStateFlow()
+    fun setPlaylistAddToStart(value: Boolean) { playlistAddToStartFlow.value = value; store.putBoolean(KEY_PLAYLIST_ADD_TO_START, value) }
+
+    private val romanisedOnlyFlow = MutableStateFlow(store.getBoolean(KEY_ROMANISED_ONLY, false))
+
+    /** While romanisation is shown, lines are drawn in the romanised spelling alone, without the original script above it. */
+    val romanisedOnly: StateFlow<Boolean> = romanisedOnlyFlow.asStateFlow()
+    fun setRomanisedOnly(value: Boolean) { romanisedOnlyFlow.value = value; store.putBoolean(KEY_ROMANISED_ONLY, value) }
     fun setInlineLyrics(value: Boolean) { inlineLyricsFlow.value=value; store.putBoolean(KEY_INLINE_LYRICS,value) }
     fun setLyricAlignment(value: LyricTextAlignment) { lyricAlignmentFlow.value=value; store.putString(KEY_LYRIC_ALIGNMENT,value.name) }
     fun setBluetoothResume(value: Boolean) { bluetoothResumeFlow.value=value; store.putBoolean(KEY_BLUETOOTH_RESUME,value) }
@@ -111,6 +123,79 @@ class ExtrasSettings(private val store: KeyValueStore) {
     fun setSpatialPreset(value: SpatialPreset) {
         spatialPresetFlow.value = value
         store.putString(KEY_SPATIAL_PRESET, value.name)
+    }
+
+    private val soundEffectFlow = MutableStateFlow(SoundEffect.named(store.getString(KEY_SOUND_EFFECT, SoundEffect.NONE.name)))
+    private val soundEffectStrengthFlow = MutableStateFlow(store.getInt(KEY_SOUND_EFFECT_STRENGTH, 70).coerceIn(10, 100))
+
+    /** The one sound effect put on everything that plays (8D, echo, reverb and the rest); [SoundEffect.NONE] while off. */
+    val soundEffect: StateFlow<SoundEffect> = soundEffectFlow.asStateFlow()
+
+    /** How much of [soundEffect] is heard, in percent, 10..100. */
+    val soundEffectStrength: StateFlow<Int> = soundEffectStrengthFlow.asStateFlow()
+
+    private val volumeBoostFlow = MutableStateFlow(store.getInt(KEY_VOLUME_BOOST, 100).coerceIn(100, MAX_BOOST_PERCENT))
+
+    /** Volume boost in percent, 100 (none) to [MAX_BOOST_PERCENT]: raises quiet songs past full volume under a limiter. */
+    val volumeBoostPercent: StateFlow<Int> = volumeBoostFlow.asStateFlow()
+
+    /** The gain [volumeBoostPercent] stands for, 1.0 with no boost. */
+    val volumeBoostGain: Float get() = volumeBoostFlow.value / 100f
+
+    fun setVolumeBoostPercent(value: Int) {
+        val clamped = value.coerceIn(100, MAX_BOOST_PERCENT)
+        volumeBoostFlow.value = clamped
+        store.putInt(KEY_VOLUME_BOOST, clamped)
+    }
+
+    /** The song playing now, set by the host as songs change, so [effectNow] can follow a song's own effect. Another song ends an A–B loop. */
+    @Volatile var playingSongId: String? = null
+        set(value) {
+            val changed = field != value
+            field = value
+            if (value != null && abLoopFlow.value?.songId?.let { it != value } == true) abLoopFlow.value = null
+            if (changed && value != null && SongPlaybackMemory.isMusic(value)) {
+                lastPlayed = com.cosmotune.music.playback.FreshShuffle.played(lastPlayed, value, System.currentTimeMillis())
+                store.putString(KEY_LAST_PLAYED, com.cosmotune.music.playback.FreshShuffle.encode(lastPlayed))
+            }
+        }
+
+    // Fresh shuffle (Lokal's idea): when each song last started here, so a shuffle puts the ones heard lately further back.
+    @Volatile private var lastPlayed: Map<String, Long> = com.cosmotune.music.playback.FreshShuffle.decode(store.getString(KEY_LAST_PLAYED, ""))
+    private val freshShuffleFlow = MutableStateFlow(store.getBoolean(KEY_FRESH_SHUFFLE, true))
+    val freshShuffle: StateFlow<Boolean> = freshShuffleFlow.asStateFlow()
+    fun setFreshShuffle(value: Boolean) { freshShuffleFlow.value = value; store.putBoolean(KEY_FRESH_SHUFFLE, value) }
+    // SponsorBlock in YouTube podcast episodes (Player options, shown for a Podio episode); off until chosen.
+    private val podioSponsorsFlow = MutableStateFlow(store.getBoolean(KEY_PODIO_SPONSORS, false))
+    val podioSkipSponsors: StateFlow<Boolean> = podioSponsorsFlow.asStateFlow()
+    fun setPodioSkipSponsors(value: Boolean) { podioSponsorsFlow.value = value; store.putBoolean(KEY_PODIO_SPONSORS, value) }
+
+    /** When [id] last started playing, while Fresh shuffle is on; null otherwise. */
+    fun lastPlayedAt(id: String): Long? = if (freshShuffleFlow.value) lastPlayed[id] else null
+
+    // Bookmarks (Namida's idea): moments and parts kept per song, and the A–B loop playing now (not kept across restarts).
+    private val songMarksFlow = MutableStateFlow(SongMarks.decode(store.getString(KEY_SONG_MARKS, "")))
+    private val abLoopFlow = MutableStateFlow<AbLoop?>(null)
+    val songMarks: StateFlow<Map<String, List<SongMark>>> = songMarksFlow.asStateFlow()
+    val abLoop: StateFlow<AbLoop?> = abLoopFlow.asStateFlow()
+    fun addSongMark(id: String, mark: SongMark) = saveMarks(SongMarks.add(songMarksFlow.value, id, mark))
+    fun removeSongMark(id: String, mark: SongMark) = saveMarks(SongMarks.remove(songMarksFlow.value, id, listOf(mark)))
+    private fun saveMarks(next: Map<String, List<SongMark>>) { songMarksFlow.value = next; store.putString(KEY_SONG_MARKS, SongMarks.encode(next)) }
+    fun setAbLoop(value: AbLoop?) { abLoopFlow.value = value }
+
+    /** The effect to play now: the playing song's own (Player options, For this song) when it has one, else [soundEffect]. */
+    fun effectNow(): SoundEffect =
+        playingSongId?.let { songPlaybackFlow.value[it]?.effect }?.let(SoundEffect::named) ?: soundEffectFlow.value
+
+    fun setSoundEffect(value: SoundEffect) {
+        soundEffectFlow.value = value
+        store.putString(KEY_SOUND_EFFECT, value.name)
+    }
+
+    fun setSoundEffectStrength(value: Int) {
+        val clamped = value.coerceIn(10, 100)
+        soundEffectStrengthFlow.value = clamped
+        store.putInt(KEY_SOUND_EFFECT_STRENGTH, clamped)
     }
 
     fun setSpatialSurround(value: Boolean) {
@@ -320,6 +405,10 @@ class ExtrasSettings(private val store: KeyValueStore) {
 
     companion object {
         const val KEY_SONG_PLAYBACK="extras_song_playback"
+        const val KEY_SONG_MARKS = "extras_song_marks"
+        const val KEY_LAST_PLAYED = "extras_last_played"
+        const val KEY_FRESH_SHUFFLE = "extras_fresh_shuffle"
+        const val KEY_PODIO_SPONSORS = "extras_podio_sponsors"
         const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
         const val KEY_SLEEP_FADE_OUT = "extras_sleep_fade_out"
         const val KEY_BEST_PART = "extras_best_part"
@@ -341,6 +430,8 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_MUSIC_SKIPS = "extras_music_skips"
         const val KEY_SONG_NOTICES = "extras_song_notices"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
+        const val KEY_ROMANISED_ONLY = "extras_romanised_only"
+        const val KEY_PLAYLIST_ADD_TO_START = "extras_playlist_add_to_start"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"
         const val KEY_PAUSE_ON_MUTE="extras_pause_on_mute"
@@ -355,6 +446,10 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_AUTO_LYRICS_OFFSET = "extras_auto_lyrics_offset"
         const val KEY_SPATIAL_PRESET = "extras_spatial_preset"
         const val KEY_SPATIAL_SURROUND = "extras_spatial_surround"
+        const val KEY_SOUND_EFFECT = "extras_sound_effect"
+        const val KEY_VOLUME_BOOST = "extras_volume_boost_percent"
+        const val MAX_BOOST_PERCENT = 200
+        const val KEY_SOUND_EFFECT_STRENGTH = "extras_sound_effect_strength"
         const val KEY_SONG_RECOGNITION = "extras_song_recognition"
         const val KEY_LYRIC_STYLE = "extras_lyric_style"
         const val KEY_LYRIC_STYLE_SONGS = "extras_lyric_style_songs"

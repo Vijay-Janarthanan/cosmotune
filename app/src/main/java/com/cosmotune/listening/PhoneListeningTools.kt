@@ -121,6 +121,9 @@ fun PhoneListeningTools(
         remote = ListeningRemoteHost(remote) { link -> com.cosmotune.music.ui.components.QrCode(link) },
         syncLibraryReady = true,
         backgroundPlaylistUpdates = true,
+        onNewReleases = { found -> ReleaseCheckWorker.notify(context.applicationContext, found) },
+        onDailyReleaseChecks = { on -> ReleaseCheckWorker.schedule(context.applicationContext, on) },
+        dailyReleaseCheckLabel = "Check daily and tell me what is new",
         syncPlaylists = localPlaylists.map { playlist -> com.cosmotune.remote.SyncPlaylist(playlist.id.removePrefix("synced:"), playlist.title,
             playlist.songs.map { song -> com.cosmotune.remote.SyncTrack(song.videoId, song.title, song.artist, song.albumName, song.durationText) }) },
         applySyncedPlaylists = { records, files -> LocalPlaylistStore.applySyncedPlaylists(records, files) },
@@ -180,7 +183,7 @@ fun PhoneListeningTools(
             val answer = CompletableDeferred<Uri?>().also { pending = it }
             picker.launch(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
-                type = when { name.endsWith(".m3u8", true) -> "application/vnd.apple.mpegurl"; name.endsWith(".txt") -> "text/plain"; else -> "application/json" }
+                type = when { name.endsWith(".m3u8", true) -> "application/vnd.apple.mpegurl"; name.endsWith(".txt") -> "text/plain"; name.endsWith(".csv", true) -> "text/csv"; else -> "application/json" }
                 putExtra(Intent.EXTRA_TITLE, name)
             })
             val uri = answer.await()
@@ -234,6 +237,7 @@ fun PhoneListeningTools(
                     }
             }
         },
+        recordHistory = { plays -> withContext(Dispatchers.IO) { ListeningStats.importPlays(plays) } },
         importPlaylistFile = {
             check(pending == null) { "Finish the open file chooser first." }
             val answer = CompletableDeferred<Uri?>().also { pending = it }

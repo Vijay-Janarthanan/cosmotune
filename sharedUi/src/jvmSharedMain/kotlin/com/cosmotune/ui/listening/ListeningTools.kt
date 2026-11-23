@@ -34,10 +34,17 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.withPermit
+
 import java.time.Instant
 import java.io.File
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+/** How many of a listening history's most played songs are looked up when it is imported. */
+private const val HISTORY_SONGS = 200
 
 enum class ListeningTab(val label: String) {
     SESSIONS("Sessions"), SMART("Smart playlists"), LINKED("Linked playlists"), REPLAY("Replay playlists"),
@@ -101,9 +108,10 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
     // While Cosmotune is open (this workspace stays composed when closed), check stale artists about daily.
     val autoReleases = state?.preferences?.autoCheckReleases == true
     LaunchedEffect(store, autoReleases) {
+        if (store != null) latestHost.onDailyReleaseChecks(autoReleases)
         if (store == null || !autoReleases) return@LaunchedEffect
         while (true) {
-            refreshDueReleases(store, latestHost.releases)
+            refreshDueReleases(store, latestHost.releases, onFound = latestHost.onNewReleases)
             kotlinx.coroutines.delay(60 * 60 * 1000L)
         }
     }
@@ -361,11 +369,11 @@ private fun ColumnScope.ReleasesPage(state: ListeningState, host: ListeningTools
             }
         }
         item {
-            ToggleRow("Check daily while Cosmotune is open", state.preferences.autoCheckReleases) { enabled ->
+            ToggleRow(host.dailyReleaseCheckLabel, state.preferences.autoCheckReleases) { enabled ->
                 run { withContext(Dispatchers.IO) { store.update { it.copy(preferences = it.preferences.copy(autoCheckReleases = enabled)) } }; null }
             }
             ToolButton("Check for releases", enabled = !busy && state.artists.isNotEmpty(), tag = "listening:releases:check", onClick = { run {
-                val failures = refreshDueReleases(store, host.releases, force = true)
+                val failures = refreshDueReleases(store, host.releases, force = true, onFound = host.onNewReleases)
                 if (failures > 0) "$failures artist checks failed. Saved releases were kept; retry when connected." else "Release checks complete"
             } })
         }
@@ -479,6 +487,26 @@ private fun ColumnScope.BackupPage(host: ListeningToolsHost, store: ListeningSto
                     "From ${backup.app}: ${backup.liked.size} liked songs and ${backup.playlists.size} playlists"
                 } })
             }
+            val record = host.recordHistory
+            if (pick != null && record != null) {
+                Spacer(Modifier.height(12.dp))
+                Heading("Listening history", "Add what you played on Spotify or ListenBrainz to Replay. Choose the zip or the files the service sent you, once each. Your ${HISTORY_SONGS} most played songs are found here; it can take a few minutes.")
+                ToolButton("Import listening history", enabled = !busy, kind = ToolKind.QUIET, tag = "listening:history", onClick = { run {
+                    val bytes = pick() ?: return@run null
+                    val history = withContext(Dispatchers.IO) { com.cosmotune.listening.ListeningHistoryImport.read(bytes) }
+                    if (history.tracks.isEmpty()) return@run "That file has no songs in it."
+                    val wanted = history.tracks.take(HISTORY_SONGS)
+                    val gate = kotlinx.coroutines.sync.Semaphore(4)
+                    val found = kotlinx.coroutines.coroutineScope {
+                        wanted.map { track -> async { gate.withPermit { findRecording(track.title, track.artist, track.album)?.let { it to track.plays } } } }.awaitAll()
+                    }.filterNotNull()
+                    if (found.isEmpty()) return@run "None of those songs could be found. Check your connection and try again."
+                    record(found)
+                    val plays = found.sumOf { (_, list) -> list.count { it.counts } }
+                    "From ${history.from}: $plays plays of ${found.size} songs are in Replay" +
+                        (if (found.size < wanted.size) ". ${wanted.size - found.size} songs were not found." else ".")
+                } })
+            }
             Spacer(Modifier.height(12.dp))
             MusicPlaylistImportPanel(host, busy, run)
             Spacer(Modifier.height(12.dp))
@@ -493,6 +521,8 @@ private fun ColumnScope.BackupPage(host: ListeningToolsHost, store: ListeningSto
                 if (host.exportFile("cosmotune-library.m3u8", export.text)) "Playlist saved: ${export.included} local tracks, ${export.skipped} skipped" else null
             } })
             ToolNote("The playlist refers to the current file locations. Copy the music and adjust paths when moving it to another device. Keep a listening backup for source metadata and sessions.")
+            Spacer(Modifier.height(12.dp))
+            PlaylistCsvTools(host, busy, run)
         }
     }
 }
@@ -517,15 +547,13 @@ private fun EmptyHint(title: String, detail: String, action: () -> Unit, close: 
 private fun stamp(millis: Long): String = DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(millis))
 
 /** Checks due (or, with [force], all) followed artists; returns how many checks failed. Saved releases are never dropped. */
-internal suspend fun refreshDueReleases(store: ListeningStore, lookup: suspend (WatchedArtist) -> List<ReleaseNotice>, force: Boolean = false): Int {
-    val artists = store.state.value.artists.let { if (force) it else dueForReleaseCheck(it, System.currentTimeMillis()) }
-    var failures = 0
-    for (artist in artists) {
-        try {
-            val releases = lookup(artist)
-            withContext(Dispatchers.IO) { store.acceptReleases(artist.id, releases) }
-        } catch (_: kotlinx.coroutines.TimeoutCancellationException) { failures++ }
-        catch (e: CancellationException) { throw e } catch (_: Exception) { failures++ }
-    }
-    return failures
+internal suspend fun refreshDueReleases(
+    store: ListeningStore,
+    lookup: suspend (WatchedArtist) -> List<ReleaseNotice>,
+    force: Boolean = false,
+    onFound: (List<ReleaseNotice>) -> Unit = {},
+): Int {
+    val outcome = com.cosmotune.listening.ReleaseChecks.run(store, lookup, force)
+    if (outcome.found.isNotEmpty()) onFound(outcome.found)
+    return outcome.failures
 }

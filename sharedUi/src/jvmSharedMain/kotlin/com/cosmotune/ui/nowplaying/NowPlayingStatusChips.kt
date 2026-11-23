@@ -29,6 +29,8 @@ data class NowPlayingActive(
     /** The receiver's name while casting, else null. */
     val castingTo: String? = null,
     val inRoom: Boolean = false,
+    /** A part of this song repeats from A to B (Bookmarks). */
+    val abLoop: Boolean = false,
 )
 
 /** One active-feature chip: what it says, its icon, what a tap on it does. */
@@ -47,7 +49,9 @@ fun activeChips(
     onOpenDetails: () -> Unit,
     onOpenCast: () -> Unit,
     onOpenRoom: () -> Unit,
+    onOpenMarks: () -> Unit = {},
 ): List<ActiveChip> = buildList {
+    if (active.abLoop) add(ActiveChip("A to B", CosmoIcons.Repeat, onOpenMarks))
     if (!transportOnCard) {
         when (active.repeatMode) {
             RepeatModes.ONE -> add(ActiveChip("Repeat one", CosmoIcons.RepeatOne, onCycleRepeat))

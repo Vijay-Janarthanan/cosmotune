@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -126,6 +127,20 @@ class DesktopPlaybackEngine(
             }
         }
     }
+    // SponsorBlock in YouTube podcast episodes (Player options > Skip sponsors in podcasts).
+    private val podioSponsorJob = com.cosmotune.podio.PodioSponsorSkip.watch(scope, { com.cosmotune.settings.Extras.settings.podioSkipSponsors.value },
+        { _state.value.let { it.song?.videoId to it.positionMs } }, ::seekTo)
+    // Aâ€“B repeat (Player menu > Bookmarks): back to A each time the song reaches B.
+    private val abLoopJob = scope.launch {
+        com.cosmotune.settings.Extras.settings.abLoop.collectLatest { loop ->
+            if (loop?.endMs == null) return@collectLatest
+            while (isActive) {
+                val shown = _state.value
+                loop.seekTarget(shown.song?.videoId, shown.positionMs)?.let(::seekTo)
+                delay(100)
+            }
+        }
+    }
     private val outputModeJob = scope.launch {
         var previous = DesktopOutputMode.direct.value
         DesktopOutputMode.direct.collect { selected ->
@@ -178,7 +193,11 @@ class DesktopPlaybackEngine(
         com.cosmotune.settings.Extras.settings.songPlayback.value, playbackSpeed,
         com.cosmotune.settings.Extras.settings.pitchSemitones.value)
     private var blendTuning = com.cosmotune.settings.SongPlaybackTuning()
-    private fun audibleTuning() = if (fadeRemaining > 0) blendTuning else tuningFor(current?.song?.videoId)
+    private fun audibleTuning(): com.cosmotune.settings.SongPlaybackTuning {
+        // The sound effects follow the song heard now, which may have one of its own (Player options, For this song).
+        com.cosmotune.settings.Extras.settings.playingSongId = current?.song?.videoId
+        return if (fadeRemaining > 0) blendTuning else tuningFor(current?.song?.videoId)
+    }
     val playbackRate: Float get() = audibleTuning().speed
     @Volatile private var volume = 1f
     private val muteResume = com.cosmotune.settings.MuteResume()

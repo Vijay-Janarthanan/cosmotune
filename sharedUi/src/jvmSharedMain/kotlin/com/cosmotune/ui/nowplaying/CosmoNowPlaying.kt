@@ -337,6 +337,13 @@ fun CosmoNowPlaying(
     val inlineLyrics by com.cosmotune.settings.Extras.settings.inlineLyrics.collectAsStateWithLifecycle()
     var playerOptionsOpen by remember { mutableStateOf(false) }
     if (playerOptionsOpen) PlayerOptions(song.videoId, PlayerPlatform.host.bluetoothReconnectSupported, { playerOptionsOpen = false })
+    var mixViewOpen by remember { mutableStateOf(false) }
+    if (mixViewOpen) MixViewDialog(song, queue.getOrNull(queueIndex + 1)?.takeIf { it.videoId != song.videoId }) { mixViewOpen = false }
+    var marksOpen by remember { mutableStateOf(false) }
+    val abLoop by com.cosmotune.settings.Extras.settings.abLoop.collectAsStateWithLifecycle()
+    val looping = abLoop?.let { it.songId == song.videoId && it.endMs != null } == true
+    val canMark = com.cosmotune.settings.SongPlaybackMemory.isMusic(song.videoId) && !controlsLocked
+    if (marksOpen && canMark) SongMarksDialog(song, { livePlayheadMs(position, isPlaying) }, onSeek, { marksOpen = false })
     var visualsOpen by rememberSaveable { mutableStateOf(false) }
     if (visualsOpen) LocalVisualsPresentation.current({ visualsOpen = false }) { PlayerVisualsContent(song, { visualsOpen = false }) }
     val together: () -> Unit = { if (inParty) sheets.members = true else onListenTogether() }
@@ -346,7 +353,7 @@ fun CosmoNowPlaying(
     val automixOn by PlayerSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val active = NowPlayingActive(
         shuffle = shuffleEnabled, repeatMode = repeatMode, crossfade = features.crossfade, automix = automixOn,
-        equaliser = features.equaliser, castingTo = features.castingTo, inRoom = inParty,
+        equaliser = features.equaliser, castingTo = features.castingTo, inRoom = inParty, abLoop = looping,
     )
     // Best part (upstream 1.10): where YouTube's "Most replayed" curve says the song's best part starts, pulled to a lyric line;
     // a song with no curve (a file, an add-on's track, a little-watched video) falls back to its chorus, the first time the most
@@ -363,7 +370,7 @@ fun CosmoNowPlaying(
     val bestPart: (() -> Unit)? = bestPartMs?.takeIf { !controlsLocked }?.let { at -> { onSeek(at) } }
     val statusChips: @Composable (Boolean) -> Unit = { transportOnCard ->
         NowPlayingStatusChips(
-            activeChips(active, transportOnCard, onToggleShuffle, onCycleRepeat, { sheets.details = true }, { sheets.cast = true }, together),
+            activeChips(active, transportOnCard, onToggleShuffle, onCycleRepeat, { sheets.details = true }, { sheets.cast = true }, together) { marksOpen = true },
             orbitType, orbitInk, bestPart,
         )
     }
@@ -382,6 +389,10 @@ fun CosmoNowPlaying(
     }
     val sleepTimer = rememberSleepTimer()
     var sleepMenuOpen by remember { mutableStateOf(false) }
+    // The song's YouTube comments, in Video mode's own sheet (see MusicComments).
+    var commentsOpen by remember(song.videoId) { mutableStateOf(false) }
+    val commentsSheet = MusicComments.sheet?.takeIf { MusicComments.applies(song.videoId) }
+    if (commentsOpen && commentsSheet != null) commentsSheet(song.videoId) { commentsOpen = false }
     var repeatTimesOpen by remember { mutableStateOf(false) }
     val repeatHold by com.cosmotune.music.playback.RepeatTimes.hold.collectAsState()
     val sleepMenu: @Composable () -> Unit = {
@@ -395,6 +406,7 @@ fun CosmoNowPlaying(
             if (openCanvasOn) add(OrbitMenuItem("Choose the video", chosenVideoLine, CosmoIcons.Video) { chooseVideoOpen = true })
             add(OrbitMenuItem("Player options", "Lyrics, song speed and playback behavior", CosmoIcons.Equaliser) { playerOptionsOpen = true })
             add(OrbitMenuItem("Song options", "Playlists, sharing, quality and the rest", CosmoIcons.MoreVertical, onClick = onOpenMenu))
+            if (canMark) add(OrbitMenuItem("Bookmarks", if (looping) "Repeating a part" else "Mark moments and repeat a part", CosmoIcons.Repeat, selected = looping) { marksOpen = true })
             // Says what is left while one runs ("23:41 left"), rather than going quiet once it is set.
             if (SleepTimerUi.control != null) {
                 add(OrbitMenuItem("Sleep timer", sleepTimer?.line() ?: "Pause after a while", CosmoIcons.Timer, selected = sleepTimer != null) { sleepMenuOpen = true })
@@ -410,7 +422,13 @@ fun CosmoNowPlaying(
             if (coverLoop) add(OrbitMenuItem(if (videoHidden) "Animated cover" else "Still cover", if (videoHidden) "Play the cover's loop in the record" else "Show the cover without its loop", CosmoIcons.Canvas) { videoHidden = !videoHidden })
             add(OrbitMenuItem("Visuals", "Artwork, pulse or waveform, full screen", CosmoIcons.Waveform) { visualsOpen = true })
             add(OrbitMenuItem("Audio details", "The signal path, from source to output", CosmoIcons.Equaliser) { sheets.details = true })
+            if (com.cosmotune.settings.SongPlaybackMemory.isMusic(song.videoId)) {
+                add(OrbitMenuItem("Mix view", "Tempo, key and how Automix blends this song", CosmoIcons.Waveform) { mixViewOpen = true })
+            }
             add(OrbitMenuItem("Lyrics source", "Choose, search for or time the lyrics", CosmoIcons.Lyrics) { sheets.providers = true })
+            if (commentsSheet != null) {
+                add(OrbitMenuItem("Comments", "What people say about this song on YouTube", CosmoIcons.Comments) { commentsOpen = true })
+            }
         }
     }
     val sourceLabel = nowPlayingSource(song, playedBy)

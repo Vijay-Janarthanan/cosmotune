@@ -36,6 +36,9 @@ enum class DesktopReplayPeriod(val chip: String) {
     THIS_MONTH("This month"),
     THIS_YEAR("This year"),
     ALL_TIME("All time"),
+
+    /** Memories: what was played in this calendar month in the years before this one. */
+    MEMORIES("Memories"),
     ;
 
     fun covers(month: String, today: LocalDate): Boolean = when (this) {
@@ -43,6 +46,8 @@ enum class DesktopReplayPeriod(val chip: String) {
         THIS_MONTH -> month == YearMonth.from(today).toString()
         THIS_YEAR -> month.startsWith("${today.year}-")
         ALL_TIME -> true
+        MEMORIES -> runCatching { YearMonth.parse(month) }.getOrNull()
+            ?.let { it.monthValue == today.monthValue && it.year < today.year } == true
     }
 }
 
@@ -96,9 +101,25 @@ object DesktopListeningStats {
 
     fun record(song: Song, playedMs: Long, countsAsPlay: Boolean) {
         if (song.videoId.isBlank() || (playedMs <= 0L && !countsAsPlay)) return
-        val at = Instant.now().atZone(ZoneId.systemDefault())
         synchronized(lock) {
             val buckets = read().associateByTo(LinkedHashMap(), Bucket::month)
+            add(buckets, song, playedMs, countsAsPlay, Instant.now().atZone(ZoneId.systemDefault()))
+            write(buckets.values.toList())
+        }
+    }
+
+    /** Plays from a Spotify or ListenBrainz history (Listening tools > Listening history), each in the month it happened, written once. */
+    fun importPlays(entries: List<Pair<Song, List<com.cosmotune.listening.ListeningHistoryImport.Play>>>) = synchronized(lock) {
+        val buckets = read().associateByTo(LinkedHashMap(), Bucket::month)
+        for ((song, plays) in entries) for (play in plays) {
+            if (song.videoId.isBlank() || (play.playedMs <= 0L && !play.counts)) continue
+            add(buckets, song, play.playedMs, play.counts, Instant.ofEpochMilli(play.atMs).atZone(ZoneId.systemDefault()))
+        }
+        write(buckets.values.toList())
+    }
+
+    private fun add(buckets: MutableMap<String, Bucket>, song: Song, playedMs: Long, countsAsPlay: Boolean, at: java.time.ZonedDateTime) {
+        run {
             val key = YearMonth.from(at).toString()
             val bucket = buckets.getOrPut(key) { Bucket(key) }
             val previous = bucket.tracks[song.videoId]
@@ -111,7 +132,6 @@ object DesktopListeningStats {
             bucket.hours[at.hour] += added
             val day = at.toLocalDate().toString()
             bucket.days[day] = (bucket.days[day] ?: 0L) + added
-            write(buckets.values.toList())
         }
     }
 
@@ -206,6 +226,8 @@ object DesktopListeningStats {
             today.month.name.lowercase(Locale.ROOT).replaceFirstChar(Char::uppercase)
         DesktopReplayPeriod.THIS_YEAR -> today.year.toString()
         DesktopReplayPeriod.ALL_TIME -> "All time"
+        DesktopReplayPeriod.MEMORIES ->
+            today.month.name.lowercase(Locale.ROOT).replaceFirstChar(Char::uppercase) + " in earlier years"
     }
 
     internal fun mergeSong(old: Song?, current: Song): Song = old?.copy(

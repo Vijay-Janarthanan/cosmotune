@@ -245,6 +245,7 @@ internal object DesktopRooms {
     fun setHostOnlyControl(enabled: Boolean) = launchReported { client.setHostOnlyControl(enabled) }
 
     fun removeMember(uid: String) = launchReported { client.remove(uid) }
+    fun setCoHost(uid: String, coHost: Boolean) = launchReported { client.setCoHost(uid, coHost) }
 
     /** The first unmute that goes live on Windows also says, once, where its microphone privacy setting is. */
     fun setMicLive(live: Boolean) = voiceCall {
@@ -447,6 +448,7 @@ internal class DesktopRoomActions(
     override fun dismissVoiceMessage() = DesktopRooms.dismissVoiceMessage()
     override fun setHostOnlyControl(enabled: Boolean) = DesktopRooms.setHostOnlyControl(enabled)
     override fun removeMember(uid: String) = DesktopRooms.removeMember(uid)
+    override fun setCoHost(uid: String, coHost: Boolean) = DesktopRooms.setCoHost(uid, coHost)
 
     override fun copyInviteCode(code: String) {
         DesktopExternalLinks.copy(code)

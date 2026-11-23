@@ -747,9 +747,9 @@
     <string name="saved">Saved</string>
     <string name="saved_bang">Saved!</string>
     <string name="share_my_replay">Share my Replay</string>
-    <string name="replay_share_video">Share as a story video</string>
-    <string name="replay_video_making">Making the video… %1$d%%</string>
-    <string name="replay_video_failed">The Replay video could not be made</string>
+    <string name="replay_share_video" translatable="false">Share as a story video</string>
+    <string name="replay_video_making" translatable="false">Making the video… %1$d%%</string>
+    <string name="replay_video_failed" translatable="false">The Replay video could not be made</string>
     <string name="share_your_lyrics">Send your lyrics card</string>
     <string name="share_your_replay">Share your Replay</string>
     <string name="tap_share_for_picture">Tap Share to create a picture.</string>
@@ -794,6 +794,7 @@
     <string name="webdav_subtitle">Music on your server</string>
     <string name="webdav_not_configured">Connect a server under Sources</string>
     <string name="webdav_empty">No audio files found on the WebDAV server. Check the URL in Settings.</string>
+    <string name="jellyfin_empty" translatable="false">No songs found on your Jellyfin server. Sign in again in Settings, Sources.</string>
     <string name="webdav_description">Point Cosmotune at a WebDAV music folder — your Nextcloud Music directory or any server speaking WebDAV.</string>
     <string name="webdav_server_url">Server URL</string>
     <string name="webdav_server_url_hint">https://cloud.example.com/remote.php/dav/files/user/Music</string>

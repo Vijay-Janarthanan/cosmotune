@@ -67,7 +67,7 @@ import kotlinx.coroutines.withContext
 /*
  * Downloads and Local Music in Orbit (Canvas repo, design/cosmotune/batch-a/board.html, section 1), one page for both hosts and both
  * folders: the heading with a mono count, one quiet stat card (Downloads: the space they take with its peach bar and what is left on
- * the disk), the search pill, chips for Songs, Artists and Albums and the sort, and under them the chip's page: songs as Home's rows,
+ * the disk), the search pill, chips for Songs, Artists, Albums and Folders (the device's music only) and the sort, and under them the chip's page: songs as Home's rows,
  * artists as portraits, albums (the releases downloaded whole first) as records. An artist or an album opens its songs in place.
  * Holding a song in Downloads selects it (when the host can delete): a bar of chips then deletes, uploads or lets go of the chosen.
  */
@@ -83,7 +83,7 @@ data class DeviceCollection(
     val playlist: Boolean = false,
 )
 
-private enum class DeviceChip(val label: String) { SONGS("Songs"), ARTISTS("Artists"), ALBUMS("Albums") }
+private enum class DeviceChip(val label: String) { SONGS("Songs"), ARTISTS("Artists"), ALBUMS("Albums"), FOLDERS("Folders") }
 
 /** An artist or an album opened in place: its name, its picture and its songs. */
 private class DeviceGroup(val key: String, val title: String, val subtitle: String, val cover: String?, val songs: List<Song>, val playlist: Boolean = false)
@@ -119,6 +119,8 @@ fun CosmoDeviceMusic(
     currentSong: Song? = null,
     isPlaying: Boolean = false,
     listState: LazyListState = rememberLazyListState(),
+    /** The tempo Automix measured per song id ([rememberTempoBeats]); with any, the sort offers Tempo and the heading Smooth shuffle. */
+    beats: Map<String, com.cosmotune.music.playback.smart.TempoOrder.Beat> = emptyMap(),
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -127,24 +129,37 @@ fun CosmoDeviceMusic(
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var open by remember { mutableStateOf<DeviceGroup?>(null) }
     var sortOpen by remember { mutableStateOf(false) }
+    var byTempo by rememberSaveable { mutableStateOf(false) }
+    val tempoSort = byTempo && beats.isNotEmpty()
+    val beatOf = { song: Song -> beats[song.videoId] }
     val selecting = onDeleteSelected != null && selected.isNotEmpty()
     PlayerBackHandler(enabled = selecting) { selected = emptySet() }
     PlayerBackHandler(enabled = open != null && !selecting) { open = null }
 
     val analysisOf = { song: Song -> LibraryLoudness.analysisFor(song.videoId) }
     val genres = remember(songs) { LibraryViewOptions.genresOf(songs, analysisOf) }
-    val shownSongs = remember(songs, query, columns) {
-        val found = if (query.isBlank()) songs else songs.filter { it.matchesQuery(query) }
+    val shownSongs = remember(songs, query, columns, tempoSort, beats) {
+        val ordered = if (tempoSort) com.cosmotune.music.playback.smart.TempoOrder.byTempo(songs, beatOf) else songs
+        val found = if (query.isBlank()) ordered else ordered.filter { it.matchesQuery(query) }
         columns?.apply(found, analysisOf) ?: found
     }
     val artists = remember(songs, query) {
         songs.groupBy { it.artist.ifBlank { "Unknown artist" } }.entries
             .filter { query.isBlank() || it.key.contains(query, ignoreCase = true) }
-            .sortedBy { it.key.lowercase(Locale.ROOT) }
+            .sortedWith(compareBy(com.cosmotune.listening.NaturalOrder) { it.key })
             .map { (name, rows) -> DeviceGroup("artist:$name", name, "${rows.size} ${if (rows.size == 1) "song" else "songs"}", rows.firstOrNull()?.thumbnailUrl, rows) }
     }
     val albums = remember(songs, collections, query) {
         deviceAlbums(songs, collections).filter { query.isBlank() || it.title.contains(query, ignoreCase = true) || it.subtitle.contains(query, ignoreCase = true) }
+    }
+    // The folders the files sit in, for the Folders chip: each opens with its songs in file-name order, as a file manager lists them.
+    val folders = remember(songs, query) {
+        com.cosmotune.listening.LocalFolders.of(songs)
+            .filter { query.isBlank() || it.path.contains(query, ignoreCase = true) }
+            .map { folder ->
+                val count = "${folder.songs.size} ${if (folder.songs.size == 1) "song" else "songs"}"
+                DeviceGroup("folder:${folder.path}", folder.label, count, folder.songs.firstOrNull { it.thumbnailUrl != null }?.thumbnailUrl, folder.songs)
+            }
     }
     val storage by produceState<DeviceStorage?>(null, songs) { value = withContext(Dispatchers.IO) { runCatching { deviceStorage(songs) }.getOrNull() } }
 
@@ -201,7 +216,18 @@ fun CosmoDeviceMusic(
                         fonts = fonts, look = look,
                         modifier = Modifier.padding(start = side, end = side, top = 12.dp, bottom = 18.dp),
                         trailing = if (onShuffle != null && shownSongs.isNotEmpty()) {
-                            { OrbitRoundButton(CosmoIcons.Shuffle, "Shuffle", look.ink, onClick = { onShuffle(shownSongs) }, size = 44.dp) }
+                            {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (beats.isNotEmpty()) {
+                                        com.cosmotune.ui.components.CosmoIconButton(
+                                            CosmoIcons.Waveform, "Smooth shuffle: each song close in tempo to the one before",
+                                            onClick = { onSongClick(com.cosmotune.music.playback.smart.TempoOrder.smoothShuffle(shownSongs, beatOf), 0) },
+                                            size = 44.dp,
+                                        )
+                                    }
+                                    OrbitRoundButton(CosmoIcons.Shuffle, "Shuffle", look.ink, onClick = { onShuffle(shownSongs) }, size = 44.dp)
+                                }
+                            }
                         } else null,
                     )
                 }
@@ -237,15 +263,19 @@ fun CosmoDeviceMusic(
                         )
                     } else {
                         OrbitChipRow(side) {
-                            DeviceChip.entries.forEach { c ->
+                            // Downloads all sit in one folder of the app's own, so only the device's music has folders to show.
+                            DeviceChip.entries.filter { it != DeviceChip.FOLDERS || !isDownloads }.forEach { c ->
                                 OrbitSelectChip(c.label, chip == c, fonts, look, { chip = c }, Modifier.testTag("device:chip:${c.name}"))
                             }
                             if (sortLabels.isNotEmpty()) {
                                 Box {
-                                    OrbitSelectChip(sortLabels[sortIndex.coerceIn(0, sortLabels.lastIndex)], false, fonts, look, { sortOpen = true }, Modifier.testTag("device:sort"), icon = CosmoIcons.Sort)
+                                    val sortLabel = if (tempoSort) TEMPO_SORT else sortLabels[sortIndex.coerceIn(0, sortLabels.lastIndex)]
+                                    OrbitSelectChip(sortLabel, false, fonts, look, { sortOpen = true }, Modifier.testTag("device:sort"), icon = CosmoIcons.Sort)
                                     OrbitMenu(
                                         open = sortOpen, onDismiss = { sortOpen = false }, fonts = fonts, look = look, header = "Sort by",
-                                        items = sortLabels.mapIndexed { i, label -> OrbitMenuItem(label, selected = i == sortIndex) { onSort(i) } },
+                                        items = sortLabels.mapIndexed { i, label -> OrbitMenuItem(label, selected = !tempoSort && i == sortIndex) { byTempo = false; onSort(i) } } +
+                                            // Slowest first, from the songs Automix has measured; the rest follow in the usual order.
+                                            listOfNotNull(if (beats.isNotEmpty()) OrbitMenuItem(TEMPO_SORT, "Slowest first, for the songs that have played", selected = tempoSort) { byTempo = true } else null),
                                     )
                                 }
                             }
@@ -268,6 +298,22 @@ fun CosmoDeviceMusic(
                                 row.forEach { artist ->
                                     OrbitPortrait(artist.title, artist.cover, cell, fonts, look, onClick = { open = artist },
                                         onLongClick = onCollectionLongPress?.let { more -> { more(artist.title, artist.songs) } })
+                                }
+                            }
+                        }
+                    }
+                    DeviceChip.FOLDERS -> {
+                        if (folders.isEmpty()) item(key = "device:none") { NoMatch(fonts, look, side) }
+                        items(folders.chunked(perRow), key = { "device:folders:${it.first().key}" }) { row ->
+                            Row(Modifier.padding(horizontal = side, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                                row.forEach { folder ->
+                                    OrbitRecord(
+                                        folder.title, folder.subtitle, folder.cover, fonts, look,
+                                        onClick = { open = folder },
+                                        onPlay = { if (folder.songs.isNotEmpty()) onSongClick(folder.songs, 0) },
+                                        onLongClick = onCollectionLongPress?.let { more -> { more(folder.title, folder.songs) } },
+                                        size = cell,
+                                    )
                                 }
                             }
                         }
@@ -297,10 +343,12 @@ fun CosmoDeviceMusic(
     }
 }
 
+/** The sort by the measured tempo. */
+private const val TEMPO_SORT = "Tempo"
+
 private fun Set<String>.toggle(id: String): Set<String> = if (id in this) this - id else this + id
 
-private fun Song.matchesQuery(query: String): Boolean =
-    title.contains(query, ignoreCase = true) || artist.contains(query, ignoreCase = true) || albumName.orEmpty().contains(query, ignoreCase = true)
+private fun Song.matchesQuery(query: String): Boolean = com.cosmotune.music.data.LooseMatch.matches(query, title, artist, albumName)
 
 /** The albums of [songs]: the releases kept whole first (they are the ones asked for by name), then the album tags of the rest. */
 private fun deviceAlbums(songs: List<Song>, collections: List<DeviceCollection>): List<DeviceGroup> {
@@ -413,4 +461,21 @@ private fun GroupHeading(
             OrbitPlayButton(playing = false, onClick = onPlay, look = look, modifier = Modifier.padding(start = 10.dp), size = 52.dp)
         }
     }
+}
+
+/**
+ * The tempo and key Automix measured for each of [songs] that has played, read from the host's analysis folder ([directory]) off
+ * the main thread; empty until read, and for songs never measured.
+ */
+@Composable
+fun rememberTempoBeats(songs: List<Song>, directory: () -> java.io.File): Map<String, com.cosmotune.music.playback.smart.TempoOrder.Beat> {
+    val store = remember { com.cosmotune.music.playback.smart.AnalysisStore(directory) }
+    return produceState<Map<String, com.cosmotune.music.playback.smart.TempoOrder.Beat>>(emptyMap(), songs) {
+        value = withContext(Dispatchers.IO) {
+            songs.asSequence().map { it.videoId }.distinct().mapNotNull { id ->
+                val analysis = runCatching { store.load(id) }.getOrNull()?.takeIf { it.isUsable } ?: return@mapNotNull null
+                id to com.cosmotune.music.playback.smart.TempoOrder.Beat(analysis.bpm, if (analysis.keyConfidence >= 0.25) analysis.key else "")
+            }.toMap()
+        }
+    }.value
 }

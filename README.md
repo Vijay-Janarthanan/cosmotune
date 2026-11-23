@@ -488,11 +488,12 @@ services, including every one that 1.0.4 added; the paragraphs below it say what
 | Update check | `api.github.com` (this repository's latest release) | Each start | On | No switch |
 | Music video (OpenCanvas) | YouTube, `cdn.jsdelivr.net` | Each song | On (not on mobile data on Android) | Settings > Lyrics & music video |
 | Video mode extras | `sponsor.ajay.app`, `dearrow-thumb.ajay.app`, `returnyoutubedislikeapi.com` | Each video you open in Video mode | On | Video settings |
+| Podcast sponsor skipping | `sponsor.ajay.app` | Each YouTube podcast episode you play | Off | Player options > Skip sponsors in podcasts |
 | Artist photo and header video | `itunes.apple.com`, `music.apple.com`, Apple's image and video servers | Opening an artist page | On | The video follows "Animated cover art"; the lookup has no switch |
 | Artist signatures | The address you enter (there is none by default) | Opening an artist page | Off | Settings > Appearance > Artist signatures |
 | Scrobbling | `ws.audioscrobbler.com` (Last.fm), `api.listenbrainz.org` | Each play | Off until you connect an account | Account & scrobbling (Android), Account & integrations (desktop) |
 | Radio suggestions from Last.fm | `ws.audioscrobbler.com` | Radio, while connected to Last.fm | Off | The same screen as scrobbling |
-| New releases daily check | YouTube Music | Once a day while the app is open | Off | Listening tools > New releases |
+| New releases daily check | YouTube Music | Once a day (desktop: while the app is open; phone: also in the background) | Off | Listening tools > New releases |
 | Provider packages, repositories, HTTP add-ons, Subsonic | Only the ones you add, and the sites a package declares | When you use them | None added | Sources |
 | Manga sources and Komga | Official MANGA Plus on first Discover when no sources are configured, and sources/servers you add | When you browse, read or download | None added | Manga > Settings > Manage sources |
 | Podio radio and podcast discovery | Radio Browser mirrors, Apple/iTunes, fyyd; selected station/publisher media hosts; NASA GIBS (map imagery tiles), Open-Meteo (weather at a station) and Wikipedia (nearby articles and pictures), asked for when a station page or the map is open | When Podio is opened or used | No account | Podio > Radio / Podcasts |
@@ -553,8 +554,9 @@ later. *Radio suggestions from Last.fm*, off by default and on the same screen, 
 song a radio starts from to Last.fm to ask for similar tracks and, at most every six hours, your Last.fm user name to
 ask for your top artists. It never sends the session key; the answers are only candidates that must match a catalogue
 recording before they can play. **New releases** (Listening tools) reads your followed artists' pages from YouTube
-Music when you press "Check for releases", and once a day while Cosmotune is open only if you turn on "Check daily
-while Cosmotune is open" (off by default). Nothing is checked while the app is closed.
+Music when you press "Check for releases", and about once a day only if you turn on the daily check (off by
+default): on the desktop while Cosmotune is open, on the phone also in the background. New releases it finds show as
+a notification.
 
 **Sources you add.** Cosmotune comes with no provider package, package repository, HTTP add-on or Subsonic server.
 A repository you add must use HTTPS; it is read when you open or refresh it, and a package is downloaded only when you

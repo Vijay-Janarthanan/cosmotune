@@ -149,7 +149,7 @@ class DesktopPagesContractTest {
         val filtering = SourceContract.code(SourceContract.read("shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/model/MusicSongList.kt"))
         assertTrue("MusicSongList.rows(songs, listQuery, listOrder, downloadedOnly, downloadedIds)" in page,
             "the desktop delegates its query, order and downloaded filter to the shared song-list model")
-        assertTrue("\${song.title} \${song.artist} \${song.albumName.orEmpty()}" in filtering,
+        assertTrue("LooseMatch.matches(query, song.title, song.artist, song.albumName)" in filtering,
             "the shared filter still searches the title, artist and album")
     }
 

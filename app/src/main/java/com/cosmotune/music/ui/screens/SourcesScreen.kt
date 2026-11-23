@@ -426,6 +426,30 @@ fun SourcesScreen(
             onDisconnect = { AppSettings.clearSmb() },
         )
 
+        // The listener's own Jellyfin server, a library like the two above. Signed in here; the dialog is the desktop's too.
+        val jellyfin by AppSettings.jellyfinSession.collectAsStateWithLifecycle()
+        var jellyfinDialog by remember { mutableStateOf(false) }
+        RemoteLibrarySection(
+            icon = Icons.Rounded.Cloud,
+            title = "Jellyfin",
+            description = "Play the music on your own Jellyfin server. Your password goes to the server only and is not kept.",
+            subtitle = jellyfin?.url ?: "Not signed in",
+            listSubtitle = "Music on your Jellyfin server",
+            disconnectTitle = "Sign out of Jellyfin",
+            configured = jellyfin != null,
+            testFailedRes = R.string.webdav_test_failed,
+            onEdit = { jellyfinDialog = true },
+            onTest = {
+                jellyfin?.let { session -> com.cosmotune.music.data.jellyfin.JellyfinLibrary.songs(session).map { } }
+                    ?: Result.failure(IllegalStateException("Not signed in"))
+            },
+            onDisconnect = { AppSettings.setJellyfinSession(null) },
+        )
+        if (jellyfinDialog) com.cosmotune.ui.providers.JellyfinServerDialog(jellyfin,
+            onSignedIn = { AppSettings.setJellyfinSession(it); jellyfinDialog = false },
+            onSignOut = { AppSettings.setJellyfinSession(null); jellyfinDialog = false },
+            onDismiss = { jellyfinDialog = false })
+
         SettingsGroup(
             header = stringResource(R.string.source_matching),
             footer = stringResource(R.string.upgrade_length_slack_footer),

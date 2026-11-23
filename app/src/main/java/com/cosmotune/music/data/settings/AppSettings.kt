@@ -211,6 +211,12 @@ object AppSettings {
      */
     val exportDownloads = MutableStateFlow(false)
 
+    /**
+     * With [exportDownloads] on, save to the memory card (an SD card or other removable storage) instead of the phone's own
+     * storage, when one is in. See [com.cosmotune.music.download.DownloadStore.cardVolume].
+     */
+    val downloadsOnCard = MutableStateFlow(false)
+
     /** Whether the active network charges for data. `null` while offline. */
     val meteredConnection = MutableStateFlow<Boolean?>(null)
 
@@ -521,6 +527,9 @@ object AppSettings {
      */
     val syncedLyrics = MutableStateFlow(true)
 
+    /** The line being sung in the status bar (Meizu phones, status bar lyric modules); see [com.cosmotune.music.playback.StatusBarLyrics]. */
+    val statusBarLyrics = MutableStateFlow(false)
+
     /** The databases [syncedLyrics] may ask. Empty is the same as off. */
     val lyricsSources = MutableStateFlow(LyricsSource.offered.toSet())
 
@@ -608,6 +617,13 @@ object AppSettings {
     val webdavUrl = MutableStateFlow("")
     val webdavUsername = MutableStateFlow("")
     val webdavPassword = MutableStateFlow("")
+
+    /** The Jellyfin server signed in to, kept in [AuthStore]; null when none. Its songs open from Local music. */
+    val jellyfinSession = MutableStateFlow<com.cosmotune.music.data.jellyfin.JellyfinSession?>(null)
+    fun setJellyfinSession(value: com.cosmotune.music.data.jellyfin.JellyfinSession?) {
+        jellyfinSession.value = value
+        authStore.jellyfinSession = value?.encode()
+    }
 
     // ── SMB ───────────────────────────────────────────────────────────────
 
@@ -833,6 +849,7 @@ object AppSettings {
         downloadQuality.value = readDownloadQuality()
         wifiOnlyDownloads.value = prefs.getBoolean(KEY_WIFI_ONLY_DOWNLOADS, true)
         exportDownloads.value = prefs.getBoolean(KEY_EXPORT_DOWNLOADS, false)
+        downloadsOnCard.value = prefs.getBoolean(KEY_DOWNLOADS_ON_CARD, false)
         crossfadeSeconds.value = prefs.getInt(KEY_CROSSFADE, 0)
         smartFadeEnabled.value = prefs.getBoolean(KEY_SMART_FADE, false)
         automixPerformanceMode.value = runCatching {
@@ -914,6 +931,8 @@ object AppSettings {
             )
         }.getOrDefault(LastPlayerScreen.MAIN)
         syncedLyrics.value = prefs.getBoolean(KEY_SYNCED_LYRICS, true)
+        statusBarLyrics.value = prefs.getBoolean(KEY_STATUS_BAR_LYRICS, false)
+        floatingLyrics.value = prefs.getBoolean("floating_lyrics", false)
         lyricsSources.value = readLyricsSources()
         lyricsSourceOrder.value = readLyricsSourceOrder()
         prioritizeSyllableSync.value = prefs.getBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, false)
@@ -954,6 +973,7 @@ object AppSettings {
         webdavUrl.value = prefs.getString(KEY_WEBDAV_URL, "").orEmpty()
         webdavUsername.value = prefs.getString(KEY_WEBDAV_USERNAME, "").orEmpty()
         webdavPassword.value = authStore.webdavPassword.orEmpty()
+        jellyfinSession.value = authStore.jellyfinSession?.let(com.cosmotune.music.data.jellyfin.JellyfinSession::decode)
         smbHost.value = prefs.getString(KEY_SMB_HOST, "").orEmpty()
         smbShare.value = prefs.getString(KEY_SMB_SHARE, "").orEmpty()
         smbBasePath.value = prefs.getString(KEY_SMB_BASE_PATH, "").orEmpty()
@@ -1364,6 +1384,18 @@ object AppSettings {
         prefs.edit().putString(KEY_TRANSLATION_LANGUAGE, value).apply()
     }
 
+    /** The line being sung in a pill above other apps (Settings > Lyrics); see [com.cosmotune.music.playback.FloatingLyricsOverlay]. */
+    val floatingLyrics = MutableStateFlow(false)
+    fun setFloatingLyrics(value: Boolean) {
+        floatingLyrics.value = value
+        prefs.edit().putBoolean("floating_lyrics", value).apply()
+    }
+
+    fun setStatusBarLyrics(value: Boolean) {
+        statusBarLyrics.value = value
+        prefs.edit().putBoolean(KEY_STATUS_BAR_LYRICS, value).apply()
+    }
+
     fun setSyncedLyrics(value: Boolean) {
         syncedLyrics.value = value
         prefs.edit().putBoolean(KEY_SYNCED_LYRICS, value).apply()
@@ -1614,6 +1646,11 @@ object AppSettings {
     fun setExportDownloads(value: Boolean) {
         exportDownloads.value = value
         prefs.edit().putBoolean(KEY_EXPORT_DOWNLOADS, value).apply()
+    }
+
+    fun setDownloadsOnCard(value: Boolean) {
+        downloadsOnCard.value = value
+        prefs.edit().putBoolean(KEY_DOWNLOADS_ON_CARD, value).apply()
     }
 
     fun setLastfmPrimaryArtistOnly(value: Boolean) {
@@ -2054,6 +2091,7 @@ object AppSettings {
     private const val KEY_QUALITY_DOWNLOAD = "audio_quality_download"
     private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
     private const val KEY_EXPORT_DOWNLOADS = "export_downloads"
+    private const val KEY_DOWNLOADS_ON_CARD = "downloads_on_card"
     private const val KEY_LOSSLESS = "lossless_audio"
     private const val KEY_CROSSFADE = "crossfade_seconds"
     private const val KEY_SMART_FADE = "smart_fade_enabled"
@@ -2111,6 +2149,7 @@ object AppSettings {
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"
     private const val KEY_SYNCED_LYRICS = "synced_lyrics"
+    private const val KEY_STATUS_BAR_LYRICS = "status_bar_lyrics"
     private const val KEY_LYRICS_SOURCES = "lyrics_sources"
     private const val KEY_LYRICS_SOURCES_SEEN = "lyrics_sources_seen"
     private const val KEY_LYRICS_SOURCE_ORDER = "lyrics_source_order"

@@ -42,12 +42,8 @@ fun browseTypeOf(browseId: String): BrowseType = when {
  * the saved collections whose name or line does; "Videos" keeps the music videos among the songs. Nothing typed finds nothing.
  */
 fun searchMyLibrary(query: String, filter: SearchFilter, library: MyLibrary): List<SearchResult> {
-    val words = query.trim().lowercase().split(Regex("\\s+")).filter(String::isNotEmpty)
-    if (words.isEmpty()) return emptyList()
-    fun matches(vararg fields: String?): Boolean {
-        val text = fields.filterNotNull().joinToString(" ").lowercase()
-        return words.all { it in text }
-    }
+    if (query.isBlank()) return emptyList()
+    fun matches(vararg fields: String?): Boolean = com.cosmotune.music.data.LooseMatch.matches(query, *fields)
     val songs = library.songs.filter { matches(it.title, it.artist, it.albumName) }
     val collections = library.collections.filter { matches(it.title, it.subtitle) }
     fun kind(type: BrowseType) = collections.filter { it.type == type }.map { SearchResult.Browse(it) }

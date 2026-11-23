@@ -72,7 +72,7 @@ class DesktopAccountPreviewTest {
                 DesktopAccountSelector(emptyList(), null, null, busy = false, onSelect = { _, _ -> }, onAddAccount = {}, onRemoveAccount = {}, onOpenSettings = {}, onDismiss = {})
             }
             render("sign-in-$name", palette) {
-                DesktopSignInDialog(webSignIn = true, onWebSignIn = {}, onImport = {}, onPaste = {}, busy = null, error = null, onDismiss = {})
+                DesktopSignInDialog(webSignIn = true, onWebSignIn = {}, onImport = {}, onPaste = {}, onPhoneSession = {}, busy = null, error = null, onDismiss = {})
             }
         }
     }

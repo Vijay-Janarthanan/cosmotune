@@ -48,6 +48,7 @@ class PhoneRoomActions(
 
     override fun setHostOnlyControl(enabled: Boolean) = PhoneRooms.setHostOnlyControl(enabled)
     override fun removeMember(uid: String) = PhoneRooms.removeMember(uid)
+    override fun setCoHost(uid: String, coHost: Boolean) = PhoneRooms.setCoHost(uid, coHost)
 
     override fun copyInviteCode(code: String) {
         context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(code, code))

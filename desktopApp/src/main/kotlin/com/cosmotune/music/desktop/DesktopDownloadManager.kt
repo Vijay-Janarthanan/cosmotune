@@ -31,8 +31,7 @@ object DesktopDownloadManager {
             val stream = DesktopMusicSources.resolve(song, quality, forDownload = true).getOrThrow()
             com.cosmotune.music.data.sources.ProviderDownloadTransfers.transfer(
                 stream.sourceId ?: URI.create(stream.url).host.orEmpty().ifBlank { "catalogue" }) {
-            val directory = directoryOverride ?: Path.of(System.getProperty("user.home"),
-                if (com.cosmotune.podio.PodioDownloads.isEpisode(song.videoId)) "Podcasts" else "Music", com.cosmotune.CosmoConfig.APP_NAME)
+            val directory = directoryOverride ?: DesktopDownloadFolder.forDownload(com.cosmotune.podio.PodioDownloads.isEpisode(song.videoId))
             Files.createDirectories(directory)
             val safeName = buildString {
                 append(song.artist)

@@ -71,7 +71,8 @@ class RoomClient(
     }.stateIn(scope, SharingStarted.Eagerly, null)
 
     /** The same room in the shape the existing Listen Together screens and player code read. */
-    val snapshot: StateFlow<PartySnapshot?> = roomState.map { it?.let(RoomMapping::snapshotOf) }.stateIn(scope, SharingStarted.Eagerly, null)
+    val snapshot: StateFlow<PartySnapshot?> = roomState.map { it?.let { room -> RoomMapping.snapshotOf(room, runCatching { uid() }.getOrNull()) } }
+        .stateIn(scope, SharingStarted.Eagerly, null)
 
     private var code: String? = null
     private var seat: Int = -1
@@ -195,7 +196,7 @@ class RoomClient(
         val c = code ?: throw RoomException(RoomException.Reason.NOT_IN_ROOM, "Not in a room")
         repeat(3) { attempt ->
             val current = roomState.value ?: throw RoomException(RoomException.Reason.NOT_IN_ROOM, "Not in a room")
-            if (current.meta.hostOnlyControl && current.meta.hostUid != uid()) throw RoomException(RoomException.Reason.HOST_ONLY, "Only the host can control the music here")
+            if (!current.meta.canControl(uid())) throw RoomException(RoomException.Reason.HOST_ONLY, "Only the host can control the music here")
             val result = RoomLogic.reduce(current.playback, current.queue, control, serverNowMs(), uid(), profile().name) ?: return@guarded Unit
             val updates = buildJsonObject {
                 put("state", RoomMapping.playbackJson(result.playback))
@@ -215,6 +216,12 @@ class RoomClient(
     suspend fun setHostOnlyControl(enabled: Boolean): Result<Unit> = hostSetting("hostOnlyControl", JsonPrimitive(enabled))
     suspend fun setAutoplay(enabled: Boolean): Result<Unit> = hostSetting("autoplay", JsonPrimitive(enabled))
     suspend fun setMaxMembers(max: Int): Result<Unit> = hostSetting("maxMembers", JsonPrimitive(max.coerceIn(2, 8)))
+    /** Host only: makes [memberUid] a co-host, who drives the music even with host-only control on, or takes that back. */
+    suspend fun setCoHost(memberUid: String, coHost: Boolean): Result<Unit> = guarded {
+        val c = code ?: throw RoomException(RoomException.Reason.NOT_IN_ROOM, "Not in a room")
+        if (coHost) rtdb.put("rooms/$c/meta/coHosts/$memberUid", JsonPrimitive(true)) else rtdb.delete("rooms/$c/meta/coHosts/$memberUid")
+        Unit
+    }
 
     private suspend fun hostSetting(name: String, value: JsonPrimitive): Result<Unit> = guarded {
         val c = code ?: throw RoomException(RoomException.Reason.NOT_IN_ROOM, "Not in a room")

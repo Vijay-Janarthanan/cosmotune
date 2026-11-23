@@ -194,7 +194,7 @@ internal data class DesktopQueue(
         val from = index + 1
         if (from >= songs.size) return this
         val upcoming = songs.drop(from)
-        val order = QueueTimeline.shuffledUpcomingOrder(upcoming.map(Song::queueTier))
+        val order = QueueTimeline.shuffledUpcomingOrder(upcoming.map(Song::queueTier), upcoming.map(Song::videoId))
         return copy(songs = songs.take(from) + order.map(upcoming::get))
     }
 

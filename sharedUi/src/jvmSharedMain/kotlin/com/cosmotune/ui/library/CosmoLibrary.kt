@@ -335,7 +335,7 @@ private class LibraryLook(
 
 /** [items] whose title (or line under it) holds the page's query, whatever the case; everything while nothing is typed. */
 private fun List<ShelfItem>.matching(page: LibraryLook): List<ShelfItem> =
-    if (page.query.isEmpty()) this else filter { it.title.contains(page.query, ignoreCase = true) || it.subtitle.contains(page.query, ignoreCase = true) }
+    if (page.query.isEmpty()) this else filter { com.cosmotune.music.data.LooseMatch.matches(page.query, it.title, it.subtitle) }
 
 /** How many each chip shows: the chips' counts. */
 private fun libraryCounts(library: LibraryPage, pinned: List<String>, liked: ShelfItem?): Map<LibraryChip, Int> {
@@ -725,7 +725,7 @@ private fun LazyListScope.songsSegment(
         }
     }.let { list ->
         if (page.query.isEmpty()) list
-        else list.filter { it.title.contains(page.query, ignoreCase = true) || it.artist.contains(page.query, ignoreCase = true) }
+        else list.filter { com.cosmotune.music.data.LooseMatch.matches(page.query, it.title, it.artist, it.albumName) }
     }
     if (songs.isEmpty()) {
         item(key = "songs:empty") { MessageState(stringResource(Res.string.cosmo_state_empty)) }
