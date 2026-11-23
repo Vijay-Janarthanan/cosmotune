@@ -72,6 +72,35 @@ class DesktopSingleInstanceTest {
         }
     }
 
+    @Test fun anErrorWhileActivatingDoesNotStopTheNextLaunchBeingAnswered() = withDirectory { directory ->
+        val calls = AtomicInteger()
+        DesktopSingleInstance.acquire(directory) {
+            // What a running Cosmotune whose files an update replaced throws: an Error, not an Exception.
+            if (calls.incrementAndGet() == 1) throw NoClassDefFoundError("com/cosmotune/Gone")
+        }!!.use {
+            assertNull(DesktopSingleInstance.acquire(directory) { error("Second owner") })
+            assertEquals(2, calls.get())
+        }
+    }
+
+    @Test fun aFirstProcessThatNeverAnswersIsAskedAboutAndTheLaunchEndsWithoutThrowing() = withDirectory { directory ->
+        // The lock held and an endpoint that accepts but never answers: a stuck first process.
+        java.net.ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1")).use { silent ->
+            java.nio.channels.FileChannel.open(directory.resolve("instance.lock"),
+                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.WRITE).use { channel ->
+                channel.lock().use {
+                    Files.writeString(directory.resolve("instance.endpoint"), "${silent.localPort}\n${"a".repeat(43)}\n4242\n")
+                    val asked = java.util.concurrent.LinkedBlockingQueue<Long>()
+                    val result = DesktopSingleInstance.acquire(directory, stuckAfterMs = 600, onStuck = { pid -> asked += pid ?: -1; false }) {
+                        error("Second owner")
+                    }
+                    assertNull(result)
+                    assertEquals(listOf(4242L), asked.toList(), "asked once, with the id the first process wrote")
+                }
+            }
+        }
+    }
+
     private fun withDirectory(block: (java.nio.file.Path) -> Unit) {
         val directory = Files.createTempDirectory("cosmotune-instance-test")
         try { block(directory) } finally { directory.toFile().deleteRecursively() }
