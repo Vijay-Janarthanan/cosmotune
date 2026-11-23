@@ -80,5 +80,7 @@ class OrbitTooltipContractTest {
         val over = OrbitTooltipPosition(gap = 8, margin = 8, above = true)
         assertEquals(100 - 8 - 30, over.calculatePosition(IntRect(480, 100, 520, 140), window, LayoutDirection.Ltr, pill).y, "a finger's: over the control")
         assertEquals(58, over.calculatePosition(IntRect(480, 10, 520, 50), window, LayoutDirection.Ltr, pill).y, "no room over: under it")
+        val lifted = OrbitTooltipPosition(gap = 8, margin = 8, above = true, lift = 72)
+        assertEquals(700 - 72 - 8 - 30, lifted.calculatePosition(IntRect(480, 700, 520, 740), window, LayoutDirection.Ltr, pill).y, "a dock tab's: over the small player above it")
     }
 }

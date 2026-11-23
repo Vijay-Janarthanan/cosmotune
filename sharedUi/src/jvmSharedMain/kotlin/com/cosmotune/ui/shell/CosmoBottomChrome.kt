@@ -37,6 +37,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -195,14 +197,19 @@ fun CosmoBottomChrome(
         val ground = Color(LocalCosmoColors.current.palette.backgroundBottom)
         val backed = showTabs && (song != null || miniPlayer != null)
         Column(if (backed) Modifier.fillMaxWidth().background(ground, DOCK_SHAPE) else Modifier.fillMaxWidth()) {
+            // How tall the small player over the tabs is: a tab's tooltip rises over it rather than sitting on its edge.
+            var miniHeightPx by remember { mutableIntStateOf(0) }
             if (song != null) {
-                MiniCapsule(song, isPlaying, isLoading, position, durationMs, onPlayPause, onNext, onPrevious, onExpand, controlsLocked, onBlockedControl, onClose, ownMedia)
+                Box(Modifier.onSizeChanged { miniHeightPx = it.height }) {
+                    MiniCapsule(song, isPlaying, isLoading, position, durationMs, onPlayPause, onNext, onPrevious, onExpand, controlsLocked, onBlockedControl, onClose, ownMedia)
+                }
                 if (showTabs) Spacer(Modifier.height(DOCK_GAP))
             } else if (miniPlayer != null) {
-                Box(Modifier.fillMaxWidth().clip(DOCK_SHAPE).background(orbitDockFill(look))) { miniPlayer() }
+                Box(Modifier.fillMaxWidth().clip(DOCK_SHAPE).background(orbitDockFill(look)).onSizeChanged { miniHeightPx = it.height }) { miniPlayer() }
                 if (showTabs) Spacer(Modifier.height(DOCK_GAP))
             }
-            if (showTabs) {
+            val clearance = if ((song != null || miniPlayer != null) && miniHeightPx > 0) with(density) { miniHeightPx.toDp() } + DOCK_GAP else 0.dp
+            if (showTabs) CompositionLocalProvider(com.cosmotune.ui.orbit.LocalOrbitTooltipClearance provides clearance) {
                 if (search == null) FloatingTabBar(tabs, selectedIndex, onTabSelected)
                 else Row(verticalAlignment = Alignment.CenterVertically) {
                     // While Search is open no tab is lit: the round button beside them is.

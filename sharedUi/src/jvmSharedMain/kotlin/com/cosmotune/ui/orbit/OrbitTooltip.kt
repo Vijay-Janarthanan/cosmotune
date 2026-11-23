@@ -60,6 +60,12 @@ internal const val TOOLTIP_TOUCH_LINGER_MS = 1500L
 internal val TOOLTIP_GAP = 8.dp
 
 /**
+ * What stands over a row of controls that a tooltip shown over them must clear (the small player over the dock's tabs): the pill
+ * rises this much more, so it keeps its 8 dp from that surface instead of sitting on its edge.
+ */
+val LocalOrbitTooltipClearance = androidx.compose.runtime.compositionLocalOf { 0.dp }
+
+/**
  * What [OrbitTooltipText] says for a control: its [label], and on the desktop its [shortcut] after it in brackets
  * ("Play (Space)"). A phone has no keyboard to name.
  */
@@ -165,17 +171,19 @@ fun OrbitTooltipPill(state: OrbitTooltipState, label: String, shortcut: String? 
     if (label.isBlank()) return
     val keyboardFocus = state.focused && LocalFocusModality.current.keyboard
     val touch = state.held || state.lingering
-    if (state.hoverShown || keyboardFocus || touch) OrbitTooltipPopup(orbitTooltipText(label, shortcut), above = touch)
+    val clearance = LocalOrbitTooltipClearance.current
+    if (state.hoverShown || keyboardFocus || touch) OrbitTooltipPopup(orbitTooltipText(label, shortcut), above = touch || clearance > 0.dp, clearance = clearance)
 }
 
 /** The pill itself, in a popup by its anchor: under it ([above] false, the pointer's case) or over it (a finger covers what is under). */
 @Composable
-private fun OrbitTooltipPopup(text: String, above: Boolean) {
+private fun OrbitTooltipPopup(text: String, above: Boolean, clearance: androidx.compose.ui.unit.Dp = 0.dp) {
     val look = orbitLook()
     val fonts = orbitFonts()
     val gap = with(LocalDensity.current) { TOOLTIP_GAP.roundToPx() }
+    val lift = with(LocalDensity.current) { clearance.roundToPx() }
     val margin = with(LocalDensity.current) { 8.dp.roundToPx() }
-    val position = remember(gap, margin, above) { OrbitTooltipPosition(gap, margin, above) }
+    val position = remember(gap, margin, above, lift) { OrbitTooltipPosition(gap, margin, above, lift) }
     Popup(popupPositionProvider = position, properties = PopupProperties(focusable = false)) {
         Box(
             Modifier.clearAndSetSemantics { }
@@ -192,15 +200,15 @@ private fun OrbitTooltipPopup(text: String, above: Boolean) {
 private fun tooltipInk(look: OrbitLook): Color = look.ground.copy(alpha = 1f)
 
 /**
- * Centred on its anchor, [gap] under it (or over it when [above], or when there is no room under it), and at least [margin] in
- * from the window's sides.
+ * Centred on its anchor, [gap] under it (or over it when [above], or when there is no room under it; over it, [lift] higher still
+ * to clear a surface standing over the anchor), and at least [margin] in from the window's sides.
  */
-internal class OrbitTooltipPosition(private val gap: Int, private val margin: Int, private val above: Boolean) : PopupPositionProvider {
+internal class OrbitTooltipPosition(private val gap: Int, private val margin: Int, private val above: Boolean, private val lift: Int = 0) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
         val maxX = (windowSize.width - popupContentSize.width - margin).coerceAtLeast(0)
         val x = (anchorBounds.center.x - popupContentSize.width / 2).coerceIn(margin.coerceAtMost(maxX), maxX)
         val under = anchorBounds.bottom + gap
-        val over = anchorBounds.top - gap - popupContentSize.height
+        val over = anchorBounds.top - lift - gap - popupContentSize.height
         val fitsUnder = under + popupContentSize.height <= windowSize.height - margin
         val fitsOver = over >= margin
         val y = when {
