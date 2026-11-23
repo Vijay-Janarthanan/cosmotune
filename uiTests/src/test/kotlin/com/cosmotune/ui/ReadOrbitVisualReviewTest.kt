@@ -224,8 +224,9 @@ class ReadOrbitVisualReviewTest {
             capture("read-book-$tag")
             compose.onAllNodesWithContentDescription("Back").onFirst().performClick()
             tab("Bookmarks"); waitFor("Chapter 3"); capture("read-bookmarks-$tag")
-            tab("Library"); waitFor("Field notes")
-            // The grid starts under the colour card, the quick tiles and the shelves: on a phone its covers are below the window.
+            tab("Library"); compose.waitUntil(15_000) { compose.onAllNodesWithTag("books:library").fetchSemanticsNodes().isNotEmpty() }
+            // The grid starts under the colour card, the quick tiles (History and Files among them) and the shelves: on a phone its
+            // covers are below the window, so it is scrolled to the book rather than waited for.
             compose.onNodeWithTag("books:library").performScrollToNode(hasText("Field notes"))
             compose.onAllNodesWithText("Field notes").onFirst().performClick()
             waitFor("Mark finished")
