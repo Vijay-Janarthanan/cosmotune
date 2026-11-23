@@ -304,6 +304,10 @@ fun OrbitReplayShareBody(
     onShare: () -> Unit,
     ready: Boolean,
     modifier: Modifier = Modifier,
+    /** A third action under the two, the Replay as a story video; left out when null. */
+    videoLabel: String? = null,
+    videoEnabled: Boolean = true,
+    onVideo: () -> Unit = {},
     preview: @Composable () -> Unit,
 ) {
     val fonts = orbitFonts()
@@ -317,12 +321,18 @@ fun OrbitReplayShareBody(
                 .clip(RoundedCornerShape(24.dp)).background(look.chip),
             contentAlignment = Alignment.Center,
         ) { preview() }
-        Row(Modifier.padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OrbitPillButton(
                 saveLabel, onSave, fonts, look, Modifier.weight(1f), enabled = ready && !saved,
                 icon = if (saved) CosmoIcons.Check else CosmoIcons.Download, height = 52.dp,
             )
             OrbitPillButton(shareLabel, onShare, fonts, look, Modifier.weight(1f), primary = true, enabled = ready, icon = CosmoIcons.Share, height = 52.dp)
+        }
+        if (videoLabel != null) {
+            OrbitPillButton(
+                videoLabel, onVideo, fonts, look, Modifier.padding(top = 8.dp).fillMaxWidth(), enabled = videoEnabled,
+                icon = CosmoIcons.Video, height = 52.dp,
+            )
         }
     }
 }

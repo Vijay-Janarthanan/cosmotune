@@ -256,6 +256,15 @@ enum class ReplayStoryPage {
     }
 }
 
+/** The story cards this Replay has, in order: a category with nothing in it has no card. */
+fun ReplaySummary.storyPages(): List<ReplayStoryPage> = ReplayStoryPage.ordered.filter { page ->
+    when (page) {
+        ReplayStoryPage.ALBUMS -> albums.isNotEmpty()
+        ReplayStoryPage.GENRES -> genres.isNotEmpty()
+        else -> true
+    }
+}
+
 // ── Formatting ──────────────────────────────────────────────────────────────
 
 /**

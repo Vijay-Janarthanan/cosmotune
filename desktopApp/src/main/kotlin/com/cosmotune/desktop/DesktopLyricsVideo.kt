@@ -53,15 +53,49 @@ internal object DesktopLyricsVideo {
         frames: ((androidx.compose.ui.graphics.ImageBitmap?) -> com.cosmotune.ui.nowplaying.LyricVideoFrames?)? = null,
         onProgress: (Float) -> Unit,
     ) {
-        val audio = runCatching { decodeClip(request, plan) }.getOrNull()
         val cover = runCatching { loadCover(request.artworkUrl) }.getOrNull()
         // In one of the lyric styles, the shared stages draw the frames (the same size, the song's own moments).
         val styled = frames?.invoke(cover?.let { runCatching { it.toComposeImageBitmap() }.getOrNull() })
-        encode(request, plan, cover, styled, audio, target, onProgress)
+        val painter = Painter(request, cover)
+        val argb = if (styled != null) IntArray(WIDTH * HEIGHT) else null
+        exportFrames(request.song, plan.startMs, plan.durationMs, target, { index, image ->
+            if (styled != null && argb != null) {
+                styled.render(plan.startMs + index * 1_000L / FPS, argb)
+                val pixels = (image.raster.dataBuffer as DataBufferByte).data
+                for (i in argb.indices) {
+                    val c = argb[i]
+                    pixels[3 * i] = (c and 0xFF).toByte()
+                    pixels[3 * i + 1] = ((c shr 8) and 0xFF).toByte()
+                    pixels[3 * i + 2] = ((c shr 16) and 0xFF).toByte()
+                }
+            } else {
+                painter.draw(image, plan.frameAt(index * 1_000L / FPS))
+            }
+        }, onProgress)
     }
 
-    private suspend fun decodeClip(request: LyricsShareRequest, plan: LyricsVideoPlan): FloatArray? {
-        val song = request.song
+    /** The frame size and rate every video here is drawn at. */
+    const val FRAME_WIDTH = WIDTH
+    const val FRAME_HEIGHT = HEIGHT
+    const val FRAMES_PER_SECOND = FPS
+
+    /**
+     * Any 720x1280 video of [durationMs] at 24 frames a second: [draw] paints each frame (a BGR image) by its index, and the
+     * stretch of [song] from [clipStartMs] plays under it (left out when there is no song or it cannot be read).
+     */
+    suspend fun exportFrames(
+        song: com.cosmotune.music.data.model.Song?,
+        clipStartMs: Long,
+        durationMs: Long,
+        target: File,
+        draw: (index: Int, image: BufferedImage) -> Unit,
+        onProgress: (Float) -> Unit,
+    ) {
+        val audio = song?.let { runCatching { decodeClip(it, clipStartMs, durationMs) }.getOrNull() }
+        encode((durationMs * FPS / 1000).toInt().coerceAtLeast(1), draw, audio, target, onProgress)
+    }
+
+    private suspend fun decodeClip(song: com.cosmotune.music.data.model.Song, startMs: Long, durationMs: Long): FloatArray? {
         val stream = song.localPath?.takeIf { File(it).isFile }?.let { DesktopStream(url = it) }
             ?: DesktopStreamClient.resolve(song).getOrNull() ?: return null
         val decoder = DesktopAudioDecoder()
@@ -73,8 +107,8 @@ internal object DesktopLyricsVideo {
                 windowed = stream.windowedReads,
                 transport = stream.transport,
             ).getOrThrow()
-            if (plan.startMs > 0 && !decoder.seek(plan.startMs * 1_000)) return null
-            val wanted = (plan.durationMs * RATE / 1_000).toInt() * 2
+            if (startMs > 0 && !decoder.seek(startMs * 1_000)) return null
+            val wanted = (durationMs * RATE / 1_000).toInt() * 2
             val out = FloatArray(wanted)
             var filled = 0
             while (filled < wanted) {
@@ -100,10 +134,8 @@ internal object DesktopLyricsVideo {
     }
 
     private fun encode(
-        request: LyricsShareRequest,
-        plan: LyricsVideoPlan,
-        cover: BufferedImage?,
-        styled: com.cosmotune.ui.nowplaying.LyricVideoFrames?,
+        total: Int,
+        draw: (index: Int, image: BufferedImage) -> Unit,
         audio: FloatArray?,
         target: File,
         onProgress: (Float) -> Unit,
@@ -165,23 +197,10 @@ internal object DesktopLyricsVideo {
             scaler = sws_getContext(WIDTH, HEIGHT, AV_PIX_FMT_BGR24, WIDTH, HEIGHT, videoCodec.pix_fmt(), SWS_BICUBIC, null, null, null as DoublePointer?)
             val image = BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_3BYTE_BGR)
             val pixels = (image.raster.dataBuffer as DataBufferByte).data
-            val painter = Painter(request, cover)
-            val argb = if (styled != null) IntArray(WIDTH * HEIGHT) else null
-            val total = (plan.durationMs * FPS / 1000).toInt().coerceAtLeast(1)
             val audioFrames = audio?.let { it.size / 2 } ?: 0
             var audioAt = 0
             for (index in 0 until total) {
-                if (styled != null && argb != null) {
-                    styled.render(plan.startMs + index * 1_000L / FPS, argb)
-                    for (i in argb.indices) {
-                        val c = argb[i]
-                        pixels[3 * i] = (c and 0xFF).toByte()
-                        pixels[3 * i + 1] = ((c shr 8) and 0xFF).toByte()
-                        pixels[3 * i + 2] = ((c shr 16) and 0xFF).toByte()
-                    }
-                } else {
-                    painter.draw(image, plan.frameAt(index * 1_000L / FPS))
-                }
+                draw(index, image)
                 check(av_frame_make_writable(bgr) >= 0 && av_frame_make_writable(yuv) >= 0)
                 val stride = bgr.linesize(0)
                 val plane = bgr.data(0)

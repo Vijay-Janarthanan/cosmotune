@@ -62,13 +62,45 @@ internal object LyricsVideoExport {
         target: File,
         frames: ((androidx.compose.ui.graphics.ImageBitmap?) -> com.cosmotune.ui.nowplaying.LyricVideoFrames?)? = null,
         onProgress: (Float) -> Unit,
+    ) {
+        val cover = withContext(Dispatchers.Default) { runCatching { loadCover(context, request.artworkUrl) }.getOrNull() }
+        val styled = frames?.invoke(cover?.asImageBitmap())
+        val painter = FramePainter(request, cover)
+        val frame = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(frame)
+        try {
+            exportFrames(context, request.song, plan.startMs, plan.durationMs, target, { index, pixels ->
+                if (styled != null) {
+                    // The lyric style's frame, drawn by the shared stages at the song's own moment.
+                    styled.render(plan.startMs + index * 1_000L / FPS, pixels)
+                } else {
+                    painter.draw(canvas, plan.frameAt(index * 1_000L / FPS))
+                    frame.getPixels(pixels, 0, WIDTH, 0, 0, WIDTH, HEIGHT)
+                }
+            }, onProgress)
+        } finally {
+            frame.recycle()
+        }
+    }
+
+    /**
+     * Any 720x1280 video of [durationMs] at 24 frames a second: [draw] fills each frame's ARGB pixels by its index, and the
+     * stretch of [song] from [clipStartMs] plays under it (left out when there is no song or it cannot be read).
+     */
+    suspend fun exportFrames(
+        context: Context,
+        song: com.cosmotune.music.data.model.Song?,
+        clipStartMs: Long,
+        durationMs: Long,
+        target: File,
+        draw: (index: Int, pixels: IntArray) -> Unit,
+        onProgress: (Float) -> Unit,
     ) =
         withContext(Dispatchers.Default) {
-            val cover = runCatching { loadCover(context, request.artworkUrl) }.getOrNull()
-            val styled = frames?.invoke(cover?.asImageBitmap())
             val samples = ArrayList<Sample>()
-            val videoFormat = encodeVideo(request, plan, cover, styled, samples) { onProgress(it * 0.8f) }
-            val audio = runCatching { decodeClip(context, request, plan) }.getOrNull()
+            val total = (durationMs * FPS / 1000).toInt().coerceAtLeast(1)
+            val videoFormat = encodeVideo(total, draw, samples) { onProgress(it * 0.8f) }
+            val audio = song?.let { runCatching { decodeClip(context, it, clipStartMs, durationMs) }.getOrNull() }
             val audioFormat = audio?.let { (pcm, rate, channels) -> encodeAudio(pcm, rate, channels, samples) }
             onProgress(0.95f)
             val muxer = MediaMuxer(target.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
@@ -90,13 +122,16 @@ internal object LyricsVideoExport {
             onProgress(1f)
         }
 
+    /** The frame size and rate every video here is drawn at. */
+    const val FRAME_WIDTH = WIDTH
+    const val FRAME_HEIGHT = HEIGHT
+    const val FRAMES_PER_SECOND = FPS
+
     // ---- video ----
 
     private suspend fun encodeVideo(
-        request: LyricsShareRequest,
-        plan: LyricsVideoPlan,
-        cover: Bitmap?,
-        styled: com.cosmotune.ui.nowplaying.LyricVideoFrames?,
+        total: Int,
+        draw: (index: Int, pixels: IntArray) -> Unit,
         out: MutableList<Sample>,
         onProgress: (Float) -> Unit,
     ): MediaFormat {
@@ -109,11 +144,7 @@ internal object LyricsVideoExport {
         val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         codec.start()
-        val frame = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(frame)
         val pixels = IntArray(WIDTH * HEIGHT)
-        val painter = FramePainter(request, cover)
-        val total = (plan.durationMs * FPS / 1000).toInt().coerceAtLeast(1)
         var outputFormat: MediaFormat? = null
         var index = 0
         var inputDone = false
@@ -128,13 +159,7 @@ internal object LyricsVideoExport {
                             codec.queueInputBuffer(input, 0, 0, index * 1_000_000L / FPS, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             inputDone = true
                         } else {
-                            if (styled != null) {
-                                // The lyric style's frame, drawn by the shared stages at the song's own moment.
-                                styled.render(plan.startMs + index * 1_000L / FPS, pixels)
-                            } else {
-                                painter.draw(canvas, plan.frameAt(index * 1_000L / FPS))
-                                frame.getPixels(pixels, 0, WIDTH, 0, 0, WIDTH, HEIGHT)
-                            }
+                            draw(index, pixels)
                             val image = codec.getInputImage(input) ?: error("The encoder gave no input image")
                             writeYuv(pixels, image)
                             codec.queueInputBuffer(input, 0, WIDTH * HEIGHT * 3 / 2, index * 1_000_000L / FPS, 0)
@@ -162,7 +187,6 @@ internal object LyricsVideoExport {
         } finally {
             runCatching { codec.stop() }
             codec.release()
-            frame.recycle()
         }
         return outputFormat ?: error("The video encoder never described its output")
     }
@@ -257,15 +281,15 @@ internal object LyricsVideoExport {
     // ---- audio ----
 
     /** The plan's stretch of the song as interleaved 16-bit PCM, with its rate and channel count. */
-    private suspend fun decodeClip(context: Context, request: LyricsShareRequest, plan: LyricsVideoPlan): Triple<ShortArray, Int, Int>? {
-        val source = withContext(Dispatchers.IO) { sourceFor(context, request) } ?: return null
+    private suspend fun decodeClip(context: Context, song: com.cosmotune.music.data.model.Song, startMs: Long, durationMs: Long): Triple<ShortArray, Int, Int>? {
+        val source = withContext(Dispatchers.IO) { sourceFor(context, song) } ?: return null
         val decoded = source.use {
-            AudioDecoder.decodeRegionStereo(it, plan.startMs / 1000.0, plan.endMs / 1000.0)
+            AudioDecoder.decodeRegionStereo(it, startMs / 1000.0, (startMs + durationMs) / 1000.0)
         } ?: return null
         val (pcm, realStart) = decoded
         val rate = pcm.sampleRate.toInt()
-        val skip = ((plan.startMs / 1000.0 - realStart) * rate).toInt().coerceIn(0, pcm.left.size)
-        val frames = minOf(pcm.left.size - skip, (plan.durationMs * rate / 1000).toInt())
+        val skip = ((startMs / 1000.0 - realStart) * rate).toInt().coerceIn(0, pcm.left.size)
+        val frames = minOf(pcm.left.size - skip, (durationMs * rate / 1000).toInt())
         if (frames <= 0) return null
         val out = ShortArray(frames * 2)
         for (i in 0 until frames) {
@@ -275,13 +299,13 @@ internal object LyricsVideoExport {
         return Triple(out, rate, 2)
     }
 
-    private suspend fun sourceFor(context: Context, request: LyricsShareRequest): MediaDataSource? {
-        request.song.localUri?.let { local ->
+    private suspend fun sourceFor(context: Context, song: com.cosmotune.music.data.model.Song): MediaDataSource? {
+        song.localUri?.let { local ->
             val uri = Uri.parse(local)
             return if (LocalAudioSource.isLocal(uri)) LocalAudioSource.open(context.contentResolver, uri)
             else File(local).takeIf { it.isFile }?.let { FileSource(it) }
         }
-        val stream = StreamResolver.resolveForDownload(request.song.videoId, Int.MAX_VALUE, requireM4a = true)
+        val stream = StreamResolver.resolveForDownload(song.videoId, Int.MAX_VALUE, requireM4a = true)
         return RangedHttpSource(stream.url, StreamResolver.mediaHeadersFor(stream.url))
     }
 

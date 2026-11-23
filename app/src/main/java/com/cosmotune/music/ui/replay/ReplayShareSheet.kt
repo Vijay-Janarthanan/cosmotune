@@ -86,6 +86,9 @@ fun ReplayShareSheet(
     var poster by remember { mutableStateOf<Bitmap?>(null) }
     var failed by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
+    // The story video (the whole Replay only): its progress while it is being made, null otherwise.
+    var videoProgress by remember { mutableStateOf<Float?>(null) }
+    val videoFailed = stringResource(R.string.replay_video_failed)
 
     LaunchedEffect(summary, page) {
         poster = runCatching { renderReplayPoster(context, summary, holder, memberSince, page) }
@@ -131,6 +134,26 @@ fun ReplayShareSheet(
         },
         ready = poster != null,
         modifier = Modifier.navigationBarsPadding(),
+        videoLabel = if (page != null) null else videoProgress?.let {
+            stringResource(R.string.replay_video_making, (it * 100).toInt())
+        } ?: stringResource(R.string.replay_share_video),
+        videoEnabled = videoProgress == null,
+        onVideo = {
+            scope.launch {
+                videoProgress = 0f
+                val uri = ReplayVideo.make(context, summary, holder, memberSince) { videoProgress = it }
+                videoProgress = null
+                if (uri == null) {
+                    com.cosmotune.music.ui.player.PlayerPlatform.host.showMessage(videoFailed)
+                    return@launch
+                }
+                val send = Intent(Intent.ACTION_SEND).setType("video/mp4")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                context.startActivity(Intent.createChooser(send, context.getString(R.string.share_your_replay)))
+                onDismiss()
+            }
+        },
     ) {
         val image = poster
         when {

@@ -53,6 +53,24 @@ internal fun DesktopReplaySummary.cardText(holder: String): DesktopReplayCardTex
 )
 
 /**
+ * The cards of the Replay story video, in order: the minutes, the top song, the top artist, then the whole card. With nothing
+ * listened yet, only the whole card.
+ */
+internal fun DesktopReplaySummary.reelCards(holder: String): List<DesktopReplayCardText> {
+    val whole = cardText(holder)
+    if (songs.isEmpty()) return listOf(whole)
+    val intro = whole.copy(songs = emptyList(), artists = emptyList())
+    val song = songs.first()
+    val top = whole.copy(period = "Your top song", headline = song.song.title,
+        stats = listOf(song.song.artist, "%,d plays".format(Locale.ROOT, song.plays)), songs = emptyList(), artists = emptyList())
+    val artist = artists.firstOrNull()?.let { entry ->
+        whole.copy(period = "Your top artist", headline = entry.title,
+            stats = listOf("%,d plays".format(Locale.ROOT, entry.plays)), songs = emptyList(), artists = emptyList())
+    }
+    return listOfNotNull(intro, top, artist, whole)
+}
+
+/**
  * A 1080 x 1920 story-sized card in the look of the Orbit Replay stories: one flat deep colour for the ground (the kit's stand-in
  * colours, picked by the holder so a person's card keeps its colour), the headings in the wide face ([wide], Archivo, when it could
  * be read), a disc in its orbit at the top, then the period, minutes listened, plays and the top five songs and artists in the pale
@@ -143,6 +161,25 @@ internal fun DesktopReplayShareDialog(summary: DesktopReplaySummary, holder: Str
                         Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 540.dp))
                 } ?: Text("Preparing your card…")
                 message?.let { Text(it) }
+                // The Replay as a short story video: the cards one after another with the top song underneath (DesktopReplayVideo).
+                com.cosmotune.ui.sheets.CosmoDialogQuietButton("Save as story video", enabled = !saving, onClick = {
+                    scope.launch {
+                        saving = true
+                        try {
+                            val target = com.cosmotune.desktop.chooseCosmotuneFile("cosmotune-replay.mp4", saving = true)
+                            if (target != null) {
+                                val mp4 = if (target.extension.equals("mp4", true)) target else java.io.File(target.path + ".mp4")
+                                message = "Making the video…"
+                                withContext(Dispatchers.IO) {
+                                    DesktopReplayVideo.export(summary, holder, mp4) { message = "Making the video… ${(it * 100).toInt()}%" }
+                                }
+                                message = "Replay video saved"
+                            }
+                        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                        catch (_: Throwable) { message = "The video could not be made. Try another location." }
+                        finally { saving = false }
+                    }
+                })
                 com.cosmotune.ui.sheets.CosmoDialogActions(
                     confirmLabel = if (saving) "Saving…" else "Save image",
                     confirmEnabled = image != null && !saving,

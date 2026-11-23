@@ -35,4 +35,17 @@ class DesktopReplayCardTest {
         // A long line is shortened to the card instead of running past its right edge.
         assertTrue((1040 until 1080).none { x -> (0 until 1920).any { y -> (image.getRGB(x, y) and 0xFF) > 230 } })
     }
+
+    @Test fun theStoryVideoTellsTheYearCardByCardAndEndsOnTheWholeCard() {
+        val cards = summary.reelCards("Vijay")
+        assertEquals(listOf("2026", "Your top song", "Your top artist", "2026"), cards.map { it.period })
+        assertEquals("125 minutes", cards[0].headline)
+        assertTrue(cards[0].songs.isEmpty() && cards[0].artists.isEmpty())
+        assertEquals("Song 1", cards[1].headline)
+        assertEquals(listOf("Artist 1", "7 plays"), cards[1].stats)
+        assertEquals("A. R. Rahman", cards[2].headline)
+        assertEquals(summary.cardText("Vijay"), cards.last())
+        // Nothing listened yet: only the whole card.
+        assertEquals(1, DesktopReplaySummary(label = "2026").reelCards("").size)
+    }
 }
