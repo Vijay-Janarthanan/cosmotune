@@ -94,12 +94,6 @@ internal fun CosmoLookSettingsRows() {
         RowDivider()
         com.cosmotune.ui.settings.CosmoTextFontSetting()
         RowDivider()
-        val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-        com.cosmotune.ui.settings.CosmoAppIconSetting(
-            line = com.cosmotune.ui.settings.AppIconText.LINE_PHONE,
-            onChosen = { com.cosmotune.music.AppIconSwitch.apply(appContext, it) },
-        )
-        RowDivider()
         com.cosmotune.ui.settings.HomeSectionsSetting()
         RowDivider()
         com.cosmotune.ui.settings.MusicBlocksRows()

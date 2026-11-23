@@ -24,10 +24,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import cosmotune.desktopapp.generated.resources.Res
+import cosmotune.desktopapp.generated.resources.logo
 import java.awt.Dimension
 import java.awt.Rectangle
 import java.awt.Toolkit
 import kotlin.math.roundToInt
+import org.jetbrains.compose.resources.painterResource
 
 internal val desktopSharedPlaylist = MutableStateFlow<String?>(null)
 
@@ -241,7 +244,7 @@ private fun desktopMain() = application {
         onKeyEvent = { event -> DesktopSpaceKey.onKeyEvent(event, lookSettings.mode.value) },
         visible = visible,
         title = "Cosmotune",
-        icon = DesktopAppIcon.painter(),
+        icon = painterResource(Res.drawable.logo),
         state = state,
         // No system title bar on Windows, where the application draws its own instead — see
         // [DesktopWindowChrome].

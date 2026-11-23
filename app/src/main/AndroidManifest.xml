@@ -127,13 +127,9 @@
             android:supportsPictureInPicture="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:theme="@style/Theme.Cosmotune">
-            <!--
-              The launcher entry itself is one of the activity-aliases after this
-              activity, the one for the app icon the listener chose (Look and
-              colours, App icon); only that alias is enabled.
-            -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
                 <!--
                   What makes the system call this a music app. "Play music" from
                   the assistant, Android Auto's media list and the OEM pickers
@@ -299,67 +295,6 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
-
-        <!--
-          The app icons of Look and colours, App icon: one launcher entry each,
-          all opening MainActivity. AppIconSwitch enables the chosen one and
-          disables the rest; .IconCosmotune is the one a new install shows.
-        -->
-        <activity-alias
-            android:name=".IconCosmotune"
-            android:enabled="true"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:roundIcon="@mipmap/ic_launcher_round"
-            android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name=".IconMoonlight"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_moonlight"
-            android:roundIcon="@mipmap/ic_launcher_moonlight"
-            android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name=".IconDawn"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_dawn"
-            android:roundIcon="@mipmap/ic_launcher_dawn"
-            android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name=".IconMidnight"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_midnight"
-            android:roundIcon="@mipmap/ic_launcher_midnight"
-            android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
 
         <service
             android:name=".playback.PlaybackService"

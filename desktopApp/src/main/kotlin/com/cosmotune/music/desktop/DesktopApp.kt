@@ -2902,12 +2902,11 @@ fun CosmotuneDesktopApp() {
         DesktopWindowVisibility.keepRunningWhenClosed = trayIconEnabled && closeToTray
         onDispose { DesktopWindowVisibility.keepRunningWhenClosed = false }
     }
-    val chosenAppIcon by com.cosmotune.ui.settings.rememberCosmoLookSettings().appIcon.collectAsState()
-    LaunchedEffect(tray, trayIconEnabled, chosenAppIcon) {
+    LaunchedEffect(tray, trayIconEnabled) {
         if (!trayIconEnabled) return@LaunchedEffect
         // The logo travels to the tray as pixels: a themed icon name would be whatever the user's
-        // theme draws for a generic music player. It wears the colours of Look and colours, App icon.
-        runCatching { DesktopAppIcon.svg(chosenAppIcon) }.onSuccess(tray::setIcon)
+        // theme draws for a generic music player.
+        runCatching { Res.readBytes("drawable/logo.svg") }.onSuccess(tray::setIcon)
     }
     LaunchedEffect(tray) {
         // Native work first: the audio thread and the media controls are inside FFmpeg, WASAPI and WinRT, and
