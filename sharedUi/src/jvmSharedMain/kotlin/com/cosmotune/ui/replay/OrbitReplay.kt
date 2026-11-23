@@ -240,6 +240,8 @@ fun OrbitReplayStats(
     hourly: List<Long>,
     side: Dp,
     modifier: Modifier = Modifier,
+    /** Time per source, largest first (see [com.cosmotune.listening.ListeningActivity.bySource]). */
+    sources: List<Pair<String, Long>> = emptyList(),
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -269,7 +271,7 @@ fun OrbitReplayStats(
         Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(30.dp)).background(look.chip).padding(20.dp)) {
             // The panel's heat runs in the page's ink rather than the theme's accent: peach is only for what plays.
             MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(primary = look.ink), typography = MaterialTheme.typography, shapes = MaterialTheme.shapes) {
-                ListeningActivityPanel(dailyMs, hourly, textColor = look.ink)
+                ListeningActivityPanel(dailyMs, hourly, textColor = look.ink, sources = sources)
             }
         }
     }
