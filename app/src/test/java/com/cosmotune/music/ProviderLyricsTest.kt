@@ -19,12 +19,13 @@ class ProviderLyricsTest {
 
     @Test
     fun `the measured providers are the ones offered`() {
-        assertEquals(5, LyricsSource.offered.size)
+        // The five measured in November, then the uploader's captions (probed live on 23 November), asked last.
+        assertEquals(6, LyricsSource.offered.size)
         assertTrue(LyricsSource.offered.none { it.hidden })
         // The listener's own lyrics are kept with the providers' but never offered as one.
         assertTrue(LyricsSource.OWN.hidden)
         assertEquals(LyricsSource.LRC_RED, LyricsSource.offered.first())
-        assertEquals(LyricsSource.LRCLIB, LyricsSource.offered.last())
+        assertEquals(listOf(LyricsSource.LRCLIB, LyricsSource.YOUTUBE_CAPTIONS), LyricsSource.offered.takeLast(2))
     }
 
     @Test
