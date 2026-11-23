@@ -8,6 +8,7 @@ import com.cosmotune.ui.nowplaying.QualityTone
 import com.cosmotune.ui.nowplaying.catalogueQualityBadge
 import com.cosmotune.ui.nowplaying.colours
 import com.cosmotune.ui.nowplaying.measuredQualityBadge
+import com.cosmotune.ui.nowplaying.songCardQualityBadge
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -24,6 +25,16 @@ class QualityBadgeTest {
     private fun stream(mime: String?, kbps: Int? = null, rate: Int? = null, bits: Int? = null, container: String? = null) =
         NerdStats.Snapshot(mimeType = mime, bitrateKbps = kbps, sampleRateHz = rate, channels = 2, bitDepth = bits, container = container,
             bitrateProvenance = TelemetryProvenance.MEASURED)
+
+    @Test fun theSongCardShowsOnlyItsOwnSongsMeasuredFigures() {
+        // A copy from another source (JioSaavn's AAC here) is still the card's song: the stats carry the song's id, not the source's.
+        val aac = NerdStats.Snapshot("audio/aac", 320, 44_100, 2, sourceId = "jiosaavn", mediaId = "song",
+            bitrateProvenance = TelemetryProvenance.AUTHORITATIVE)
+        assertEquals("AAC 320", songCardQualityBadge(aac, "song")?.text)
+        assertNull(songCardQualityBadge(aac, "another song"), "another song's figures")
+        assertNull(songCardQualityBadge(NerdStats.Snapshot("audio/aac", 320, 44_100, 2), "song"), "figures stamped with no song")
+        assertNull(songCardQualityBadge(null, "song"), "nothing until measured")
+    }
 
     @Test fun losslessNamesTheCodecDepthAndRate() {
         val hiRes = stream("audio/flac", kbps = 2400, rate = 96_000, bits = 24).measuredQualityBadge()!!
