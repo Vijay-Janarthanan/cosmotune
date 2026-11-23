@@ -44,6 +44,9 @@ object SongInfo {
 fun SongInfoHost() {
     val song by SongInfo.shown.collectAsState()
     song?.let { SongInfoSheet(it) { SongInfo.shown.value = null } }
+    // Rate and tag, opened from the same song menus.
+    val tagging by SongTagging.editing.collectAsState()
+    tagging?.let { SongTagsDialog(it) { SongTagging.editing.value = null } }
 }
 
 /** What the credits part of the sheet shows: still asking, the credits, or none. */

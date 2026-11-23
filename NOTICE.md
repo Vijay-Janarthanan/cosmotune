@@ -304,4 +304,6 @@ imported-playlist edits (`fee962bf28`). Their tests are adapted the same way.
 
 These follow ideas seen in other players and are written for Cosmotune without taking their code: playlist folders in Library
 (`PlaylistFolders.kt`, the idea from OuterTune, GPL-3.0); reading MusicBrainz and AcoustID ids from a song file's tags (`TrackIdentifiers.kt`,
-OuterTune) and the MusicBrainz part of Song info (`RecordingFacts.kt`, the idea from Kreate, GPL-3.0).
+OuterTune) and the MusicBrainz part of Song info (`RecordingFacts.kt`, the idea from Kreate, GPL-3.0); the lyrics home-screen widget
+(`LyricWidget.kt`, the idea from Gramophone, GPL-3.0); ratings, moods and tags with their own pages (`SongTags.kt`, the idea from Namida, whose
+code may not be used).

@@ -42,6 +42,7 @@ import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Block
@@ -406,6 +407,9 @@ fun SongActionsSheet(
             }
         }
         onSongInfo?.let { ActionRow(Icons.Rounded.Info, "Song info", accent = palette.accent, onClick = it) }
+        if (song.videoId.isNotBlank()) {
+            ActionRow(Icons.Rounded.StarBorder, "Rate and tag", accent = palette.accent, onClick = { com.cosmotune.ui.sheets.SongTagging.open(song) })
+        }
         // Last, and only from the player: it is about the track playing right
         // now rather than about the song as a thing in a library, and it is
         // the one row here nobody reaches for by accident.

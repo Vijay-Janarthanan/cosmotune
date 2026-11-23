@@ -218,6 +218,15 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putString(KEY_PLAYLIST_FOLDERS, com.cosmotune.listening.PlaylistFolders.encode(value))
     }
 
+    private val songTagsFlow = MutableStateFlow(com.cosmotune.listening.SongTags.decode(store.getString(KEY_SONG_TAGS, "")))
+
+    /** The songs the listener rated or tagged; see [com.cosmotune.listening.SongTags]. */
+    val songTags: StateFlow<List<com.cosmotune.listening.TaggedSong>> = songTagsFlow.asStateFlow()
+    fun setSongTags(value: List<com.cosmotune.listening.TaggedSong>) {
+        songTagsFlow.value = value
+        store.putString(KEY_SONG_TAGS, com.cosmotune.listening.SongTags.encode(value))
+    }
+
     companion object {
         const val KEY_SONG_PLAYBACK="extras_song_playback"
         const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
@@ -227,6 +236,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_WAVEFORM_SEEK = "extras_waveform_seek"
         const val KEY_EQ_USER_PRESETS = "extras_eq_user_presets"
         const val KEY_PLAYLIST_FOLDERS = "extras_playlist_folders"
+        const val KEY_SONG_TAGS = "extras_song_tags"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"

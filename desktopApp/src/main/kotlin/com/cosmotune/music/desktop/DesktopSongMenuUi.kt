@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Share
@@ -339,6 +340,10 @@ internal fun DesktopSongMenu(
         }
         DesktopMenuRow(Icons.Rounded.Info, "Song info") {
             com.cosmotune.ui.sheets.SongInfo.open(song)
+            onDismiss()
+        }
+        DesktopMenuRow(Icons.Rounded.StarBorder, "Rate and tag") {
+            com.cosmotune.ui.sheets.SongTagging.open(song)
             onDismiss()
         }
         DesktopMenuRow(Icons.Rounded.Cast, "Play on a TV or speaker") {

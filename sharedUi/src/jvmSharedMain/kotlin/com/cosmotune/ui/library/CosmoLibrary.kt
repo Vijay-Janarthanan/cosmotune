@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CreateNewFolder
+import androidx.compose.material.icons.rounded.Star
 import com.cosmotune.design.LibrarySegment
 import com.cosmotune.listening.PlaylistFolders
 import com.cosmotune.music.ui.player.PlayerBackHandler
@@ -209,6 +210,10 @@ fun CosmoLibrary(
     val folders by Extras.settings.playlistFolders.collectAsStateWithLifecycle()
     var openFolder by rememberSaveable { mutableStateOf<String?>(null) }
     var folderDialog by remember { mutableStateOf<FolderDialog?>(null) }
+    // Moods and tags: the songs rated or tagged on this device, a tile that opens their pages.
+    val tagged by Extras.settings.songTags.collectAsStateWithLifecycle()
+    var tagPages by remember { mutableStateOf(false) }
+    if (tagPages) com.cosmotune.ui.sheets.SongTagsSheet(onDismiss = { tagPages = false }, onPlay = onSongClick)
     PlayerBackHandler(enabled = openFolder != null && chip == LibraryChip.PLAYLISTS) { openFolder = null }
     val folderPage = FolderPage(
         folders = folders,
@@ -259,6 +264,8 @@ fun CosmoLibrary(
                         onPlay = onSongClick,
                         onDownloaded = { segmentIndex = LibraryChip.DOWNLOADED.ordinal },
                         onHistory = onHistory,
+                        taggedCount = tagged.size,
+                        onTagged = { tagPages = true },
                     )
                 }
                 item(key = "segments") {
@@ -375,6 +382,8 @@ private fun ShortcutTiles(
     onPlay: ((List<Song>, Int) -> Unit)?,
     onDownloaded: () -> Unit,
     onHistory: (() -> Unit)?,
+    taggedCount: Int = 0,
+    onTagged: (() -> Unit)? = null,
 ) {
     val tiles = mutableListOf<@Composable (Modifier) -> Unit>()
     if (liked != null || likedSongs.isNotEmpty()) tiles += { m ->
@@ -394,6 +403,10 @@ private fun ShortcutTiles(
     }
     if (onHistory != null) tiles += { m ->
         ShortcutTile("History", "What you played", page, m, onClick = onHistory, lead = { TileIcon(CosmoIcons.Clock, page.look.ink, page.look.chip) }, testTag = "music:library:history")
+    }
+    if (taggedCount > 0 && onTagged != null) tiles += { m ->
+        ShortcutTile("Moods and tags", songsText(taggedCount), page, m, onClick = onTagged,
+            lead = { TileIcon(Icons.Rounded.Star, page.look.ink, page.look.chip) }, testTag = "music:library:tags")
     }
     if (pinned != null) tiles += { m ->
         ShortcutTile(pinned.title, listOf("Pinned", localizeCardSubtitle(pinned.subtitle)).filter { it.isNotBlank() }.joinToString(" · "), page, m,
