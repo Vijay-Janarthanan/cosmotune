@@ -7473,6 +7473,21 @@ class PlaybackService : MediaLibraryService() {
         ?: 1f) * podioVoiceGain(mediaId)
 
     /** Podio's voice boost for an episode (Settings › Podio or its show's sheet); read from the library's snapshot, safe on the audio thread. */
+    /** Podio's folders in the car ([com.cosmotune.podio.PodioCarBrowse]), from the same library and queue the Podio screens use. */
+    private fun podioBrowseSongs(folder: String): List<Song> = runCatching {
+        val library = com.cosmotune.podio.PodioLibrary(java.io.File(filesDir, "podio/library.json"))
+        val saved = library.state.value
+        when (folder) {
+            MEDIA_PODIO_FOR_YOU_ID -> com.cosmotune.podio.PodioCarBrowse.forYou(saved, library.queue().state.value)
+            MEDIA_PODIO_STATIONS_ID -> com.cosmotune.podio.PodioCarBrowse.stations(saved)
+            else -> com.cosmotune.podio.PodioCarBrowse.recentStations(saved)
+        }.map { it.song() }
+    }.getOrDefault(emptyList())
+
+    private fun podioResumeAt(mediaId: String, durationMs: Long): Long = if (!mediaId.startsWith("podio:episode:")) 0 else runCatching {
+        com.cosmotune.podio.PodioCarBrowse.resumeAt(com.cosmotune.podio.PodioLibrary(java.io.File(filesDir, "podio/library.json")).state.value, mediaId, durationMs)
+    }.getOrDefault(0)
+
     private fun podioVoiceGain(mediaId: String): Float = if (!mediaId.startsWith("podio:episode:")) 1f else
         podioSkipLibrary?.let { com.cosmotune.podio.PodioShowRules.gainFor(it.state.value, mediaId) } ?: 1f
 
@@ -8828,7 +8843,20 @@ class PlaybackService : MediaLibraryService() {
                 MEDIA_MORE_ID -> listOf(
                     createFolderItem(MEDIA_DOWNLOADS_ID, getString(R.string.downloads), folderType = MediaMetadata.FOLDER_TYPE_MIXED),
                     createFolderItem(MEDIA_LOCAL_MUSIC_ID, getString(R.string.local_music), folderType = MediaMetadata.FOLDER_TYPE_MIXED),
+                    createFolderItem(MEDIA_PODIO_ID, "Podcasts and radio", folderType = MediaMetadata.FOLDER_TYPE_MIXED),
                 )
+                MEDIA_PODIO_ID -> listOf(
+                    createFolderItem(MEDIA_PODIO_FOR_YOU_ID, "For you", folderType = MediaMetadata.FOLDER_TYPE_MIXED),
+                    createFolderItem(MEDIA_PODIO_STATIONS_ID, "Saved stations", folderType = MediaMetadata.FOLDER_TYPE_MIXED),
+                    createFolderItem(MEDIA_PODIO_RECENT_ID, "Stations played lately", folderType = MediaMetadata.FOLDER_TYPE_MIXED),
+                )
+                MEDIA_PODIO_FOR_YOU_ID, MEDIA_PODIO_STATIONS_ID, MEDIA_PODIO_RECENT_ID -> {
+                    val songs = podioBrowseSongs(parentId)
+                    songs.forEach { songCache[it.videoId] = it }
+                    if (songs.isNotEmpty()) songs.map { it.toMediaItem() } else listOf(
+                        createInfoItem("msg:empty_podio", "Nothing here yet", "Follow shows and save stations in Podio on your phone"),
+                    )
+                }
                 MEDIA_RECENTS_ID -> {
                     val snapshot = snapshotRecents()
                     val songs = if (snapshot.isNotEmpty()) {
@@ -9021,6 +9049,10 @@ class PlaybackService : MediaLibraryService() {
                 MEDIA_LIKED_ID -> createFolderItem(MEDIA_LIKED_ID, getString(R.string.auto_liked), folderType = MediaMetadata.FOLDER_TYPE_PLAYLISTS)
                 MEDIA_DOWNLOADS_ID -> createFolderItem(MEDIA_DOWNLOADS_ID, getString(R.string.downloads))
                 MEDIA_LOCAL_MUSIC_ID -> createFolderItem(MEDIA_LOCAL_MUSIC_ID, getString(R.string.local_music))
+                MEDIA_PODIO_ID -> createFolderItem(MEDIA_PODIO_ID, "Podcasts and radio", folderType = MediaMetadata.FOLDER_TYPE_MIXED)
+                MEDIA_PODIO_FOR_YOU_ID -> createFolderItem(MEDIA_PODIO_FOR_YOU_ID, "For you", folderType = MediaMetadata.FOLDER_TYPE_MIXED)
+                MEDIA_PODIO_STATIONS_ID -> createFolderItem(MEDIA_PODIO_STATIONS_ID, "Saved stations", folderType = MediaMetadata.FOLDER_TYPE_MIXED)
+                MEDIA_PODIO_RECENT_ID -> createFolderItem(MEDIA_PODIO_RECENT_ID, "Stations played lately", folderType = MediaMetadata.FOLDER_TYPE_MIXED)
                 "msg:login_required" -> createLoginPromptItem()
                 else -> {
                     if (mediaId.startsWith("msg:")) {
@@ -9160,10 +9192,14 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future(Dispatchers.IO) {
             val resolved = resolveMediaItems(mediaItems)
             val validIndex = startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0))
+            // A podcast episode the car (or another app) starts from the top goes on from where it was left; Podio itself seeks.
+            val podioResume = if (startPositionMs <= 0 && controller.packageName != packageName) {
+                resolved.getOrNull(validIndex)?.let { item -> podioResumeAt(item.mediaId, songCache[item.mediaId]?.durationMillis() ?: 0) } ?: 0
+            } else 0
             MediaSession.MediaItemsWithStartPosition(
                 ImmutableList.copyOf(resolved),
                 validIndex,
-                startPositionMs.coerceAtLeast(0L),
+                maxOf(startPositionMs.coerceAtLeast(0L), podioResume),
             )
         }
 
@@ -9536,6 +9572,10 @@ class PlaybackService : MediaLibraryService() {
         const val FOREIGN_CACHE_KEEP_AHEAD = 3
         const val MEDIA_DOWNLOADS_ID = "downloads"
         const val MEDIA_LOCAL_MUSIC_ID = "local_music"
+        const val MEDIA_PODIO_ID = "podio"
+        const val MEDIA_PODIO_FOR_YOU_ID = "podio_for_you"
+        const val MEDIA_PODIO_STATIONS_ID = "podio_stations"
+        const val MEDIA_PODIO_RECENT_ID = "podio_recent"
         const val MAX_AUTO_PAGE_SIZE = 50
         const val MAX_AUTO_SEARCH_QUERY_CHARS = 200
         const val MAX_AUTO_SEARCH_CACHE_ENTRIES = 20
