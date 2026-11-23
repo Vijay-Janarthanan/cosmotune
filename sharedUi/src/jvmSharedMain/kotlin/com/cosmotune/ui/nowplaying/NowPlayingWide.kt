@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
@@ -83,7 +84,7 @@ internal fun NowPlayingWide(
                             Box(Modifier.matchParentSize().cosmoPlayerGroundEdges(top = SOFT_TOP, bottom = SOFT_BOTTOM))
                         }
                         Spacer(Modifier.height(18.dp))
-                        card(Modifier.fillMaxWidth().then(if (wideCard) Modifier.height(WIDE_CARD_HEIGHT) else Modifier), wideCard)
+                        card(Modifier.fillMaxWidth().let { if (wideCard) wideCardSize(it) else it }, wideCard)
                     }
                 }
                 Spacer(Modifier.width(COLUMN_GAP))
@@ -134,4 +135,6 @@ private val COLUMN_GAP = 28.dp
 
 /** From this column width the card is the wide one (board section 1), and its height then. */
 private val WIDE_CARD_MIN = 640.dp
-private val WIDE_CARD_HEIGHT = 188.dp
+
+/** The wide song card in the player's left column: [WIDE_CARD_MIN_HEIGHT] tall, taller when what it holds needs it. */
+internal fun wideCardSize(modifier: Modifier): Modifier = modifier.heightIn(min = WIDE_CARD_MIN_HEIGHT)

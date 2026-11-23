@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
@@ -310,12 +311,19 @@ internal fun NowPlayingSongCard(
     val (fill, ink) = coverFill(t.coverUrl, t.song.title)
     OrbitBiteCard(fill, modifier, bite = { NowPlayingPlayButton(t, look, 66.dp, HERO_BITE_RING) }) {
         if (wide) {
-            BoxWithConstraints(Modifier.fillMaxSize().padding(start = WIDE_PAD, top = 22.dp, end = WIDE_PAD, bottom = 22.dp)) {
+            // The words at the top and the seek line at the foot, one under the other: the waveform line (taller than the plain
+            // line) and the live lyric line once drew over each other in a card of fixed height. The card is at least
+            // [WIDE_CARD_MIN_HEIGHT] and grows when what it holds needs more.
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val clear = BITE_CLEAR - WIDE_PAD
                 // The controls' row takes what the title leaves it; the volume shortens, then turns into the speaker button,
                 // before any button moves into More.
-                val room = maxWidth - clear - WIDE_TITLE_MIN - 16.dp
+                val room = maxWidth - WIDE_PAD * 2 - clear - WIDE_TITLE_MIN - 16.dp
                 val fit = if (volume) volumeFit(room, buttons.size, buttonSize, WIDE_GAP) else null
+                Column(
+                    Modifier.fillMaxWidth().heightIn(min = WIDE_CARD_MIN_HEIGHT).padding(start = WIDE_PAD, top = 22.dp, end = WIDE_PAD, bottom = 22.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                ) {
                 Row(Modifier.fillMaxWidth().padding(end = clear)) {
                     Column(Modifier.weight(1f)) {
                         OrbitingLabel(t, fonts, ink)
@@ -330,9 +338,10 @@ internal fun NowPlayingSongCard(
                         if (fit != null) CardVolume(fit, ink, fill, buttonSize, volumeSource)
                     }
                 }
-                Column(Modifier.align(Alignment.BottomStart).padding(end = clear + SEEK_MOON_REACH).testTag("nowplaying:card:seek")) {
+                Column(Modifier.padding(top = 12.dp, end = clear + SEEK_MOON_REACH).testTag("nowplaying:card:seek")) {
                     SongSeekLine(t, ink, fonts)
                     CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
+                }
                 }
             }
         } else {
@@ -416,6 +425,9 @@ private val WIDE_PAD = 24.dp
 private val COLUMN_PAD = 22.dp
 private val WIDE_GAP = 6.dp
 private val VOLUME_GAP = 12.dp
+
+/** The wide card's height when what it holds fits; it grows past it rather than draw one thing over another. */
+internal val WIDE_CARD_MIN_HEIGHT = 188.dp
 
 /** The narrowest the wide card lets its title column get before its controls give way. */
 private val WIDE_TITLE_MIN = 240.dp
