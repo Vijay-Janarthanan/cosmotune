@@ -982,6 +982,7 @@ class PlaybackService : MediaLibraryService() {
     private var lastPublishedSubtitle: String? = null
     private var lyricsTickerJob: Job? = null
     private val statusBarLyrics by lazy { StatusBarLyrics(this) }
+    private val floatingLyrics by lazy { FloatingLyricsOverlay(this) }
 
     /**
      * Everything the service books against the player it is currently on.
@@ -7947,6 +7948,7 @@ class PlaybackService : MediaLibraryService() {
         serviceLyricsJob = null
         serviceLyrics = null
         statusBarLyrics.clear()
+        floatingLyrics.clear()
         SleepTimerWatcher.removePauser(sleepPauser)
         SleepTimerWatcher.removeFader(sleepFader)
         cancelPrefetch()
@@ -8133,13 +8135,14 @@ class PlaybackService : MediaLibraryService() {
 
     private fun updateLyricSubtitle() {
         val exoPlayer = player ?: return
-        val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return statusBarLyrics.clear()
+        val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return statusBarLyrics.clear().also { floatingLyrics.clear() }
         val lines = serviceLyrics
         val pos = exoPlayer.currentPosition
         val sung = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
             lines.getOrNull(lines.indexOfLast { it.timeMs <= pos })?.takeIf { !it.isGap && it.text.isNotBlank() }?.text
         } else null
         statusBarLyrics.show(sung?.takeIf { AppSettings.statusBarLyrics.value && exoPlayer.isPlaying })
+        floatingLyrics.show(sung?.takeIf { AppSettings.floatingLyrics.value && exoPlayer.isPlaying })
         val subtitleText = if (sung != null) "♪ $sung" else currentSong.artist
 
         if (subtitleText != lastPublishedSubtitle) {

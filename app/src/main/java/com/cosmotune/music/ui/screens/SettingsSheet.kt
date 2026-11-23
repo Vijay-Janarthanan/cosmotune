@@ -1235,6 +1235,23 @@ fun SettingsScreen(
                         subtitle = STATUS_BAR_LYRICS_LINE,
                     )
                 }
+                // Over other apps: Android asks the listener to allow that first, on its own page.
+                val floating by AppSettings.floatingLyrics.collectAsStateWithLifecycle()
+                val overlayContext = androidx.compose.ui.platform.LocalContext.current
+                row(FLOATING_LYRICS, "floating", "bubble", "overlay", "over other apps", divided = false) {
+                    SettingsSubRow(
+                        title = FLOATING_LYRICS,
+                        checked = floating,
+                        onCheckedChange = { on ->
+                            AppSettings.setFloatingLyrics(on)
+                            if (on && !android.provider.Settings.canDrawOverlays(overlayContext)) runCatching {
+                                overlayContext.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:" + overlayContext.packageName)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        },
+                        subtitle = FLOATING_LYRICS_LINE,
+                    )
+                }
             }
             // Nothing to choose between while the feature is off, and the
             // sources are third-party services being reached on the user's
@@ -2744,4 +2761,6 @@ private const val DOWNLOADS_ON_CARD = "Save to the memory card"
 
 /** Settings > Lyrics: the line being sung in the status bar. */
 private const val STATUS_BAR_LYRICS = "Lyrics in the status bar"
+private const val FLOATING_LYRICS = "Floating lyrics"
+private const val FLOATING_LYRICS_LINE = "The line being sung in a small bar over other apps; drag it where you like. Android asks you to allow display over other apps."
 private const val STATUS_BAR_LYRICS_LINE = "The line being sung, shown in the status bar on Meizu phones, or on others with a status bar lyrics module"

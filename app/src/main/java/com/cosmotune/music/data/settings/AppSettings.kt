@@ -932,6 +932,7 @@ object AppSettings {
         }.getOrDefault(LastPlayerScreen.MAIN)
         syncedLyrics.value = prefs.getBoolean(KEY_SYNCED_LYRICS, true)
         statusBarLyrics.value = prefs.getBoolean(KEY_STATUS_BAR_LYRICS, false)
+        floatingLyrics.value = prefs.getBoolean("floating_lyrics", false)
         lyricsSources.value = readLyricsSources()
         lyricsSourceOrder.value = readLyricsSourceOrder()
         prioritizeSyllableSync.value = prefs.getBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, false)
@@ -1381,6 +1382,13 @@ object AppSettings {
     fun setTranslationLanguage(value: String) {
         translationLanguage.value = value
         prefs.edit().putString(KEY_TRANSLATION_LANGUAGE, value).apply()
+    }
+
+    /** The line being sung in a pill above other apps (Settings > Lyrics); see [com.cosmotune.music.playback.FloatingLyricsOverlay]. */
+    val floatingLyrics = MutableStateFlow(false)
+    fun setFloatingLyrics(value: Boolean) {
+        floatingLyrics.value = value
+        prefs.edit().putBoolean("floating_lyrics", value).apply()
     }
 
     fun setStatusBarLyrics(value: Boolean) {
