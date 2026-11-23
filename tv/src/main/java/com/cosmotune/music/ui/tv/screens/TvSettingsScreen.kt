@@ -78,6 +78,7 @@ fun TvSettingsScreen(
     val crossfade by AppSettings.crossfadeSeconds.collectAsState()
     val autoplay by AppSettings.autoplay.collectAsState()
     val skipSilence by AppSettings.skipSilence.collectAsState()
+    val receiver by TvSettings.tvWatchReceiver.collectAsState()
     val eqEnabled by AppSettings.equalizerEnabled.collectAsState()
     val spatial by TvSettings.spatialAudioEnabled.collectAsState()
     val loudness by AppSettings.loudnessNormalization.collectAsState()
@@ -150,6 +151,11 @@ fun TvSettingsScreen(
                 TvListRow(title = "Phone remote", value = "Pair browser",
                     onFocused = { blurb = "Pair a phone on your local network for playback, volume and music search. Changing profiles disconnects clients." },
                     onClick = onOpenRemote)
+            }
+            item {
+                TvListRow(title = "Play from your phone", value = onOff(receiver),
+                    onFocused = { blurb = "Videos sent with Play on a TV from Cosmotune on a phone or computer, or any DLNA app on the same Wi-Fi, play in Watch here. The sender's play, pause, seek and volume work too." },
+                    onClick = { TvSettings.setTvWatchReceiver(!receiver) })
             }
             item { TvListHeader("Playback") }
             item {

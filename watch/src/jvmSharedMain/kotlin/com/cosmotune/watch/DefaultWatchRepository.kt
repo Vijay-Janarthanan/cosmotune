@@ -1132,7 +1132,8 @@ class DefaultWatchRepository(
     override suspend fun progress(key: WatchKey): WatchProgress? = store.state.value.progress[key.value]
 
     override suspend fun saveProgress(progress: WatchProgress) {
-        if (progress.key.kind == WatchKey.Kind.CHANNEL || progress.key.namespace == "trailer") return
+        // A trailer, or a video another device sent here (the sender keeps its own place), is not kept.
+        if (progress.key.kind == WatchKey.Kind.CHANNEL || progress.key.namespace == "trailer" || progress.key.namespace == "received") return
         update { s -> s.copy(progress = s.progress + (progress.key.value to progress)) }
     }
 

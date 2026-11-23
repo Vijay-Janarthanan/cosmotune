@@ -35,6 +35,8 @@ object TvSettings {
     val tvLyricsCanvasEnabled = MutableStateFlow(true)
     val tvVideoAuto1080p = MutableStateFlow(true)
     val tvNavLayout = MutableStateFlow("left_rail")
+    /** Phones and computers on the same Wi-Fi may send videos to Watch here ([com.cosmotune.music.ui.tv.TvWatchReceiver]). */
+    val tvWatchReceiver = MutableStateFlow(false)
 
     /** UI density/scale multiplier for the TV layout: 0.8 (Small) → 1.0 (Normal) → 1.2 (Large) → 1.4 (XL). */
     val tvUiScale = MutableStateFlow(1.0f)
@@ -57,6 +59,7 @@ object TvSettings {
         tvLyricsCanvasEnabled.value = prefs.getBoolean(KEY_TV_LYRICS_CANVAS, true)
         tvVideoAuto1080p.value = prefs.getBoolean(KEY_TV_VIDEO_AUTO_1080P, true)
         tvNavLayout.value = prefs.getString(KEY_TV_NAV_LAYOUT, "left_rail") ?: "left_rail"
+        tvWatchReceiver.value = prefs.getBoolean(KEY_TV_WATCH_RECEIVER, false)
     }
 
     fun init(context: Context) {
@@ -92,6 +95,11 @@ object TvSettings {
     fun setTvLyricsCanvasEnabled(enabled: Boolean) {
         tvLyricsCanvasEnabled.value = enabled
         save { putBoolean(KEY_TV_LYRICS_CANVAS, enabled) }
+    }
+
+    fun setTvWatchReceiver(enabled: Boolean) {
+        tvWatchReceiver.value = enabled
+        save { putBoolean(KEY_TV_WATCH_RECEIVER, enabled) }
     }
 
     fun setTvVideoAuto1080p(enabled: Boolean) {
@@ -307,4 +315,5 @@ object TvSettings {
     private const val KEY_TV_LYRICS_CANVAS = "tv_lyrics_canvas"
     private const val KEY_TV_VIDEO_AUTO_1080P = "tv_video_auto_1080p"
     private const val KEY_TV_NAV_LAYOUT = "tv_nav_layout"
+    private const val KEY_TV_WATCH_RECEIVER = "tv_watch_receiver"
 }
