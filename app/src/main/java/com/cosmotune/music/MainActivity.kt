@@ -1,5 +1,6 @@
 package com.cosmotune.music
 
+import com.cosmotune.ui.browse.musicRadio
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -3357,16 +3358,30 @@ private fun CosmotuneApp(
                                 onRetry = { viewModel.openMoodGenre(category) },
                                 contentPadding = listPadding,
                             )
-                        } ?: com.cosmotune.ui.search.ExploreSwitch(
-                            state = exploreState,
-                            listState = exploreListState,
-                            onCategoryClick = viewModel::openMoodGenre,
-                            onRetry = viewModel::loadExplore,
-                            refreshing = MainViewModel.Feed.EXPLORE in refreshing,
-                            onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
-                            pullState = explorePull,
-                            contentPadding = listPadding,
-                        )
+                        } ?: run {
+                            // Radio (upstream 1.10): the signed-in listener's mixes over the moods and genres; a pull reloads both.
+                            var radioReloads by remember { mutableStateOf(0) }
+                            val radio = com.cosmotune.ui.browse.rememberMusicRadio(radioReloads)
+                            val radioFonts = com.cosmotune.ui.orbit.orbitFonts()
+                            val radioLook = com.cosmotune.ui.orbit.orbitLook()
+                            val radioRows: androidx.compose.foundation.lazy.LazyListScope.(androidx.compose.ui.unit.Dp) -> Unit = { side ->
+                                musicRadio(radio, side, radioFonts, radioLook, onOpen = { item ->
+                                    item.browseId?.let { viewModel.openDetail(browseId = it, title = item.title, subtitle = item.subtitle, thumbnailUrl = item.thumbnailUrl) }
+                                }, onRetry = { radioReloads++ }, onLongPress = onShelfLongPress)
+                            }
+                            androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.browse.LocalExploreRadio provides radioRows) {
+                                com.cosmotune.ui.search.ExploreSwitch(
+                                    state = exploreState,
+                                    listState = exploreListState,
+                                    onCategoryClick = viewModel::openMoodGenre,
+                                    onRetry = viewModel::loadExplore,
+                                    refreshing = MainViewModel.Feed.EXPLORE in refreshing,
+                                    onRefresh = { radioReloads++; viewModel.refresh(MainViewModel.Feed.EXPLORE) },
+                                    pullState = explorePull,
+                                    contentPadding = listPadding,
+                                )
+                            }
+                        }
                         TAB_RELEASES -> com.cosmotune.ui.listening.CosmoReleasesPage(
                             file = java.io.File(context.filesDir, "cosmotune-listening.json"),
                             listState = releasesListState,

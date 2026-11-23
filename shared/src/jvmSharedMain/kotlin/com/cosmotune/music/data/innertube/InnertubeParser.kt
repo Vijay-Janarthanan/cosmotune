@@ -1400,6 +1400,10 @@ object InnertubeParser {
             )
         }
 
+    /** Every card of a page, wherever its shelves put them: the "Mixed for you" page is one undivided grid. */
+    fun parseTwoRowItemsDeep(root: JsonElement): List<ShelfItem> =
+        collectRenderers(root, "musicTwoRowItemRenderer").mapNotNull(::parseTwoRowItem)
+
     private fun parseTwoRowItem(renderer: JsonObject?): ShelfItem? {
         if (renderer == null) return null
         val title = renderer.o("title").runs()

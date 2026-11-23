@@ -48,6 +48,8 @@ fun CosmoBrowsePage(
     modifier: Modifier = Modifier,
     showTitle: Boolean = true,
 ) {
+    // Rows under the heading, before the moods and genres: Music's Radio, which each app provides around its Explore page.
+    val radio = com.cosmotune.ui.browse.LocalExploreRadio.current
     val lists = rememberBrowseLists(state)
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -75,6 +77,7 @@ fun CosmoBrowsePage(
                         modifier = Modifier.padding(start = side + 6.dp, end = side, top = 18.dp),
                     )
                 }
+                radio?.invoke(this, side)
                 val shown = browseTiles(state = state, lists = lists, onOpen = onCategoryClick, onRetry = onRetry, columns = columns, side = side, fonts = fonts, look = look, together = false)
                 // A page that loaded and has no moods and no genres still says something, as the idle page does.
                 if (!shown) item(key = "browse:empty") { MessageState(stringResource(Res.string.search_empty)) }

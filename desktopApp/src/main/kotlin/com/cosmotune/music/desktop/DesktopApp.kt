@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import com.cosmotune.ui.browse.musicRadio
 import kotlinx.coroutines.flow.debounce
 import androidx.compose.foundation.lazy.LazyListState
 import com.cosmotune.ui.theme.CosmoRadii
@@ -4976,17 +4977,28 @@ fun CosmotuneDesktopApp() {
                                 modifier = Modifier.weight(1f),
                             )
                         }
-                        destination == DesktopDestination.EXPLORE -> com.cosmotune.ui.search.ExploreSwitch(
-                            state = exploreState,
-                            listState = exploreListState,
-                            onCategoryClick = ::openMoodGenre,
-                            onRetry = { exploreReloads++ },
-                            refreshing = false,
-                            onRefresh = { exploreReloads++ },
-                            pullState = rememberPullToRefreshState(),
-                            contentPadding = sharedPagePadding,
-                            showTitle = false,
-                        )
+                        destination == DesktopDestination.EXPLORE -> {
+                            // Radio (upstream 1.10): the signed-in listener's mixes over the moods and genres.
+                            val radio = com.cosmotune.ui.browse.rememberMusicRadio(exploreReloads)
+                            val radioFonts = com.cosmotune.ui.orbit.orbitFonts()
+                            val radioLook = com.cosmotune.ui.orbit.orbitLook()
+                            val radioRows: androidx.compose.foundation.lazy.LazyListScope.(androidx.compose.ui.unit.Dp) -> Unit = { side ->
+                                musicRadio(radio, side, radioFonts, radioLook, onOpen = { item -> openShelfItem(item, "Radio") }, onRetry = { exploreReloads++ })
+                            }
+                            androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.browse.LocalExploreRadio provides radioRows) {
+                                com.cosmotune.ui.search.ExploreSwitch(
+                                    state = exploreState,
+                                    listState = exploreListState,
+                                    onCategoryClick = ::openMoodGenre,
+                                    onRetry = { exploreReloads++ },
+                                    refreshing = false,
+                                    onRefresh = { exploreReloads++ },
+                                    pullState = rememberPullToRefreshState(),
+                                    contentPadding = sharedPagePadding,
+                                    showTitle = false,
+                                )
+                            }
+                        }
                         destination == DesktopDestination.SEARCH -> com.cosmotune.ui.search.SearchSwitch(
                             query = query,
                             onQueryChange = ::editQuery,

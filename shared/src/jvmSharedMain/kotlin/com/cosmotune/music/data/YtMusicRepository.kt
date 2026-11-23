@@ -1163,6 +1163,15 @@ object YtMusicRepository {
         }
     }
 
+    /**
+     * The signed-in listener's "Mixed for you" page (Music's Radio, from upstream 1.10): My Supermix, Replay Mix, the mixes made
+     * from their taste and the mood mixes, in one list. Empty while signed out: the page is the account's own.
+     */
+    suspend fun mixedForYou(): Result<List<ShelfItem>> = call("mixedForYou") {
+        if (Innertube.cookie == null) return@call emptyList()
+        InnertubeParser.parseTwoRowItemsDeep(Innertube.browse("FEmusic_mixed_for_you"))
+    }
+
     private suspend fun <T> call(label: String, block: suspend () -> T): Result<T> =
         withContext(Dispatchers.IO) {
             runCatching { block() }.recoverCatching { failure ->
