@@ -61,7 +61,9 @@ class ModeHooksContractTest {
         val later = listOf(
             "val videoModeShown = com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown() || com.cosmotune.video.host.desktopWatchShown()",
             "if (com.cosmotune.video.host.desktopWatchShown()) return@DesktopFrame com.cosmotune.video.host.DesktopWatchPage(contentPadding)",
-            "if (com.cosmotune.video.host.desktopMangaShown()) return@DesktopFrame com.cosmotune.video.host.DesktopMangaPage(contentPadding)",
+            // Read's audiobooks play on the desktop player, so the Manga page is drawn inside a provider of that player.
+            "if (com.cosmotune.video.host.desktopMangaShown()) {",
+            "com.cosmotune.video.host.DesktopMangaPage(contentPadding)",
             "if (com.cosmotune.video.host.desktopPodioShown()) {",
             "com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },",
             "com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),",
