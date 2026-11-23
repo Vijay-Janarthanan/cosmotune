@@ -53,6 +53,15 @@ import java.io.File
         value = withContext(Dispatchers.IO) { Downloads.getDownloadedSongs(context).mapNotNull(Song::offlinePodioItem) }
     }
     var pendingLegacyDownload by remember { mutableStateOf<Song?>(null) }
+    // A station on the home network (an Icecast or Navidrome box) needs Android 17's local network permission.
+    val localNetwork = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    fun askForLocalNetwork(item: PodioItem) {
+        if (android.os.Build.VERSION.SDK_INT < 37 || !item.live) return
+        val host = runCatching { java.net.URI(item.url).host }.getOrNull() ?: return
+        if (!com.cosmotune.music.data.NetworkPolicy.isLocalHost(host) || host == "127.0.0.1" || host == "localhost") return
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, LOCAL_NETWORK) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        runCatching { localNetwork.launch(LOCAL_NETWORK) }
+    }
     val storagePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         pendingLegacyDownload?.let { song -> if (granted) Downloads.enqueue(context, song, "Podio") else android.widget.Toast.makeText(context, "Storage permission is needed to export this episode.", android.widget.Toast.LENGTH_SHORT).show() }
         pendingLegacyDownload = null
@@ -91,6 +100,7 @@ import java.io.File
             current?.author ?: state.song?.artist.orEmpty(), state.isPlaying, pending != null || state.isLoading,
             state.position.positionMs, state.durationMs, if (failed) "Playback failed" else state.error, rate = controller?.playbackParameters?.speed ?: 1f),
         onPlay = { item, position ->
+            askForLocalNetwork(item)
             com.cosmotune.music.data.NerdStats.recordSource(item.id, podioSourceName(item.id))
             failed = false; pendingUpcoming = emptyList(); pending = item to position
         },
@@ -158,3 +168,6 @@ private fun replaceUpcomingEpisodes(player: androidx.media3.session.MediaControl
     if (count > index + 1) player.removeMediaItems(index + 1, count)
     if (wanted.isNotEmpty()) player.addMediaItems(upcoming.filter { it.id != current }.map { it.song().toMediaItem() })
 }
+
+/** Android 17: reaching a device on the home network. */
+private const val LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
