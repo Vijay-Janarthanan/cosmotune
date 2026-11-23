@@ -73,8 +73,10 @@ internal fun DesktopPlaylistDialog(
     onPickLocal: (DesktopPlaylist) -> Unit,
     onCreate: (String, PlaylistPrivacy) -> Unit,
     onDismiss: () -> Unit,
+    /** The title of a whole album or playlist going in, when it is one rather than a [song]. */
+    release: String? = null,
 ) {
-    var creating by remember { mutableStateOf(song == null) }
+    var creating by remember { mutableStateOf(song == null && release == null) }
     // Find a playlist (upstream 1.10): narrows both lists as it is typed.
     var query by remember { mutableStateOf("") }
 
@@ -83,7 +85,7 @@ internal fun DesktopPlaylistDialog(
             NewPlaylistForm(
                 // Nowhere to go back to when the dialog opened onto the form; its own dismiss is
                 // the way out.
-                onBack = if (song == null) null else ({ creating = false }),
+                onBack = if (song == null && release == null) null else ({ creating = false }),
                 signedIn = signedIn && canUseAccount,
                 busy = busy,
                 error = error,
@@ -92,7 +94,7 @@ internal fun DesktopPlaylistDialog(
             return@DesktopDialogFrame
         }
 
-        DialogHeading("Add to playlist", song?.let { "${it.title} — ${it.artist}" }.orEmpty())
+        DialogHeading("Add to playlist", song?.let { "${it.title} — ${it.artist}" } ?: release.orEmpty())
         error?.let { DialogError(it) }
         DialogAction(CosmotuneIcons.Plus, "New playlist", enabled = !busy) { creating = true }
 

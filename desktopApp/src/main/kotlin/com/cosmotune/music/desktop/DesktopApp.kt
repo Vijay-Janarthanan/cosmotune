@@ -605,6 +605,8 @@ fun CosmotuneDesktopApp() {
     var replaySummary by remember { mutableStateOf(DesktopListeningStats.summary()) }
     var statsCountedSongs by remember { mutableStateOf<Set<String>>(emptySet()) }
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    // An album or playlist going into a playlist whole (its page's More, "Add to playlists"), with its songs.
+    var playlistRelease by remember { mutableStateOf<DesktopCollection?>(null) }
     // One busy flag and one message for every playlist edit: only one of them can be in flight,
     // because each is driven by a dialog that is modal.
     var playlistBusy by remember { mutableStateOf(false) }
@@ -1585,6 +1587,7 @@ fun CosmotuneDesktopApp() {
     fun closePlaylistDialogs() {
         overlays.playlistDialog = false
         playlistTarget = null
+        playlistRelease = null
         overlays.rename = false
         overlays.delete = false
         overlays.reorder = false
@@ -1596,11 +1599,12 @@ fun CosmotuneDesktopApp() {
     fun createPlaylist(title: String, privacy: PlaylistPrivacy) {
         val name = title.trim()
         if (name.isBlank()) return
-        val seed = playlistTarget
+        // A whole album or playlist seeds it with all its songs; a single track with that one.
+        val seeds = playlistRelease?.songs?.distinctBy(Song::videoId) ?: listOfNotNull(playlistTarget)
         // A track from another source cannot go in an account playlist, so the playlist made to
         // hold it is one kept here.
-        if (!DesktopYouTubeAuth.isSignedIn || (seed != null && !DesktopSearchClient.isVideoId(seed.videoId))) {
-            playlists = playlists + DesktopPlaylist(title = name, songs = listOfNotNull(seed))
+        if (!DesktopYouTubeAuth.isSignedIn || seeds.any { !DesktopSearchClient.isVideoId(it.videoId) }) {
+            playlists = playlists + DesktopPlaylist(title = name, songs = seeds)
             persistence.savePlaylists(playlists)
             closePlaylistDialogs()
             return
@@ -1608,7 +1612,7 @@ fun CosmotuneDesktopApp() {
         playlistBusy = true
         playlistError = null
         scope.launch {
-            DesktopSearchClient.createPlaylist(name, privacy, listOfNotNull(seed?.videoId))
+            DesktopSearchClient.createPlaylist(name, privacy, seeds.map(Song::videoId))
                 .onSuccess { playlistId ->
                     closePlaylistDialogs()
                     editPlaylistShelf { items ->
@@ -1617,8 +1621,8 @@ fun CosmotuneDesktopApp() {
                             // Only what this request itself establishes: an unseeded playlist gets
                             // a card of just its name rather than a guess at what the feed will
                             // call it.
-                            subtitle = if (seed != null) "1 song" else "",
-                            thumbnailUrl = seed?.thumbnailUrl,
+                            subtitle = when (seeds.size) { 0 -> ""; 1 -> "1 song"; else -> "${seeds.size} songs" },
+                            thumbnailUrl = seeds.firstOrNull()?.thumbnailUrl,
                             videoId = null,
                             browseId = "VL$playlistId",
                         )
@@ -1656,15 +1660,51 @@ fun CosmotuneDesktopApp() {
     }
 
     fun addToPlaylist(playlist: DesktopPlaylist) {
-        val song = playlistTarget ?: return
+        val release = playlistRelease
+        val adding = release?.songs ?: listOfNotNull(playlistTarget)
+        if (adding.isEmpty()) return
+        var grew = false
         playlists = playlists.map { current ->
-            if (current.id == playlist.id) current.copy(songs = (current.songs + song).distinctBy(Song::videoId)) else current
+            if (current.id != playlist.id) return@map current
+            val merged = (current.songs + adding).distinctBy(Song::videoId)
+            grew = merged.size > current.songs.size
+            current.copy(songs = merged)
         }
         persistence.savePlaylists(playlists)
-        playlistTarget = null
+        if (release != null) DesktopPlayerHost.showMessage(if (grew) "Added to ${playlist.title}" else "Already in ${playlist.title}")
+        closePlaylistDialogs()
+    }
+
+    /** A whole album or playlist into one of the account's playlists: the songs it already has are left out, the rest go in at once. */
+    fun addReleaseToAccountPlaylist(playlist: UserPlaylist, release: DesktopCollection) {
+        val wanted = release.songs.filter { DesktopSearchClient.isVideoId(it.videoId) }.distinctBy(Song::videoId)
+        if (wanted.isEmpty()) return
+        playlistBusy = true
+        playlistError = null
+        scope.launch {
+            val known = DesktopSearchClient.playlistEntries(playlist.browseId).getOrNull().orEmpty().mapTo(HashSet()) { it.videoId }
+            val fresh = wanted.filterNot { it.videoId in known }
+            if (fresh.isEmpty()) {
+                closePlaylistDialogs()
+                DesktopPlayerHost.showMessage("Already in ${playlist.title}")
+                return@launch
+            }
+            DesktopSearchClient.addToPlaylist(playlist.playlistId, fresh.map(Song::videoId))
+                .onSuccess {
+                    closePlaylistDialogs()
+                    libraryStale = true
+                    DesktopPlayerHost.showMessage("Added to ${playlist.title}")
+                }
+                .onFailure {
+                    DesktopTrackLog.log("playlist: could not add ${release.browseId}: ${it.message}")
+                    playlistBusy = false
+                    playlistError = it.message ?: "Could not add to ${playlist.title}"
+                }
+        }
     }
 
     fun addToAccountPlaylist(playlist: UserPlaylist) {
+        playlistRelease?.let { addReleaseToAccountPlaylist(playlist, it); return }
         val song = playlistTarget ?: return
         playlistBusy = true
         playlistError = null
@@ -4382,14 +4422,17 @@ fun CosmotuneDesktopApp() {
                             },
                         )
                     }
-                    if (overlays.playlistDialog || playlistTarget != null) {
+                    if (overlays.playlistDialog || playlistTarget != null || playlistRelease != null) {
                         DesktopPlaylistDialog(
                             song = playlistTarget,
+                            release = playlistRelease?.takeIf { playlistTarget == null }?.title,
                             accountPlaylists = accountPlaylists,
                             localPlaylists = playlists,
                             signedIn = youtubeSignedIn,
                             canUseAccount = playlistTarget
-                                ?.let { DesktopSearchClient.isVideoId(it.videoId) } ?: true,
+                                ?.let { DesktopSearchClient.isVideoId(it.videoId) }
+                                ?: playlistRelease?.songs?.any { DesktopSearchClient.isVideoId(it.videoId) }
+                                ?: true,
                             busy = playlistBusy,
                             error = playlistError,
                             onPickAccount = ::addToAccountPlaylist,
@@ -4962,6 +5005,9 @@ fun CosmotuneDesktopApp() {
                             downloadedIds = downloads.map(Song::videoId).toSet(),
                             downloadInProgress = downloadInProgress,
                             contentPadding = contentPadding,
+                            onAddAllToPlaylists = openedCollection
+                                ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
+                                ?.let { collection -> { songs: List<Song> -> playlistRelease = collection.copy(songs = songs) } },
                         )
                         destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.home.HomeSwitch(
                             discoveryHistory = history,
@@ -7468,8 +7514,10 @@ private fun DesktopCollectionPage(
     contentPadding: PaddingValues,
     /** Opens the reorder dialog; only a playlist the account owns can be rearranged (BC-35). */
     onReorder: (() -> Unit)? = null,
+    /** Puts the whole album or playlist into a playlist (More, "Add to playlists"). */
+    onAddAllToPlaylists: ((List<Song>) -> Unit)? = null,
 ) {
-    com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, coverEditable = collection.owned == true && collection.type == BrowseType.PLAYLIST, nowPlaying = LocalNowPlaying.current)
+    com.cosmotune.desktop.CosmoDesktopCollectionPage(onAddAllToPlaylists = onAddAllToPlaylists, collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, coverEditable = collection.owned == true && collection.type == BrowseType.PLAYLIST, nowPlaying = LocalNowPlaying.current)
 }
 
 
