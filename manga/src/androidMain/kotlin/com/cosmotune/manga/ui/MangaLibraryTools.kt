@@ -53,13 +53,20 @@ class MangaLibraryUpdateWorker(context: Context, parameters: WorkerParameters) :
             result.value(withContext(Dispatchers.IO) { runCatching { requireNotNull(context.contentResolver.openOutputStream(uri, "wt")).use { it.write(contents) } } })
         }
     }
+    val saveMihon = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val contents = bytes; bytes = null
+        if (uri != null && contents != null) scope.launch {
+            result.value(withContext(Dispatchers.IO) { runCatching { requireNotNull(context.contentResolver.openOutputStream(uri, "wt")).use { it.write(contents) } } })
+        }
+    }
     val load = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) scope.launch {
         val contents = withContext(Dispatchers.IO) { runCatching { requireNotNull(context.contentResolver.openInputStream(uri)).use { input ->
             input.readNBytes(MangaLibraryBackup.MAX_BYTES + 1).also { require(it.size <= MangaLibraryBackup.MAX_BYTES) { "Library backup exceeds 8 MB" } }
         } } }
         contents.fold(onSuccess = { imported.value(it) }, onFailure = { result.value(Result.failure(it)) })
     } }
-    return MangaBackupTransfer({ contents -> bytes = contents; save.launch("cosmotune-manga-library.json") }, { load.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "application/gzip", "application/x-gzip")) })
+    return MangaBackupTransfer({ contents -> bytes = contents; save.launch("cosmotune-manga-library.json") }, { load.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "application/gzip", "application/x-gzip")) },
+        { contents -> bytes = contents; saveMihon.launch("cosmotune-for-mihon.tachibk") })
 }
 
 /** The Manga library's store for the app's account sync (Settings › Account), opened the first time a sync needs it. */

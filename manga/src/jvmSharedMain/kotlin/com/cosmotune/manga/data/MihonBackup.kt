@@ -91,6 +91,38 @@ class MihonBackupImport internal constructor(
     companion object {
         private const val MAX_UNPACKED = 64 * 1024 * 1024
 
+        /**
+         * A backup Mihon can restore (.tachibk): every online series with its read chapters, newest place and collections as
+         * categories. Series from a Mihon extension (or a Mihon backup) keep their source id, so Mihon finds them with that extension;
+         * series from Cosmotune's own sources carry their source's name, for Mihon's migration to pick up.
+         */
+        fun export(state: MangaLibraryState): ByteArray {
+            val sources = state.sources.associateBy { it.id }
+            fun mihonId(sourceId: String): Long = when {
+                sourceId.startsWith("mihon:") -> sourceId.substringAfterLast(':').toLongOrNull() ?: 0L
+                sourceId.startsWith(MihonIds.UNLINKED) -> sourceId.removePrefix(MihonIds.UNLINKED).toLongOrNull() ?: 0L
+                else -> (sourceId.hashCode().toLong() and 0x7fffffffL) or (1L shl 40) // a stable id Mihon will show as a missing source
+            }
+            val order = state.collections.mapIndexed { index, collection -> collection.id to index.toLong() + 1 }.toMap()
+            val books = state.books.filter { it.sourceId != "local" }
+            val manga = books.map { book ->
+                val place = state.progress[book.id]
+                TachiManga(source = mihonId(book.sourceId), url = book.url, title = book.title, author = book.authors.joinToString(", ").ifBlank { null },
+                    description = book.description.ifBlank { null }, genre = book.tags, thumbnailUrl = book.coverUrl, dateAdded = book.addedAtMs,
+                    chapters = book.chapters.map { chapter ->
+                        TachiChapter(chapter.url, chapter.title, chapter.scanlator, read = chapter.id in state.readChapters,
+                            lastPageRead = if (place?.chapterId == chapter.id && !place.finished) place.page.toLong() else 0, dateUpload = chapter.uploadDate, chapterNumber = chapter.number)
+                    },
+                    categories = state.collections.filter { book.id in it.bookIds }.mapNotNull { order[it.id] },
+                    history = listOfNotNull(place?.let { p -> book.chapters.find { it.id == p.chapterId }?.let { TachiHistory(it.url, p.updatedAtMs) } }))
+            }
+            val names = books.map { it.sourceId }.distinct().map { id ->
+                TachiSource(sources[id]?.name ?: books.first { it.sourceId == id }.unlinkedSourceName() ?: id, mihonId(id))
+            }
+            val backup = TachiBackup(manga, state.collections.map { TachiCategory(it.name, order.getValue(it.id)) }, names)
+            return java.io.ByteArrayOutputStream().also { out -> java.util.zip.GZIPOutputStream(out).use { it.write(ProtoBuf.encodeToByteArray(TachiBackup.serializer(), backup)) } }.toByteArray()
+        }
+
         /** True when [bytes] start like a gzip file (a Mihon backup), not a Cosmotune JSON backup. */
         fun looksLikeOne(bytes: ByteArray): Boolean = bytes.size > 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
 

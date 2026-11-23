@@ -12,7 +12,7 @@ import androidx.compose.ui.platform.testTag
 import com.cosmotune.manga.data.*
 import kotlinx.coroutines.*
 
-internal class MangaBackupTransfer(val export: (ByteArray) -> Unit, val restore: () -> Unit)
+internal class MangaBackupTransfer(val export: (ByteArray) -> Unit, val restore: () -> Unit, /** Saves a Mihon backup (.tachibk). */ val exportMihon: (ByteArray) -> Unit)
 @Composable internal expect fun rememberMangaBackupTransfer(onImport: (ByteArray) -> Unit, onResult: (Result<Unit>) -> Unit): MangaBackupTransfer
 @Composable internal expect fun MangaBackgroundUpdates(repository: MangaRepository)
 
@@ -37,6 +37,13 @@ internal class MangaBackupTransfer(val export: (ByteArray) -> Unit, val restore:
             ReadButton(mangaText("Export library backup"), enabled = !busy, kind = ReadKind.TONAL, icon = CosmoIcons.Download, modifier = Modifier.testTag("manga:backup:export"), onClick = { scope.launch {
                 busy = true
                 try { transfer.export(withContext(Dispatchers.IO) { MangaLibraryBackup.from(state).encode() }) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { message = failure.message }
+                finally { busy = false }
+            } })
+            ReadButton(mangaText("Export for Mihon"), enabled = !busy, kind = ReadKind.TONAL, icon = CosmoIcons.Download, modifier = Modifier.testTag("manga:backup:mihon"), onClick = { scope.launch {
+                busy = true
+                try { transfer.exportMihon(withContext(Dispatchers.IO) { MihonBackupImport.export(state) }) }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) { message = failure.message }
                 finally { busy = false }
