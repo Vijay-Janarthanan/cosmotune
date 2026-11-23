@@ -15,6 +15,8 @@ object WatchLinks {
         val raw: String
         data class Install(override val raw: String) : Link
         data class Pack(override val raw: String) : Link
+        /** AniList or MyAnimeList sending the viewer back after signing in ([AnimeTracking.finish]). */
+        data class TrackerReturn(override val raw: String) : Link
     }
 
     private val state = MutableStateFlow<Link?>(null)
@@ -24,6 +26,7 @@ object WatchLinks {
     fun offer(link: String?): Boolean {
         val t = link?.trim()?.takeIf { it.isNotEmpty() && it.length <= 8_192 } ?: return false
         state.value = when {
+            AnimeTracker.entries.any { t.startsWith(it.redirect) } -> Link.TrackerReturn(t)
             InstallLinks.isPackLink(t) -> Link.Pack(t)
             InstallLinks.isInstallLink(t) -> Link.Install(t)
             else -> return false

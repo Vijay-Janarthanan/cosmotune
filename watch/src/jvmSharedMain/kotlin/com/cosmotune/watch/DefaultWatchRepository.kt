@@ -1028,6 +1028,24 @@ class DefaultWatchRepository(
         update { state -> state.copy(settings = if (key.isBlank()) state.settings - "watch.key.$service" else state.settings + ("watch.key.$service" to key)) }
         titles.clear()
     }
+    override val animeTracking: com.cosmotune.watch.tracking.AnimeTrackingService by lazy {
+        com.cosmotune.watch.tracking.AnimeTrackingService(config.client, store, scope, config.now)
+    }
+    private val animePushed = ConcurrentHashMap.newKeySet<String>()
+
+    /** A finished anime episode moves the viewer's AniList and MyAnimeList on (once per episode and run). */
+    private fun pushAnime(progress: WatchProgress) {
+        if (!progress.completed || progress.key.kind != WatchKey.Kind.EPISODE) return
+        val series = progress.key.seriesKey ?: return
+        val season = progress.key.season ?: return
+        val episode = progress.key.episode ?: return
+        if (store.state.value.settings.keys.none { it.startsWith("anime.${store.state.value.activeProfile}.") }) return
+        if (!animePushed.add("${store.state.value.activeProfile}:${progress.key.value}")) return
+        scope.launch {
+            val anime = runCatching { animeSeason(series, season) }.getOrNull() ?: return@launch
+            runCatching { animeTracking.push(anime.malId, episode + anime.offset) }
+        }
+    }
     override val tracking: WatchTracking by lazy { com.cosmotune.watch.tracking.WatchTrackingService(config.client, store, scope, config.now) }
     override suspend fun setAnimeMapping(series: WatchKey, season: Int, malId: Int?) {
         require(series.kind == WatchKey.Kind.SERIES && season in 1..100 && (malId == null || malId in 1..1_000_000))
@@ -1171,6 +1189,7 @@ class DefaultWatchRepository(
         // A trailer, or a video another device sent here (the sender keeps its own place), is not kept.
         if (progress.key.kind == WatchKey.Kind.CHANNEL || progress.key.namespace == "trailer" || progress.key.namespace == "received") return
         update { s -> s.copy(progress = s.progress + (progress.key.value to progress)) }
+        pushAnime(progress)
     }
 
     override suspend fun clearProgress(key: WatchKey) { update { s -> s.copy(progress = s.progress - key.value) } }

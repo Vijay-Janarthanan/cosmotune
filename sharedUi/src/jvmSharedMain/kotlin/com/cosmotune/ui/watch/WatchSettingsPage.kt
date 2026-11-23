@@ -44,7 +44,7 @@ import com.cosmotune.watch.model.WatchProfile
 import kotlinx.coroutines.launch
 
 /** Which of the settings' small dialogs is open. */
-private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
+private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
 
 /**
  * Watch settings on the same rows Video's settings use ([CosmoSettingsGroup], [CosmoSettingsRow]): Sources and add-ons first
@@ -151,6 +151,12 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     CosmoSettingsRow(Icons.Rounded.Link, "Tracking", subtitle = when (connected) {
                         0 -> "Trakt or Simkl, optional"; 1 -> "Connected to one service"; else -> "Connected to $connected services"
                     }, onClick = { dialog = WatchSettingsDialog.TRACKING })
+                }
+                repository.animeTracking?.let { anime ->
+                    val lists by anime.statuses.collectAsState()
+                    val on = lists.filter { it.connected }
+                    CosmoSettingsRow(Icons.Rounded.Link, "Anime lists", subtitle = if (on.isEmpty()) "AniList or MyAnimeList, optional" else on.joinToString(" and ") { it.service.label },
+                        onClick = { dialog = WatchSettingsDialog.ANIME })
                 }
                 CosmoSettingsRow(Icons.Rounded.Key, "Service keys", subtitle = if (configured.isEmpty()) "Ratings and subtitles, optional" else "${configured.size} saved",
                     onClick = { dialog = WatchSettingsDialog.KEYS })
@@ -275,6 +281,9 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
         }
         WatchSettingsDialog.TRACKING -> repository.tracking?.let { tracking ->
             WatchDialog("Connected services", "Tracking", onDismiss = { dialog = null }) { WatchTrackingCard(tracking, fonts, look) }
+        }
+        WatchSettingsDialog.ANIME -> repository.animeTracking?.let { anime ->
+            WatchDialog("Connected services", "Anime lists", onDismiss = { dialog = null }) { WatchAnimeTrackingCard(anime, fonts, look) }
         }
         WatchSettingsDialog.KEYS -> WatchDialog("Connected services", "Service keys", onDismiss = { dialog = null }) { ServiceKeys(fonts, look) }
         WatchSettingsDialog.DEBRID -> WatchDialog("Connected services", "Debrid", onDismiss = { dialog = null }) {

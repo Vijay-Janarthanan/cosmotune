@@ -226,6 +226,7 @@ fun WatchApp(
         when (val link = opened) {
             is com.cosmotune.watch.WatchLinks.Link.Install -> WatchInstallSheet(link.raw, fonts, look, onDone = { com.cosmotune.watch.WatchLinks.handled() })
             is com.cosmotune.watch.WatchLinks.Link.Pack -> ImportPackDialog(repository, fonts, look, initialLink = link.raw) { com.cosmotune.watch.WatchLinks.handled() }
+            is com.cosmotune.watch.WatchLinks.Link.TrackerReturn -> AnimeSignInReturn(repository, link.raw) { com.cosmotune.watch.WatchLinks.handled() }
             null -> Unit
         }
     }

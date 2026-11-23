@@ -245,6 +245,8 @@ interface WatchRepository {
     val configuredServices: StateFlow<Set<String>> get() = DEFAULT_WATCH_SERVICES
     suspend fun setServiceKey(service: String, key: String) {}
     val tracking: WatchTracking? get() = null
+    /** AniList and MyAnimeList, for anime; null where they are not offered. */
+    val animeTracking: AnimeTracking? get() = null
     val profiles: StateFlow<List<com.cosmotune.watch.model.WatchProfile>> get() = DEFAULT_WATCH_PROFILES
     val activeProfile: StateFlow<String> get() = DEFAULT_WATCH_PROFILE
     val profileUnlocked: StateFlow<Boolean> get() = DEFAULT_WATCH_UNLOCKED

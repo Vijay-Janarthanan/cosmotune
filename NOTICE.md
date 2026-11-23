@@ -35,6 +35,9 @@ Watch's intro, recap and credits skips for films and series read the free TheInt
 markers from their public APIs. The torrent downloads, sharing, network binding and play-through queue follow ideas
 from torlink (https://github.com/baairon/torlink, MIT); none of its code, and none of its torrent search sources, is
 included.
+Watch's anime filler and recap marks and its MyAnimeList season matches read the free Jikan API (api.jikan.moe, data
+from MyAnimeList); the AniList and MyAnimeList list updates use those services' public APIs. Both ideas come from
+CloudStream (GPLv3) and Aniyomi (Apache-2.0); the code is Cosmotune's own.
 
 The Android TV and browser companion ports include code from the same GPLv3 upstream at
 https://github.com/kushagrasinghx/BitChord/tree/edc1e6f36febf71a118e649411d2fc21b70ead45.
