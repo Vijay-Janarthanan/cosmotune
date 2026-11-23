@@ -173,7 +173,10 @@ fun CosmoPlayerBar(
             DisposableEffect(capsuleShell) { onDispose { capsuleShell.capsuleBounds = null; capsuleShell.capsuleLabel = null } }
         }
 
-        Box(Modifier.matchParentSize().clip(OrbitBarMetrics.shape).background(fill)) {
+        // A button's tooltip goes over the bar, clear of its top edge, rather than across its lower edge onto the window's foot.
+        Box(Modifier.matchParentSize().clip(OrbitBarMetrics.shape).background(fill)) { androidx.compose.runtime.CompositionLocalProvider(
+            com.cosmotune.ui.orbit.LocalOrbitTooltipClearance provides ((OrbitBarMetrics.HEIGHT_DP - OrbitBarMetrics.BUTTON_DP) / 2f).dp,
+        ) {
             Row(
                 Modifier.fillMaxSize().padding(start = OrbitBarMetrics.PAD_START_DP.dp, end = OrbitBarMetrics.END_PAD_DP.dp),
                 horizontalArrangement = Arrangement.spacedBy(OrbitBarMetrics.GAP_DP.dp),
@@ -224,7 +227,7 @@ fun CosmoPlayerBar(
                     else -> Tools(live, plan, bar, lyricsOn, queueOn, onLyrics, onQueue, onOutput, volumeLabel)
                 }
             }
-        }
+        } }
         Box(
             Modifier.align(Alignment.CenterEnd).padding(end = (OrbitBarMetrics.BITE_INSET_DP - OrbitBarMetrics.BITE_DP).dp)
                 .size((OrbitBarMetrics.BITE_DP * 2).dp),
@@ -232,7 +235,9 @@ fun CosmoPlayerBar(
         ) {
             // While the song loads a moon circles the button in the bite's clear ring.
             if (isLoading) OrbitRing((OrbitBarMetrics.BITE_DP * 2).dp, look.accent, progress = null, spinning = true, stroke = 1.5.dp, moon = 3.dp)
-            OrbitPlayButton(isPlaying, onPlayPause, look, size = OrbitBarMetrics.PLAY_DP.dp)
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.cosmotune.ui.orbit.LocalOrbitTooltipClearance provides ((OrbitBarMetrics.HEIGHT_DP - OrbitBarMetrics.PLAY_DP) / 2f).dp,
+            ) { OrbitPlayButton(isPlaying, onPlayPause, look, size = OrbitBarMetrics.PLAY_DP.dp) }
         }
     }
 }

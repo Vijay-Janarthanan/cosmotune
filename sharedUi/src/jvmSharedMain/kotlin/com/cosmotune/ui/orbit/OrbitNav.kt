@@ -106,7 +106,8 @@ fun OrbitNavModeChip(modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     Box(modifier.fillMaxWidth().onSizeChanged { width = it.width }) {
         Row(
-            Modifier.fillMaxWidth().height(CHIP).cosmoFocusRing(interaction, CHIP / 2).clip(CircleShape)
+            // While the menu is open the keyboard's ring is on its line, not on the chip too.
+            Modifier.fillMaxWidth().height(CHIP).then(if (open) Modifier else Modifier.cosmoFocusRing(interaction, CHIP / 2)).clip(CircleShape)
                 .background(if (hovered || open) look.ink.copy(alpha = if (look.dark) 0.12f else 0.10f) else look.chip)
                 .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClickLabel = stringResource(Res.string.cosmo_mode_switch)) {
                     if (!open && System.currentTimeMillis() - closedAt > REOPEN_GUARD_MS) open = true
