@@ -287,7 +287,7 @@ private fun MangaHiddenImagesSettings(state: MangaLibraryState, update: ((MangaL
                 else "${state.hiddenImages.size} " + mangaText(if (state.hiddenImages.size == 1) "image stays blank in the reader" else "images stay blank in the reader"),
                 style = ReadType.meta(), color = look.dim)
         }
-        if (state.hiddenImages.isNotEmpty()) ReadTextButton(mangaText("Show all"), { update { it.copy(hiddenImages = emptyMap()) } })
+        if (state.hiddenImages.isNotEmpty()) ReadTextButton(mangaText("Show every image"), { update { it.copy(hiddenImages = emptyMap()) } })
     }
     val listed = state.hiddenImages.entries.sortedByDescending { it.value.hiddenAtMs }
     (if (all) listed else listed.take(5)).forEach { (mark, image) ->
@@ -297,7 +297,7 @@ private fun MangaHiddenImagesSettings(state: MangaLibraryState, update: ((MangaL
             ReadTextButton(mangaText("Show"), { update { MangaHiddenImages.show(it, mark) } })
         }
     }
-    if (!all && listed.size > 5) ReadTextButton(mangaText("See all") + " ${listed.size}", { all = true })
+    if (!all && listed.size > 5) ReadTextButton(mangaText("Show all") + " ${listed.size}", { all = true })
 }
 
 /** Save downloads as CBZ files, where they go (a computer can choose the folder), and Split tall pages. */
