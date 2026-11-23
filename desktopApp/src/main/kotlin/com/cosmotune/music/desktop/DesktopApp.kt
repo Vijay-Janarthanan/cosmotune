@@ -1955,10 +1955,16 @@ fun CosmotuneDesktopApp() {
     }
     LaunchedEffect(Unit) {
         while (currentCoroutineContext().isActive) {
-            delay(1_000L)
+            // A second at a time, a tenth of one through the sleep fade (its last 30 seconds, unless turned off).
+            val left = DesktopSleepTimer.remainingMs()
+            val fade = com.cosmotune.settings.Extras.settings.sleepFadeOut.value
+            delay(if (fade && left != null && left <= com.cosmotune.music.playback.SleepFade.FADE_MS + 1_000L) 100L else 1_000L)
             if (DesktopSleepTimer.isExpired()) {
-                DesktopSleepTimer.cancel()
                 pauseEverythingForSleep()
+                DesktopSleepTimer.cancel()
+                playbackEngine.sleepFadeGain = 1f
+            } else {
+                playbackEngine.sleepFadeGain = com.cosmotune.music.playback.SleepFade.gain(DesktopSleepTimer.remainingMs(), fade)
             }
         }
     }

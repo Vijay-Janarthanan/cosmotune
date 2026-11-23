@@ -45,6 +45,10 @@ object SleepTimerWatcher {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val pausers = CopyOnWriteArraySet<() -> Unit>()
+    private val faders = CopyOnWriteArraySet<(Float) -> Unit>()
+
+    /** How often the fade sets the volume. */
+    private const val FADE_STEP_MS = 100L
 
     @Volatile
     private var app: Context? = null
@@ -74,10 +78,38 @@ object SleepTimerWatcher {
                     return@collectLatest
                 }
                 scheduleAlarm(deadline)
-                SleepTimer.awaitDeadline(deadline)
-                ranOut()
+                // The fade (on unless turned off): the last 30 seconds go down to silence, then the pause; a timer moved or
+                // turned off meanwhile cancels this block, and the volume is put back either way.
+                val fade = com.cosmotune.settings.Extras.settings.sleepFadeOut.value
+                var faded = false
+                try {
+                    SleepTimer.awaitDeadline(com.cosmotune.music.playback.SleepFade.startsAt(deadline, fade))
+                    while (fade) {
+                        val left = deadline - SleepTimer.clock()
+                        faded = true
+                        fadeTo(com.cosmotune.music.playback.SleepFade.gain(left, enabled = true))
+                        if (left <= 0L) break
+                        kotlinx.coroutines.delay(FADE_STEP_MS.coerceAtMost(left))
+                    }
+                    ranOut()
+                } finally {
+                    if (faded) fadeTo(1f)
+                }
             }
         }
+    }
+
+    /** [fade] gets the sleep fade's volume (1 is full) while the timer runs out, until [removeFader]. Main thread. */
+    fun addFader(fade: (Float) -> Unit) {
+        faders += fade
+    }
+
+    fun removeFader(fade: (Float) -> Unit) {
+        faders -= fade
+    }
+
+    private fun fadeTo(gain: Float) = faders.forEach { fade ->
+        runCatching { fade(gain) }.onFailure { TrackLog.w("SLEEP", "a fade step failed: ${it.message}") }
     }
 
     /** [pause] is called when the timer runs out, until [removePauser]. */
@@ -96,11 +128,12 @@ object SleepTimerWatcher {
 
     private fun ranOut() {
         TrackLog.i("SLEEP", "sleep timer ran out; pausing")
-        SleepTimer.cancel()
-        cancelAlarm()
+        // Paused before the timer is cleared: clearing it ends the fade, which puts the volume back, and that must not be heard.
         pausers.forEach { pause ->
             runCatching(pause).onFailure { TrackLog.w("SLEEP", "a pause failed: ${it.message}") }
         }
+        SleepTimer.cancel()
+        cancelAlarm()
         // Every other mode's player (Video's service player, which Watch also plays on) adds its own pause to the hook.
         com.cosmotune.ui.sleep.SleepPausers.pauseAll().forEach { TrackLog.w("SLEEP", "a mode's pause failed: $it") }
         // A DLNA renderer playing the song ("Play on a TV or speaker").

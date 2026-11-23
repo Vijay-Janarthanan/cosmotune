@@ -6668,6 +6668,15 @@ class PlaybackService : MediaLibraryService() {
     private fun watchSleepTimer() {
         SleepTimerWatcher.start(this)
         SleepTimerWatcher.addPauser(sleepPauser)
+        SleepTimerWatcher.addFader(sleepFader)
+    }
+
+    /**
+     * The sleep timer's fade on the playing deck ([SleepFade]). Left alone while a crossfade is blending, whose own gains then
+     * rule; the next step after it lands on the new deck.
+     */
+    private val sleepFader: (Float) -> Unit = { gain ->
+        if (crossfade?.isTransitioning() != true) player?.volume = gain
     }
 
     /**
@@ -7906,6 +7915,7 @@ class PlaybackService : MediaLibraryService() {
         serviceLyricsJob = null
         serviceLyrics = null
         SleepTimerWatcher.removePauser(sleepPauser)
+        SleepTimerWatcher.removeFader(sleepFader)
         cancelPrefetch()
         trackAnalyzer.release()
         loudnessRetryJob?.cancel()
