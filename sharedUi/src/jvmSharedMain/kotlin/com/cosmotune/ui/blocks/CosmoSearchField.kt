@@ -174,7 +174,7 @@ fun CosmoSearchField(
 
 /** `.field2 kbd`: the shortcut that focuses the field, 11.5 sp, weight 600, in a small cap (padding 3 x 7, radius 7, `textPrimary` at 10 %). */
 @Composable
-private fun KeyCap(text: String, modifier: Modifier) {
+internal fun KeyCap(text: String, modifier: Modifier) {
     val colors = LocalCosmoColors.current
     val type = LocalCosmoType.current
     Box(
