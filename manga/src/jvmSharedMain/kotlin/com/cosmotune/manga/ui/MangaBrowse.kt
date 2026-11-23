@@ -325,11 +325,14 @@ internal fun MangaSourcePage(scope: MangaScope, sourceId: String) {
 internal fun MangaSearchPage(scope: MangaScope) {
     val state by scope.repository.store.state.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
-    val search = rememberGlobalSearch(scope.repository, query)
+    // The library takes Mihon's search syntax (author:, genre:, source:, "quotes", a | b, -word); the sources get the plain words.
+    val sourceQuery = com.cosmotune.manga.data.MangaLibraryQuery.plainWords(query)
+    val search = rememberGlobalSearch(scope.repository, sourceQuery)
     val grid = rememberLazyGridState()
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    val saved = if (query.isBlank()) emptyList() else state.books.filter { it.title.contains(query.trim(), true) }
+    val saved = if (query.isBlank()) emptyList() else com.cosmotune.manga.data.MangaLibraryQuery.parse(query)
+        .filter(state.books, state.sources.associate { it.id to it.name } + ("local" to "Imported"))
     Column(Modifier.fillMaxSize()) {
         ReadBackHead("Search", onBack = { scope.navigation.page = null })
         LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.weight(1f).fillMaxWidth(), state = grid,
@@ -339,14 +342,18 @@ internal fun MangaSearchPage(scope: MangaScope) {
                 ReadPageHead(mangaText("Search"), mangaText("Your library and every source that is on"), Modifier.readBleed())
             }
             item(key = "field", span = { GridItemSpan(maxLineSpan) }) {
-                ReadSearchField(query, { query = it.take(500) }, mangaText("Search manga"), Modifier.readBleed(), focusRequester = focus)
+                Column(Modifier.readBleed(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReadSearchField(query, { query = it.take(500) }, mangaText("Search manga"), focusRequester = focus)
+                    Text(mangaText("In your library, try author:, genre:, source:, \"two words\", a | b, or -word to leave out"), style = ReadType.meta(),
+                        color = orbitLook().dim, modifier = Modifier.padding(horizontal = ReadMargin))
+                }
             }
             if (saved.isNotEmpty()) {
                 item(key = "saved:header", span = { GridItemSpan(maxLineSpan) }) { ReadOverline(mangaText("In your library"), Modifier.readBleed()) }
                 items(saved, key = { "saved:${it.id}" }) { book -> MangaBookCard(scope, book, mangaLibraryLine(book, state), inLibrary = true) }
                 item(key = "sources:header", span = { GridItemSpan(maxLineSpan) }) { ReadOverline(mangaText("Sources"), Modifier.readBleed()) }
             }
-            if (query.isNotBlank()) mangaGlobalResultItems(scope, search, query, state.sources)
+            if (sourceQuery.isNotBlank()) mangaGlobalResultItems(scope, search, sourceQuery, state.sources)
         }
     }
 }
