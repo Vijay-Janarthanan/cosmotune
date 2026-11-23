@@ -101,7 +101,13 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     private val spotifyMetadata: (suspend (String) -> PodcastFeed)? = null,
     private val weatherBase: String = "https://api.open-meteo.com", private val wikipediaBase: String = "https://en.wikipedia.org",
     private val commonsBase: String = "https://commons.wikimedia.org",
-    private val youtubePodcasts: YouTubePodcasts? = null) {
+    private val youtubePodcasts: YouTubePodcasts? = null,
+    /**
+     * gPodder's public directory and Podverse's, searched beside Apple Podcasts and fyyd (no account, no key). A catalogue pointed at
+     * other directories (a test's server) leaves them out unless it names them too.
+     */
+    private val gpodderBase: String? = "https://gpodder.net".takeIf { fyydBase == "https://api.fyyd.de" },
+    private val podverseBase: String? = "https://api.podverse.fm".takeIf { fyydBase == "https://api.fyyd.de" }) {
     private val json = Json { ignoreUnknownKeys = true }
     private val spotify by lazy { SpotifyPublicPodcasts(::readRequest) }
     private var mirrors: List<String>? = null
@@ -302,10 +308,13 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         val term = podcastSearchTerm(query)
         val apple = async { attempt { appleSearch(term, country) } }
         val fyyd = async { attempt { fyydSearch(term) } }
-        val appleShows = apple.await()
-        val fyydShows = fyyd.await()
-        if (appleShows == null && fyydShows == null) error("Podcast search is unavailable. Please retry.")
-        (appleShows.orEmpty() + fyydShows.orEmpty()).distinctBy { it.feed.trimEnd('/') }
+        val gpodder = gpodderBase?.let { base -> async { attempt { gpodderShows(read(address(base, "/search.json", mapOf("q" to term)))) } } }
+        val podverse = podverseBase?.let { base -> async { attempt { podverseShows(read(address(base, "/api/v1/podcast", mapOf("searchTitle" to term)))) } } }
+        val first = listOf(apple.await(), fyyd.await())
+        if (first.all { it == null } && gpodder == null && podverse == null) error("Podcast search is unavailable. Please retry.")
+        val found = first + listOf(gpodder?.await(), podverse?.await())
+        if (found.all { it == null }) error("Podcast search is unavailable. Please retry.")
+        found.flatMap { it.orEmpty() }.distinctBy { it.feed.trimEnd('/').removePrefix("https://").removePrefix("http://") }
     }
     private fun podcastSearchTerm(query: String) = query.trim().take(200).ifBlank { "podcast" }
     private suspend fun appleSearch(query: String, country: String): List<PodcastShow> {
@@ -449,6 +458,27 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         fun isSpotifyLink(value: String): Boolean = SpotifyPublicPodcasts.link(value) != null
         private fun titleKey(value: String): String = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFKC)
             .lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
+        /** Shows from gPodder's directory search ([gpodderBase]/search.json): a list of {url, title, author, logo_url, website}. */
+        fun gpodderShows(text: String): List<PodcastShow> = (Json.parseToJsonElement(text) as? JsonArray).orEmpty().take(30).mapNotNull { element ->
+            val o = element as? JsonObject ?: return@mapNotNull null
+            val feed = httpUrl(o.text("url")) ?: return@mapNotNull null
+            val title = o.text("title").trim().takeIf(String::isNotEmpty) ?: return@mapNotNull null
+            PodcastShow(identity(feed), title, o.text("author"), feed, httpUrl(o.text("scaled_logo_url").ifBlank { o.text("logo_url") }).orEmpty(),
+                httpUrl(o.text("website")).orEmpty(), "gPodder")
+        }
+        /** Shows from Podverse's search ([podverseBase]/api/v1/podcast): [[{title, imageUrl, linkUrl, feedUrls: [{url}]}], count]. */
+        fun podverseShows(text: String): List<PodcastShow> {
+            val root = Json.parseToJsonElement(text)
+            val list = ((root as? JsonArray)?.firstOrNull() as? JsonArray) ?: (root as? JsonArray) ?: return emptyList()
+            return list.take(30).mapNotNull { element ->
+                val o = element as? JsonObject ?: return@mapNotNull null
+                if ((o["credentialsRequired"] as? JsonPrimitive)?.contentOrNull == "true") return@mapNotNull null
+                val feed = (o["feedUrls"] as? JsonArray).orEmpty().firstNotNullOfOrNull { (it as? JsonObject)?.text("url")?.let(::httpUrl) } ?: return@mapNotNull null
+                val title = o.text("title").trim().takeIf(String::isNotEmpty) ?: return@mapNotNull null
+                PodcastShow(identity(feed), title, (o["authors"] as? JsonArray).orEmpty().firstNotNullOfOrNull { (it as? JsonObject)?.text("name") }.orEmpty(),
+                    feed, httpUrl(o.text("imageUrl")).orEmpty(), httpUrl(o.text("linkUrl")).orEmpty(), "Podverse")
+            }
+        }
         fun httpUrl(raw: String): String? = runCatching {
             val value = raw.trim(); val uri = URI(value)
             value.takeIf { uri.scheme?.lowercase(Locale.ROOT) in setOf("http", "https") && !uri.host.isNullOrBlank() && uri.userInfo == null }
