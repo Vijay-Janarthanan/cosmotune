@@ -108,6 +108,23 @@ internal fun MangaUpdatesPage(scope: MangaScope) {
                         }
                     }
                 }
+                item(key = "next-check") {
+                    var open by rememberSaveable { mutableStateOf(false) }
+                    val queue = remember(state.books, state.sources, state.readChapters, state.updateSkipFinished) {
+                        mangaSeriesToUpdate(state, state.sources.filter { it.enabled }.map { it.id }.toSet())
+                    }
+                    if (queue.isNotEmpty() && !check.running) Column(Modifier.fillMaxWidth().testTag("manga:updates:next")) {
+                        Row(Modifier.fillMaxWidth().padding(end = ReadMargin - 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            ReadOverline(mangaText("Next check") + " · ${queue.size} " + mangaText("series"), Modifier.weight(1f))
+                            ReadTextButton(mangaText(if (open) "Hide" else "Show"), { open = !open }, Modifier.padding(top = 16.dp))
+                        }
+                        if (open) queue.take(100).forEach { book ->
+                            val source = state.sources.find { it.id == book.sourceId }?.name.orEmpty()
+                            ReadCoverRow(book.title, source, rememberMangaCover(scope.repository, book), key = book.id, modifier = Modifier.padding(horizontal = ReadMargin),
+                                onClick = { scope.openBook(book) })
+                        }
+                    }
+                }
                 item(key = "view") {
                     ReadChipRow(Modifier.padding(top = 4.dp, bottom = 4.dp).testTag("manga:updates:view")) {
                         ReadChip(mangaText("By day"), !bySeries, { bySeries = false })
@@ -178,7 +195,8 @@ internal fun MangaHistoryPage(scope: MangaScope) {
     val state by scope.repository.store.state.collectAsState()
     val palette = LocalCosmoColors.current.palette
     val list = rememberLazyListState()
-    val days = mangaHistory(state)
+    var query by rememberSaveable { mutableStateOf("") }
+    val days = mangaHistory(state).mapNotNull { day -> day.copy(entries = day.entries.filter { mangaHistoryMatches(it, query) }).takeIf { it.entries.isNotEmpty() } }
     val undo = LocalOrbitUndo.current
     val time = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
     Column(Modifier.fillMaxSize()) {
@@ -186,8 +204,12 @@ internal fun MangaHistoryPage(scope: MangaScope) {
             item(key = "heading") {
                 ReadPageHead(mangaText("History"), mangaText("The last chapter of each series you read")) { MangaRootActions(scope) }
             }
+            if (state.progress.isNotEmpty()) item(key = "filter") {
+                ReadSearchField(query, { query = it.take(200) }, mangaText("Filter history"), Modifier.padding(horizontal = ReadMargin).testTag("manga:history:filter"))
+            }
             if (days.isEmpty()) item(key = "empty") {
-                ReadEmpty(mangaText("Nothing read yet"), mangaText("The series you read appear here, the latest first."))
+                if (query.isNotBlank()) ReadEmpty(mangaText("No match"), mangaText("No series in your history matches this."))
+                else ReadEmpty(mangaText("Nothing read yet"), mangaText("The series you read appear here, the latest first."))
             }
             days.forEach { day ->
                 item(key = "day:${day.label}") { ReadOverline(day.label) }

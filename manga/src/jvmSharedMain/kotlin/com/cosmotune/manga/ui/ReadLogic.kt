@@ -191,6 +191,13 @@ internal fun mangaHistory(state: MangaLibraryState, nowMs: Long = System.current
         .map { (label, entries) -> MangaHistoryDay(label, entries) }
 }
 
+/** Whether a History row matches [query]: its series, its alternate titles or its chapter title contain it, ignoring case. */
+internal fun mangaHistoryMatches(entry: MangaHistoryEntry, query: String): Boolean {
+    val term = query.trim()
+    if (term.isEmpty()) return true
+    return (listOf(entry.book.title) + entry.book.parserData?.alternateTitles.orEmpty() + listOfNotNull(entry.chapter?.title)).any { it.contains(term, ignoreCase = true) }
+}
+
 internal fun dayLabel(day: LocalDate, today: LocalDate): String = when (day) {
     today -> "Today"
     today.minusDays(1) -> "Yesterday"
