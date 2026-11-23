@@ -368,6 +368,8 @@ internal data class SettingsDocument(
     val speedByVideo: Map<String, Float> = emptyMap(),
     val embedDetails: Boolean = true,
     val cutSegments: Boolean = false,
+    val phoneCasting: Boolean = false,
+    val loungeScreenId: String? = null,
     val smoothness: SmoothnessDto = SmoothnessDto(),
 )
 
@@ -444,6 +446,8 @@ internal fun VideoSettings.toDocument() = SettingsDocument(
     speedByVideo = speedByVideo.entries.toList().takeLast(300).associate { it.key to it.value },
     embedDetails = embedDetails,
     cutSegments = cutSegments,
+    phoneCasting = phoneCasting,
+    loungeScreenId = loungeScreenId,
     smoothness = smoothness.toDto(),
 )
 
@@ -504,6 +508,8 @@ internal fun SettingsDocument.toSettings(): VideoSettings {
         speedByVideo = speedByVideo.filter { (id, speed) -> id.isNotBlank() && speed.isFinite() && speed in 0.25f..4f }.entries.toList().takeLast(300).associate { it.key to it.value },
         embedDetails = embedDetails,
         cutSegments = cutSegments,
+        phoneCasting = phoneCasting,
+        loungeScreenId = loungeScreenId?.takeIf { it.isNotBlank() && it.length <= 64 },
         smoothness = smoothness.toDomain(),
     )
 }

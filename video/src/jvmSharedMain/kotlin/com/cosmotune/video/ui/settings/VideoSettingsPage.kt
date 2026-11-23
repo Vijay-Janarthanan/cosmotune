@@ -67,6 +67,9 @@ import com.cosmotune.video.resources.video_disclaimer_text
 import com.cosmotune.video.resources.video_disclaimer_title
 import com.cosmotune.video.resources.video_dl_audio_only
 import com.cosmotune.video.resources.video_set_dl_cut
+import com.cosmotune.video.resources.video_tvcode_on
+import com.cosmotune.video.resources.video_tvcode_state_off
+import com.cosmotune.video.resources.video_tvcode_title
 import com.cosmotune.video.resources.video_set_dl_cut_summary
 import com.cosmotune.video.resources.video_set_dl_embed
 import com.cosmotune.video.resources.video_set_dl_embed_summary
@@ -148,7 +151,7 @@ import androidx.compose.runtime.setValue
 internal typealias SettingsUpdate = ((VideoSettings) -> VideoSettings) -> Unit
 
 /** The choices that open a [ChoiceSheet] (a category of SponsorBlock opens its own, see [CategoryChoiceSheet]). */
-private enum class SettingsChoice { WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP }
+private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP }
 
 /** What the page asks about before it clears something. */
 private enum class Confirm { CLEAR_HISTORY, CLEAR_SEARCHES }
@@ -265,6 +268,12 @@ private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pi
             title = stringResource(Res.string.video_set_remember_speed),
             checked = settings.rememberSpeed,
             onCheckedChange = { value -> update { it.copy(rememberSpeed = value, speedByVideo = if (value) it.speedByVideo else emptyMap()) } },
+        )
+        CosmoSettingsRow(
+            icon = CosmoIcons.Devices,
+            title = stringResource(Res.string.video_tvcode_title),
+            subtitle = stringResource(if (settings.phoneCasting) Res.string.video_tvcode_on else Res.string.video_tvcode_state_off),
+            onClick = { open(SettingsChoice.TV_CODE) },
         )
         CosmoSettingsRow(
             icon = VideoIcons.Forward,
@@ -500,6 +509,7 @@ private fun AboutSettings() {
 private fun SettingsChoiceSheet(choice: SettingsChoice, settings: VideoSettings, update: SettingsUpdate, locale: Locale, onDismiss: () -> Unit) {
     when (choice) {
         SettingsChoice.FILTERS -> ContentFilterSheet(settings, update, onDismiss)
+        SettingsChoice.TV_CODE -> TvCodeSheet(settings, update, onDismiss)
         SettingsChoice.AUTO_BACKUP -> ChoiceSheet(
             title = stringResource(Res.string.video_set_auto_backup),
             options = com.cosmotune.video.library.AutoBackup.CHOICES.map { ChoiceOption(it, backupLabel(it)) },

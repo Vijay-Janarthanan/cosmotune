@@ -1,0 +1,7 @@
+518
+[[0,["c","FAKESID000000001","",8]]
+,[1,["S","FAKE_TOKEN"]]
+,[2,["loungeStatus",{"queueId":"RQfakequeue","devices":"[{\"app\":\"cosmotune\",\"capabilities\":\"dsp,mic,dpa,que,mus\",\"clientName\":\"unknown\",\"experiments\":\"\",\"name\":\"Cosmotune\",\"theme\":\"cl\",\"id\":\"fake-device-screen\",\"type\":\"LOUNGE_SCREEN\",\"hasCc\":\"true\",\"receiverIdentityMatchStatus\":\"IS_RECEIVER\"}]","connectionEventDetails":"{\"deviceId\":\"fake-device-screen\"}"}]]
+,[3,["getNowPlaying"]]
+,[4,["getDiscoveryDeviceId"]]
+]

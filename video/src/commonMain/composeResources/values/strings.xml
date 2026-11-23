@@ -667,6 +667,16 @@
     <string name="video_settings_imported">Settings loaded</string>
     <string name="video_set_remember_speed">Remember the speed of each video</string>
     <string name="video_set_dl_embed">Put details in the file</string>
+    <string name="video_tvcode_title">Link with TV code</string>
+    <string name="video_tvcode_allow">Let phones cast here</string>
+    <string name="video_tvcode_off">Turn this on, then type the code in the video app on your phone to play its videos here.</string>
+    <string name="video_tvcode_how">On your phone, open the video app, tap Cast, then Link with TV code, and type:</string>
+    <string name="video_tvcode_making">Making a code…</string>
+    <string name="video_tvcode_failed">The source could not be reached. Trying again soon.</string>
+    <string name="video_tvcode_linked">Phones linked</string>
+    <string name="video_tvcode_none">None yet</string>
+    <string name="video_tvcode_on">On</string>
+    <string name="video_tvcode_state_off">Off</string>
     <string name="video_set_dl_cut">Cut skipped parts out of downloads</string>
     <string name="video_set_dl_cut_summary">Parts SponsorBlock skips are left out of the file</string>
     <string name="video_set_dl_embed_summary">Title, channel, chapters, subtitles and the cover go inside each download, for other players</string>

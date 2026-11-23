@@ -87,6 +87,10 @@ data class VideoSettings(
     val embedDetails: Boolean = true,
     /** Downloads leave out the SponsorBlock segments set to skip. */
     val cutSegments: Boolean = false,
+    /** The YouTube app on a phone may cast here with "Link with TV code". */
+    val phoneCasting: Boolean = false,
+    /** This screen's lounge id, so a linked phone finds it again. */
+    val loungeScreenId: String? = null,
     val smoothness: SmoothnessSettings = SmoothnessSettings() /* frame smoothing: off, so frames are shown as they come */,
 ) {
     companion object {
