@@ -2051,6 +2051,9 @@ fun CosmotuneDesktopApp() {
     // opens the player. Run from the player page instead, nothing was fetched until it was opened,
     // and a track half a minute in then showed a skeleton and arrived mid-song.
     var lyrics by remember { mutableStateOf<DesktopLyrics?>(null) }
+    // The floating lyrics window reads the same lines, the listener's own ones first.
+    val ownFloatingLyrics = com.cosmotune.music.ui.player.rememberOwnLyricsLines(selectedSong?.videoId.orEmpty())
+    LaunchedEffect(lyrics, ownFloatingLyrics) { DesktopFloatingLyrics.publish(ownFloatingLyrics ?: lyrics?.lines) }
     // The provider picked for this track in the player's lyrics drawer, if any.
     var lyricsOnly by remember(selectedSong?.videoId) { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
@@ -3871,6 +3874,11 @@ fun CosmotuneDesktopApp() {
                         // Ctrl/Command+Shift+M opens or closes the always-on-top mini player.
                         event.key == Key.M && event.isShiftPressed && (event.isCtrlPressed || event.isMetaPressed) -> {
                             DesktopMiniPlayer.toggle()
+                            true
+                        }
+                        // Ctrl/Command+Shift+L opens or closes the floating lyrics window.
+                        event.key == Key.L && event.isShiftPressed && (event.isCtrlPressed || event.isMetaPressed) -> {
+                            DesktopFloatingLyrics.toggle()
                             true
                         }
                         event.key == Key.DirectionLeft && event.isAltPressed && !overlays.nowPlaying -> {

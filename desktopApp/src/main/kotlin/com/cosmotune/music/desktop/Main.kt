@@ -362,6 +362,8 @@ private fun desktopMain() = application {
     }
     // The compact always-on-top mini player, beside the main window.
     DesktopMiniPlayerWindow()
+    // The floating lyrics window, the same way.
+    DesktopFloatingLyricsWindow()
     // What a click on the tray icon opens.
     DesktopTrayFlyoutWindow()
     // The taskbar's buttons and cover, and the Dock menu, follow what is playing.
