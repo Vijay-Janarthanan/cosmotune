@@ -3,6 +3,10 @@ package com.cosmotune.music.desktop
 import com.cosmotune.music.data.model.SearchFilter
 import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.innertube.RemovedUpload
+import com.cosmotune.music.data.innertube.StreamResolver
+import com.cosmotune.music.data.sources.StandInMatcher
+import com.cosmotune.music.data.sources.UnavailableCopies
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +53,12 @@ internal object DesktopSourceRegistry {
 
         suspend fun match(song: Song): Song? = matches(song).firstOrNull()
         fun owns(song: Song): Boolean = false
+
+        /**
+         * The copies this source holds of [song] by [StandInMatcher]'s looser rules, asked only once the song's own
+         * upload is gone; see [standIn].
+         */
+        suspend fun standIns(song: Song): List<Song> = emptyList()
     }
 
     private class AddonAdapter(
@@ -67,6 +77,8 @@ internal object DesktopSourceRegistry {
             DesktopAddonSource.stream(config, song, quality, picked = true)
 
         override suspend fun matches(song: Song): List<Song> = DesktopAddonSource.matches(config, song)
+
+        override suspend fun standIns(song: Song): List<Song> = DesktopAddonSource.matches(config, song, { rows, wanted -> standInRank(rows, wanted) })
     }
 
     private class ModuleAdapter(
@@ -84,6 +96,8 @@ internal object DesktopSourceRegistry {
             DesktopModuleSource.stream(config, song, quality)
 
         override suspend fun matches(song: Song): List<Song> = DesktopModuleSource.matches(config, song)
+
+        override suspend fun standIns(song: Song): List<Song> = DesktopModuleSource.matches(config, song, { rows, wanted -> standInRank(rows, wanted) })
     }
 
     private class JioAdapter(
@@ -98,6 +112,8 @@ internal object DesktopSourceRegistry {
             DesktopJioSaavn.stream(song.videoId)
 
         override suspend fun matches(song: Song): List<Song> = DesktopJioSaavn.matches(song)
+
+        override suspend fun standIns(song: Song): List<Song> = DesktopJioSaavn.matches(song, StandInMatcher::rankedCatalogue)
     }
 
     /** The listener's own Subsonic/OpenSubsonic server: its rows play as themselves, and it can stand in for others. */
@@ -122,11 +138,15 @@ internal object DesktopSourceRegistry {
             )
         }
 
-        override suspend fun matches(song: Song): List<Song> {
+        override suspend fun matches(song: Song): List<Song> = matches(song, DesktopTrackMatcher::ranked)
+
+        override suspend fun standIns(song: Song): List<Song> = matches(song, { rows, wanted -> standInRank(rows, wanted) })
+
+        private suspend fun matches(song: Song, rank: (List<Song>, Song) -> List<Song>): List<Song> {
             if (song.title.isBlank() || song.isVideo) return emptyList()
             for (query in DesktopTrackMatcher.queries(song)) {
                 val candidates = runCatching { catalogue.searchSongs(query, 25) }.getOrDefault(emptyList())
-                DesktopTrackMatcher.ranked(candidates, song).ifEmpty { null }?.let { return it }
+                rank(candidates, song).ifEmpty { null }?.let { return it }
             }
             return emptyList()
         }
@@ -148,18 +168,22 @@ internal object DesktopSourceRegistry {
             DesktopStream(stream.url, DesktopStreamFormat(stream.codec, stream.kbps, stream.sampleRateHz, stream.bitDepth),
                 sourceId = config.id, durationSec = stream.durationMs?.div(1000)?.toInt())
         }
-        override suspend fun matches(song: Song): List<Song> {
+        override suspend fun matches(song: Song): List<Song> = matches(song, DesktopTrackMatcher::ranked, SAME_RECORDING_SEC)
+
+        override suspend fun standIns(song: Song): List<Song> = matches(song, { rows, wanted -> standInRank(rows, wanted) }, StandInMatcher.FILM_TOLERANCE_SEC)
+
+        private suspend fun matches(song: Song, rank: (List<Song>, Song) -> List<Song>, withinSec: Int): List<Song> {
             if (song.title.isBlank() || song.isVideo) return emptyList()
             val manager = com.cosmotune.providers.ProviderHub.state.value.manager ?: return emptyList()
             for (query in DesktopTrackMatcher.queries(song)) {
                 val rows = manager.search(install.manifest.name, query, 25).map { it.song() }
-                val ranked = DesktopTrackMatcher.ranked(rows, song)
+                val ranked = rank(rows, song)
                 val matches = ranked.take(STREAM_ATTEMPTS).map { candidate ->
                     if (candidate.durationText != null) candidate else {
                         val id = com.cosmotune.music.data.sources.SourceTrackKeys.parse(candidate.videoId)?.second
                         id?.let { manager.track(install.manifest.name, it)?.song() } ?: candidate
                     }
-                }.filter { DesktopTrackMatcher.withinSeconds(it, song, SAME_RECORDING_SEC) }
+                }.filter { DesktopTrackMatcher.withinSeconds(it, song, withinSec) }
                 if (matches.isNotEmpty()) return matches
             }
             return emptyList()
@@ -177,19 +201,25 @@ internal object DesktopSourceRegistry {
 
         /** Allows an unavailable module/Jio stream to fall back by identity. */
         override suspend fun matches(song: Song): List<Song> = youTubeMatches(song)
+
+        /** YouTube Music's other songs rows for a song whose own upload is gone. */
+        override suspend fun standIns(song: Song): List<Song> = youTubeMatches(song, { rows, wanted -> standInRank(rows, wanted) })
     }
 
     /** YouTube Music's copies of [song], most confident first, found by title and artist. */
-    private suspend fun youTubeMatches(song: Song): List<Song> {
+    private suspend fun youTubeMatches(song: Song, rank: (List<Song>, Song) -> List<Song> = DesktopTrackMatcher::ranked): List<Song> {
         if (song.title.isBlank() || song.isVideo) return emptyList()
         for (query in DesktopTrackMatcher.queries(song)) {
             val candidates = DesktopSearchClient.search(query, SearchFilter.SONGS)
                 .getOrDefault(emptyList())
                 .mapNotNull { (it as? SearchResult.Track)?.song }
-            DesktopTrackMatcher.ranked(candidates, song).ifEmpty { null }?.let { return it }
+            rank(candidates, song).ifEmpty { null }?.let { return it }
         }
         return emptyList()
     }
+
+    private fun standInRank(candidates: List<Song>, song: Song): List<Song> =
+        StandInMatcher.rankedCatalogue(candidates, com.cosmotune.music.data.sources.TrackMatcher.targetOf(song))
 
     /**
      * The YouTube upload Automix measures [song] on: the row itself when it is one, else the best
@@ -489,6 +519,13 @@ internal object DesktopSourceRegistry {
             return@runCatching resolveLive(stand, quality, failedPackage).getOrThrow()
         }
 
+        // An upload already found gone: the copy that stood in for it, or the search for one, comes before the dead
+        // upload is asked again (which costs a full walk of YouTube's clients once its verdict has expired).
+        val searched = !song.isVideo && unavailableCopies.isGone(song.videoId)
+        if (searched) {
+            standIn(song, quality, excludedSourceId)?.let { return@runCatching DesktopLiveResolution(it) }
+        }
+
         val youtube = available.firstOrNull {
             it.config.kind == DesktopSourceKind.YOUTUBE && it.config.id != excludedSourceId
         }
@@ -503,14 +540,14 @@ internal object DesktopSourceRegistry {
         }
         // Nothing outranks YouTube, so there is no race to run — this is the plain resolve.
         if (higher.isEmpty() || youtube == null) {
-            return@runCatching DesktopLiveResolution(resolve(song, quality, excludedSourceId).getOrThrow())
+            val plain = resolve(song, quality, excludedSourceId)
+            return@runCatching DesktopLiveResolution(plain.getOrNull() ?: orStandIn(song, quality, excludedSourceId, plain.exceptionOrNull(), searched))
         }
 
         val startPolicy = startPolicySource()
         if (startPolicy == com.cosmotune.audio.PlaybackStartPolicy.BEST_QUALITY_FIRST) {
             val chosen = firstSubstitute(higher, song, quality, waitForBest = true)
-                ?: youtube.resolve(song, quality).getOrNull()
-                ?: error("No enabled music source could play this track")
+                ?: youtube.resolve(song, quality).let { own -> own.getOrNull() ?: orStandIn(song, quality, excludedSourceId, own.exceptionOrNull(), searched) }
             return@runCatching DesktopLiveResolution(chosen)
         }
         // Both legs are parented to the registry's own scope rather than the caller's.
@@ -530,12 +567,12 @@ internal object DesktopSourceRegistry {
         val lookup = scope.async {
             firstSubstitute(higher, song, quality)
         }
-        val fallback = scope.async { youtube.resolve(song, quality).getOrNull() }
+        val fallback = scope.async { youtube.resolve(song, quality) }
 
         val quick: DesktopStream? = select {
             lookup.onAwait { it }
             // A YouTube leg that finished without a URL has not won anything.
-            fallback.onAwait { stream -> if (stream != null) null else lookup.await() }
+            fallback.onAwait { own -> if (own.getOrNull() != null) null else lookup.await() }
         }
 
         if (quick != null) {
@@ -548,9 +585,10 @@ internal object DesktopSourceRegistry {
             return@runCatching DesktopLiveResolution(quick, if (startPolicy.allowsAutomaticUpgrade) betterThan(quick, higher, song, quality) else null)
         }
 
-        val youtubeStream = fallback.await()
+        val own = fallback.await()
+        val youtubeStream = own.getOrNull()
             ?: lookup.await()
-            ?: error("No enabled music source could play this track")
+            ?: return@runCatching DesktopLiveResolution(orStandIn(song, quality, excludedSourceId, own.exceptionOrNull(), searched))
         // Still running means it lost the race rather than ran out of answers.
         val pending = lookup.takeIf { it.isActive && startPolicy.allowsAutomaticUpgrade }
         if (!startPolicy.allowsAutomaticUpgrade) lookup.cancel()
@@ -558,6 +596,78 @@ internal object DesktopSourceRegistry {
             DesktopTrackLog.log("'${song.title}' started on YouTube while the other sources keep looking")
         }
         DesktopLiveResolution(youtubeStream, pending)
+    }
+
+    /** Uploads found gone, and what played instead; see [UnavailableCopies]. */
+    internal val unavailableCopies = UnavailableCopies()
+
+    /**
+     * What is left when YouTube could not play [song] and nothing outranking it had a copy: when YouTube's answer was a
+     * verdict (the upload removed or blocked), another copy of the same song; otherwise, or when there is none, the
+     * failure itself. The stand-in search is not run twice in one call ([searched]).
+     */
+    private suspend fun orStandIn(song: Song, quality: String?, excludedSourceId: String?, failure: Throwable?, searched: Boolean): DesktopStream {
+        val verdict = generateSequence(failure) { it.cause?.takeIf { cause -> cause !== it } }.take(8)
+            .firstOrNull { it is StreamResolver.PermanentlyUnplayableException }
+            ?: throw failure ?: IllegalStateException("No enabled music source could play this track")
+        // Gone for good, unlike an age gate a sign-in lifts: worth remembering past the resolver's ten minutes.
+        if (verdict.message == RemovedUpload.REASON || verdict.message?.contains("country") == true) {
+            unavailableCopies.markGone(song.videoId)
+        }
+        if (!searched && !song.isVideo) standIn(song, quality, excludedSourceId)?.let { return it }
+        DesktopTrackLog.log("no other copy of '${song.title}' was found to stand in for it")
+        throw verdict
+    }
+
+    /**
+     * Another copy of [song], whose own upload is gone, or null when there is none: the copy that played for it last
+     * time; else the first of the enabled sources (YouTube Music's own songs among them) to hold it by [StandInMatcher]'s
+     * rules; else another YouTube upload of the song. The log says which one played.
+     */
+    private suspend fun standIn(song: Song, quality: String?, excludedSourceId: String?): DesktopStream? {
+        if (song.isVideo || song.title.isBlank()) return null
+        unavailableCopies.standInFor(song.videoId)?.let { copy ->
+            resolve(copy, quality, excludedSourceId).getOrNull()?.let { stream ->
+                DesktopTrackLog.log("'${song.title}' is gone from YouTube; playing the copy that stood in last time ('${copy.title}' by '${copy.artist}' on ${sourceNameFor(stream)})")
+                return stream
+            }
+            unavailableCopies.forgetStandIn(song.videoId)
+        }
+        val sources = playbackAdapters(quality).filter { it.config.id != excludedSourceId }
+        if (sources.isEmpty()) return null
+        DesktopTrackLog.log("'${song.title}' is gone from YouTube; looking for another copy of it on ${sources.joinToString { it.descriptor.name }}")
+        val played = java.util.concurrent.ConcurrentHashMap<String, Song>()
+        val found = awaitSourceOffer(
+            requests = sources.map { source ->
+                suspend {
+                    source.standIns(song).take(STREAM_ATTEMPTS).firstNotNullOfOrNull { copy ->
+                        source.resolve(copy, quality).getOrNull()?.takeIf { playableHere(source, it) }?.also { played[it.url] = copy }
+                    }
+                }
+            },
+            timeoutMs = SUBSTITUTE_TIMEOUT_MS,
+            better = { held, next -> held ?: next },
+            ready = { true },
+        )
+        if (found != null) {
+            val copy = played[found.url]
+            DesktopTrackLog.log("'${song.title}' stands in from ${sourceNameFor(found)}: '${copy?.title}' by '${copy?.artist}' (${copy?.durationText ?: "length unknown"})")
+            copy?.let { unavailableCopies.rememberStandIn(song.videoId, it) }
+            return found
+        }
+        val youtube = sources.firstOrNull { it.config.kind == DesktopSourceKind.YOUTUBE } ?: return null
+        val target = com.cosmotune.music.data.sources.TrackMatcher.targetOf(song)
+        for (query in StandInMatcher.uploadQueries(target)) {
+            val uploads = DesktopSearchClient.search(query, SearchFilter.VIDEOS).getOrDefault(emptyList())
+                .mapNotNull { (it as? SearchResult.Track)?.song }
+            for (upload in StandInMatcher.rankedUploads(uploads, target).take(STREAM_ATTEMPTS)) {
+                val stream = youtube.resolve(upload, quality).getOrNull() ?: continue
+                DesktopTrackLog.log("'${song.title}' has no catalogue copy; playing another YouTube upload of it: '${upload.title}' by '${upload.artist}' (${upload.durationText})")
+                unavailableCopies.rememberStandIn(song.videoId, upload)
+                return stream
+            }
+        }
+        return null
     }
 
     /**

@@ -544,7 +544,11 @@ internal object DesktopModuleSource {
         matches(config, song).firstOrNull()
 
     /** Every copy the configured modules hold of [song], most confident first. */
-    suspend fun matches(config: DesktopSourceConfig, song: Song): List<Song> {
+    suspend fun matches(
+        config: DesktopSourceConfig,
+        song: Song,
+        rank: (List<Song>, Song) -> List<Song> = DesktopTrackMatcher::ranked,
+    ): List<Song> {
         if (!configured(config) || song.title.isBlank() || song.isVideo) return emptyList()
         val indexUrl = config.baseUrl.trim().takeIf(String::isNotBlank) ?: return emptyList()
         val modules = manager.modules(indexUrl).getOrDefault(emptyList())
@@ -553,7 +557,7 @@ internal object DesktopModuleSource {
             for (module in modules) {
                 val candidates = searchModule(module, config.id, indexUrl, query, 25)
                     .mapNotNull { (it as? SearchResult.Track)?.song }
-                DesktopTrackMatcher.ranked(candidates, song).ifEmpty { null }?.let { return it }
+                rank(candidates, song).ifEmpty { null }?.let { return it }
             }
         }
         return emptyList()
