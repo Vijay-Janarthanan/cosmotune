@@ -14,6 +14,8 @@ data class WatchPreferences(val density: WatchDensity = WatchDensity.BALANCED, v
     val homeLanguages: List<String> = listOf("ta", "hi"),
     /** How the player mixes the sound: as made, Night (loud and quiet evened out) or Clear voices. */
     val sound: com.cosmotune.video.player.AudioMix = com.cosmotune.video.player.AudioMix.NORMAL,
+    /** How many episodes of a season download at once (1 to 3). */
+    val parallelDownloads: Int = 1,
     /** Decode the picture in software only, for a device whose hardware decoder shows a broken picture. */
     val softwareDecoding: Boolean = false,
     /** On computers: send Dolby and DTS sound as it is to an amplifier. */

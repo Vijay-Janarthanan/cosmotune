@@ -44,7 +44,7 @@ import com.cosmotune.watch.model.WatchProfile
 import kotlinx.coroutines.launch
 
 /** Which of the settings' small dialogs is open. */
-private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, RESTORE, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
+private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, RESTORE, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID, AT_ONCE }
 
 /**
  * Watch settings on the same rows Video's settings use ([CosmoSettingsGroup], [CosmoSettingsRow]): Sources and add-ons first
@@ -155,6 +155,8 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
             val limit by repository.cacheLimitMb.collectAsState()
             val used by androidx.compose.runtime.produceState(0L, dialog) { value = runCatching { repository.cacheBytes() }.getOrDefault(0L) }
             CosmoSettingsGroup(header = "Storage") {
+                CosmoSettingsRow(CosmoIcons.Download, "Episodes at once", subtitle = when (preferences.parallelDownloads) {
+                    1 -> "One at a time"; else -> "${preferences.parallelDownloads} at a time" }, onClick = { dialog = WatchSettingsDialog.AT_ONCE })
                 CosmoSettingsRow(Icons.Rounded.Folder, "Cache", subtitle = "${sizeText(used) ?: "Empty"} of ${cacheLimitText(limit)}", onClick = { dialog = WatchSettingsDialog.CACHE })
                 CosmoSettingsRow(CosmoIcons.Download, "Back up to a file", subtitle = backupNote ?: "My list, where you are, playlists, channels and add-ons",
                     onClick = { scope.launch {
@@ -255,6 +257,15 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     onClick = { scope.launch { repository.clearCache(); cleared = true } })
                 Text("The cache keeps catalogues, guides and add-on answers so pages open quickly; the oldest go first. Streaming a torrent keeps at most 96 MB in memory and nothing on disk; downloads stay until you remove them.",
                     style = fonts.body, color = look.dim)
+            }
+        }
+        WatchSettingsDialog.AT_ONCE -> WatchDialog("Downloads", "Episodes at once", onDismiss = { dialog = null }) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("When you download a season, this many episodes download together. More is faster on a quick connection.", style = fonts.body, color = look.dim)
+                (1..com.cosmotune.watch.MAX_DOWNLOADS_AT_ONCE).forEach { n ->
+                    OrbitSelectChip(if (n == 1) "One at a time" else "$n at a time", preferences.parallelDownloads == n, fonts, look,
+                        onClick = { scope.launch { repository.setPreferences(repository.preferences.value.copy(parallelDownloads = n)) }; dialog = null }, haptic = false)
+                }
             }
         }
         WatchSettingsDialog.SEED_TIME -> WatchDialog("Torrents", "Share for", onDismiss = { dialog = null }) {
