@@ -154,7 +154,10 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
             CompositionLocalProvider(com.cosmotune.ui.shell.LocalCosmoMusicMini provides rememberPhoneMusicMini(shell.settings)) {
-                com.cosmotune.ui.theme.ModeGround { com.cosmotune.reading.ui.ReadApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
+                // Audiobooks play on the app's own player, so they go on with the screen off and show in Music's small player.
+                CompositionLocalProvider(com.cosmotune.reading.ui.LocalReadingAudio provides com.cosmotune.reading.rememberPhoneReadingAudio()) {
+                    com.cosmotune.ui.theme.ModeGround { com.cosmotune.reading.ui.ReadApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
+                }
             }
         }
         else if (shell != null && mode == AppMode.PODIO) holder.SaveableStateProvider("podio") {

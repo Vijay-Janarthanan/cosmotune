@@ -4382,7 +4382,23 @@ fun CosmotuneDesktopApp() {
                 },
             ) { contentPadding ->
                 if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)
-                if (com.cosmotune.video.host.desktopMangaShown()) return@DesktopFrame com.cosmotune.video.host.DesktopMangaPage(contentPadding)
+                if (com.cosmotune.video.host.desktopMangaShown()) {
+                    // Read's audiobooks play on this player, as a queue of their parts.
+                    val readPlay = rememberUpdatedState { items: List<com.cosmotune.reading.ui.ReadingAudioItem>, index: Int, position: Long ->
+                        if (!partyTrackChangeBlocked()) {
+                            liveQueue = DesktopQueue(items.map { it.song() }, index = index.coerceIn(0, (items.size - 1).coerceAtLeast(0)))
+                            preShuffleOrder = emptyList()
+                            playCurrent(startAtMs = position)
+                        }
+                    }
+                    val readToggle = rememberUpdatedState { togglePlayPauseFromUser() }
+                    val readAudio = remember { com.cosmotune.reading.ui.ReadingAudioHost({ a, b, c -> readPlay.value(a, b, c) }, { readToggle.value() },
+                        { playbackEngine.seekTo(it) }, { playbackEngine.setPlaybackSpeed(it) }) }
+                    SideEffect { readAudio.update(playback.song?.videoId, playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playbackEngine.playbackRate) }
+                    return@DesktopFrame CompositionLocalProvider(com.cosmotune.reading.ui.LocalReadingAudio provides readAudio) {
+                        com.cosmotune.video.host.DesktopMangaPage(contentPadding)
+                    }
+                }
                 if (com.cosmotune.video.host.desktopWatchShown()) return@DesktopFrame com.cosmotune.video.host.DesktopWatchPage(contentPadding)
                 if (com.cosmotune.video.host.desktopPodioShown()) {
                     // An episode as the desktop player takes it: from its downloaded file when there is one.

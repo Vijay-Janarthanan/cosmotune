@@ -35,6 +35,8 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     private val openStax = OpenStaxBookCatalogue(client)
     private val globalGrey = GlobalGreyBookCatalogue(client)
     val lookup = ReadingLookup(client)
+    /** Audiobooks for Listen: this device's, LibriVox's and the listener's Audiobookshelf's. */
+    val audio = ReadingAudioLibrary(store, File(root, "audio"), client)
     private val fontFiles = File(root, "fonts").apply { mkdirs() }.also { ReadingFonts.directory = it; ReadingFonts.known = store.state.value.fonts }
 
     /** Adds a font (TTF, OTF, WOFF or WOFF2) for books, such as OpenDyslexic. */

@@ -203,6 +203,8 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
         }
     }
     LaunchedEffect(Unit) { if (repository.state.value.folders.isNotEmpty()) scanFolders(quiet = true) }
+    // Audiobooks keep their place while the app's player has them, whichever page is showing.
+    ReadingAudioTracker(repository)
     val addFolder = { folderAccess.pick { folder -> action { repository.addFolder(folder); scanFolders(quiet = false) } } }
     // Pages keep their shelves, filters and scroll while a book, a search or the reader stands over them.
     val holder = rememberSaveableStateHolder()
@@ -229,6 +231,7 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
                     navigation.search -> BookSearchPage(page)
                     navigation.tab == BookTabs.BROWSE -> holder.SaveableStateProvider("tab:browse") { BookDiscover(page) }
                     navigation.tab == BookTabs.BOOKMARKS -> holder.SaveableStateProvider("tab:bookmarks") { BookBookmarks(page) }
+                    navigation.tab == BookTabs.LISTEN -> holder.SaveableStateProvider("tab:listen") { BookListen(page) }
                     else -> holder.SaveableStateProvider("tab:library") { BookLibrary(page) }
                 }
             }

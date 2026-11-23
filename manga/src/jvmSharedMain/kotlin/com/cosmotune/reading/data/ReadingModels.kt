@@ -113,7 +113,9 @@ import kotlinx.serialization.Serializable
     val koSync: ReadingKoSync? = null,
     /** Reading time by book and by day ("2026-11-23"), and each book's pace, for time left and the statistics. */
     val readingMs: Map<String, Long> = emptyMap(), val readingDays: Map<String, Long> = emptyMap(), val paces: Map<String, ReadingPace> = emptyMap(),
-    val profiles: List<ReadingProfile> = emptyList())
+    val profiles: List<ReadingProfile> = emptyList(),
+    /** The Listen shelf's audiobooks, and the listener's own Audiobookshelf when connected. */
+    val audiobooks: List<ReadingAudiobook> = emptyList(), val audiobookshelf: ReadingAudiobookshelf? = null)
 
 /** A folder of books on this device: a tree address on Android, a path on the desktop. */
 @Serializable data class ReadingFolder(val location: String, val name: String)

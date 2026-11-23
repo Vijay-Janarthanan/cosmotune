@@ -46,7 +46,8 @@ internal object BookTabs {
     const val LIBRARY = "Library"
     const val BROWSE = "Browse"
     const val BOOKMARKS = "Bookmarks"
-    val all = listOf(LIBRARY, BROWSE, BOOKMARKS)
+    const val LISTEN = "Listen"
+    val all = listOf(LIBRARY, BROWSE, LISTEN, BOOKMARKS)
 
     fun of(name: String): String = when (name) {
         in all -> name
