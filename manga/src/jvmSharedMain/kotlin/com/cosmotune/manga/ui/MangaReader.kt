@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
@@ -116,7 +117,7 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
             catch (failure: Exception) { error = failure.message ?: "Chapter could not be loaded"; verificationAddress = (failure as? MangaBrowserRequired)?.address }
             finally { loading = false }
         }
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
+        Box(Modifier.fillMaxSize().background(readerGround(reading.readerBackground))) {
             when {
                 // The chapter's name shows at once while its pages come, with the way back in the corner.
                 loading -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -173,6 +174,7 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
                 ReadSlider(library.readerBrightness, { value -> change { it.copy(readerBrightness = value.coerceIn(0.3f, 1f)) } }, 0.3f..1f, 6, "Brightness",
                     Modifier.testTag("manga:reader:brightness"))
             }
+            MangaReaderImageOptions(library, Modifier.padding(horizontal = 20.dp)) { block -> change(block) }
             com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Keep screen on while reading"), library.readerKeepScreenOn, { on -> change { it.copy(readerKeepScreenOn = on) } },
                 Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
             com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Page number at the foot"), library.readerPageNumber, { on -> change { it.copy(readerPageNumber = on) } },
@@ -207,12 +209,24 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     controls: Boolean, hasNext: Boolean, toggleControls: () -> Unit, hideControls: () -> Unit, actions: ReaderActions, onBack: () -> Unit, onNext: () -> Unit) {
     val library by repository.store.state.collectAsState()
     val initial = initialPage.coerceIn(pages.indices)
-    val pager = rememberPagerState(initialPage = initial) { pages.size }
+    // Two pages side by side only in the paged modes and only while the window is wider than tall.
+    var wide by remember { mutableStateOf(false) }
+    val spreads = remember(pages.size, library.readerSpread, library.readerCoverAlone, wide, mode) {
+        if (library.readerSpread && wide && mode != MangaReaderMode.WEBTOON) mangaSpreads(pages.size, library.readerCoverAlone) else pages.indices.map { listOf(it) }
+    }
+    fun spreadOf(index: Int): Int = spreads.indexOfFirst { index in it }.coerceAtLeast(0)
+    val pager = rememberPagerState(initialPage = spreadOf(initial)) { spreads.size }
+    // When the spreads change (the window turned, the setting changed) the reader stays on the same page.
+    var shownPage by remember { mutableIntStateOf(initial) }
+    LaunchedEffect(spreads) { val target = spreadOf(shownPage); if (target != pager.currentPage) pager.scrollToPage(target) }
+    val treatment = MangaPageTreatment(library.readerCrop, library.readerRotateWide && !(library.readerSpread && wide))
     val scroll = rememberLazyListState(initialFirstVisibleItemIndex = initial)
     var restorePending by remember { mutableStateOf(mode == MangaReaderMode.WEBTOON && initialOffset > 0) }
     var previousMode by remember { mutableStateOf(mode) }
     val scope = rememberCoroutineScope()
-    val page = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemIndex.coerceAtMost(pages.lastIndex) else pager.settledPage
+    val page = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemIndex.coerceAtMost(pages.lastIndex) else spreads.getOrNull(pager.settledPage)?.first() ?: 0
+    SideEffect { shownPage = page }
+    val lastShown = mode != MangaReaderMode.WEBTOON && pager.settledPage >= spreads.lastIndex
     val readyImages = remember { mutableStateMapOf<Int, Boolean>() }
     SideEffect { pages.getOrNull(page)?.let { onCurrent(it.id) } }
     // A swipe or a drag means reading has started: the chrome steps aside (a tap on the middle brings it back).
@@ -252,8 +266,8 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     }
     LaunchedEffect(mode) {
         if (mode != previousMode) {
-            if (mode == MangaReaderMode.WEBTOON) scroll.scrollToItem(pager.currentPage)
-            else if (previousMode == MangaReaderMode.WEBTOON) pager.scrollToPage(scroll.firstVisibleItemIndex)
+            if (mode == MangaReaderMode.WEBTOON) scroll.scrollToItem(spreads.getOrNull(pager.currentPage)?.first() ?: 0)
+            else if (previousMode == MangaReaderMode.WEBTOON) pager.scrollToPage(spreadOf(scroll.firstVisibleItemIndex))
             previousMode = mode
         }
     }
@@ -269,9 +283,10 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     }
     LaunchedEffect(mode, progressRetry) {
         fun current(): Triple<Int, Int, Boolean> {
-            val index = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemIndex.coerceAtMost(pages.lastIndex) else pager.settledPage
+            val spread = spreads.getOrNull(pager.settledPage)
+            val index = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemIndex.coerceAtMost(pages.lastIndex) else spread?.first() ?: 0
             val offset = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemScrollOffset else 0
-            return Triple(index, offset, if (mode == MangaReaderMode.WEBTOON) webtoonFinished else index == pages.lastIndex)
+            return Triple(index, offset, if (mode == MangaReaderMode.WEBTOON) webtoonFinished else spread?.contains(pages.lastIndex) == true)
         }
         try {
             snapshotFlow { if (restorePending) null else current() }.filterNotNull().distinctUntilChanged().debounce(200).collect { (index, offset, finished) ->
@@ -288,25 +303,31 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     fun go(target: Int) {
         restorePending = false
         val safe = target.coerceIn(pages.indices)
-        scope.launch { if (mode == MangaReaderMode.WEBTOON) scroll.animateScrollToItem(safe) else pager.animateScrollToPage(safe) }
+        scope.launch { if (mode == MangaReaderMode.WEBTOON) scroll.animateScrollToItem(safe) else pager.animateScrollToPage(spreadOf(safe)) }
+    }
+    /** One page (or spread) on, [by] +1, or back, -1, in the paged modes. */
+    fun step(by: Int) {
+        restorePending = false
+        val target = (pager.settledPage + by).coerceIn(spreads.indices)
+        scope.launch { pager.animateScrollToPage(target) }
     }
     fun scrollScreen(direction: Int) {
         restorePending = false
         scope.launch { scroll.animateScrollBy(direction * (scroll.layoutInfo.viewportSize.height * .85f).coerceAtLeast(100f)) }
     }
-    val finished = if (mode == MangaReaderMode.WEBTOON) webtoonFinished else page == pages.lastIndex
+    val finished = if (mode == MangaReaderMode.WEBTOON) webtoonFinished else lastShown
     fun advance() {
         if (mode == MangaReaderMode.WEBTOON && !webtoonFinished) scrollScreen(1)
-        else if (page == pages.lastIndex || mode == MangaReaderMode.WEBTOON && webtoonFinished) scope.launch {
-            try { repository.store.markRead(chapter, true); onNext() }
+        else if (lastShown || mode == MangaReaderMode.WEBTOON && webtoonFinished) scope.launch {
+            try { if (!library.incognito) repository.store.markRead(chapter, true); onNext() }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { progressError = true }
         }
-        else go(page + 1)
+        else step(1)
     }
-    fun back() { if (mode == MangaReaderMode.WEBTOON) scrollScreen(-1) else go(page - 1) }
-    val onTap: (Float, Float) -> Unit = { x, width ->
-        when (readerTap(x, width, mode)) {
+    fun back() { if (mode == MangaReaderMode.WEBTOON) scrollScreen(-1) else step(-1) }
+    val onTap: (Float, Float, Float, Float) -> Unit = { x, y, width, height ->
+        when (readerTap(x, y, width, height, mode, library.readerTapZones, library.readerTapInvert)) {
             ReaderTap.MENU -> toggleControls()
             ReaderTap.NEXT -> { hideControls(); advance() }
             ReaderTap.PREVIOUS -> { hideControls(); back() }
@@ -317,10 +338,13 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
         else when (event.key) {
             Key.Escape -> { if (controls) onBack() else toggleControls(); true }
             Key.F11 -> { toggleControls(); true }
-            Key.DirectionRight -> { if (mode == MangaReaderMode.WEBTOON) scrollScreen(1) else go(page + if (mode == MangaReaderMode.PAGES_RTL) -1 else 1); true }
-            Key.DirectionLeft -> { if (mode == MangaReaderMode.WEBTOON) scrollScreen(-1) else go(page + if (mode == MangaReaderMode.PAGES_RTL) 1 else -1); true }
-            Key.PageDown, Key.Spacebar -> { if (mode == MangaReaderMode.WEBTOON) scrollScreen(1) else go(page + 1); true }
-            Key.PageUp -> { if (mode == MangaReaderMode.WEBTOON) scrollScreen(-1) else go(page - 1); true }
+            Key.DirectionRight -> { if (mode == MangaReaderMode.WEBTOON) scrollScreen(1) else step(if (mode == MangaReaderMode.PAGES_RTL) -1 else 1); true }
+            Key.DirectionLeft -> { if (mode == MangaReaderMode.WEBTOON) scrollScreen(-1) else step(if (mode == MangaReaderMode.PAGES_RTL) 1 else -1); true }
+            Key.PageDown, Key.Spacebar -> { if (mode == MangaReaderMode.WEBTOON) scrollScreen(1) else step(1); true }
+            Key.PageUp -> { if (mode == MangaReaderMode.WEBTOON) scrollScreen(-1) else step(-1); true }
+            // Volume keys turn pages where the device has them, when that is on in the reader's settings.
+            Key.VolumeDown -> if (!library.readerVolumeKeys) false else { advance(); true }
+            Key.VolumeUp -> if (!library.readerVolumeKeys) false else { back(); true }
             Key.DirectionDown -> { if (mode == MangaReaderMode.WEBTOON) { scrollScreen(1); true } else false }
             Key.DirectionUp -> { if (mode == MangaReaderMode.WEBTOON) { scrollScreen(-1); true } else false }
             Key.Plus, Key.Equals, Key.NumPadAdd -> { zoomBy(1.25f); true }
@@ -328,16 +352,30 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
             Key.Zero, Key.NumPad0 -> { pages.getOrNull(page)?.let { zoom.remove(it.id) }; true }
             else -> false
         }
-    }.focusable()) {
+    }.focusable().onSizeChanged { wide = it.width > it.height }) {
+        val filter = readerFilter(library.readerFilter)
         if (mode == MangaReaderMode.WEBTOON) LazyColumn(state = scroll, modifier = Modifier.fillMaxSize().testTag("manga:webtoon")) {
             itemsIndexed(pages, key = { _, item -> item.id }) { index, item ->
                 MangaImage(repository, item, chapter.sourceId, webtoon = true, fitWidth = true, zoom[item.id] ?: 1f, { zoom[item.id] = it }, onTap,
-                    onReady = { ready -> readyImages[index] = ready })
+                    onReady = { ready -> readyImages[index] = ready }, treatment = treatment.copy(rotateWide = false), filter = filter)
             }
             item(key = "chapter-end") { Box(Modifier.fillMaxWidth().height(1.dp).testTag("manga:chapter-end")) }
         } else HorizontalPager(pager, reverseLayout = mode == MangaReaderMode.PAGES_RTL, beyondViewportPageCount = 0, modifier = Modifier.fillMaxSize()) { index ->
-            val item = pages[index]
-            MangaImage(repository, item, chapter.sourceId, webtoon = false, fitWidth = fit == MangaReaderFit.WIDTH, zoom[item.id] ?: 1f, { zoom[item.id] = it }, onTap)
+            val spread = spreads[index]
+            if (spread.size == 1) {
+                val item = pages[spread.single()]
+                MangaImage(repository, item, chapter.sourceId, webtoon = false, fitWidth = fit == MangaReaderFit.WIDTH, zoom[item.id] ?: 1f, { zoom[item.id] = it }, onTap,
+                    treatment = treatment, filter = filter)
+            } else Row(Modifier.fillMaxSize().testTag("manga:spread")) {
+                // Right to left reads the right-hand page first.
+                (if (mode == MangaReaderMode.PAGES_RTL) spread.reversed() else spread).forEachIndexed { side, pageIndex ->
+                    val item = pages[pageIndex]
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = if (side == 0) Alignment.CenterEnd else Alignment.CenterStart) {
+                        MangaImage(repository, item, chapter.sourceId, webtoon = false, fitWidth = false, zoom[item.id] ?: 1f, { zoom[item.id] = it },
+                            { x, y, width, height -> onTap(x + side * width, y, width * 2, height) }, treatment = treatment, filter = filter)
+                    }
+                }
+            }
         }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
@@ -421,9 +459,9 @@ private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: S
     var retry by remember(page.id) { mutableIntStateOf(0) }
     var offset by remember(page.id) { mutableStateOf(Offset.Zero) }
     if (scale == 1f && offset != Offset.Zero) offset = Offset.Zero
-    LaunchedEffect(page.id, retry) {
+    LaunchedEffect(page.id, retry, treatment) {
         failure = null
-        try { file = repository.pageFile(page, sourceId) }
+        try { file = repository.pageFile(page, sourceId).let { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { mangaTreatedPage(it, treatment) } } }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) { failure = error.message ?: "Page could not be loaded" }
     }
@@ -445,7 +483,7 @@ private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: S
                 .transformable(transforms, canPan = { latestScale.value > 1f })
                 .pointerInput(page.id) {
                     detectTapGestures(
-                        onTap = { position -> latestTap.value(position.x, size.width.toFloat()) },
+                        onTap = { position -> latestTap.value(position.x, position.y, size.width.toFloat(), size.height.toFloat()) },
                         onDoubleTap = { onScale(if (latestScale.value == 1f) 2f else 1f); offset = Offset.Zero },
                     )
                 },

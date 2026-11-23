@@ -92,6 +92,7 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
 
     suspend fun progress(value: MangaProgress) {
         require(value.pageCount > 0 && value.page in 0 until value.pageCount && value.pageOffsetPx in 0..10_000_000)
+        if (state.value.incognito) return
         update { it.copy(progress = it.progress + (value.bookId to value), readerMode = value.mode, newChapters = it.newChapters - value.chapterId,
             readChapters = if (value.finished) it.readChapters + value.chapterId else it.readChapters) }
     }

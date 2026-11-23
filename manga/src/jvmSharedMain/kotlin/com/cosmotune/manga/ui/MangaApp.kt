@@ -377,7 +377,7 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
             try { repository.store.save(repository.store.archives.importImages(folder.name, folder.images)) } finally { onBusy(false) }
         } }, onFailure = { scope.onError(it.message ?: "Folder could not be opened") })
     }
-    val books = mangaLibraryOrder(state.collectionBooks(collection).filter { !unreadOnly || it.chapters.any { chapter -> chapter.id !in state.readChapters } }, sort, state)
+    val books = mangaLibraryOrder(mangaLibraryFilter(state.collectionBooks(collection), filters.toSet(), state), sort, state)
     val reading = state.books.filter { book -> state.progress[book.id]?.let { !it.finished || mangaContinue(book, state).resumes } == true }
         .maxByOrNull { state.progress[it.id]?.updatedAtMs ?: 0L }
     val discovery = state.sources.firstOrNull { it.enabled && MangaSourcePolicy.allowed(it) }

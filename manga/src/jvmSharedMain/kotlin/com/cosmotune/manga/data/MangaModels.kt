@@ -65,6 +65,23 @@ enum class MangaReaderMode { PAGES_LTR, PAGES_RTL, WEBTOON }
 @Serializable
 enum class MangaReaderFit { PAGE, WIDTH }
 
+@Serializable enum class MangaReaderFilter { NONE, GREY, INVERT, SEPIA }
+@Serializable enum class MangaTapZones { THIRDS, L_SHAPED, KINDLE, EDGE, OFF }
+@Serializable enum class MangaReaderBackground { BLACK, GREY, WHITE }
+
+/**
+ * The spreads of a chapter of [count] pages read two at a time: pairs of page indices, the first page alone when [coverAlone]
+ * (a cover is a single page), and a last page without a partner alone.
+ */
+fun mangaSpreads(count: Int, coverAlone: Boolean): List<List<Int>> {
+    if (count <= 0) return emptyList()
+    val result = ArrayList<List<Int>>()
+    var index = 0
+    if (coverAlone) { result += listOf(0); index = 1 }
+    while (index < count) { result += if (index + 1 < count) listOf(index, index + 1) else listOf(index); index += 2 }
+    return result
+}
+
 @Serializable
 data class MangaProgress(
     val bookId: String,
