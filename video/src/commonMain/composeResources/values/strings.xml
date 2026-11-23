@@ -661,4 +661,8 @@
     <string name="video_dl_search">Search your downloads</string>
     <string name="video_move_top">Move to the top</string>
     <string name="video_move_bottom">Move to the bottom</string>
+    <string name="video_settings_file">Settings</string>
+    <string name="video_settings_export">Save your settings to a file</string>
+    <string name="video_settings_import">Load settings from a file</string>
+    <string name="video_settings_imported">Settings loaded</string>
 </resources>
