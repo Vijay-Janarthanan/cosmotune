@@ -1,5 +1,6 @@
 package com.cosmotune.podio
 
+import com.cosmotune.ui.theme.cosmoAmbientGround
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
@@ -83,7 +84,8 @@ import java.io.File
     androidx.activity.compose.BackHandler(onBack = onMusic)
     // The page draws under the status bar (its bars pad themselves, the full-screen globe runs edge to edge) and the dock keeps
     // above the navigation bar; only the side insets (a landscape cut-out) are taken here.
-    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).imePadding()) {
+    // The ground runs on under the cut-out too (the page itself starts beside it), so the side of a phone on its side is not a black strip.
+    Box(Modifier.fillMaxSize().then(Modifier.cosmoAmbientGround()).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).imePadding()) {
     PodioApp(PodioRefreshWorker.libraryFile(context),
         PodioPlayback(current?.id ?: state.song?.videoId, current?.title ?: state.song?.title.orEmpty(),
             current?.author ?: state.song?.artist.orEmpty(), state.isPlaying, pending != null || state.isLoading,
