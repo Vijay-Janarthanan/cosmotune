@@ -194,6 +194,7 @@ object LyricsRepository {
         LyricsSource.BETTER_LYRICS_PORTATO -> BetterLyrics.portato(title, artist, durationMs, album)
         LyricsSource.YOUTUBE_MUSIC -> YouTubeMusicLyrics.lyrics(videoId)
         LyricsSource.LRCLIB -> LrcLib.lyrics(title, artist, durationMs)
+        LyricsSource.YOUTUBE_CAPTIONS -> YouTubeCaptionLyrics.lyrics(videoId)
         LyricsSource.OWN -> OwnLyrics.lines(videoId)
     }
 

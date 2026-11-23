@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 class LyricsSourceSettingsTest {
 
     @Test
-    fun `the list is the five measured sources, word-timed first`() {
+    fun `the list is the five measured sources, word-timed first, then the video's captions`() {
         assertEquals(
             listOf(
                 LyricsSource.LRC_RED,
@@ -15,6 +15,7 @@ class LyricsSourceSettingsTest {
                 LyricsSource.BETTER_LYRICS_PORTATO,
                 LyricsSource.YOUTUBE_MUSIC,
                 LyricsSource.LRCLIB,
+                LyricsSource.YOUTUBE_CAPTIONS,
             ),
             LyricsSource.offered,
         )
@@ -38,7 +39,7 @@ class LyricsSourceSettingsTest {
     fun `a source never shown when the choice was made is switched on`() {
         val seen = listOf("LRC_RED", "LRCLIB", "GENIUS")
         assertEquals(
-            setOf(LyricsSource.LRCLIB, LyricsSource.BETTER_LYRICS, LyricsSource.BETTER_LYRICS_PORTATO, LyricsSource.YOUTUBE_MUSIC),
+            setOf(LyricsSource.LRCLIB, LyricsSource.BETTER_LYRICS, LyricsSource.BETTER_LYRICS_PORTATO, LyricsSource.YOUTUBE_MUSIC, LyricsSource.YOUTUBE_CAPTIONS),
             LyricsSource.enabled(listOf("LRCLIB"), seen),
         )
     }

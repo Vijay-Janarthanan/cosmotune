@@ -56,6 +56,11 @@ enum class LyricsSource(
         detail = "Whole lines, from a free community library",
         wordSynced = false,
     ),
+    YOUTUBE_CAPTIONS(
+        label = "YouTube captions",
+        detail = "Timed lines from the captions the video's uploader added",
+        wordSynced = false,
+    ),
 
     /**
      * The listener's own: lyrics they picked from a typed search or timed themselves ([OwnLyrics]). Never asked like a
