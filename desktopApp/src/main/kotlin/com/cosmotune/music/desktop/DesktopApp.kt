@@ -5415,7 +5415,10 @@ private fun DesktopFrame(
     val roundCorners = DesktopPlatform.isMac && !maximized
     // The window's one "Removed · Undo" snackbar: the bottom chrome draws it in a narrow window, the frame over the player bar here.
     val orbitUndo = com.cosmotune.ui.orbit.rememberOrbitUndo()
-    CompositionLocalProvider(LocalDesktopHaze provides haze, com.cosmotune.ui.orbit.LocalOrbitUndo provides orbitUndo) {
+    // A page's top wash (Watch's) is painted here, from the window's top behind the sidebar and the top bar too, so the colour
+    // does not start in a hard line under the bar.
+    val frameWash = remember { mutableStateOf<com.cosmotune.ui.orbit.OrbitWashSpec?>(null) }
+    CompositionLocalProvider(LocalDesktopHaze provides haze, com.cosmotune.ui.orbit.LocalOrbitUndo provides orbitUndo, com.cosmotune.ui.orbit.LocalOrbitFrameWash provides frameWash) {
         Box(
             modifier
                 .fillMaxSize()
@@ -5424,14 +5427,14 @@ private fun DesktopFrame(
         ) {
             // Both sources of the same state: the chrome blurs the backdrop behind it, and the
             // floating bottom bar blurs the page scrolling under it.
-            if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }
+            if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(); com.cosmotune.ui.orbit.OrbitFrameWash(frameWash.value) }
             Column(Modifier.fillMaxSize()) {
                 // Above everything, and outside the box the rest of the window is drawn in, because
                 // that is what a title bar is.
                 DesktopTitleBar()
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     // With a material the look's ground lies here, below the title bar (without one, the window's own ground above is it).
-                    if (glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }
+                    if (glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(); com.cosmotune.ui.orbit.OrbitFrameWash(frameWash.value) }
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val compact = maxWidth < 980.dp
                         // The navigation rule (CosmoNav): under 600 dp the bottom bar, from 600 dp the side rail, and from the
