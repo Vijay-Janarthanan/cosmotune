@@ -104,3 +104,16 @@ class MangaVerticalSeekTest {
     }
 }
 
+class MangaRangeSelectTest {
+    private val order = listOf("c1", "c2", "c3", "c4", "c5")
+
+    @Test fun theFirstHoldChoosesOne() = assertEquals(setOf("c2"), mangaHoldSelect(emptySet(), order, null, "c2"))
+
+    @Test fun aSecondHoldTakesEverythingBetween() {
+        assertEquals(setOf("c2", "c3", "c4", "c5"), mangaHoldSelect(setOf("c2"), order, "c2", "c5"))
+        assertEquals(setOf("c1", "c2", "c3", "c4"), mangaHoldSelect(setOf("c4"), order, "c4", "c1"))
+    }
+
+    @Test fun holdingAChosenOneLetsItGo() = assertEquals(setOf("c2"), mangaHoldSelect(setOf("c2", "c3"), order, "c3", "c3"))
+}
+

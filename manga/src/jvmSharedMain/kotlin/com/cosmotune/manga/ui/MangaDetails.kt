@@ -66,6 +66,8 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
     val readOrFind: (MangaChapter) -> Unit = { chapter -> if (book.unlinkedSourceName() != null) migrate = true else onRead(chapter) }
     // A hold on a chapter starts choosing several (Mihon's selection): mark read or unread, download, remove downloads.
     var selection by remember(book.id) { mutableStateOf(emptySet<String>()) }
+    // The last chapter chosen: holding another one while choosing takes every chapter between them (Komikku's range selection).
+    var anchor by remember(book.id) { mutableStateOf<String?>(null) }
     val editions = book.editions()
     var edition by rememberSaveable(book.id) { mutableStateOf("") }
     var newestFirst by rememberSaveable(book.id) { mutableStateOf(false) }
@@ -94,8 +96,8 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
             item(key = "series:about") { SeriesAbout(scope, book) }
             item(key = "series:related") { SeriesRelated(scope, book) }
             chapterItems(scope, book, listed, filters, next.chapter, selection, onRead = { chapter ->
-                if (selection.isEmpty()) readOrFind(chapter) else selection = selection.toggle(chapter.id)
-            }) { chapter -> selection = selection.toggle(chapter.id) }
+                if (selection.isEmpty()) readOrFind(chapter) else { selection = selection.toggle(chapter.id); anchor = chapter.id }
+            }) { chapter -> selection = mangaHoldSelect(selection, listed.map { it.id }, anchor, chapter.id); anchor = chapter.id }
         }
         if (selection.isNotEmpty()) SelectionBar(scope, book, listed, selection, { selection = it }, Modifier.align(Alignment.BottomCenter).padding(bottom = scope.bottom))
     }

@@ -363,3 +363,14 @@ private val SHORT_DAY = DateTimeFormatter.ofPattern("EEEE, d MMM", Locale.getDef
 internal fun readerSeekPage(y: Float, height: Float, count: Int): Int =
     if (count <= 1 || height <= 0f) 0 else ((y / height).coerceIn(0f, 1f) * (count - 1)).roundToInt()
 
+/**
+ * A hold while choosing chapters: with nothing chosen, or on a chosen one, it toggles that one; otherwise it adds every chapter
+ * from [anchor] (the last one chosen) to [held] in the list's order.
+ */
+internal fun mangaHoldSelect(selection: Set<String>, order: List<String>, anchor: String?, held: String): Set<String> {
+    if (selection.isEmpty() || held in selection || anchor == null || anchor !in selection) return if (held in selection) selection - held else selection + held
+    val from = order.indexOf(anchor); val to = order.indexOf(held)
+    if (from < 0 || to < 0) return selection + held
+    return selection + order.subList(minOf(from, to), maxOf(from, to) + 1)
+}
+
