@@ -87,3 +87,20 @@ class MangaGapLogicTest {
         assertTrue(mangaSeriesToUpdate(state.copy(updateSkipFinished = false), setOf("a", "b")).any { it.id == "done" })
     }
 }
+
+class MangaVerticalSeekTest {
+    @Test fun theTopIsTheFirstPageAndTheFootTheLast() {
+        assertEquals(0, readerSeekPage(0f, 300f, 20))
+        assertEquals(19, readerSeekPage(300f, 300f, 20))
+        assertEquals(19, readerSeekPage(900f, 300f, 20))
+        assertEquals(10, readerSeekPage(158f, 300f, 20))
+        assertEquals(0, readerSeekPage(-5f, 300f, 20))
+        assertEquals(0, readerSeekPage(100f, 300f, 1))
+    }
+
+    @Test fun topToBottomTurnsWithTheSameZonesAsLeftToRight() {
+        assertEquals(ReaderTap.NEXT, readerTap(90f, 50f, 100f, 100f, MangaReaderMode.PAGES_VERTICAL, MangaTapZones.THIRDS, false))
+        assertEquals(ReaderTap.PREVIOUS, readerTap(10f, 50f, 100f, 100f, MangaReaderMode.PAGES_VERTICAL, MangaTapZones.THIRDS, false))
+    }
+}
+

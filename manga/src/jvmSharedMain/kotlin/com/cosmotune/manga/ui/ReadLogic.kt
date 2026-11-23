@@ -1,5 +1,7 @@
 package com.cosmotune.manga.ui
 
+import kotlin.math.roundToInt
+
 import com.cosmotune.manga.data.MangaBook
 import com.cosmotune.manga.data.MangaChapter
 import com.cosmotune.manga.data.MangaLibraryState
@@ -346,6 +348,7 @@ internal fun readerTap(x: Float, y: Float, width: Float, height: Float, mode: Ma
 internal fun readerModeLabel(mode: MangaReaderMode): String = when (mode) {
     MangaReaderMode.PAGES_LTR -> "Left to right"
     MangaReaderMode.PAGES_RTL -> "Right to left"
+    MangaReaderMode.PAGES_VERTICAL -> "Top to bottom"
     MangaReaderMode.WEBTOON -> "Webtoon"
 }
 
@@ -355,3 +358,8 @@ internal fun titleInitials(title: String): String =
 
 private val DATE = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 private val SHORT_DAY = DateTimeFormatter.ofPattern("EEEE, d MMM", Locale.getDefault())
+
+/** The page a vertical slider of [height] points at, [y] from its top: the top is the first page and the foot the last. */
+internal fun readerSeekPage(y: Float, height: Float, count: Int): Int =
+    if (count <= 1 || height <= 0f) 0 else ((y / height).coerceIn(0f, 1f) * (count - 1)).roundToInt()
+

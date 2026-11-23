@@ -59,7 +59,8 @@ data class MangaPage(
 )
 
 @Serializable
-enum class MangaReaderMode { PAGES_LTR, PAGES_RTL, WEBTOON }
+/** Paged left to right or right to left, paged top to bottom (Mihon's vertical pager), or one long strip. Added values go last. */
+enum class MangaReaderMode { PAGES_LTR, PAGES_RTL, WEBTOON, PAGES_VERTICAL }
 
 /** How a page fills the reader in the paged modes: whole page on screen, or full width with the rest scrolled. Webtoon always fits width. */
 @Serializable
@@ -166,6 +167,8 @@ data class MangaLibraryState(
     val webDav: MangaWebDav? = null,
     /** Page images blanked out in the reader, by their content ([MangaHiddenImages]). */
     val hiddenImages: Map<String, MangaHiddenImage> = emptyMap(),
+    /** Mihon's continuous vertical: the webtoon strip with a gap between pages. */
+    val readerWebtoonGaps: Boolean = false,
     /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
     val readLog: Map<String, Long> = emptyMap(),
     /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */

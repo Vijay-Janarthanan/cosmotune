@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -44,6 +46,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -159,10 +164,14 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
         if (settings) KitSheet(onDismiss = { settings = false; runCatching { focus.requestFocus() } }) {
             ReadSheetHeader(mangaText("Reading mode"), onDone = { settings = false; runCatching { focus.requestFocus() } })
             ReadSheetSection(mangaText("Direction")) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MangaReaderMode.entries.forEach { item -> ReadChip(mangaText(readerModeLabel(item)), mode == item, { mode = item }) }
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    readerModeOrder.forEach { item -> ReadChip(mangaText(readerModeLabel(item)), mode == item, { mode = item }) }
                 }
             }
+            if (mode == MangaReaderMode.WEBTOON) com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Space between pages"), reading.readerWebtoonGaps, { on ->
+                scope.launch { runCatching { repository.store.update { it.copy(readerWebtoonGaps = on) } } }
+            }, plain = true, modifier = Modifier.testTag("manga:reader:gaps"))
             if (mode != MangaReaderMode.WEBTOON) ReadSheetSection(mangaText("Scale")) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ReadChip(mangaText("Fit page"), fit == MangaReaderFit.PAGE, { chooseFit(MangaReaderFit.PAGE) })
@@ -376,8 +385,8 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
             // Volume keys turn pages where the device has them, when that is on in the reader's settings.
             Key.VolumeDown -> if (!library.readerVolumeKeys) false else { advance(); true }
             Key.VolumeUp -> if (!library.readerVolumeKeys) false else { back(); true }
-            Key.DirectionDown -> { if (mode == MangaReaderMode.WEBTOON) { scrollScreen(1); true } else false }
-            Key.DirectionUp -> { if (mode == MangaReaderMode.WEBTOON) { scrollScreen(-1); true } else false }
+            Key.DirectionDown -> when (mode) { MangaReaderMode.WEBTOON -> { scrollScreen(1); true }; MangaReaderMode.PAGES_VERTICAL -> { step(1); true }; else -> false }
+            Key.DirectionUp -> when (mode) { MangaReaderMode.WEBTOON -> { scrollScreen(-1); true }; MangaReaderMode.PAGES_VERTICAL -> { step(-1); true }; else -> false }
             Key.Plus, Key.Equals, Key.NumPadAdd -> { zoomBy(1.25f); true }
             Key.Minus, Key.NumPadSubtract -> { zoomBy(0.8f); true }
             Key.Zero, Key.NumPad0 -> { pages.getOrNull(page)?.let { zoom.remove(it.id) }; true }
@@ -385,13 +394,15 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
         }
     }.focusable().onSizeChanged { wide = it.width > it.height }) {
         val filter = if (library.readerEInk && library.readerFilter == MangaReaderFilter.NONE) readerEInkFilter else readerFilter(library.readerFilter)
-        if (mode == MangaReaderMode.WEBTOON) LazyColumn(state = scroll, modifier = Modifier.fillMaxSize().testTag("manga:webtoon")) {
+        if (mode == MangaReaderMode.WEBTOON) LazyColumn(state = scroll, modifier = Modifier.fillMaxSize().testTag("manga:webtoon"),
+            verticalArrangement = if (library.readerWebtoonGaps) Arrangement.spacedBy(16.dp) else Arrangement.Top) {
             itemsIndexed(pages, key = { _, item -> item.id }) { index, item ->
                 MangaImage(repository, item, chapter.sourceId, webtoon = true, fitWidth = true, zoom[item.id] ?: 1f, { zoom[item.id] = it }, onTap,
                     onReady = { ready -> readyImages[index] = ready }, treatment = treatment.copy(rotateWide = false), filter = filter, onHold = { file, mark -> held = file to mark })
             }
             item(key = "chapter-end") { Box(Modifier.fillMaxWidth().height(1.dp).testTag("manga:chapter-end")) }
-        } else HorizontalPager(pager, reverseLayout = mode == MangaReaderMode.PAGES_RTL, beyondViewportPageCount = 0, modifier = Modifier.fillMaxSize()) { index ->
+        } else {
+        val pageContent: @Composable (Int) -> Unit = { index ->
             val spread = spreads[index]
             if (spread.size == 1) {
                 val view = spread.single()
@@ -409,6 +420,9 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
                 }
             }
         }
+        if (mode == MangaReaderMode.PAGES_VERTICAL) VerticalPager(pager, beyondViewportPageCount = 0, modifier = Modifier.fillMaxSize().testTag("manga:vertical")) { pageContent(it) }
+        else HorizontalPager(pager, reverseLayout = mode == MangaReaderMode.PAGES_RTL, beyondViewportPageCount = 0, modifier = Modifier.fillMaxSize()) { pageContent(it) }
+        }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
     // On an e-ink screen a short black flash between pages clears the ghost of the last one.
@@ -424,6 +438,10 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     if (!controls && library.readerPageNumber && pages.size > 1) Text("${page + 1} / ${pages.size}", style = ReadType.caption(), color = Color.White.copy(alpha = 0.55f),
         modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 6.dp).testTag("manga:reader:page"))
     val (fill, ink) = coverFill(book?.colourUrl(), book?.id ?: chapter.bookId)
+    // Mihon 0.20's vertical navigator: in the strip and in top-to-bottom pages, a slider down the end edge goes to any page.
+    if (controls && pages.size > 1 && (mode == MangaReaderMode.WEBTOON || mode == MangaReaderMode.PAGES_VERTICAL)) ReaderVerticalSeek(
+        page, pages.size, ink, fill, { go(it) },
+        Modifier.align(Alignment.CenterEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 8.dp).fillMaxHeight(0.55f))
     BoxWithConstraints(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
     // Zoom buttons only where there is no pinch to do it (a wide window with a mouse); a phone gets the orientation lock instead.
     val pointer = maxWidth >= 840.dp
@@ -583,5 +601,44 @@ private fun MangaPageActions(repository: MangaRepository, chapter: MangaChapter,
         } }, Modifier.testTag("manga:page:hide"))
         message?.let { Text(it, style = ReadType.meta(), color = orbitLook().dim, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** The directions in the order the reader's sheet and Settings › Manga list them. */
+internal val readerModeOrder = listOf(MangaReaderMode.PAGES_LTR, MangaReaderMode.PAGES_RTL, MangaReaderMode.PAGES_VERTICAL, MangaReaderMode.WEBTOON)
+
+/** A slider standing down the reader's end edge: the track, the place as a dot, and the page number beside it; drag or tap to go. */
+@Composable
+private fun ReaderVerticalSeek(page: Int, count: Int, ink: Color, fill: Color, onGo: (Int) -> Unit, modifier: Modifier = Modifier) {
+    var dragging by remember { mutableStateOf<Int?>(null) }
+    val shown = dragging ?: page
+    val latestGo = rememberUpdatedState(onGo)
+    Row(modifier.testTag("manga:reader:vseek"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (dragging != null) Text("${shown + 1} / $count", style = ReadType.meta(), color = ink,
+            modifier = Modifier.clip(ReadShape.md).background(fill).padding(horizontal = 10.dp, vertical = 6.dp))
+        Box(Modifier.fillMaxHeight().width(36.dp).clip(ReadShape.md).background(fill)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Page"
+                progressBarRangeInfo = androidx.compose.ui.semantics.ProgressBarRangeInfo((shown + 1).toFloat(), 1f..count.toFloat())
+                setProgress { value -> latestGo.value(value.roundToInt().coerceIn(1, count) - 1); true }
+            }
+            .pointerInput(count) {
+                detectTapGestures { offset -> latestGo.value(readerSeekPage(offset.y, size.height.toFloat(), count)) }
+            }
+            .pointerInput(count) {
+                detectVerticalDragGestures(
+                    onDragStart = { offset -> dragging = readerSeekPage(offset.y, size.height.toFloat(), count) },
+                    onDragEnd = { dragging?.let { latestGo.value(it) }; dragging = null },
+                    onDragCancel = { dragging = null },
+                ) { change, _ -> dragging = readerSeekPage(change.position.y, size.height.toFloat(), count) }
+            }) {
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize().padding(vertical = 14.dp)) {
+                val x = size.width / 2f
+                drawLine(ink.copy(alpha = 0.3f), Offset(x, 0f), Offset(x, size.height), strokeWidth = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                val y = if (count <= 1) 0f else size.height * shown / (count - 1f)
+                drawLine(ink, Offset(x, 0f), Offset(x, y), strokeWidth = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawCircle(ink, radius = 7.dp.toPx(), center = Offset(x, y))
+            }
+        }
     }
 }

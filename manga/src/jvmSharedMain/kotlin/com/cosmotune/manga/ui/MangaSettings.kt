@@ -65,7 +65,7 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
         Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(mangaText("Direction for new series"), style = ReadType.rowTitle(), color = look.ink)
             ReadChipRow(inset = 0.dp) {
-                MangaReaderMode.entries.forEach { item -> ReadChip(mangaText(readerModeLabel(item)), state.readerMode == item, { action { repository.store.update { it.copy(readerMode = item) } } }) }
+                readerModeOrder.forEach { item -> ReadChip(mangaText(readerModeLabel(item)), state.readerMode == item, { action { repository.store.update { it.copy(readerMode = item) } } }) }
             }
             Text(mangaText("Scale"), style = ReadType.rowTitle(), color = look.ink)
             ReadChipRow(inset = 0.dp) {
