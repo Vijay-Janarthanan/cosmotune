@@ -282,7 +282,7 @@ class MangaRepository(val store: MangaStore,
     private suspend fun scanForUpdates(onProgress: (MangaUpdateReport) -> Unit): MangaUpdateReport = coroutineScope {
         val state = store.state.value
         val enabled = state.sources.filter { it.enabled }.map { it.id }.toSet()
-        val books = state.books.filter { it.sourceId != "local" && it.sourceId in enabled }
+        val books = mangaSeriesToUpdate(state, enabled)
         val gate = Semaphore(UPDATE_PARALLELISM)
         val lock = Mutex()
         var report = MangaUpdateReport(0, books.size, 0, 0, emptyMap())

@@ -366,7 +366,7 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
     val grid = rememberLazyGridState()
     var collection by rememberSaveable { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf("recent") }
-    var unreadOnly by rememberSaveable { mutableStateOf(false) }
+    var filters by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var options by remember { mutableStateOf(false) }
     val pick = rememberMangaImport { name, open ->
         scope.action { onBusy(true); try { repository.store.save(repository.store.archives.import(name, open)) } finally { onBusy(false) } }
@@ -422,15 +422,26 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
         ReadSheetRow(mangaText("Manage sources"), CosmoIcons.Settings, { options = false; scope.navigation.select(MangaTabs.SOURCES) })
         ReadSheetSection(mangaText("Sort by")) {
             ReadChipRow(inset = 0.dp) {
-                listOf("recent", "title", "added", "unread").forEach { value -> ReadChip(mangaText(sortLabel(value)), sort == value, { sort = value }) }
+                listOf("recent", "title", "added", "unread", "latest", "chapters").forEach { value -> ReadChip(mangaText(sortLabel(value)), sort == value, { sort = value }) }
             }
         }
-        ReadSheetSection(mangaText("Filter")) { ReadChip(mangaText("Unread only"), unreadOnly, { unreadOnly = !unreadOnly }) }
+        ReadSheetSection(mangaText("Filter")) {
+            ReadChipRow(inset = 0.dp) {
+                MangaLibraryFilters.all.forEach { filter ->
+                    ReadChip(mangaText(MangaLibraryFilters.label(filter)), filter in filters, { filters = if (filter in filters) filters - filter else filters + filter },
+                        Modifier.testTag("manga:filter:$filter"))
+                }
+            }
+        }
+        com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Incognito"), state.incognito, { on -> scope.action { repository.store.update { it.copy(incognito = on) } } },
+            Modifier.padding(horizontal = 20.dp, vertical = 4.dp), detail = mangaText("Reading leaves no history, place or read marks"))
         Spacer(Modifier.height(16.dp))
     }
 }
 
-private fun sortLabel(sort: String): String = when (sort) { "title" -> "Title"; "added" -> "Added"; "unread" -> "Unread"; else -> "Last read" }
+private fun sortLabel(sort: String): String = when (sort) {
+    "title" -> "Title"; "added" -> "Added"; "unread" -> "Unread"; "latest" -> "Latest chapter"; "chapters" -> "Chapters"; else -> "Last read"
+}
 
 /**
  * The series being read as one row over the grid (board frame 10): its cover, its title, where the reader stands ("Chapter 9 ·
