@@ -86,6 +86,8 @@ import com.cosmotune.ui.watch.rememberWatchPip
 import com.cosmotune.watch.ChannelFilter
 import com.cosmotune.watch.model.Channel
 import com.cosmotune.ui.watch.WatchBackend
+import com.cosmotune.ui.watch.WatchEngineSubtitles
+import kotlinx.coroutines.launch
 import com.cosmotune.ui.watch.WatchNav
 import com.cosmotune.ui.watch.WatchPlayback
 import com.cosmotune.ui.watch.WatchRoute
@@ -165,6 +167,7 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
         player.open(route.target, route.summary, selected ?: route.stream, startMs = start)
     })
     val repository = LocalWatchRepository.current ?: WatchBackend.repository
+    val subtitleScope = androidx.compose.runtime.rememberCoroutineScope()
     // Picture-in-picture (Home on the remote, or the card's button): the picture alone in the system's small window, with play and
     // pause and, for an episode the next one, for a channel the next in its playlist. Closing it pauses the film.
     val pip = rememberPip(PipOwner.WATCH)
@@ -242,6 +245,9 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
             TvArtwork(url = still, shape = RectangleShape, px = 1280, modifier = Modifier.fillMaxSize())
         }
         playback.surface(scale, Modifier.fillMaxSize())
+        // The subtitles, in the viewer's look (the engine hands its cues to the app).
+        val watchPreferences by repository.preferences.collectAsState()
+        WatchEngineSubtitles(player.engine, watchPreferences.subtitles)
         // The picture takes focus while the card is down, so the remote's keys reach [keys].
         Box(Modifier.fillMaxSize().focusRequester(stage).focusable().pointerInput(failed) {
             if (!failed) detectTapGestures { cardUp = !cardUp }
@@ -382,6 +388,27 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                     )
                 }
                 TvListRow(title = "Find more subtitles", subtitle = "OpenSubtitles and your subtitle plugins", onClick = { menu = null; player.searchSubtitles() })
+                // The look, a step at a time with the remote (the full editor is in Watch settings on the phone and computer).
+                val look = repository.preferences.collectAsState().value.subtitles
+                fun keep(style: com.cosmotune.watch.WatchSubtitleStyle) = subtitleScope.launch {
+                    repository.setPreferences(repository.preferences.value.copy(subtitles = style))
+                }
+                TvListRow(title = "Subtitle size", value = "${look.sizePercent}%", onClick = {
+                    val sizes = com.cosmotune.watch.WatchSubtitleStyle.SIZES
+                    keep(look.copy(sizePercent = sizes[(sizes.indexOf(look.sizePercent) + 1).mod(sizes.size)]))
+                })
+                TvListRow(title = "Subtitle colour", value = look.colour.label, onClick = {
+                    val colours = com.cosmotune.watch.SubtitleColour.entries
+                    keep(look.copy(colour = colours[(look.colour.ordinal + 1) % colours.size]))
+                })
+                TvListRow(title = "Behind the words", value = look.background.label, onClick = {
+                    val backs = com.cosmotune.watch.SubtitleBackground.entries
+                    keep(look.copy(background = backs[(look.background.ordinal + 1) % backs.size]))
+                })
+                TvListRow(title = "Subtitle height", value = "${look.liftPercent}%", onClick = {
+                    val lifts = com.cosmotune.watch.WatchSubtitleStyle.LIFTS
+                    keep(look.copy(liftPercent = lifts[(lifts.indexOf(look.liftPercent) + 1).mod(lifts.size)]))
+                })
                 if (state.selectedSubtitleId != null) {
                     TvListRow(title = "Earlier by 0.5 s", value = "%+.1f s".format(state.subtitleDelayMs / 1000f), onClick = { player.setSubtitleDelay(state.subtitleDelayMs - 500) })
                     TvListRow(title = "Later by 0.5 s", onClick = { player.setSubtitleDelay(state.subtitleDelayMs + 500) })

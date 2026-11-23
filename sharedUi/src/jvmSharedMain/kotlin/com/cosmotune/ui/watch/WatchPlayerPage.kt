@@ -482,6 +482,11 @@ private fun WatchVideo(view: VideoView, aspect: Float, radius: Dp, surface: @Com
             androidx.compose.runtime.key(surfaceFrameKey(box)) {
                 surface(if (view == VideoView.FILL) WatchSurfaceScale.CROP else WatchSurfaceScale.FIT, Modifier.fillMaxSize())
             }
+            // The subtitles: the engines hand the cues to the app, which draws them in the viewer's look.
+            LocalWatchPlayback.current?.let { playback ->
+                val preferences by watchRepository().preferences.collectAsState()
+                WatchEngineSubtitles(playback.player.engine, preferences.subtitles)
+            }
         }
     }
 }
@@ -589,6 +594,8 @@ private fun FilmCard(
     var subtitles by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf(false) }
     var guide by remember { mutableStateOf(false) }
+    var styleOpen by remember { mutableStateOf(false) }
+    if (styleOpen) WatchSubtitleLookDialog { styleOpen = false }
     val menuOpen = audio || subtitles || screen || guide
     DisposableEffect(menuOpen) {
         onMenuOpen(menuOpen)
@@ -652,6 +659,7 @@ private fun FilmCard(
                         add(OrbitMenuItem("Find more subtitles", "OpenSubtitles and your subtitle plugins", CosmoIcons.Search) { controls.searchSubtitles() })
                         if (state.selectedSubtitleId != null) {
                             add(OrbitMenuItem("Earlier by 0.5 s", "Now ${"%+.1f".format(state.subtitleDelayMs / 1000f)} s", keepOpen = true) { controls.subtitleDelay(state.subtitleDelayMs - 500) })
+                        add(OrbitMenuItem("Subtitle look", "Size, colour, background and height", CosmoIcons.Lyrics) { styleOpen = true })
                             add(OrbitMenuItem("Later by 0.5 s", null, keepOpen = true) { controls.subtitleDelay(state.subtitleDelayMs + 500) })
                         }
                     })
@@ -694,6 +702,8 @@ private fun WatchFullScreen(
     val failed = state.status == WatchPlayerStatus.ERROR || state.status == WatchPlayerStatus.NOT_FOUND
     // Skip intro follows the playhead: read twice a second, not every frame.
     var tick by remember { mutableIntStateOf(0) }
+    var subtitleLook by remember { mutableStateOf(false) }
+    if (subtitleLook) WatchSubtitleLookDialog { subtitleLook = false }
     LaunchedEffect(playing) { while (playing) { delay(500); tick++ } }
     val menus = buildList {
         if (!controls.remote) {
@@ -703,6 +713,7 @@ private fun WatchFullScreen(
                 add(OrbitMenuItem("Find more subtitles", "OpenSubtitles and your subtitle plugins", CosmoIcons.Search) { controls.searchSubtitles() })
             }))
             if (state.audioTracks.size > 1) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Audio", state.audioTracks.firstOrNull { it.selected }?.label, CosmoIcons.Waveform,
+                add(OrbitMenuItem("Subtitle look", "Size, colour, background and height", CosmoIcons.Lyrics) { subtitleLook = true })
                 state.audioTracks.map { t -> OrbitMenuItem(t.label, listOfNotNull(t.codec, t.channels?.let { "$it ch" }).joinToString(" · ").ifBlank { null }, selected = t.selected) { controls.selectAudio(t.trackId) } }))
             if (state.streams.isNotEmpty()) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Sources", state.stream?.let { "${it.source.pluginName} · ${it.label}" }, CosmoIcons.Queue,
                 watchSourceItems(state, controls.switchStream)))
@@ -770,5 +781,18 @@ private fun WatchPlayerUnavailable(route: WatchRoute.Play, actions: WatchActions
                 }
             }
         }
+    }
+}
+
+/** The subtitle look editor in a dialog (the player's subtitle menus and Watch settings), kept for this viewer as it changes. */
+@Composable
+internal fun WatchSubtitleLookDialog(onDismiss: () -> Unit) {
+    val repository = watchRepository()
+    val preferences by repository.preferences.collectAsState()
+    val scope = rememberCoroutineScope()
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    WatchDialog("Subtitles", "Subtitle look", onDismiss = onDismiss) {
+        WatchSubtitleEditor(preferences.subtitles, { style -> scope.launch { repository.setPreferences(repository.preferences.value.copy(subtitles = style)) } }, fonts, look)
     }
 }
