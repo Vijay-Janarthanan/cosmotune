@@ -171,7 +171,7 @@ internal fun VideoDesktopSidebarContent(focusSearch: Boolean, onSearchFocused: (
                                 text = stringResource(Res.string.video_no_subscriptions),
                                 style = LocalCosmoType.current.body().copy(fontSize = EMPTY_SP.sp, lineHeight = EMPTY_SP.sp * 1.4f),
                                 color = Color(LocalCosmoColors.current.palette.textTertiary),
-                                modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 6.dp),
+                                modifier = Modifier.padding(start = 12.dp, end = 8.dp, top = 6.dp),
                             )
                         }
                     } else {
@@ -254,7 +254,7 @@ private fun RailItem(icon: ImageVector, label: String, selected: Boolean, onClic
 /** A heading of the guide ("Library", "Subscriptions"): Orbit's mono navigation label. */
 @Composable
 private fun SidebarHeading(text: String) {
-    com.cosmotune.ui.orbit.OrbitNavSectionLabel(text, Modifier.padding(start = 6.dp, top = 6.dp, bottom = 4.dp))
+    com.cosmotune.ui.orbit.OrbitNavSectionLabel(text, Modifier.padding(start = 12.dp, end = 2.dp, top = 8.dp, bottom = 6.dp))
 }
 
 /** The sidebar's Search row: the search page (or, on it, an empty box), and the header's field focused. */
