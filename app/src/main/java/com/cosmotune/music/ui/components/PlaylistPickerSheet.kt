@@ -82,11 +82,15 @@ fun PlaylistPickerSheet(
     modifier: Modifier = Modifier,
     song: Song? = null,
     startCreating: Boolean = false,
+    /** A whole album or playlist going in (an album menu's "Add to playlists"): its card heads the sheet instead of a song's. */
+    release: PickerRelease? = null,
 ) {
     var creating by remember { mutableStateOf(startCreating) }
     // By id rather than by value: the list is re-fetched under an open sheet,
     // and a refreshed row must stay ticked.
     var selected by remember { mutableStateOf(emptySet<String>()) }
+    // Find a playlist: narrows the list as it is typed. Ticks on playlists it hides are kept, so a search never drops one chosen.
+    var query by remember { mutableStateOf("") }
 
     if (creating) {
         NewPlaylistForm(
@@ -102,9 +106,11 @@ fun PlaylistPickerSheet(
     Column(modifier.fillMaxWidth()) {
         if (song != null) {
             CosmoSheetHeader(title = song.title, subtitle = song.artist, imageUrl = song.thumbnailUrl, explicit = song.isExplicit == true)
+        } else if (release != null) {
+            CosmoSheetHeader(title = release.title, subtitle = release.subtitle, imageUrl = release.imageUrl)
         }
         CosmoSheetHeading(
-            stringResource(if (song != null) R.string.add_to_playlist else R.string.your_playlists),
+            stringResource(if (song != null || release != null) R.string.add_to_playlist else R.string.your_playlists),
         )
 
         CosmoActionRow(
@@ -134,10 +140,23 @@ fun PlaylistPickerSheet(
 
             else -> {
                 CosmoSheetGap(menu = false)
+                com.cosmotune.ui.sheets.PlaylistFindField(
+                    query, { query = it },
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 8.dp),
+                )
+                val shown = remember(playlists, query) { com.cosmotune.ui.sheets.findPlaylists(playlists, query) { it.title } }
+                if (shown.isEmpty()) {
+                    Text(
+                        text = com.cosmotune.ui.sheets.noPlaylistMatches(query),
+                        style = orbitFonts().body,
+                        color = orbitLook().dim,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                    )
+                }
                 // Capped so a long list can't push the sheet past the screen;
                 // it scrolls inside the sheet instead.
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                    items(playlists, key = { it.playlistId }) { playlist ->
+                    items(shown, key = { it.playlistId }) { playlist ->
                         val ticked = playlist.playlistId in selected
                         PlaylistRow(
                             playlist = playlist,
@@ -166,6 +185,9 @@ fun PlaylistPickerSheet(
         Spacer(Modifier.height(24.dp))
     }
 }
+
+/** The album or playlist an "Add to playlists" carries, for the sheet's head. */
+data class PickerRelease(val title: String, val subtitle: String, val imageUrl: String?)
 
 @Composable
 private fun PlaylistRow(playlist: UserPlaylist, selected: Boolean, onClick: () -> Unit) {

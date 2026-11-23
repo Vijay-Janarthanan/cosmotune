@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Undo
@@ -143,6 +144,8 @@ fun BrowseActionsSheet(
     /** Null where the sheet was opened from the page it would navigate to. */
     onOpen: (() -> Unit)? = null,
     onDownloadAll: (() -> Unit)? = null,
+    /** Puts the whole album or playlist into playlists of the account's (upstream 1.10's album menu row); null when signed out. */
+    onAddToPlaylists: (() -> Unit)? = null,
     /**
      * Shares the release's own YouTube Music link — the album/playlist
      * counterpart to a track's own Share row in [SongActionsSheet]. Null for
@@ -234,6 +237,7 @@ fun BrowseActionsSheet(
                 stringResource(R.string.add_to_queue),
                 onClick = onAddToQueue,
             )
+            onAddToPlaylists?.let { ActionRow(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlists", onClick = it) }
             onDownloadAll?.let { download ->
                 // Saying which of the three it is, rather than offering the same row
                 // whatever the state — this is where a release is asked for now that

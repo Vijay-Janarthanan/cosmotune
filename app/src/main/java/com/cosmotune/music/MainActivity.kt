@@ -1,5 +1,6 @@
 package com.cosmotune.music
 
+import com.cosmotune.ui.browse.musicRadio
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -577,6 +578,8 @@ private fun CosmotuneApp(
     // Separate from [songActions] so the menu can close behind it â€” the picker
     // is the next step, not a second sheet stacked on the first.
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    // An album or playlist going into playlists whole (its menu's "Add to playlists"), with its songs.
+    var playlistRelease by remember { mutableStateOf<Pair<com.cosmotune.music.ui.components.PickerRelease, List<Song>>?>(null) }
     // The picker opened from the Library tab, where there is no track and
     // creating the playlist is the whole errand.
     var creatingPlaylist by remember { mutableStateOf(false) }
@@ -2688,6 +2691,23 @@ private fun CosmotuneApp(
         // one child it always had and changes nothing.
         // One tab handler, whichever bar is drawing it.
         val onTabSelected: (Int) -> Unit = { index ->
+            // The tab already chosen, on its own page with nothing over it: back to the top of it (Search's tap stays Search's).
+            val reselect = index != TAB_SEARCH && com.cosmotune.ui.shell.isTabReselect(
+                index, selectedTab,
+                atRoot = detail == null && selectedMoodGenre == null && !showSettings && settingsSubScreen == null && !showHistory &&
+                    libraryShowAll == null && !showReplay && !showSources && !showEqualizer && !showListenTogether &&
+                    !showAccountScrobbling && !showSpotify && !showDiscord,
+            )
+            if (reselect) {
+                val page = when (index) {
+                    TAB_HOME -> homeListState
+                    TAB_RELEASES -> releasesListState
+                    TAB_EXPLORE -> exploreListState
+                    TAB_LIBRARY -> libraryListState
+                    else -> null
+                }
+                page?.let { scope.launch { com.cosmotune.ui.shell.scrollToTopGently(it) } }
+            }
             viewModel.clearDetail()
             viewModel.closeMoodGenre()
             showSettings = false
@@ -3360,16 +3380,30 @@ private fun CosmotuneApp(
                                 onRetry = { viewModel.openMoodGenre(category) },
                                 contentPadding = listPadding,
                             )
-                        } ?: com.cosmotune.ui.search.ExploreSwitch(
-                            state = exploreState,
-                            listState = exploreListState,
-                            onCategoryClick = viewModel::openMoodGenre,
-                            onRetry = viewModel::loadExplore,
-                            refreshing = MainViewModel.Feed.EXPLORE in refreshing,
-                            onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
-                            pullState = explorePull,
-                            contentPadding = listPadding,
-                        )
+                        } ?: run {
+                            // Radio (upstream 1.10): the signed-in listener's mixes over the moods and genres; a pull reloads both.
+                            var radioReloads by remember { mutableStateOf(0) }
+                            val radio = com.cosmotune.ui.browse.rememberMusicRadio(radioReloads)
+                            val radioFonts = com.cosmotune.ui.orbit.orbitFonts()
+                            val radioLook = com.cosmotune.ui.orbit.orbitLook()
+                            val radioRows: androidx.compose.foundation.lazy.LazyListScope.(androidx.compose.ui.unit.Dp) -> Unit = { side ->
+                                musicRadio(radio, side, radioFonts, radioLook, onOpen = { item ->
+                                    item.browseId?.let { viewModel.openDetail(browseId = it, title = item.title, subtitle = item.subtitle, thumbnailUrl = item.thumbnailUrl) }
+                                }, onRetry = { radioReloads++ }, onLongPress = onShelfLongPress)
+                            }
+                            androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.browse.LocalExploreRadio provides radioRows) {
+                                com.cosmotune.ui.search.ExploreSwitch(
+                                    state = exploreState,
+                                    listState = exploreListState,
+                                    onCategoryClick = viewModel::openMoodGenre,
+                                    onRetry = viewModel::loadExplore,
+                                    refreshing = MainViewModel.Feed.EXPLORE in refreshing,
+                                    onRefresh = { radioReloads++; viewModel.refresh(MainViewModel.Feed.EXPLORE) },
+                                    pullState = explorePull,
+                                    contentPadding = listPadding,
+                                )
+                            }
+                        }
                         TAB_RELEASES -> com.cosmotune.ui.listening.CosmoReleasesPage(
                             file = java.io.File(context.filesDir, "cosmotune-listening.json"),
                             listState = releasesListState,
@@ -4375,7 +4409,15 @@ private fun CosmotuneApp(
                         songActions = null
                         viewModel.removeFromPlaylist(it.browseId, song)
                     }
-                },
+                } ?: detail?.browseId
+                    ?.takeIf { !fromPlayer && com.cosmotune.music.data.spotify.LocalPlaylistStore.getPlaylist(it)?.songs?.any { s -> s.videoId == song.videoId } == true }
+                    ?.let { id ->
+                        {
+                            songActions = null
+                            com.cosmotune.music.data.spotify.LocalPlaylistStore.removeSong(id, song.videoId)
+                            viewModel.reloadLocalDetail(id)
+                        }
+                    },
                 onOpenAlbum = { id ->
                     openPage(
                         id,
@@ -4455,6 +4497,7 @@ private fun CosmotuneApp(
                 // drops it for a local file via `isOffline`, this catches
                 // the rest.
                 onShare = share.takeIf { song.videoId.isNotBlank() },
+                onSongInfo = { songActions = null; com.cosmotune.ui.sheets.SongInfo.open(song) }.takeIf { song.videoId.isNotBlank() },
                 onCopyLog = if (fromPlayer) {
                     {
                         songActions = null
@@ -4544,10 +4587,12 @@ private fun CosmotuneApp(
         // One sheet for both, because they are one decision: the list of
         // playlists with a way to make another. `creatingPlaylist` opens it
         // straight onto the form, which is what the Library tile means.
-        if (playlistTarget != null || creatingPlaylist) {
+        if (playlistTarget != null || creatingPlaylist || playlistRelease != null) {
             val target = playlistTarget
+            val release = playlistRelease.takeIf { target == null }
             val dismiss = {
                 playlistTarget = null
+                playlistRelease = null
                 creatingPlaylist = false
             }
             com.cosmotune.ui.sheets.SurfaceSheetSwitch(
@@ -4558,8 +4603,20 @@ private fun CosmotuneApp(
                     playlists = playlists,
                     loading = playlistsLoading,
                     song = target,
-                    startCreating = target == null,
+                    release = release?.first,
+                    startCreating = target == null && release == null,
                     onAdd = { picked ->
+                        release?.let { (_, songs) ->
+                            viewModel.addAllToPlaylists(picked, songs) { added, alreadyThere, failed ->
+                                showQueueNotice(
+                                    when {
+                                        added > 0 -> "Added to ${if (added == 1) "1 playlist" else "$added playlists"}"
+                                        alreadyThere > 0 && failed == 0 -> "Already in ${if (alreadyThere == 1) "that playlist" else "those playlists"}"
+                                        else -> context.getString(R.string.failed)
+                                    },
+                                )
+                            }
+                        }
                         target?.let { song ->
                             viewModel.addToPlaylists(picked, song) { added, alreadyThere, failed ->
                                 // One line for the whole batch, saying the
@@ -4582,7 +4639,7 @@ private fun CosmotuneApp(
                         dismiss()
                     },
                     onCreate = { title, privacy ->
-                        viewModel.createPlaylist(title, privacy, target)
+                        viewModel.createPlaylist(title, privacy, target, release?.second ?: listOfNotNull(target))
                         dismiss()
                     },
                 )
@@ -4606,6 +4663,9 @@ private fun CosmotuneApp(
                 )
             }
         }
+
+        // Song info, asked for from a song's menu (its credits are looked up as it opens).
+        com.cosmotune.ui.sheets.SongInfoHost()
 
         // ---- Album / playlist actions ----
         // Opened by holding a card on any tab, or from the release page's own
@@ -4645,12 +4705,14 @@ private fun CosmotuneApp(
                 ?.takeIf { signedIn && ownedPlaylists[it] == true }
                 ?.let { id -> playlists.firstOrNull { it.browseId == id } }
             val remote = target.browseId?.startsWith("local:") == false
+            // A playlist imported onto the device (Spotify while signed out, or one YouTube refused): renamed and deleted here.
+            val imported = target.browseId?.let { com.cosmotune.music.data.spotify.LocalPlaylistStore.getPlaylist(it) }
             val pickedCovers = com.cosmotune.ui.covers.rememberPlaylistCovers()
             val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
             val pinnableId = target.browseId?.takeIf { target.type == BrowseType.PLAYLIST }
             BrowseActionsSheet(
                 // The live answer, not the one the target was built with.
-                target = target.copy(playlist = playlist),
+                target = target.copy(playlist = playlist ?: imported?.let { com.cosmotune.music.data.model.UserPlaylist(it.id, it.title, target.subtitle, target.thumbnailUrl) }),
                 presentation = presentation,
                 onRenameInSheet = {
                     browseRenameInSheet = true
@@ -4659,6 +4721,10 @@ private fun CosmotuneApp(
                 startRenaming = browseRenameInSheet,
                 onPlayNext = act(playSongsNext),
                 onAddToQueue = act(addSongsToQueue),
+                onAddToPlaylists = act { songs ->
+                    viewModel.loadPlaylists()
+                    playlistRelease = com.cosmotune.music.ui.components.PickerRelease(target.title, target.subtitle, target.thumbnailUrl) to songs
+                }.takeIf { signedIn && remote && (target.type == BrowseType.ALBUM || target.type == BrowseType.PLAYLIST) },
                 onPlay = act { songs -> play(songs, 0) }.takeIf { target.fromCard },
                 onShuffle = act { songs ->
                     // As on a release page: shuffle goes on before the queue
@@ -4750,6 +4816,12 @@ private fun CosmotuneApp(
                         browseActions = null
                         viewModel.renamePlaylist(p, name)
                     }
+                } ?: imported?.let { lp ->
+                    { name: String ->
+                        browseActions = null
+                        com.cosmotune.music.data.spotify.LocalPlaylistStore.renamePlaylist(lp.id, name.trim())
+                        if (detail?.browseId == lp.browseId) viewModel.reloadLocalDetail(lp.browseId)
+                    }
                 },
                 onChangeCover = playlist?.let { p ->
                     {
@@ -4784,6 +4856,12 @@ private fun CosmotuneApp(
                     {
                         browseActions = null
                         viewModel.deletePlaylist(p)
+                    }
+                } ?: imported?.let { lp ->
+                    {
+                        browseActions = null
+                        com.cosmotune.music.data.spotify.LocalPlaylistStore.deletePlaylist(lp.id)
+                        if (detail?.browseId == lp.browseId) viewModel.closeDetail()
                     }
                 },
                 onDeleteDownload = target.downloadId?.let { id ->

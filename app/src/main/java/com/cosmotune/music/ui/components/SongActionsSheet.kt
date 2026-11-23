@@ -175,6 +175,8 @@ fun SongActionsSheet(
     /** Which cut is playing now, so the row can offer the other one. */
     isAudioVersion: Boolean = false,
     onShare: (() -> Unit)? = null,
+    /** Opens Song info: the album, the length and the song's credits (upstream 1.10). */
+    onSongInfo: (() -> Unit)? = null,
     /**
      * Copies what the app logged while starting this track. Null everywhere
      * except the player, where "this track" means something.
@@ -290,23 +292,25 @@ fun SongActionsSheet(
             )
             GroupSeparator(palette)
         }
-        if (signedIn && !isOffline && !com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)) {
+        val canAdd = signedIn && !isOffline && !com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)
+        if (canAdd) {
             ActionRow(
                 icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
                 label = stringResource(R.string.add_to_playlist),
                 accent = palette.accent,
                 onClick = onAddToPlaylist,
             )
-            onRemoveFromPlaylist?.let {
-                ActionRow(
-                    icon = Icons.Rounded.PlaylistRemove,
-                    label = stringResource(R.string.remove_from_playlist),
-                    accent = palette.accent,
-                    onClick = it,
-                )
-            }
-            GroupSeparator(palette)
         }
+        // Shown whenever there is a removal to make, signed in or not: a playlist imported onto the device has one too.
+        onRemoveFromPlaylist?.let {
+            ActionRow(
+                icon = Icons.Rounded.PlaylistRemove,
+                label = stringResource(R.string.remove_from_playlist),
+                accent = palette.accent,
+                onClick = it,
+            )
+        }
+        if (canAdd || onRemoveFromPlaylist != null) GroupSeparator(palette)
 
         DownloadRow(song, palette, isOffline, onDownload)
         WebDavUploadRow(song, palette, isOffline, onUploadToWebDav)
@@ -387,6 +391,7 @@ fun SongActionsSheet(
                 ActionRow(Icons.Rounded.Share, stringResource(R.string.share), accent = palette.accent, onClick = it)
             }
         }
+        onSongInfo?.let { ActionRow(Icons.Rounded.Info, "Song info", accent = palette.accent, onClick = it) }
         // Last, and only from the player: it is about the track playing right
         // now rather than about the song as a thing in a library, and it is
         // the one row here nobody reaches for by accident.

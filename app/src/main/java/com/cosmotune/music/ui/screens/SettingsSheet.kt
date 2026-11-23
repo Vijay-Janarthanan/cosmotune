@@ -843,6 +843,17 @@ fun SettingsScreen(
                 com.cosmotune.ui.settings.ForgetLyricsOffsetsRow()
             }
         }
+        SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = com.cosmotune.ui.settings.PlayerExtrasText.GROUP) {
+            row(com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART, "best part", "chorus", "skip", "replayed", summary = com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART_LINE) {
+                com.cosmotune.ui.settings.BestPartRow()
+            }
+            row(com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE, "sleep", "timer", "fade", summary = com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE_LINE) {
+                com.cosmotune.ui.settings.SleepFadeOutRow()
+            }
+            row(com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM, "premium", "opus", "quality", "256", summary = com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM_LINE) {
+                com.cosmotune.ui.settings.PremiumAudioRow()
+            }
+        }
         SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = com.cosmotune.ui.settings.SoundExtrasText.GROUP_NETWORK) {
             row(com.cosmotune.ui.settings.SoundExtrasText.OFFLINE, "offline", "internet", "airplane", summary = com.cosmotune.ui.settings.SoundExtrasText.OFFLINE_LINE) {
                 com.cosmotune.ui.settings.OfflineModeRow()

@@ -5,6 +5,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.ui.player.RepeatModes
@@ -64,14 +65,24 @@ fun activeChips(
     if (active.inRoom) add(ActiveChip("In a room", CosmoIcons.Together, onOpenRoom))
 }
 
-/** The sleep timer's pill, then [chips], each solid. Laid out by the row it is put in. */
+/**
+ * The sleep timer's pill, then [chips], each solid. Laid out by the row it is put in. [bestPart], when the song has one, is a plain
+ * (not solid) "Best part" chip after them: an action, not a state, that skips to the part people replay most.
+ */
 @Composable
-fun NowPlayingStatusChips(chips: List<ActiveChip>, fonts: OrbitFonts, look: OrbitLook) {
+fun NowPlayingStatusChips(chips: List<ActiveChip>, fonts: OrbitFonts, look: OrbitLook, bestPart: (() -> Unit)? = null) {
     SleepTimerChip(fonts, look)
     for (chip in chips) {
         OrbitChip(
             chip.title, fonts, look, onClick = chip.onClick, selected = true,
             leading = { Icon(chip.icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
+        )
+    }
+    if (bestPart != null) {
+        OrbitChip(
+            "Best part", fonts, look, onClick = bestPart, selected = false,
+            leading = { Icon(CosmoIcons.Waveform, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            modifier = Modifier.testTag("player:best-part"),
         )
     }
 }

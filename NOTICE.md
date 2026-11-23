@@ -288,3 +288,14 @@ Euthopiar has no repository license at the reviewed revision: Cosmotune's Watch 
 Desktop PDF pages use Apache PDFBox 3.0.7 (including FontBox and pdfbox-io), licensed under Apache-2.0: https://pdfbox.apache.org/ . Its unmodified dependency jars retain upstream META-INF licence/notices. Android PDF rendering uses the operating system PdfRenderer API. Desktop EPUB rendering uses the existing OpenJFX 21.0.10 WebKit runtime with javafx-swing; Android uses the system WebView. OpenJFX is distributed under GPLv2 with the Classpath Exception: https://openjfx.io/ . EPUB markup is parsed with the existing Jsoup dependency (MIT).
 
 Book discovery identifies Open Library as its metadata/trending provider and the official Project Gutenberg OPDS catalogue as its public-domain transport: https://openlibrary.org/developers/api and https://www.gutenberg.org/ebooks/offline_catalogs.html . User-configured OPDS servers and individual publications retain their own access conditions and rights. No book catalogue or commercial book content is bundled in the app. Paperback's public toolchain was reviewed for compatibility; its source/runtime is not incorporated.
+
+## BitChord 1.10 (November 2026)
+
+These are adapted from BitChord 1.10 by kushagrasinghx and its contributors (GPL-3.0), tag commit `7448b92e03`, written against
+Cosmotune's own code and look: the Best part curve reading (`shared/.../data/bestpart/BestPart.kt`, from `66ba6a0e9f`), the song
+credits reader (`shared/.../data/credits/SongCredits.kt`, from `5d3597f6c1`), the Radio grouping of "Mixed for you"
+(`shared/.../data/radio/MixGroups.kt`, from `e7d10c0e3b`), the sleep timer's fade curve (`SleepFade.kt`, from `d4817fccce`),
+Find a playlist (`sharedUi/.../ui/sheets/PlaylistFind.kt`, from `1b637f66f4`), accent folding in the track matcher (`c61fa96c05`,
+`7f15a6fec6`), appended playlist pages (`888dd735a7`), the notification's reserved Back and Next slots (`4a22733653`), the Quick
+Settings tile (`9ffffa6261`), YouTube Premium's Opus ask (`a2d886e693`), remote-speaker listening in Replay (`ffe87cbd38`) and the
+imported-playlist edits (`fee962bf28`). Their tests are adapted the same way.

@@ -1601,9 +1601,12 @@ class DesktopPlaybackEngine(
         return shifted to resampler.outputCount
     }
 
-    /** The volume the sink plays at: the listener's, under the maximum-volume cap. DoP is never scaled. */
+    /** The sleep timer's fade ([com.cosmotune.music.playback.SleepFade]): 1 except over a timer's last 30 seconds. */
+    @Volatile var sleepFadeGain = 1f
+
+    /** The volume the sink plays at: the listener's, under the maximum-volume cap and the sleep fade. DoP is never scaled. */
     private fun outputGain(): Float =
-        if (current?.directDsd == true) volume else volume * com.cosmotune.settings.Extras.settings.maxVolumeGain
+        if (current?.directDsd == true) volume else volume * com.cosmotune.settings.Extras.settings.maxVolumeGain * sleepFadeGain
 
     private var pitchResampler: com.cosmotune.audio.PitchResampler? = null
 

@@ -553,10 +553,15 @@ object InnertubeParser {
      * generic walk.
      */
     fun parsePlaylistShelf(root: JsonElement): PlaylistShelfPage? {
+        // A long playlist's later page can come as rows appended by an action, with no `continuationContents` at all. Read as
+        // nothing, the playlist stopped after its first 100 songs and Reorder showed only those (from upstream, GPL-3.0).
+        val appended = root.a("onResponseReceivedActions")?.firstNotNullOfOrNull { it.o("appendContinuationItemsAction") }
         val scope: JsonElement = root.o("continuationContents")
+            ?: appended
             ?: root.o("contents").o("twoColumnBrowseResultsRenderer").o("secondaryContents")
             ?: return null
         val playlistScope = scope.o("musicPlaylistShelfContinuation")
+            ?: appended?.takeIf { scope === it }
             ?: collectRenderers(scope, "musicPlaylistShelfRenderer").firstOrNull()
         val suggestionShelves = collectRenderers(scope, "musicShelfRenderer")
             .filter { it.o("title").runs() == "Suggestions" }
@@ -1394,6 +1399,10 @@ object InnertubeParser {
                 thumbnailUrl = item.thumbnailUrl,
             )
         }
+
+    /** Every card of a page, wherever its shelves put them: the "Mixed for you" page is one undivided grid. */
+    fun parseTwoRowItemsDeep(root: JsonElement): List<ShelfItem> =
+        collectRenderers(root, "musicTwoRowItemRenderer").mapNotNull(::parseTwoRowItem)
 
     private fun parseTwoRowItem(renderer: JsonObject?): ShelfItem? {
         if (renderer == null) return null

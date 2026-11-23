@@ -395,8 +395,9 @@ object TrackMatcher {
         repeat(BRACKET_PASSES) {
             if (!BRACKETED.containsMatchIn(text)) return@repeat
             text = BRACKETED.replace(text) { match ->
+                // Keyed folded as the core is, so "東京 (Tōkyō)" still files the upload "Tōkyō"; the query keeps the accents.
                 translatedAside(match.groupValues[1], artist)?.let { key ->
-                    alternateTitles[key] = match.groupValues[1].split(WORD_SPLIT)
+                    alternateTitles[foldLatin(key)] = match.groupValues[1].split(WORD_SPLIT)
                         .map { it.replace(NON_ALNUM, "") }.filter(String::isNotEmpty).joinToString(" ")
                 }
                 classify(match.groupValues[1], versions, context)
@@ -471,7 +472,7 @@ object TrackMatcher {
         val coreString = if (containsCJK) {
             text.replace(Regex("""[\s\p{Punct}・～〜ー-]+"""), "")
         } else {
-            words.joinToString("")
+            foldLatin(words.joinToString(""))
         }
 
         return TitleParts(
@@ -564,6 +565,24 @@ object TrackMatcher {
      * `(title)`. CJK letters themselves survive — stripping them is what kept
      * every non-Latin catalogue out of matching entirely.
      */
+    /**
+     * Latin letters without their accents, for comparing only: "Şımarık" and the "Simarik" an upload without a Turkish keyboard
+     * files it under are one title, and "Müslüm Gürses" is "Muslum Gurses". Turkish dotless ı has no decomposition, so it is mapped
+     * by hand. Latin only: other scripts carry vowels as combining marks (Hindi's matras), and dropping those would make different
+     * words equal. Queries keep their accents; this is never sent anywhere. Adapted from upstream (GPL-3.0).
+     */
+    internal fun foldLatin(text: String): String = buildString(text.length) {
+        text.forEach { c ->
+            when {
+                c == 'ı' -> append('i')
+                c.code < 0x80 || Character.UnicodeScript.of(c.code) != Character.UnicodeScript.LATIN -> append(c)
+                else -> Normalizer.normalize(c.toString(), Normalizer.Form.NFD).forEach {
+                    if (Character.getType(it) != Character.NON_SPACING_MARK.toInt()) append(it)
+                }
+            }
+        }
+    }
+
     internal fun normalize(text: String): String =
         Normalizer.normalize(text, Normalizer.Form.NFKC)
             .lowercase(Locale.ROOT)
@@ -707,7 +726,7 @@ object TrackMatcher {
     internal fun artistNames(value: String): Set<List<String>> = com.cosmotune.music.data.model.ArtistIdentity.names(value)
         .filterNot { normalize(it) in CATALOGUE_TYPE_LABELS }
         .map { name ->
-            normalize(name).split(WORD_SPLIT)
+            foldLatin(normalize(name)).split(WORD_SPLIT)
                 .map { it.replace(NON_ALNUM, "") }
                 .filter { it.length > 1 }
         }

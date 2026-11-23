@@ -75,6 +75,8 @@ internal fun DesktopPlaylistDialog(
     onDismiss: () -> Unit,
 ) {
     var creating by remember { mutableStateOf(song == null) }
+    // Find a playlist (upstream 1.10): narrows both lists as it is typed.
+    var query by remember { mutableStateOf("") }
 
     DesktopDialogFrame(onDismiss = onDismiss) {
         if (creating) {
@@ -102,15 +104,29 @@ internal fun DesktopPlaylistDialog(
                 modifier = Modifier.padding(horizontal = dialogSide(), vertical = 4.dp),
             )
         }
-        val account = if (canUseAccount) accountPlaylists else emptyList()
+        val everyAccount = if (canUseAccount) accountPlaylists else emptyList()
+        if (everyAccount.isNotEmpty() || localPlaylists.isNotEmpty()) {
+            com.cosmotune.ui.sheets.PlaylistFindField(
+                query, { query = it },
+                Modifier.fillMaxWidth().padding(horizontal = dialogSide(), vertical = 8.dp),
+            )
+        }
+        val account = remember(everyAccount, query) { com.cosmotune.ui.sheets.findPlaylists(everyAccount, query) { it.title } }
+        val local = remember(localPlaylists, query) { com.cosmotune.ui.sheets.findPlaylists(localPlaylists, query) { it.title } }
         when {
-            busy && account.isEmpty() && localPlaylists.isEmpty() -> Box(
+            query.isNotBlank() && account.isEmpty() && local.isEmpty() -> Text(
+                com.cosmotune.ui.sheets.noPlaylistMatches(query),
+                style = MaterialTheme.typography.bodySmall,
+                color = DesktopSecondary,
+                modifier = Modifier.padding(horizontal = dialogSide(), vertical = 14.dp),
+            )
+            busy && account.isEmpty() && local.isEmpty() -> Box(
                 Modifier.fillMaxWidth().height(96.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(color = dialogInk(), modifier = Modifier.size(22.dp))
             }
-            account.isEmpty() && localPlaylists.isEmpty() -> Text(
+            account.isEmpty() && local.isEmpty() -> Text(
                 when {
                     !signedIn -> "No playlists on this computer yet. Sign in to see the ones on your account."
                     // Signed in, but this track cannot go on the account — so offering to sign in
@@ -135,10 +151,10 @@ internal fun DesktopPlaylistDialog(
                         ) { onPickAccount(playlist) }
                     }
                 }
-                if (localPlaylists.isNotEmpty()) {
+                if (local.isNotEmpty()) {
                     item(key = "heading:local") { DialogSectionHeading("On this computer") }
-                    items(localPlaylists.size, key = { localPlaylists[it].id }) { index ->
-                        val playlist = localPlaylists[index]
+                    items(local.size, key = { local[it].id }) { index ->
+                        val playlist = local[index]
                         DialogAction(
                             CosmotuneIcons.Queue,
                             playlist.title,

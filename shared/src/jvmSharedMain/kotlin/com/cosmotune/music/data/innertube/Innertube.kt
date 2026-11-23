@@ -723,6 +723,40 @@ object Innertube {
         put("isAudioOnly", true)
     }
 
+    /**
+     * youtube.com's own `next` answer for [videoId], asked as the plain WEB client: only it carries the "Most replayed" heat
+     * markers the player's Best part button reads ([com.cosmotune.music.data.bestpart.BestPart]). Anonymous on purpose: no cookie,
+     * no visitor id, so it never puts a watch-page visit on the listener's history. One retry; a miss only costs the button.
+     * From upstream 1.10 (GPL-3.0).
+     */
+    suspend fun webNext(videoId: String): JsonObject = withRetry(attempts = 2) {
+        client.post("$YOUTUBE_ORIGIN/youtubei/v1/next") {
+            contentType(ContentType.Application.Json)
+            parameter("prettyPrint", "false")
+            header("User-Agent", WEB_USER_AGENT)
+            header("Origin", YOUTUBE_ORIGIN)
+            header("Referer", "$YOUTUBE_ORIGIN/")
+            header("X-YouTube-Client-Name", "1")
+            header("X-YouTube-Client-Version", WEB_NEXT_CLIENT_VERSION)
+            setBody(
+                buildJsonObject {
+                    putJsonObject("context") {
+                        putJsonObject("client") {
+                            put("clientName", "WEB")
+                            put("clientVersion", WEB_NEXT_CLIENT_VERSION)
+                            put("hl", currentLanguage)
+                            put("gl", currentRegion)
+                        }
+                    }
+                    put("videoId", videoId)
+                },
+            )
+        }.body<JsonObject>()
+    }
+
+    /** The WEB client's version for [webNext], kept in step with [PlayerClient]'s WEB entry; `next` is lenient about an old one. */
+    private const val WEB_NEXT_CLIENT_VERSION = "2.20260708.00.00"
+
     suspend fun search(query: String, params: String? = null, anonymous: Boolean = true): JsonObject =
         if (anonymous) {
             postMusicAnonymous("search") {

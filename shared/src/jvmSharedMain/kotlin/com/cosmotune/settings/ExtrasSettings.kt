@@ -170,8 +170,32 @@ class ExtrasSettings(private val store: KeyValueStore) {
         NetworkPolicy.apply(proxyFlow.value.takeIf { it.enabled }?.let(NetworkPolicy::configOf))
     }
 
+    // ---- From upstream 1.10 (GPL-3.0, see NOTICE.md) ----
+    private val premiumAudioFlow = MutableStateFlow(store.getBoolean(KEY_PREMIUM_AUDIO, false))
+    private val sleepFadeOutFlow = MutableStateFlow(store.getBoolean(KEY_SLEEP_FADE_OUT, true))
+    private val bestPartFlow = MutableStateFlow(store.getBoolean(KEY_BEST_PART, true))
+
+    /**
+     * The listener's word that their YouTube account has Premium: a signed-in account then asks for Premium's ~256 kbps Opus
+     * (itag 774) instead of the usual 160 kbps. Off until turned on, because nothing confirms the entitlement.
+     */
+    val premiumAudio: StateFlow<Boolean> = premiumAudioFlow.asStateFlow()
+
+    /** The sleep timer lowers the volume over its last 30 seconds instead of stopping at once. On unless turned off. */
+    val sleepFadeOut: StateFlow<Boolean> = sleepFadeOutFlow.asStateFlow()
+
+    /** The player's Best part button, which skips to the part of the song people replay most. On unless turned off. */
+    val bestPart: StateFlow<Boolean> = bestPartFlow.asStateFlow()
+
+    fun setPremiumAudio(value: Boolean) { premiumAudioFlow.value = value; store.putBoolean(KEY_PREMIUM_AUDIO, value) }
+    fun setSleepFadeOut(value: Boolean) { sleepFadeOutFlow.value = value; store.putBoolean(KEY_SLEEP_FADE_OUT, value) }
+    fun setBestPart(value: Boolean) { bestPartFlow.value = value; store.putBoolean(KEY_BEST_PART, value) }
+
     companion object {
         const val KEY_SONG_PLAYBACK="extras_song_playback"
+        const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
+        const val KEY_SLEEP_FADE_OUT = "extras_sleep_fade_out"
+        const val KEY_BEST_PART = "extras_best_part"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"

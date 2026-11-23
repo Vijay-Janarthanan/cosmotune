@@ -61,6 +61,10 @@ object StreamResolver {
     @Volatile
     var maxKbps: () -> Int = { Int.MAX_VALUE }
 
+    /** Whether the listener says their account has YouTube Premium ([com.cosmotune.settings.ExtrasSettings.premiumAudio]). */
+    @Volatile
+    var premiumAudio: () -> Boolean = { com.cosmotune.settings.Extras.settings.premiumAudio.value }
+
 
     private const val TAG = "Cosmotune"
 
@@ -515,7 +519,7 @@ object StreamResolver {
         val skip = mutableSetOf<String>()
         repeat(INNERTUBEX_ATTEMPTS) {
             val found = try {
-                InnerTubeXResolver.extract(videoId, maxKbps, skip, requireM4a, uploaded = UploadedTracks.contains(videoId))
+                InnerTubeXResolver.extract(videoId, maxKbps, skip, requireM4a, uploaded = UploadedTracks.contains(videoId), premium = premiumAudio())
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

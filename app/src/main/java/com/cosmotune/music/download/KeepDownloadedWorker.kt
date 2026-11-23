@@ -44,7 +44,9 @@ import kotlinx.coroutines.withTimeout
 object KeepDownloadedScheduler {
     private const val DAILY = "cosmotune-keep-downloaded"
     private const val SWITCHED_ON = "cosmotune-keep-downloaded-now"
+    private const val LIKED_SOON = "cosmotune-keep-liked-soon"
     internal const val KEY_PLAYLISTS = "playlists"
+    internal const val KEY_NEWEST_ONLY = "newest_only"
 
     fun init(context: Context) {
         val app = context.applicationContext
@@ -71,6 +73,20 @@ object KeepDownloadedScheduler {
                 before = kept
             }
         }
+        // A like, from any surface (the player, a menu, the notification), while Liked Music is kept downloaded: a quick pass over
+        // its newest page a little later (upstream 1.10), instead of the next daily one. Each like restarts the wait.
+        CoroutineScope(SupervisorJob() + Dispatchers.Main).launch {
+            var before = com.cosmotune.music.data.LikeState.overrides.value
+            com.cosmotune.music.data.LikeState.overrides.collect { now ->
+                if (KeepDownloaded.likedPassWanted(before, now, look.keepDownloaded.value)) {
+                    val soon = OneTimeWorkRequestBuilder<KeepDownloadedWorker>().setConstraints(wifiOnly())
+                        .setInitialDelay(KeepDownloaded.LIKED_SETTLE_MS, TimeUnit.MILLISECONDS)
+                        .setInputData(workDataOf(KEY_PLAYLISTS to arrayOf(KeepDownloaded.LIKED_MUSIC), KEY_NEWEST_ONLY to true)).build()
+                    WorkManager.getInstance(app).enqueueUniqueWork(LIKED_SOON, ExistingWorkPolicy.REPLACE, soon)
+                }
+                before = now
+            }
+        }
     }
 
     private fun wifiOnly(): Constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED)
@@ -87,6 +103,7 @@ class KeepDownloadedWorker(context: Context, parameters: WorkerParameters) : Cor
     override suspend fun doWork(): Result {
         val look = cosmoLookSettings(applicationContext)
         val only = inputData.getStringArray(KeepDownloadedScheduler.KEY_PLAYLISTS)?.toSet()
+        val newestOnly = inputData.getBoolean(KeepDownloadedScheduler.KEY_NEWEST_ONLY, false)
         if (look.keepDownloaded.value.isEmpty()) return Result.success()
         if (only == null && !KeepDownloaded.due(look.keepDownloadedCheckedMs(), System.currentTimeMillis())) return Result.success()
         if (!AppSettings.downloadsAllowedNow) return Result.retry()
@@ -95,10 +112,15 @@ class KeepDownloadedWorker(context: Context, parameters: WorkerParameters) : Cor
             withTimeout(45 * 60 * 1000L) {
                 KeepDownloaded.run(
                     look,
-                    songsOf = { id -> YtMusicRepository.completePlaylistSongs(id).getOrThrow() },
+                    songsOf = { id ->
+                        // A like lands at the top: the quick pass after one reads the newest page only.
+                        if (newestOnly) YtMusicRepository.browseSongs(id).getOrThrow().songs
+                        else YtMusicRepository.completePlaylistSongs(id).getOrThrow()
+                    },
                     onDevice = { id -> id in Downloads.saved.value },
                     download = ::fetch,
                     playlists = only ?: look.keepDownloaded.value,
+                    stamp = !newestOnly,
                 )
             }
             Result.success()

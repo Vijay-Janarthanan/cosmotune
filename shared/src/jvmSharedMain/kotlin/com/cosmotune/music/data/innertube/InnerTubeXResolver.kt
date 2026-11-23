@@ -225,18 +225,25 @@ object InnerTubeXResolver {
         skipClients: Set<String> = emptySet(),
         requireM4a: Boolean = false,
         uploaded: Boolean = false,
+        premium: Boolean = false,
     ): Extracted? {
         innerTube.cookie = Innertube.cookie
         innerTube.visitorData = Innertube.ensureVisitorData()
         innerTube.locale = YouTubeLocale(gl = Innertube.currentRegion, hl = Innertube.currentLanguage)
+        // [premium]: the account has YouTube Premium. An Opus ask then goes the signed-in way, where Premium's ~256 kbps Opus
+        // (itag 774) is offered; the anonymous ask tops out at 251. A ceiling under 256 kbps could not keep it, and AUTO's scoring
+        // would settle for 251, so the ask is HIGH. Signed out, InnerTubeX ignores it. From upstream 1.10 (GPL-3.0).
+        val premiumOpus = premium && !requireM4a && maxKbps >= PREMIUM_OPUS_KBPS && !Innertube.cookie.isNullOrBlank()
         val stream = extractor.extract(
             videoId = videoId,
             hints = ContentHints(isUploaded = true.takeIf { uploaded && !Innertube.cookie.isNullOrBlank() })
+                .withPremium(premiumOpus)
                 .withStreamCapabilities(allowHls = false, allowSabr = false, allowBoundedRange = true),
             excludedClients = excludedFor(videoId) + skipClients,
             audioQuality = when {
                 requireM4a -> AudioQuality.MP4
                 maxKbps <= LOW_KBPS -> AudioQuality.LOW
+                premiumOpus -> AudioQuality.HIGH
                 else -> AudioQuality.AUTO
             },
             clientPlaybackNonce = generateClientPlaybackNonce(),
@@ -361,6 +368,8 @@ object InnerTubeXResolver {
     private const val PLAYER_CONFIG_URL =
         "https://raw.githubusercontent.com/ZemerTeam/zemer-cipher/master/library/src/main/assets/player_configs.json"
     private const val LOW_KBPS = 64
+    /** Itag 774, YouTube Premium's Opus rung. */
+    private const val PREMIUM_OPUS_KBPS = 256
     private const val EXCLUDE_MS = 10 * 60 * 1000L
     private const val MAX_REMEMBERED = 64
     /** Off the cold-start path; the first tap on a track is rarely sooner. */

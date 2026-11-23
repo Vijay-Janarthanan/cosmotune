@@ -134,6 +134,7 @@ internal fun DesktopExtrasHost() {
     about?.let { (album, artist) ->
         com.cosmotune.ui.extras.AlbumAboutDialog(album, artist, onDismiss = { DesktopExtras.aboutAlbum.value = null })
     }
+    com.cosmotune.ui.sheets.SongInfoHost()
     val cast by DesktopExtras.castSong.collectAsState()
     cast?.let { song ->
         com.cosmotune.ui.extras.DlnaCastDialog(song, onDismiss = { DesktopExtras.castSong.value = null })

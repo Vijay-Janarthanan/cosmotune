@@ -329,6 +329,10 @@ internal fun DesktopSongMenu(
         if (!isOffline) {
             DesktopMenuRow(Icons.Rounded.Share, DesktopStrings["share", "Share"], onClick = onShare)
         }
+        DesktopMenuRow(Icons.Rounded.Info, "Song info") {
+            com.cosmotune.ui.sheets.SongInfo.open(song)
+            onDismiss()
+        }
         DesktopMenuRow(Icons.Rounded.Cast, "Play on a TV or speaker") {
             DesktopExtras.castSong.value = song
             onDismiss()

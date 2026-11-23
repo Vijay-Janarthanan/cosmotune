@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import com.cosmotune.ui.browse.musicRadio
 import kotlinx.coroutines.flow.debounce
 import androidx.compose.foundation.lazy.LazyListState
 import com.cosmotune.ui.theme.CosmoRadii
@@ -247,6 +248,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
@@ -1276,17 +1278,33 @@ fun CosmotuneDesktopApp() {
     // "Keep downloaded" with the playlist page closed: a pass on start and once a day while the app runs, and one for a playlist as
     // soon as its switch is turned on, through the same downloads as Download all (a desktop is never on a metered link as far as
     // this app can tell, see DesktopPlayerHost).
-    suspend fun keepDownloadedPass(playlists: Collection<String>? = null) {
+    suspend fun keepDownloadedPass(playlists: Collection<String>? = null, newestOnly: Boolean = false) {
         val look = com.cosmotune.ui.settings.cosmoLookSettings()
         if (look.keepDownloaded.value.isEmpty()) return
         runCatching {
             com.cosmotune.ui.pages.KeepDownloaded.run(
                 look,
-                songsOf = { id -> YtMusicRepository.completePlaylistSongs(id).getOrThrow() },
+                songsOf = { id ->
+                    if (newestOnly) YtMusicRepository.browseSongs(id).getOrThrow().songs
+                    else YtMusicRepository.completePlaylistSongs(id).getOrThrow()
+                },
                 onDevice = { id -> downloads.any { it.videoId == id } },
                 download = { _, songs -> downloadAll(songs) },
                 playlists = playlists ?: look.keepDownloaded.value,
+                stamp = !newestOnly,
             )
+        }
+    }
+    // A like while Liked Music is kept downloaded: its newest page a little later (upstream 1.10); each like restarts the wait.
+    LaunchedEffect(Unit) {
+        var before = com.cosmotune.music.data.LikeState.overrides.value
+        com.cosmotune.music.data.LikeState.overrides.collectLatest { now ->
+            val wanted = com.cosmotune.ui.pages.KeepDownloaded.likedPassWanted(before, now, com.cosmotune.ui.settings.cosmoLookSettings().keepDownloaded.value)
+            before = now
+            if (wanted) {
+                delay(com.cosmotune.ui.pages.KeepDownloaded.LIKED_SETTLE_MS)
+                keepDownloadedPass(listOf(com.cosmotune.ui.pages.KeepDownloaded.LIKED_MUSIC), newestOnly = true)
+            }
         }
     }
     LaunchedEffect(Unit) {
@@ -1957,10 +1975,16 @@ fun CosmotuneDesktopApp() {
     }
     LaunchedEffect(Unit) {
         while (currentCoroutineContext().isActive) {
-            delay(1_000L)
+            // A second at a time, a tenth of one through the sleep fade (its last 30 seconds, unless turned off).
+            val left = DesktopSleepTimer.remainingMs()
+            val fade = com.cosmotune.settings.Extras.settings.sleepFadeOut.value
+            delay(if (fade && left != null && left <= com.cosmotune.music.playback.SleepFade.FADE_MS + 1_000L) 100L else 1_000L)
             if (DesktopSleepTimer.isExpired()) {
-                DesktopSleepTimer.cancel()
                 pauseEverythingForSleep()
+                DesktopSleepTimer.cancel()
+                playbackEngine.sleepFadeGain = 1f
+            } else {
+                playbackEngine.sleepFadeGain = com.cosmotune.music.playback.SleepFade.gain(DesktopSleepTimer.remainingMs(), fade)
             }
         }
     }
@@ -2487,6 +2511,19 @@ fun CosmotuneDesktopApp() {
     }
 
     fun selectDestination(next: DesktopDestination) {
+        // The page already open, with nothing over it: a tap on its tab goes back to its top (upstream 1.10).
+        val atRoot = !overlays.roomView && openedArtist == null && openedCollection == null && !overlays.replay &&
+            overlays.settingsPage == null && selectedMoodGenre == null && libraryShowAll == null
+        if (next != DesktopDestination.SEARCH && com.cosmotune.ui.shell.isTabReselect(next.ordinal, destination.ordinal, atRoot)) {
+            val page = when (next) {
+                DesktopDestination.LISTEN_NOW -> homeListState
+                DesktopDestination.EXPLORE -> exploreListState
+                DesktopDestination.LIBRARY -> libraryListState
+                DesktopDestination.RELEASES -> releasesListState
+                else -> null
+            }
+            page?.let { state -> scope.launch { com.cosmotune.ui.shell.scrollToTopGently(state) } }
+        }
         overlays.roomView = false
         if (next == DesktopDestination.LIBRARY && libraryStale) {
             libraryStale = false
@@ -4942,17 +4979,28 @@ fun CosmotuneDesktopApp() {
                                 modifier = Modifier.weight(1f),
                             )
                         }
-                        destination == DesktopDestination.EXPLORE -> com.cosmotune.ui.search.ExploreSwitch(
-                            state = exploreState,
-                            listState = exploreListState,
-                            onCategoryClick = ::openMoodGenre,
-                            onRetry = { exploreReloads++ },
-                            refreshing = false,
-                            onRefresh = { exploreReloads++ },
-                            pullState = rememberPullToRefreshState(),
-                            contentPadding = sharedPagePadding,
-                            showTitle = false,
-                        )
+                        destination == DesktopDestination.EXPLORE -> {
+                            // Radio (upstream 1.10): the signed-in listener's mixes over the moods and genres.
+                            val radio = com.cosmotune.ui.browse.rememberMusicRadio(exploreReloads)
+                            val radioFonts = com.cosmotune.ui.orbit.orbitFonts()
+                            val radioLook = com.cosmotune.ui.orbit.orbitLook()
+                            val radioRows: androidx.compose.foundation.lazy.LazyListScope.(androidx.compose.ui.unit.Dp) -> Unit = { side ->
+                                musicRadio(radio, side, radioFonts, radioLook, onOpen = { item -> openShelfItem(item, "Radio") }, onRetry = { exploreReloads++ })
+                            }
+                            androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.browse.LocalExploreRadio provides radioRows) {
+                                com.cosmotune.ui.search.ExploreSwitch(
+                                    state = exploreState,
+                                    listState = exploreListState,
+                                    onCategoryClick = ::openMoodGenre,
+                                    onRetry = { exploreReloads++ },
+                                    refreshing = false,
+                                    onRefresh = { exploreReloads++ },
+                                    pullState = rememberPullToRefreshState(),
+                                    contentPadding = sharedPagePadding,
+                                    showTitle = false,
+                                )
+                            }
+                        }
                         destination == DesktopDestination.SEARCH -> { val searchUndo = com.cosmotune.ui.orbit.LocalOrbitUndo.current; com.cosmotune.ui.search.SearchSwitch(
                             query = query,
                             onQueryChange = ::editQuery,
@@ -6014,6 +6062,17 @@ private fun DesktopSettingsScreen(
                     }
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.FORGET_OFFSETS, com.cosmotune.ui.settings.SoundExtrasText.FORGET_OFFSETS_LINE)) {
                         com.cosmotune.ui.settings.ForgetLyricsOffsetsRow()
+                    }
+                }
+                SettingsGroup(com.cosmotune.ui.settings.PlayerExtrasText.GROUP) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART, com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART_LINE)) {
+                        com.cosmotune.ui.settings.BestPartRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE, com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE_LINE)) {
+                        com.cosmotune.ui.settings.SleepFadeOutRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM, com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM_LINE)) {
+                        com.cosmotune.ui.settings.PremiumAudioRow()
                     }
                 }
                 SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_NETWORK) {
