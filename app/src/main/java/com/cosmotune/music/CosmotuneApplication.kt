@@ -53,6 +53,11 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         }
         if (android.os.Build.VERSION.SDK_INT >= 28 && Application.getProcessName().let { it.endsWith(":provider_auth") || it.endsWith(":mangaverification") }) return
         com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
+        com.cosmotune.music.data.cast.dlna.DlnaDiscovery.multicastHold = {
+            val lock = applicationContext.getSystemService(android.net.wifi.WifiManager::class.java)
+                .createMulticastLock("cosmotune-dlna").apply { setReferenceCounted(false); acquire() }
+            AutoCloseable { if (lock.isHeld) lock.release() }
+        }
         // First, before any store is opened: copies what was kept under the names before the rename.
         LegacyDataMigration.run(this)
         CoroutineScope(Dispatchers.IO).launch {

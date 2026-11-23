@@ -18,8 +18,8 @@ internal fun WatchCastSheet(casting: WatchCasting, stream: Stream?, fonts: Orbit
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     DisposableEffect(casting) { casting.discovery.start(); onDispose { casting.discovery.stop() } }
-    com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = onDismiss, title = "Cast video", dismissLabel = "Done",
-        message = renderer?.let { "Playing on ${it.device.name}" } ?: "Choose a DLNA TV or receiver on the same network.") {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = onDismiss, title = "Play on a TV", dismissLabel = "Done",
+        message = renderer?.let { "Playing on ${it.device.name}. Play, pause and seek are on the player." } ?: "Choose a TV on the same Wi-Fi.") {
         casting.whyNot(stream)?.let { Text(it, style = fonts.body, color = look.dim) }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (devices.isEmpty()) Text("Searching for receivers…", style = fonts.body, color = look.dim)
@@ -30,10 +30,25 @@ internal fun WatchCastSheet(casting: WatchCasting, stream: Stream?, fonts: Orbit
                     busy = false
                 }
             }) }
-            if (renderer != null) WatchCardChip("Stop casting", look.ink, fonts, enabled = !busy, onClick = {
-                scope.launch { casting.disconnect(); onDismiss() }
-            })
+            renderer?.let { tv ->
+                val remote by tv.state.collectAsState()
+                val level = remote.volume
+                Text(if (level != null) "TV volume ${(level * 100).toInt()}%" else "TV volume", style = fonts.body, color = look.dim)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WatchCardChip("Quieter", look.ink, fonts, enabled = !busy && level != null, onClick = {
+                        scope.launch { runCatching { tv.setVolume(((level ?: 0f) - VOLUME_STEP).coerceAtLeast(0f)) } }
+                    })
+                    WatchCardChip("Louder", look.ink, fonts, enabled = !busy && level != null, onClick = {
+                        scope.launch { runCatching { tv.setVolume(((level ?: 0f) + VOLUME_STEP).coerceAtMost(1f)) } }
+                    })
+                }
+                WatchCardChip("Stop playing on TV", look.ink, fonts, enabled = !busy, onClick = {
+                    scope.launch { casting.disconnect(); onDismiss() }
+                })
+            }
             message?.let { Text(it, style = fonts.body, color = look.dim) }
         }
     }
 }
+
+private const val VOLUME_STEP = 0.1f
