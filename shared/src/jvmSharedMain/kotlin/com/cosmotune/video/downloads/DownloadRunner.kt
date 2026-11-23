@@ -164,7 +164,7 @@ class DownloadRunner(
 
     override suspend fun options(item: VideoItem): DownloadOptions {
         if (item.isLive || item.isUpcoming) throw VideoSourceError.NotAvailable("Live and upcoming videos cannot be downloaded")
-        return DownloadPlanner.options(source.details(item.id), platform.caps, platform::languageName)
+        return DownloadPlanner.options(source.details(item.id), platform.caps, platform::languageName, platform.appLanguage)
     }
 
     override suspend fun batchOptions(items: List<VideoItem>): DownloadOptions =
