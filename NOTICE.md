@@ -296,3 +296,5 @@ CHM help books are unpacked with the CHM reader of Apache Tika 3.3.1 (`org.apach
 Read's Listen shelf talks to the listener's own Audiobookshelf server through its public REST API (https://api.audiobookshelf.org/), written for Cosmotune; Audiobookshelf (GPL-3.0) code is not included. LibriVox recordings (public domain, https://librivox.org/) are listed and streamed from the Internet Archive's public search and download addresses. Audiobook chapters and tags are read from the MP4 (Nero chpl and QuickTime chapter track) and ID3v2/Xing layouts as publicly described.
 
 Read's Nearby sends and receives books with the LocalSend protocol v2 (https://github.com/localsend/protocol, MIT), so it finds Cosmotune on other devices and the LocalSend apps; the code is written for Cosmotune and no LocalSend code is included.
+
+Recorded narration in EPUB books (listening along) is read from the W3C EPUB 3 Media Overlays specification; matching a book's chapters to an audiobook's is Cosmotune's own.

@@ -167,7 +167,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         require(sha256(file) == book.fileSha.ifBlank { book.id }) { "The owned book file changed; import the replacement edition again." }
         if (book.format == ReadingFormat.PDF) { validatePdf(file); ReadingDocument.Pdf(book, file) }
         else ReadingEpub.open(file, File(documents, book.id)).let {
-            ReadingDocument.Epub(book, it.root, it.spine, it.navigation, it.resources)
+            ReadingDocument.Epub(book, it.root, it.spine, it.navigation, it.resources, it.overlays, it.overlayClass)
         }
     } }
 
@@ -236,6 +236,13 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         old.copy(saved = old.saved.filterNot { it.id == value.id } + value)
     }
     suspend fun removeSaved(id: String) = store.update { it.copy(saved = it.saved.filterNot { publication -> publication.id == id }) }
+    /** Pairs [bookId] with the Listen shelf's [audiobookId] for listening along, or unpairs it (null). */
+    suspend fun pairAudio(bookId: String, audiobookId: String?) = store.update { old ->
+        require(old.books.any { it.id == bookId }) { "This book is no longer in the library." }
+        require(audiobookId == null || old.audiobooks.any { it.id == audiobookId }) { "This audiobook is no longer on the Listen shelf." }
+        old.copy(audioPairs = if (audiobookId == null) old.audioPairs - bookId else old.audioPairs + (bookId to audiobookId))
+    }
+
     suspend fun markFinished(bookId: String, finished: Boolean = true) = store.update { old ->
         require(old.books.any { it.id == bookId })
         old.copy(finished = if (finished) old.finished + bookId else old.finished - bookId, finishedAt = old.finishedAt + (bookId to System.currentTimeMillis()))

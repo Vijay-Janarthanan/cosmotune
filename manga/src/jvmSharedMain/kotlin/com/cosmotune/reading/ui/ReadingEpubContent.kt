@@ -266,6 +266,26 @@ internal object ReadingEpubScripts {
     fun highlights(marks: List<ReadingHighlight>): String =
         lay(marks.joinToString(",", "[", "]") { "{i:${quote(it.id)},s:${it.start},e:${it.end},c:${quote(it.style.name.lowercase())}}" }, "cosmotune-hl", false)
 
+    /**
+     * Marks the element [fragment] (its id) as the words a book's recorded narration speaks now, also with the book's own
+     * [bookClass] when it names one, and keeps it on the screen; null takes the mark away.
+     */
+    fun narrating(fragment: String?, bookClass: String = ""): String {
+        val id = fragment?.let { Json.encodeToString(it) } ?: "null"
+        val extra = bookClass.takeIf { it.matches(Regex("[A-Za-z_-][A-Za-z0-9_-]{0,60}")) }?.let { ",'$it'" }.orEmpty()
+        return """(function(id){var names=['cosmotune-narrating'$extra];
+            if(!document.getElementById('cosmotune-narrating-style')){var s=document.createElement('style');s.id='cosmotune-narrating-style';
+            s.textContent='.cosmotune-narrating{background:rgba(255,196,0,.32)!important;border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}';(document.head||document.documentElement).appendChild(s);}
+            for(var n=0;n<names.length;n++){var old=document.querySelectorAll('.'+names[n]);for(var i=0;i<old.length;i++)old[i].classList.remove(names[n]);}
+            if(id===null)return '0';var el=document.getElementById(id);if(!el)return '0';for(var k=0;k<names.length;k++)el.classList.add(names[k]);
+            var r=el.getBoundingClientRect();if(r.top<0||r.bottom>window.innerHeight||r.left<0||r.right>window.innerWidth)el.scrollIntoView({block:'center',inline:'nearest'});
+            return '1';})($id)""".trimIndent()
+    }
+
+    /** The id of the first element with an id that is on the screen now, to start narration from where the reader is. */
+    val firstVisibleId = """(function(){var all=document.querySelectorAll('[id]');for(var i=0;i<all.length;i++){var r=all[i].getBoundingClientRect();
+        if(r.bottom>0&&r.top<window.innerHeight&&r.right>0&&r.left<window.innerWidth&&r.height>0)return all[i].id;}return '';})()""".trimIndent()
+
     /** Marks the sentence being read aloud ([start] until [end]) and keeps it on the screen; a negative [start] takes the mark away. */
     fun speaking(start: Int, end: Int): String = lay(if (start < 0) "[]" else "[{i:'tts',s:$start,e:$end,c:'now'}]", "cosmotune-tts", true)
 

@@ -115,7 +115,9 @@ import kotlinx.serialization.Serializable
     val readingMs: Map<String, Long> = emptyMap(), val readingDays: Map<String, Long> = emptyMap(), val paces: Map<String, ReadingPace> = emptyMap(),
     val profiles: List<ReadingProfile> = emptyList(),
     /** The Listen shelf's audiobooks, and the listener's own Audiobookshelf when connected. */
-    val audiobooks: List<ReadingAudiobook> = emptyList(), val audiobookshelf: ReadingAudiobookshelf? = null)
+    val audiobooks: List<ReadingAudiobook> = emptyList(), val audiobookshelf: ReadingAudiobookshelf? = null,
+    /** Books paired with an audiobook of theirs on the Listen shelf, for listening along (book id to audiobook id). */
+    val audioPairs: Map<String, String> = emptyMap())
 
 /** A folder of books on this device: a tree address on Android, a path on the desktop. */
 @Serializable data class ReadingFolder(val location: String, val name: String)
@@ -130,7 +132,9 @@ data class ReadingResource(val href: String, val file: File, val mediaType: Stri
 sealed interface ReadingDocument {
     val book: ReadingBook
     data class Epub(override val book: ReadingBook, val root: File, val spine: List<ReadingEpubSection>,
-        val navigation: List<ReadingNavigation>, val resources: Map<String, ReadingResource>) : ReadingDocument
+        val navigation: List<ReadingNavigation>, val resources: Map<String, ReadingResource>,
+        /** The book's recorded narration by chapter (EPUB 3 media overlays), and the class it gives the words being spoken. */
+        val overlays: Map<String, ReadingOverlay> = emptyMap(), val overlayClass: String = "") : ReadingDocument
     data class Pdf(override val book: ReadingBook, val file: File) : ReadingDocument
 }
 

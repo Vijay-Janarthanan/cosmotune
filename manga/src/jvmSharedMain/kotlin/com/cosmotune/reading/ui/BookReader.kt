@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
@@ -117,6 +118,11 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     val aloud = remember(document, speech) { if (speech == null || epub == null) null else
         ReadAloud(speech, page, scope, epub, { latestPreferences }, { saveLocation(it) }, { error = it }) }
     DisposableEffect(aloud) { onDispose { aloud?.pause() } }
+    val audioHost = LocalReadingAudio.current
+    val along = remember(document, audioHost) { if (audioHost == null || epub == null) null else
+        ReadAlong(audioHost, page, scope, epub, { saveLocation(it) }, { error = it }) }
+    DisposableEffect(along) { onDispose { along?.leave() } }
+    val pairedAudio = state.audioPairs[book.id]?.let { id -> state.audiobooks.firstOrNull { it.id == id } }
     val marks = remember(state.highlights, book.id) { ReadingNotesExport.highlights(state, book.id) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val save = rememberReadingSave { error = it }
@@ -268,6 +274,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 OrbitReaderButton(CosmoIcons.ChevronLeft, "Previous paragraph", ink, fill, { paragraphStep(-1) }, Modifier.testTag("books:paragraph:previous"))
                 OrbitReaderButton(CosmoIcons.ChevronRight, "Next paragraph", ink, fill, { paragraphStep(1) }, Modifier.testTag("books:paragraph:next"))
             }
+            else if (along?.active == true) ReadAlongCard(along, fill, ink)
             else if (aloud?.active == true) ReadAloudCard(aloud, fill, ink, onTimer = { panel = "Timer" }, onVoice = { panel = "Voice" })
             else selection?.let { words ->
                 ReaderSelectionBar(words, fill, ink, onHighlight = { highlight(words, it) }, onNote = { noting = words }, extra = {
@@ -298,7 +305,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 }
             }
             // A tap on the middle of the page shows the tools where the page can tell (the phone); the desktop keeps the button.
-            if (aloud?.active == true || autoScrolling || paragraph != null) Unit
+            if (aloud?.active == true || along?.active == true || autoScrolling || paragraph != null) Unit
             else if (!tools) Column(Modifier.fillMaxWidth()) {
                 if (preferences.footerBar) com.cosmotune.ui.orbit.OrbitProgressLine({ overall.toFloat() }, look.dim, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), moon = 3.dp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, if (readingCenterTap) Alignment.CenterHorizontally else Alignment.End),
@@ -349,7 +356,14 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                             updatePreferences(preferences.copy(rulerLines = if (preferences.rulerLines > 0) 0 else 2))
                         },
                         OrbitMenuItem("Read aloud", detail = if (aloud == null) "Reading aloud works in reflowing books, not PDFs." else null,
-                            icon = androidx.compose.material.icons.Icons.Rounded.RecordVoiceOver, enabled = aloud != null) { aloud?.start() },
+                            icon = androidx.compose.material.icons.Icons.Rounded.RecordVoiceOver, enabled = aloud != null) { along?.stop(); aloud?.start() },
+                        OrbitMenuItem("Listen along", detail = when {
+                            epub == null -> "Works in reflowing books, not PDFs."
+                            along == null -> "Plays in the Cosmotune app on a phone or a computer."
+                            pairedAudio != null -> pairedAudio.title
+                            epub.overlays.isNotEmpty() -> "The book's own recorded narration"
+                            else -> "Pair it with an audiobook from Listen"
+                        }, icon = androidx.compose.material.icons.Icons.Rounded.Headphones, selected = along?.active == true, enabled = along != null) { panel = "Along" },
                         OrbitMenuItem("Highlights and notes", detail = if (epub == null) "Highlights work in reflowing books, not PDFs." else marks.size.takeIf { it > 0 }?.toString(),
                             icon = androidx.compose.material.icons.Icons.Rounded.EditNote, enabled = epub != null) { panel = "Highlights" },
                         OrbitMenuItem("Read another book beside this", detail = if (onBeside == null) "Needs a wider window or screen" else null, icon = CosmoIcons.Library,
@@ -402,6 +416,11 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 try { repository.removeHighlight(mark.id) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { error = "The highlight could not be removed." }
             } }, onExport = ::export, onDismiss = { panel = "" })
         "Timer" -> aloud?.let { SleepTimerSheet(it, onDismiss = { panel = "" }) }
+        "Along" -> if (along != null && epub != null) ReadAlongSheet(state, book, hasNarration = epub.overlays.isNotEmpty(),
+            onNarration = { aloud?.stop(); tools = false; along.startNarration() },
+            onPair = { audio -> scope.launch { try { repository.pairAudio(book.id, audio?.id) } catch (e: CancellationException) { throw e } catch (e: Exception) { error = e.message } } },
+            onListen = { audio -> aloud?.stop(); tools = false; along.startAudiobook(audio, locator.progression) { repository.audio.ready(it) } },
+            onDismiss = { panel = "" })
         "Voice" -> speech?.let { VoiceSheet(it, preferences, book.language, onChange = ::updatePreferences, onDismiss = { panel = "" }) }
         "Appearance" -> ReaderAppearance(preferences, document is ReadingDocument.Epub, onChange = ::updatePreferences, onDismiss = { panel = "" },
             fonts = state.fonts, onAddFont = addFont, profiles = state.profiles, onSaveProfile = { name, remove ->

@@ -206,6 +206,8 @@ private fun AudiobookPage(scope: ReadScope, book: ReadingAudiobook, onBack: () -
     val chapters = remember(book) { ReadingAudioMath.chapters(book) }
     val current = ReadingAudioMath.chapterAt(book, position)
     val downloading by scope.repository.audio.downloading.collectAsUiState()
+    val shelfState by scope.repository.state.collectAsUiState()
+    val pairedBook = shelfState.audioPairs.entries.firstOrNull { it.value == book.id }?.key?.let { id -> shelfState.books.firstOrNull { it.id == id } }
     var removingDownload by remember { mutableStateOf(false) }
     if (removingDownload) com.cosmotune.ui.kit.KitSheet(onDismiss = { removingDownload = false }) {
         ReadSheetHeader("Remove the download?", onDone = { removingDownload = false }, doneLabel = "Keep")
@@ -276,10 +278,14 @@ private fun AudiobookPage(scope: ReadScope, book: ReadingAudiobook, onBack: () -
                                 { scope.repository.audio.startDownload(book.id, scope.onError) }, Modifier.testTag("books:audiobook:download"), icon = Icons.Rounded.Download)
                         }
                     }
-                    if (book.hasEbook) ReadChip("Read the book", false, { scope.action {
+                    if (book.hasEbook && pairedBook == null) ReadChip("Read the book", false, { scope.action {
                         val (name, bytes) = scope.repository.audio.audiobookshelfEbook(book)
-                        scope.open(scope.repository.importFile(name) { bytes.inputStream() })
+                        val ebook = scope.repository.importFile(name) { bytes.inputStream() }
+                        // The ebook and its recording go together: Tools › Listen along in the reader plays this book along with the page.
+                        scope.repository.pairAudio(ebook.id, book.id)
+                        scope.open(ebook)
                     } }, Modifier.testTag("books:audiobook:ebook"), icon = CosmoIcons.Library)
+                    pairedBook?.let { paired -> ReadChip("Read along", false, { scope.open(paired) }, Modifier.testTag("books:audiobook:along"), icon = CosmoIcons.Library) }
                     ReadChip("Remove", false, { scope.action { scope.repository.audio.remove(book.id); onBack() } }, Modifier.testTag("books:audiobook:remove"), icon = CosmoIcons.Close)
                 }
                 if (book.description.isNotBlank()) androidx.compose.material3.Text(book.description, style = ReadType.body(), color = look.dim, maxLines = 6, overflow = TextOverflow.Ellipsis)
