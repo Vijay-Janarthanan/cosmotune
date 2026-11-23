@@ -1,5 +1,8 @@
 package com.cosmotune.ui.orbit
 
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -281,14 +284,28 @@ private fun SwipeToRemove(onRemove: () -> Unit, look: OrbitLook, fonts: OrbitFon
         modifier = modifier,
         enableDismissFromStartToEnd = false,
         backgroundContent = {
-            Box(Modifier.fillMaxSize().background(if (look.dark) Color(0xFFE5675C) else Color(0xFFD2483C)), contentAlignment = Alignment.CenterEnd) {
+            // Drawn only in the strip the row has left (the row itself is see-through at rest, on the page's own ground).
+            Box(
+                Modifier.fillMaxSize().drawWithContent {
+                    val offset = runCatching { state.requireOffset() }.getOrDefault(0f)
+                    if (offset >= 0f) return@drawWithContent
+                    clipRect(left = size.width + offset, top = 0f, right = size.width, bottom = size.height) {
+                        drawRoundRect(if (look.dark) Color(0xFFE5675C) else Color(0xFFD2483C), cornerRadius = CornerRadius(16.dp.toPx()))
+                        this@drawWithContent.drawContent()
+                    }
+                },
+                contentAlignment = Alignment.CenterEnd,
+            ) {
                 Column(Modifier.padding(end = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(CosmoIcons.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     Text("Remove", style = fonts.chip.copy(fontSize = 12.sp, fontWeight = FontWeight(800)), color = Color.White)
                 }
             }
         },
-    ) { Box(Modifier.background(look.ground)) { content() } }
+    ) {
+        // At rest the row is the flat Orbit row on the page's own ground (a cover's colour on Now Playing), not a pale square.
+        content()
+    }
 }
 
 @Composable
