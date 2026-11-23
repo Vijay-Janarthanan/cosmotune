@@ -155,7 +155,16 @@ class JellyfinPlugin(
             val hls = direct.copy(label = "Transcoded · HLS", description = "Converted by the server for this device",
                 url = "$server/Videos/$itemId/master.m3u8?MediaSourceId=$msId&VideoCodec=h264&AudioCodec=aac&TranscodingMaxAudioChannels=2&SegmentContainer=ts&DeviceId=cosmotune",
                 protocol = StreamProtocol.HLS, height = height?.coerceAtMost(1080), hdr = null, videoCodec = "avc")
-            listOf(direct, hls)
+            // Styled (ASS) and picture (PGS, DVD) subtitles lose their look or do not show at all on many players: the server can draw
+            // them into the picture of its converted copy instead (Jellyfin's "always burn in subtitles when transcoding").
+            val styled = subs.filter { (it.str("Codec") ?: "").lowercase() in BURN_IN_CODECS }
+            val burn = styled.firstOrNull { it.bool("IsDefault") == true } ?: styled.firstOrNull()
+            val burnt = burn?.int("Index")?.let { index ->
+                hls.copy(label = "Transcoded · ${burn.str("Language")?.let { "${it.uppercase()} " } ?: ""}subtitles burnt in",
+                    description = "${burn.str("DisplayTitle") ?: "Subtitles"} drawn into the picture by the server",
+                    url = "${hls.url}&SubtitleStreamIndex=$index&SubtitleMethod=Encode", subtitles = emptyList())
+            }
+            listOfNotNull(direct, hls, burnt)
         }
     }
 
@@ -191,6 +200,7 @@ class JellyfinPlugin(
 
     companion object {
         private const val TICKS_PER_MS = 10_000L
+        private val BURN_IN_CODECS = setOf("ass", "ssa", "pgssub", "pgs", "hdmv_pgs_subtitle", "dvdsub", "dvd_subtitle", "vobsub", "dvbsub")
 
         /** `/MediaSegments` items as skips: Intro, Recap, Outro and Preview (commercials and unknown stretches are not offered). */
         fun segmentsOf(items: List<JsonElement>, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> = items.mapNotNull { s ->

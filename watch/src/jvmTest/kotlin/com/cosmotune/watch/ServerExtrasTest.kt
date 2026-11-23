@@ -80,4 +80,27 @@ class ServerExtrasTest {
         assertEquals(com.cosmotune.watch.model.SeekPreviews.Frame(0, 3, 2), previews.frameAt(235_000))
         assertEquals(com.cosmotune.watch.model.SeekPreviews.Frame(1, 9, 4), previews.frameAt(99_999_000))
     }
+
+    @Test fun styledSubtitlesGetACopyWithThemBurntInByTheServer() = runBlocking<Unit> {
+        TestServer().use { s ->
+            s.json("/Users/u1/Items", """{"Items":[{"Id":"m1","Name":"Anime film","MediaSources":[{"Id":"ms1","Container":"mkv","MediaStreams":[
+                {"Type":"Video","Codec":"hevc","Height":1080},{"Type":"Audio","Index":1,"Codec":"aac","Language":"jpn"},
+                {"Type":"Subtitle","Index":2,"Codec":"ass","Language":"eng","DisplayTitle":"English (ASS)","IsDefault":true}]}]}]}""")
+            val plugin = JellyfinPlugin("jf-1", "Home", s.http(), s.base, ServerSession("tok", "u1"))
+            val streams = plugin.streams(com.cosmotune.watch.model.PlayTarget.Item(WatchKey("i:jf-1:m1"), "jf-1", "m1", "Anime film"))
+            val burnt = streams.single { "burnt in" in it.label }
+            assertTrue("SubtitleStreamIndex=2" in burnt.url && "SubtitleMethod=Encode" in burnt.url, burnt.url)
+            assertEquals(StreamProtocol.HLS, burnt.protocol)
+            assertTrue(burnt.subtitles.isEmpty(), "the picture carries them; no second copy on top")
+        }
+    }
+
+    @Test fun plainTextSubtitlesNeedNoBurntInCopy() = runBlocking<Unit> {
+        TestServer().use { s ->
+            s.json("/Users/u1/Items", """{"Items":[{"Id":"m1","Name":"Film","MediaSources":[{"Id":"ms1","Container":"mkv","MediaStreams":[
+                {"Type":"Video","Codec":"h264","Height":1080},{"Type":"Subtitle","Index":2,"Codec":"subrip","Language":"eng"}]}]}]}""")
+            val plugin = JellyfinPlugin("jf-1", "Home", s.http(), s.base, ServerSession("tok", "u1"))
+            assertTrue(plugin.streams(com.cosmotune.watch.model.PlayTarget.Item(WatchKey("i:jf-1:m1"), "jf-1", "m1", "Film")).none { "burnt in" in it.label })
+        }
+    }
 }
