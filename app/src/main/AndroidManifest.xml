@@ -128,13 +128,6 @@
           uiMode is deliberately *not* in the list: a day/night change should
           still recreate the Activity so the theme is rebuilt from resources.
         -->
-        <!-- Rescue, from the launcher icon's long-press shortcut (CosmotuneApplication): a backup and the crash note. -->
-        <activity
-            android:name=".RescueActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity="com.cosmotune.rescue"
-            android:theme="@style/Theme.Cosmotune" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -336,6 +329,13 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+        <!-- Rescue, from the launcher icon's long-press shortcut (CosmotuneApplication): a backup and the crash note. -->
+        <activity
+            android:name=".RescueActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.cosmotune.rescue"
+            android:theme="@style/Theme.Cosmotune" />
 
         <service
             android:name=".playback.PlaybackService"
