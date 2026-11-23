@@ -32,6 +32,8 @@ class SubsonicCatalogueTest {
                     "song":[{"id":"tr-1","title":"Kannalane","artist":"A. R. Rahman","duration":335,"suffix":"flac"},{"id":"tr-2","title":"Humma","artist":"A. R. Rahman","duration":300,"suffix":"mp3"}]}}}"""
                 path.endsWith("getArtist.view") && q["id"] == "ar-1" -> """{"subsonic-response":{"status":"ok","artist":{"id":"ar-1","name":"A. R. Rahman",
                     "album":{"id":"al-1","name":"Bombay","artist":"A. R. Rahman"}}}}"""
+                path.endsWith("createShare.view") && q["id"] == "tr-2" -> """{"subsonic-response":{"status":"failed","error":{"code":50}}}"""
+                path.endsWith("createShare.view") -> """{"subsonic-response":{"status":"ok","shares":{"share":{"id":"s1","url":"https://music.example.org/share/s1"}}}}"""
                 path.endsWith("getSong.view") && q["id"] == "tr-1" -> """{"subsonic-response":{"status":"ok","song":{"id":"tr-1","title":"Kannalane","suffix":"FLAC","bitRate":1011,"samplingRate":44100,"bitDepth":16,"duration":335}}}"""
                 else -> """{"subsonic-response":{"status":"failed","error":{"code":70}}}"""
             }
@@ -90,5 +92,16 @@ class SubsonicCatalogueTest {
         assertTrue(SubsonicCatalogue.isComplete(base, mapOf(SubsonicCatalogue.KEY_API_KEY to "k")))
         assertFalse(SubsonicCatalogue.isComplete("ftp://host", mapOf(SubsonicCatalogue.KEY_API_KEY to "k")))
         assertFailsWith<IllegalArgumentException> { runBlocking { SubsonicCatalogue.forSource("sub-1", base, settings, OkHttpClient())!!.page(ProviderBrowseKey("other", "album", "x", "addon")) } }
+    }
+
+    @Test fun shareTextCarriesTheServersPublicLinkAndSaysWhenSharingIsOff() = runBlocking<Unit> {
+        val catalogue = assertNotNull(SubsonicCatalogue.forSource("sub-1", base, settings, OkHttpClient()))
+        val song = com.cosmotune.music.data.model.Song("src:sub-1::tr-1", "First", "Singer", null)
+        assertEquals("First — Singer\nhttps://music.example.org/share/s1", catalogue.shareText(song))
+        assertNull(catalogue.shareText(song.copy(videoId = "dQw4w9WgXcQ")))
+        assertEquals("Album\nhttps://music.example.org/share/s1", catalogue.shareText(ProviderBrowseKey("sub-1", "album", "al-1", "addon"), "Album"))
+        assertNull(catalogue.shareText(ProviderBrowseKey("sub-1", "artist", "ar-1", "addon"), "Artist"))
+        val off = assertFailsWith<IllegalStateException> { catalogue.shareText(song.copy(videoId = "src:sub-1::tr-2")) }
+        assertTrue(off.message!!.contains("sharing turned off"))
     }
 }

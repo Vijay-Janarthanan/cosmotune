@@ -89,6 +89,22 @@ class SubsonicClient(
     suspend fun albumList(type: String = "newest", size: Int = 50): List<JsonObject> =
         call("getAlbumList2", "type" to type, "size" to size.coerceIn(1, 500).toString())["albumList2"]?.jsonObject?.get("album").objects()
 
+    /**
+     * Asks the server for a public share link to [ids] (songs or an album) with [description] shown on its page. The link
+     * plays without signing in, so it is safe to pass on; it lasts [days] days. Servers that keep sharing off answer
+     * with an error, which is thrown.
+     */
+    suspend fun createShare(ids: List<String>, description: String?, days: Int = 30, now: Long = System.currentTimeMillis()): String {
+        require(ids.isNotEmpty()) { "Nothing to share." }
+        val params = ids.take(500).map { "id" to it } +
+            listOfNotNull(description?.trim()?.take(200)?.takeIf { it.isNotEmpty() }?.let { "description" to it }) +
+            ("expires" to (now + days.coerceIn(1, 365) * 86_400_000L).toString())
+        val share = call("createShare", *params.toTypedArray())["shares"]?.jsonObject?.get("share").objects().firstOrNull()
+        val url = share?.get("url")?.jsonPrimitive?.contentOrNull?.trim()
+        return url?.toHttpUrlOrNull()?.takeIf { it.username.isEmpty() && it.queryParameter("t") == null && it.queryParameter("apiKey") == null }?.toString()
+            ?: throw SubsonicException(0, "The server made no share link.")
+    }
+
     /** The address a player opens for [songId]. Contains credentials: hand it to the decoder, never persist it. */
     fun streamUrl(songId: String): String = authenticated("stream", "id" to songId, "format" to "raw").toString()
 

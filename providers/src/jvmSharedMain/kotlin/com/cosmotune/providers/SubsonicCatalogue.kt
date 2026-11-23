@@ -64,6 +64,32 @@ class SubsonicCatalogue(val sourceId: String, val client: SubsonicClient) {
     fun owns(videoId: String): String? = com.cosmotune.music.data.sources.SourceTrackKeys.parse(videoId)
         ?.takeIf { it.first == sourceId }?.second
 
+    /**
+     * A public link the listener's server makes for one of its own songs, ready to send: the song, a dash, its artist,
+     * then the link on its own line. Null for a row from anywhere else. Throws with a listener-facing message when the
+     * server will not share.
+     */
+    suspend fun shareText(song: Song): String? {
+        val id = owns(song.videoId) ?: return null
+        val name = listOf(song.title, song.artist).filter { it.isNotBlank() }.joinToString(" — ")
+        return "$name\n" + shareLink(listOf(id), name)
+    }
+
+    /** The same for one of this server's album pages. Null for any other page. */
+    suspend fun shareText(key: ProviderBrowseKey, title: String): String? {
+        if (key.namespace != NAMESPACE || key.provider != sourceId || key.kind != "album") return null
+        return "$title\n" + shareLink(listOf(key.id), title)
+    }
+
+    private suspend fun shareLink(ids: List<String>, description: String): String = try {
+        client.createShare(ids, description)
+    } catch (error: com.cosmotune.music.data.subsonic.SubsonicException) {
+        throw IllegalStateException(
+            if (error.code == 50) "Your server has sharing turned off. Turn it on in the server's settings."
+            else "Your server didn't make a link. ${error.message.orEmpty()}".trim(),
+        )
+    }
+
     /** Asks the server what the file is, then hands back the address to open. */
     suspend fun stream(trackId: String): SubsonicStream {
         val info = client.songObject(trackId)

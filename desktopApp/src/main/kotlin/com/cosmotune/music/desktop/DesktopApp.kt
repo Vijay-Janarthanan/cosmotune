@@ -1221,8 +1221,21 @@ fun CosmotuneDesktopApp() {
 
     fun openAlbum(browseId: String) = openCollection(browseId)
 
+    /** Copies the link the listener's own server made, or the plain name with the server's reason when it would not. */
+    suspend fun copyServerShare(name: String, make: suspend () -> String?) {
+        val made = runCatching { withContext(Dispatchers.IO) { make() } }
+        DesktopExternalLinks.copy(made.getOrNull() ?: "$name\nShared from Cosmotune")
+        DesktopPlayerHost.showMessage(made.exceptionOrNull()?.let { it.message ?: "Your server didn't make a link" } ?: "Link copied")
+    }
+
     /** Copies the track's YouTube Music link. */
     fun shareSong(song: Song) {
+        // A song from the listener's own Subsonic server: the server makes a public link that plays it.
+        val server = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.first?.let(DesktopSourceRegistry::subsonicFor)
+        if (server != null) {
+            scope.launch { copyServerShare("${song.title} — ${song.artist}") { server.shareText(song) } }
+            return
+        }
         if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId) || song.localUri != null || song.localPath != null) {
             DesktopExternalLinks.copy("${song.title} — ${song.artist}\nShared from Cosmotune")
             return
@@ -1238,7 +1251,13 @@ fun CosmotuneDesktopApp() {
      */
     fun shareCollection(collection: DesktopCollection) {
         val id = collection.browseId
-        if (com.cosmotune.providers.ProviderBrowseKey.parse(id) != null || id.startsWith("local:")) {
+        val sourcePage = com.cosmotune.providers.ProviderBrowseKey.parse(id)
+        val server = sourcePage?.let { DesktopSourceRegistry.subsonicFor(it.provider) }
+        if (sourcePage != null && server != null && sourcePage.kind == "album") {
+            scope.launch { copyServerShare(collection.title) { server.shareText(sourcePage, collection.title) } }
+            return
+        }
+        if (sourcePage != null || id.startsWith("local:")) {
             DesktopExternalLinks.copy("${collection.title}\n${collection.subtitle}\n${collection.songs.size} songs · Shared from Cosmotune")
             return
         }
