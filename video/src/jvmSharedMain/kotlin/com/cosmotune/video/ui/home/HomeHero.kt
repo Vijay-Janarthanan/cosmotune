@@ -80,7 +80,8 @@ internal fun HomeUpNextCard(
                 val name = item.channelName?.takeIf { it.isNotBlank() }
                 if (name != null) {
                     Row(
-                        Modifier.padding(top = 12.dp, end = 76.dp).clip(RoundedCornerShape(20.dp)).then(if (onChannel != null) Modifier.clickable(onClick = onChannel) else Modifier),
+                        // Ends 16 dp short of Play's ring (its 41 dp radius about 46 dp in from the corner), so the name never runs into it.
+                        Modifier.padding(top = 12.dp, end = 90.dp).clip(RoundedCornerShape(20.dp)).then(if (onChannel != null) Modifier.clickable(onClick = onChannel) else Modifier),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         ChannelAvatar(item.channelAvatarUrl, 30.dp, name = name)
