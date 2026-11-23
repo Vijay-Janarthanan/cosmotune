@@ -265,6 +265,12 @@
     <string name="video_playlist_save_csv">Save as a CSV file</string>
     <string name="video_file_saved">Saved</string>
     <string name="video_file_not_saved">Could not save the file</string>
+    <string name="video_other_title">Channels on other sites</string>
+    <string name="video_other_note">Follow a PeerTube channel by its address, such as https://site/c/name, or name@site.</string>
+    <string name="video_other_hint">https://site/c/name</string>
+    <string name="video_other_bad">That site did not answer for this channel. Check the address.</string>
+    <string name="video_other_add">Follow</string>
+    <string name="video_other_unplayable">This video cannot be played from its site right now</string>
     <!-- Import and export -->
     <string name="video_import_newpipe_subs">NewPipe subscriptions</string>
     <string name="video_import_newpipe_db">NewPipe or PipePipe backup</string>

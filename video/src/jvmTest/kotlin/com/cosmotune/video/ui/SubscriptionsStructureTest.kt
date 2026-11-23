@@ -38,7 +38,7 @@ class SubscriptionsStructureTest {
 
     @Test fun theDirectoryHoldsTheBriefsTwoFiles() {
         val names = File(VideoSourceContract.root, dir).listFiles { f -> f.extension == "kt" }!!.map { it.nameWithoutExtension }.toSet()
-        assertEquals(setOf("SubscriptionsPage", "FeedStatusLine", "FeedGroupSheet"), names)
+        assertEquals(setOf("SubscriptionsPage", "FeedStatusLine", "FeedGroupSheet", "OtherSites"), names)
     }
 
     @Test fun thePageKeepsTheBriefsSignature() {
@@ -140,7 +140,7 @@ class SubscriptionsStructureTest {
         assertTrue("navigator.openShort(it, shortsOrigin, shelf)" in page, "a shelf card opens the pager with the shelf's Shorts")
         assertTrue("navigator.push(VideoRoute.Shorts(shortsOrigin))" in page, "See all")
         assertTrue("if (selectedId == null) ShortsOrigin.Subscriptions else ShortsOrigin.Channel(selectedId)" in page)
-        assertTrue("if (item.isShort) navigator.openShort(item, shortsOrigin, shown) else actions.play(item, shown)" in page, "a Short card opens the pager, a video its page")
+        assertTrue("item.isShort -> navigator.openShort(item, shortsOrigin, shown)" in page && "else -> actions.play(item, shown)" in page && "isPeerTube(item.id) -> playOther(item)" in page, "a Short card opens the pager, a video its page, another site's video its file")
         assertTrue("if (model.shelf.isNotEmpty())" in page, "the shelf is left out when there is nothing for it")
         // the cards below are every item of the feed: Shorts are not removed from the groups
         assertFalse(Regex("""groups\([^)]*isShort""").containsMatchIn(page))
@@ -149,7 +149,7 @@ class SubscriptionsStructureTest {
     // ---- The empty state, the sheet, the downloads ---------------------------------------------------------------------------
 
     @Test fun withoutSubscriptionsThePageIsTheEmptyStateWithImportAndFindChannels() {
-        assertTrue("if (channels.isEmpty())" in page)
+        assertTrue("if (channels.isEmpty() && otherChannels.isEmpty())" in page, "no channel here or on another site")
         assertTrue("CosmoEmptyState(" in page)
         for (key in listOf("video_no_subscriptions", "video_no_subscriptions_text", "video_import", "video_find_channels")) assertTrue("Res.string.$key" in page, key)
         assertTrue("onImport = { navigator.push(VideoRoute.Import) }" in page)

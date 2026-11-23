@@ -76,14 +76,14 @@ class VideoSettingsStructureTest {
     private val fields: List<String> = VideoSettings::class.java.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }.map { it.name }
 
     @Test fun theFieldsAreTheOnesTheTestKnows() {
-        assertEquals(66, fields.size, "a new field of VideoSettings needs a row (or a word in this test): $fields")
+        assertEquals(67, fields.size, "a new field of VideoSettings needs a row (or a word in this test): $fields")
         assertTrue("firstRunSeen" in fields && "homeKiosk" in fields)
     }
 
     @Test fun everySettingHasARowThatReadsAndWritesIt() {
         // the notice keeps firstRunSeen, Home keeps homeKiosk (the brief)
         // the feed's groups, the channel page's bell and Hide watched are kept on those pages; the two marks are the background work's
-        val elsewhere = setOf("feedGroups", "bellChannels", "channelHideWatched", "uploadAlertsSeenMs", "autoBackupLastMs", "speedByVideo", "loungeScreenId", "sponsorBlockUserId")
+        val elsewhere = setOf("feedGroups", "bellChannels", "channelHideWatched", "uploadAlertsSeenMs", "autoBackupLastMs", "speedByVideo", "loungeScreenId", "sponsorBlockUserId", "otherChannels")
         for (field in fields - setOf("firstRunSeen", "homeKiosk", "homeHiddenVideos", "homeHiddenChannels") - elsewhere) {
             assertTrue(Regex("""\b${field}\b\s*=""").containsMatchIn(allCode), "$field is written by a row: `$field = ...` in a copy")
             assertTrue(Regex("""\.${field}\b""").containsMatchIn(allCode), "$field is read by a row: `.$field`")

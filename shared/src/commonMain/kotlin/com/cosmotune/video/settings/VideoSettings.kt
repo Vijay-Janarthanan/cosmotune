@@ -54,6 +54,8 @@ data class VideoSettings(
     val remoteButtons: Map<String, String> = emptyMap(),
     /** The listener's proxy for Video (`http://host:port`, `socks5://host:port`), or blank for none. */
     val proxy: String = "",
+    /** Channels followed on other video sites (PeerTube): address to name. */
+    val otherChannels: Map<String, String> = emptyMap(),
     val sponsorBlock: Boolean = true,
     val segmentBehaviours: Map<SegmentCategory, SegmentBehaviour> = SegmentCategory.defaults(),
     val segmentsOnBar: Boolean = true,

@@ -175,7 +175,7 @@ class LibraryCodecTest {
         hiddenWords = listOf("spoiler", "/react(s|ion)/"), hiddenChannels = mapOf("UCx" to "Some channel"), commentMinLikes = 10,
         feedGroups = listOf(com.cosmotune.video.feed.FeedChannelGroup("g1", "News", setOf("UCn"))), bellChannels = setOf("UCb"),
         uploadAlertsSeenMs = 1_700_000_000_000, sponsorBlockExcluded = mapOf("UCs" to "Friendly"), volumeBoost = 150, voiceBoost = true,
-        skipSilence = true, channelHideWatched = true, rememberSpeed = true, embedDetails = false, cutSegments = true, phoneCasting = true, loungeScreenId = "screen1", mediaKeysSeek = true, wholeVideoLabels = false, sponsorBlockUserId = "a".repeat(40), swipeEdgePercent = 30, swipeSpeed = true, captionsColor = com.cosmotune.video.settings.CaptionColor.YELLOW, captionsTop = true, hidePaid = true, familyFriendly = true, hideComments = true, hideUpNext = true, hideLiveChat = true, remoteButtons = mapOf("RED" to "NEXT_CHAPTER"), proxy = "socks5://127.0.0.1:9050", speedByVideo = mapOf("v1" to 1.75f), autoBackupDays = 7, autoBackupLastMs = 1_700_000_100_000,
+        skipSilence = true, channelHideWatched = true, rememberSpeed = true, embedDetails = false, cutSegments = true, phoneCasting = true, loungeScreenId = "screen1", mediaKeysSeek = true, wholeVideoLabels = false, sponsorBlockUserId = "a".repeat(40), swipeEdgePercent = 30, swipeSpeed = true, captionsColor = com.cosmotune.video.settings.CaptionColor.YELLOW, captionsTop = true, hidePaid = true, familyFriendly = true, hideComments = true, hideUpNext = true, hideLiveChat = true, remoteButtons = mapOf("RED" to "NEXT_CHAPTER"), proxy = "socks5://127.0.0.1:9050", otherChannels = mapOf("https://tube.example.org/c/deskl" to "Desk Lab"), speedByVideo = mapOf("v1" to 1.75f), autoBackupDays = 7, autoBackupLastMs = 1_700_000_100_000,
         smoothness = SmoothnessSettings(SmoothMode.SMOOTH, targetFps = 90, strength = 70, onlyBelow30 = false, preset = SmoothPreset.ANIME, matchDisplayRate = false),
     )
 
@@ -208,7 +208,7 @@ class LibraryCodecTest {
     fun theSettingsDocumentCoversEveryFieldOfVideoSettings() {
         val fields = VideoSettings::class.java.declaredFields.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
         assertEquals(
-            66, fields.size,
+            67, fields.size,
             "VideoSettings changed: ${fields.map { it.name }}. Add the new field to SettingsDocument in LibraryCodec.kt and to everyFieldChanged here.",
         )
     }

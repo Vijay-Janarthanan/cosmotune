@@ -106,6 +106,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.cosmotune.video.feed.OtherSitesFeed
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import java.time.ZoneId
@@ -165,8 +166,16 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
     // uploads slip in by date without the shown ones changing places.
     val feedKeep = rememberKept("subscriptions-feed") { StableFeed(newestFirst = true) }
     val contentFilter = rememberContentFilter()
-    val items = remember(feedState.items, onAccount.items, contentFilter) {
-        contentFilter.filter(feedKeep.update("feed", AccountLists.mergeFeed(onAccount.items, feedState.items, System.currentTimeMillis()))) { it }
+    // Channels on other sites (PeerTube) join the one feed by date.
+    val otherChannels by remember(graph.settings) { graph.settings.settings.map { it.otherChannels }.distinctUntilChanged() }
+        .collectAsState(initial = graph.settings.settings.value.otherChannels)
+    val others = rememberOtherSiteVideos(otherChannels)
+    var otherSheet by remember { mutableStateOf(false) }
+    val playOther: (VideoItem) -> Unit = remember(graph, navigator, scope) {
+        { item -> OtherSites.play(item, graph, navigator, scope) { com.cosmotune.video.ui.actions.VideoActionsState.shared.showToast(com.cosmotune.video.ui.actions.ActionToastKind.NOT_PLAYABLE) } }
+    }
+    val items = remember(feedState.items, onAccount.items, contentFilter, others) {
+        contentFilter.filter(OtherSitesFeed.merge(feedKeep.update("feed", AccountLists.mergeFeed(onAccount.items, feedState.items, System.currentTimeMillis())), others)) { it }
     }
     var filter by rememberSaveable { mutableStateOf(FeedFilter.ALL) }
     val watchedNow = remember(history) { history.associateBy { it.item.id } }
@@ -224,7 +233,7 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
         PullToRefresh(refreshing = refreshing, onRefresh = refresh, state = pullState) {
             Box(Modifier.fillMaxSize()) {
                 // No channel followed here is an empty page only when the account has no feed either.
-                val noFeed = if (channels.isEmpty()) onAccount.items.isEmpty() else false
+                val noFeed = if (channels.isEmpty() && otherChannels.isEmpty()) onAccount.items.isEmpty() else false
                 if (noFeed) {
                     NoSubscriptions(
                         contentPadding = contentPadding,
@@ -266,6 +275,9 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                                 onOpenChannel = { id -> navigator.push(VideoRoute.Channel(id)) },
                                 onViewAll = { navigator.push(VideoRoute.Channels) },
                             )
+                            item(key = KEY_OTHER_SITES, contentType = "other") {
+                                OtherSitesRow(otherChannels.size, onOpen = { otherSheet = true }, modifier = Modifier.padding(horizontal = if (wide) WIDE_INSET else 0.dp))
+                            }
                             if (shown.isEmpty() && filter != FeedFilter.ALL) {
                                 item(key = KEY_FILTER_EMPTY, contentType = "empty") {
                                     KitEmptyState(title = stringResource(Res.string.video_filter_empty), message = "", icon = VideoIcons.Subscriptions)
@@ -280,7 +292,7 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                                             columns = columns,
                                             downloaded = downloaded,
                                             watched = watched,
-                                            onOpen = { openCard(it, shown, navigator, actions, shortsOrigin) },
+                                            onOpen = { openCard(it, shown, navigator, actions, shortsOrigin, playOther) },
                                             onMore = { sheetFor = it },
                                         )
                                     }
@@ -294,7 +306,7 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                                             wide = false,
                                             downloaded = item.id in downloaded,
                                             watchedFraction = watched.watchedFractionOf(item),
-                                            onClick = { openCard(item, shown, navigator, actions, shortsOrigin) },
+                                            onClick = { openCard(item, shown, navigator, actions, shortsOrigin, playOther) },
                                             onMore = { sheetFor = item },
                                         )
                                     }
@@ -331,6 +343,7 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
             onDismiss = { editing = null },
         )
     }
+    if (otherSheet) OtherSitesSheet(graph, otherChannels, onDismiss = { otherSheet = false })
     sheetFor?.let { item ->
         VideoActionsSheet(
             item = item,
@@ -447,6 +460,7 @@ private const val KEY_SHORTS = "feed:shorts"
 private const val KEY_STATUS = "feed:status"
 private const val KEY_OPEN_CHANNEL = "feed:open-channel"
 private const val KEY_ACCOUNT = "feed:account"
+private const val KEY_OTHER_SITES = "feed:other-sites"
 
 /** The day overline of a group, one item, keyed by the group. */
 private fun LazyListScope.groupHeader(group: FeedGroup, inset: Dp) {
@@ -456,8 +470,12 @@ private fun LazyListScope.groupHeader(group: FeedGroup, inset: Dp) {
 }
 
 /** A tap on a feed card: a Short opens the pager (with the Shorts of [shown], origin [shortsOrigin]), any other video its watch page and plays. */
-private fun openCard(item: VideoItem, shown: List<VideoItem>, navigator: VideoNavigator, actions: VideoActionHandler, shortsOrigin: ShortsOrigin) {
-    if (item.isShort) navigator.openShort(item, shortsOrigin, shown) else actions.play(item, shown)
+private fun openCard(item: VideoItem, shown: List<VideoItem>, navigator: VideoNavigator, actions: VideoActionHandler, shortsOrigin: ShortsOrigin, playOther: (VideoItem) -> Unit) {
+    when {
+        com.cosmotune.video.source.peertube.PeerTubeClient.isPeerTube(item.id) -> playOther(item)
+        item.isShort -> navigator.openShort(item, shortsOrigin, shown)
+        else -> actions.play(item, shown)
+    }
 }
 
 /** The watched bar of a feed item from the history, or null (no bar). */
