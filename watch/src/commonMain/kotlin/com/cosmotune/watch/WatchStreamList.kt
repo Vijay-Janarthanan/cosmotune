@@ -41,7 +41,10 @@ fun Stream.watchMetadata(playingDurationMs: Long? = null, titleRuntimeMin: Int? 
         titleRuntimeMin != null && titleRuntimeMin > 0 -> "Title runtime ${titleRuntimeMin} min"
         else -> "Duration unknown"
     }
-    return "$size · $runtime"
+    // The picture and sound the copy says it has: "HDR10 · HEVC · 5.1", where the add-on or server tells.
+    val picture = listOfNotNull(hdr?.takeIf { it.isNotBlank() }, videoCodec?.takeIf { it.isNotBlank() }?.uppercase(), audioChannels?.takeIf { it.isNotBlank() })
+        .filter { part -> !label.contains(part, ignoreCase = true) }
+    return (listOf(size, runtime) + picture).joinToString(" · ")
 }
 
 const val WATCH_SKIP_MS = 30_000L
