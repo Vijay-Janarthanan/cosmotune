@@ -28,10 +28,10 @@ class DesktopLyricsSourceOrderTest {
         val names = DesktopLyricsClient.sources.map { it.name }
         assertEquals(LyricsSource.offered.map { it.label }, names)
         assertTrue(names.all { lyricsSourceNamed(it) != null })
-        // Word-timed providers first; the name-matched line-synced library, which still finds uploads and local
-        // files, last.
+        // Word-timed providers first; then the name-matched line-synced library, which still finds uploads and local
+        // files; the uploader's own captions are the last resort.
         assertEquals("lrc.red", names.first())
-        assertEquals("LRCLIB", names.last())
+        assertEquals(listOf("LRCLIB", "YouTube captions"), names.takeLast(2))
     }
 
     @Test
