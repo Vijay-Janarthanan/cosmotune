@@ -15,7 +15,7 @@ import com.cosmotune.video.importers.TakeoutArchiveImporter
 import com.cosmotune.video.importers.TakeoutHistoryImporter
 import com.cosmotune.video.importers.TakeoutPlaylistsImporter
 import com.cosmotune.video.importers.TakeoutSubscriptionsImporter
-import com.cosmotune.video.importers.TempFileSqliteOpener
+import com.cosmotune.media.sqlite.TempFileSqliteOpener
 import com.cosmotune.video.importers.ZipEntries
 import com.cosmotune.video.importers.ZipInput
 import com.cosmotune.video.library.ImportReport

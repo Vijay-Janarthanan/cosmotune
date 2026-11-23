@@ -1,7 +1,8 @@
 package com.cosmotune.video.ui
 
+import com.cosmotune.media.sqlite.TempFileSqliteOpener
 import com.cosmotune.video.importers.ImportFormat
-import com.cosmotune.video.importers.JdbcSqliteRows
+import com.cosmotune.media.sqlite.JdbcSqliteRows
 import com.cosmotune.video.library.FakeVideoLibrary
 import com.cosmotune.video.library.HistoryEntry
 import com.cosmotune.video.library.LibraryExport

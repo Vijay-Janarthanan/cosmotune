@@ -1,6 +1,6 @@
 package com.cosmotune.listening
 
-import com.cosmotune.video.importers.SqliteRows
+import com.cosmotune.media.sqlite.SqliteRows
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream

@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import com.cosmotune.video.importers.JdbcSqliteRows
+import com.cosmotune.media.sqlite.JdbcSqliteRows
 import java.awt.Dialog
 import java.awt.FileDialog
 import java.awt.Frame

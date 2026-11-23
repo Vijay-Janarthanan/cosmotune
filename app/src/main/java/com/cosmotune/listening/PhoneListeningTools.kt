@@ -219,8 +219,8 @@ fun PhoneListeningTools(
                 checkNotNull(context.contentResolver.openInputStream(uri)) { "The selected file could not be opened." }.use { it.readBytes() }
             } }
         },
-        openSqlite = com.cosmotune.video.importers.TempFileSqliteOpener(java.io.File(context.cacheDir, "other-app-import")) { path ->
-            com.cosmotune.video.importers.AndroidSqliteRows(path)
+        openSqlite = com.cosmotune.media.sqlite.TempFileSqliteOpener(java.io.File(context.cacheDir, "other-app-import")) { path ->
+            com.cosmotune.media.sqlite.AndroidSqliteRows(path)
         },
         likeSongs = likeSongs,
         // Device sync: the camera reads the code the other device's Phone remote shows (Google's scanner, no camera permission).

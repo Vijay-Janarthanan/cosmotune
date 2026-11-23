@@ -1,5 +1,7 @@
 package com.cosmotune.video.importers
 
+import com.cosmotune.media.sqlite.SqliteOpener
+import com.cosmotune.media.sqlite.SqliteRows
 import com.cosmotune.video.library.HistoryEntry
 import com.cosmotune.video.library.LocalPlaylist
 import com.cosmotune.video.model.PlaylistItem

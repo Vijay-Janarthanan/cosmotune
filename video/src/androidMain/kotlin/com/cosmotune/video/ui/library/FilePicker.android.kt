@@ -15,7 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
-import com.cosmotune.video.importers.AndroidSqliteRows
+import com.cosmotune.media.sqlite.AndroidSqliteRows
 import java.io.File
 import java.io.FileNotFoundException
 

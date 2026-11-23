@@ -1,5 +1,7 @@
 package com.cosmotune.video.importers
 
+import com.cosmotune.media.sqlite.TempFileSqliteOpener
+import com.cosmotune.media.sqlite.SqliteRows
 import com.cosmotune.video.importers.ImportFixtures.C0
 import com.cosmotune.video.importers.ImportFixtures.C1
 import com.cosmotune.video.importers.ImportFixtures.NOW

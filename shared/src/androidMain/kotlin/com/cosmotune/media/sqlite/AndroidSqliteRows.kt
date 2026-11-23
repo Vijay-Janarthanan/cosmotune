@@ -1,4 +1,4 @@
-package com.cosmotune.video.importers
+package com.cosmotune.media.sqlite
 
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase

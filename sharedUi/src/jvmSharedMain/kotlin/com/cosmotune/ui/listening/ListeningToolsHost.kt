@@ -86,7 +86,7 @@ data class ListeningToolsHost(
      * when all three are given; its playlists are made with [createPlaylist].
      */
     val pickBackupFile: (suspend () -> ByteArray?)? = null,
-    val openSqlite: com.cosmotune.video.importers.SqliteOpener? = null,
+    val openSqlite: com.cosmotune.media.sqlite.SqliteOpener? = null,
     val likeSongs: (suspend (List<Song>) -> Unit)? = null,
     /** Adds recent plays received in Device sync to this device's history; null keeps them as a playlist instead. */
     val addHistory: (suspend (List<Song>) -> Unit)? = null,

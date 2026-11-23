@@ -1,4 +1,4 @@
-package com.cosmotune.video.importers
+package com.cosmotune.media.sqlite
 
 /**
  * A read-only view of a SQLite file, as small as the NewPipe import needs (spec 8.2): run a query, get its rows. Each row is

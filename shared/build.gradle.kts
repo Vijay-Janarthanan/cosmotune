@@ -54,6 +54,8 @@ kotlin {
         androidMain.get().dependsOn(jvmSharedMain)
         jvmMain.get().dependsOn(jvmSharedMain)
         jvmMain.dependencies {
+            // The SQLite rows other apps' backups are read with (com.cosmotune.media.sqlite), for Video and Music alike.
+            implementation("org.xerial:sqlite-jdbc:3.47.1.0")
             // Android supplies ICU in the OS. Only desktop needs the Java implementation.
             implementation("com.ibm.icu:icu4j:76.1")
         }

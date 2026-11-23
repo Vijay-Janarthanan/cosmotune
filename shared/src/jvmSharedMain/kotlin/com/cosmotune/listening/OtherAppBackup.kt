@@ -1,8 +1,8 @@
 package com.cosmotune.listening
 
 import com.cosmotune.music.data.model.Song
-import com.cosmotune.video.importers.SqliteOpener
-import com.cosmotune.video.importers.SqliteRows
+import com.cosmotune.media.sqlite.SqliteOpener
+import com.cosmotune.media.sqlite.SqliteRows
 import java.io.ByteArrayInputStream
 import java.util.zip.ZipInputStream
 

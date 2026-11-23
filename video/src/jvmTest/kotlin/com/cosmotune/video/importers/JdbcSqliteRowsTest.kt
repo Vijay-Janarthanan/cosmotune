@@ -1,5 +1,8 @@
 package com.cosmotune.video.importers
 
+import com.cosmotune.media.sqlite.JdbcSqliteRows
+import com.cosmotune.media.sqlite.TempFileSqliteOpener
+
 import java.io.File
 import java.nio.file.Files
 import java.sql.DriverManager

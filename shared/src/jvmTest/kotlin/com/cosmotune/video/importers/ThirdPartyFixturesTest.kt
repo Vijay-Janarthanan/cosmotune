@@ -1,5 +1,6 @@
 package com.cosmotune.video.importers
 
+import com.cosmotune.media.sqlite.TempFileSqliteOpener
 import com.cosmotune.video.importers.ImportFixtures.NOW
 import org.junit.Assume.assumeTrue
 import java.io.File

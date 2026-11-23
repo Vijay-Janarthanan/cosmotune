@@ -1,7 +1,7 @@
 package com.cosmotune.video.ui.library
 
 import androidx.compose.runtime.Composable
-import com.cosmotune.video.importers.SqliteRows
+import com.cosmotune.media.sqlite.SqliteRows
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream

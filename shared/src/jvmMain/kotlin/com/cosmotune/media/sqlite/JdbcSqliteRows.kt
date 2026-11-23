@@ -1,4 +1,4 @@
-package com.cosmotune.video.importers
+package com.cosmotune.media.sqlite
 
 import java.sql.Connection
 import java.sql.DriverManager

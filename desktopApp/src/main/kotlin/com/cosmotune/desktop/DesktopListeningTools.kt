@@ -59,7 +59,7 @@ fun DesktopListeningTools(
                 file.readBytes()
             } }
         },
-        openSqlite = com.cosmotune.video.importers.TempFileSqliteOpener(
+        openSqlite = com.cosmotune.media.sqlite.TempFileSqliteOpener(
             File(System.getProperty("java.io.tmpdir"), "cosmotune-import"), ::JdbcSqliteRowsFor,
         ),
         likeSongs = likeSongs,
@@ -129,7 +129,7 @@ internal fun desktopTrash(): (suspend (List<Song>) -> Int)? {
 }
 
 /** The desktop's SQLite reader (sqlite-jdbc) for a backup's database. */
-private fun JdbcSqliteRowsFor(path: String): com.cosmotune.video.importers.SqliteRows = com.cosmotune.video.importers.JdbcSqliteRows(path)
+private fun JdbcSqliteRowsFor(path: String): com.cosmotune.media.sqlite.SqliteRows = com.cosmotune.media.sqlite.JdbcSqliteRows(path)
 
 /** Between the lines of a release notification. */
 private const val LINE_BREAK = "\n"

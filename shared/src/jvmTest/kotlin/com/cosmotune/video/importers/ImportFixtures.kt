@@ -1,5 +1,7 @@
 package com.cosmotune.video.importers
 
+import com.cosmotune.media.sqlite.JdbcSqliteRows
+import com.cosmotune.media.sqlite.SqliteRows
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.charset.Charset

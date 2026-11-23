@@ -15,24 +15,29 @@ import kotlin.test.assertTrue
 class ImportersStructureTest {
     private val commonDir = "shared/src/commonMain/kotlin/com/cosmotune/video/importers"
     private val jvmDir = "shared/src/jvmSharedMain/kotlin/com/cosmotune/video/importers"
-    private val androidDir = "video/src/androidMain/kotlin/com/cosmotune/video/importers"
-    private val desktopDir = "video/src/jvmMain/kotlin/com/cosmotune/video/importers"
+    // The SQLite rows the importers read through are shared with Music's other-app backup (com.cosmotune.media.sqlite).
+    private val sqliteCommonDir = "shared/src/commonMain/kotlin/com/cosmotune/media/sqlite"
+    private val sqliteJvmDir = "shared/src/jvmSharedMain/kotlin/com/cosmotune/media/sqlite"
+    private val androidDir = "shared/src/androidMain/kotlin/com/cosmotune/media/sqlite"
+    private val desktopDir = "shared/src/jvmMain/kotlin/com/cosmotune/media/sqlite"
 
     private fun sources(dir: String): Map<String, String> =
         File(VideoSourceContract.root, dir).listFiles { f -> f.extension == "kt" }.orEmpty().sortedBy { it.name }
             .associate { it.name to VideoSourceContract.code(VideoSourceContract.read("$dir/${it.name}")) }
 
-    private val everything: Map<String, String> by lazy { listOf(commonDir, jvmDir, androidDir, desktopDir).flatMap { sources(it).map { (name, code) -> "$it/$name" to code } }.toMap() }
+    private val everything: Map<String, String> by lazy { listOf(commonDir, jvmDir, sqliteCommonDir, sqliteJvmDir, androidDir, desktopDir).flatMap { sources(it).map { (name, code) -> "$it/$name" to code } }.toMap() }
 
     @Test
     fun theFilesOfTheTaskAreThere() {
         val common = setOf(
             "Csv.kt", "ImportDetector.kt", "ImportResult.kt", "ImportSupport.kt", "NewPipeDatabaseImporter.kt", "NewPipeSubscriptionsImporter.kt",
-            "OpmlImporter.kt", "SqliteRows.kt", "TakeoutArchiveImporter.kt", "TakeoutHistoryImporter.kt", "TakeoutPlaylistsImporter.kt",
+            "OpmlImporter.kt", "TakeoutArchiveImporter.kt", "TakeoutHistoryImporter.kt", "TakeoutPlaylistsImporter.kt",
             "TakeoutSubscriptionsImporter.kt",
         )
         assertTrue(sources(commonDir).keys.containsAll(common), "missing: ${common - sources(commonDir).keys}")
-        assertTrue(sources(jvmDir).keys.containsAll(setOf("TempFileSqliteOpener.kt", "ZipInput.kt")))
+        assertTrue("SqliteRows.kt" in sources(sqliteCommonDir).keys)
+        assertTrue(sources(jvmDir).keys.containsAll(setOf("ZipInput.kt")))
+        assertTrue("TempFileSqliteOpener.kt" in sources(sqliteJvmDir).keys)
         assertTrue("AndroidSqliteRows.kt" in sources(androidDir).keys)
         assertTrue("JdbcSqliteRows.kt" in sources(desktopDir).keys)
     }
