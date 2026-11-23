@@ -1,5 +1,8 @@
 package com.cosmotune.ui
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.test.performScrollTo
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
@@ -125,18 +128,19 @@ class PodioToolsInteractionTest {
         val exports = CopyOnWriteArrayList<String>()
         val shares = CopyOnWriteArrayList<String>()
         val refresh = CopyOnWriteArrayList<Boolean>()
-        compose.setContent { PodioTestTheme { Box(Modifier.size(600.dp, 1200.dp)) {
+        // The settings page scrolls the section, which has grown (downloads, recordings and playback joined it).
+        compose.setContent { PodioTestTheme { Box(Modifier.size(600.dp, 1200.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
             com.cosmotune.podio.ui.PodioSettingsSection(file, onExportOpmlFile = { exports += it; true }, onShareOpmlFile = { shares += it },
                 onRefreshChange = { refresh += it })
         } } }
-        compose.onNodeWithText("Export OPML").performClick()
+        compose.onNodeWithText("Export OPML").performScrollTo().performClick()
         compose.waitUntil(5_000) { exports.isNotEmpty() }
         assertEquals("https://publisher.example/feed", PodioOpml.decode(exports.single()).single().feed)
-        compose.onNodeWithText("Share OPML").performClick()
+        compose.onNodeWithText("Share OPML").performScrollTo().performClick()
         compose.waitUntil(5_000) { shares.isNotEmpty() }
-        compose.onNodeWithTag("settings:podio:auto-download").performClick()
+        compose.onNodeWithTag("settings:podio:auto-download").performScrollTo().performClick()
         compose.waitUntil(5_000) { library.state.value.autoDownloadNew }
-        compose.onNodeWithTag("settings:podio:refresh").performClick()
+        compose.onNodeWithTag("settings:podio:refresh").performScrollTo().performClick()
         compose.waitUntil(5_000) { !library.state.value.refreshInBackground }
         compose.runOnIdle { assertEquals(listOf(false), refresh.toList()) }
     }
