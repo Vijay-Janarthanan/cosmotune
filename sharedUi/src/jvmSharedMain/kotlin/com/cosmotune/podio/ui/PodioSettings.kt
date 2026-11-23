@@ -45,7 +45,9 @@ fun PodioSettingsSection(storage: File, modifier: Modifier = Modifier,
     onImportOpmlFile: (suspend () -> String?)? = null, onExportOpmlFile: (suspend (String) -> Boolean)? = null,
     onShareOpmlFile: (suspend (String) -> Unit)? = null, onRefreshChange: (Boolean) -> Unit = {},
     /** Whether the phone lets the app set exact alarms (the radio alarm), and the way to its page when not. */
-    exactAlarms: Boolean = true, onAllowExactAlarms: (() -> Unit)? = null) {
+    exactAlarms: Boolean = true, onAllowExactAlarms: (() -> Unit)? = null,
+    /** The phone takes requests from automation apps ([com.cosmotune.podio.PodioAutomation]); the desktop does not. */
+    automation: Boolean = false) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val library = remember(storage) { PodioLibrary(storage) }
@@ -99,6 +101,13 @@ fun PodioSettingsSection(storage: File, modifier: Modifier = Modifier,
         OrbitSwitchRow("Save each song as its own file", saved.recordBySong, { on -> save { it.copy(recordBySong = on) } },
             detail = "When the station names its songs; up to three hours a recording", plain = true, switchModifier = Modifier.testTag("settings:podio:record-by-song"))
         PodioAlarmSettings(saved, { change -> save(change) }, exactAlarms, onAllowExactAlarms)
+        if (automation) {
+            OrbitLabel("Automation", fonts, look.dim, Modifier.padding(top = 8.dp))
+            Text("Apps such as Tasker can play a saved station by its name, go on with what you were listening to, or pause. " +
+                "Send a broadcast to Cosmotune: ${com.cosmotune.podio.PodioAutomation.PLAY_STATION} with \"name\", " +
+                "${com.cosmotune.podio.PodioAutomation.PLAY_FOR_YOU} or ${com.cosmotune.podio.PodioAutomation.PAUSE}.",
+                style = fonts.body.copy(fontSize = 13.sp), color = look.dim, modifier = Modifier.testTag("settings:podio:automation"))
+        }
         OrbitLabel("Each show", fonts, look.dim, Modifier.padding(top = 8.dp))
         val custom = saved.shows.count { it.id in saved.showSettings || it.id in saved.skipSilenceByShow || it.id in saved.speedByShow }
         Text(if (custom == 0) "Every show follows these settings." else "$custom ${if (custom == 1) "show has" else "shows have"} its own settings.",

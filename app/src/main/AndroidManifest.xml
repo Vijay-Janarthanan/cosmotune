@@ -454,6 +454,16 @@
         <receiver
             android:name="com.cosmotune.music.data.UpdateInstallReceiver"
             android:exported="false" />
+        <!-- Podio for automation apps (Tasker and the like): play a station by name or address, go on with For you, or pause. -->
+        <receiver
+            android:name="com.cosmotune.podio.PodioAutomationReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.cosmotune.podio.PLAY_STATION" />
+                <action android:name="com.cosmotune.podio.PLAY_FOR_YOU" />
+                <action android:name="com.cosmotune.podio.PAUSE" />
+            </intent-filter>
+        </receiver>
         <!-- Podio's radio alarm: plays the station when it goes off; sets it again after a restart, an update or a clock change. -->
         <receiver
             android:name="com.cosmotune.podio.PodioAlarmReceiver"

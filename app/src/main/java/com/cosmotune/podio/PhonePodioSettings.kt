@@ -61,7 +61,7 @@ import kotlinx.coroutines.withContext
             }, "Share podcast subscriptions"))
         },
         onRefreshChange = { on -> runCatching { PodioRefreshWorker.schedule(context, on && saved.shows.isNotEmpty()) } },
-        exactAlarms = exactAlarms,
+        exactAlarms = exactAlarms, automation = true,
         onAllowExactAlarms = PodioAlarmReceiver.allowIntent(context)?.let { intent -> { runCatching { context.startActivity(intent) } } })
     // The system alarm follows the radio alarm as it is changed here.
     LaunchedEffect(saved.alarm) { runCatching { PodioAlarmReceiver.sync(context) } }
