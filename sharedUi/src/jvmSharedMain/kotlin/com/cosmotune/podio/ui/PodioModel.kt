@@ -234,7 +234,10 @@ internal class PodioModel(
         }
     }
 
-    fun toggleFollow(show: PodcastShow) { scope.launch {
+    fun toggleFollow(show: PodcastShow, unlocked: Boolean = false) {
+        // A new show waits for the PIN when following is locked (Settings › Podio); letting one go never does.
+        if (!unlocked && library.state.value.followLock != null && library.state.value.shows.none { it.id == show.id }) { lockedFollow = show; return }
+        scope.launch {
         try {
             var added = false
             withContext(Dispatchers.IO) { library.update { old ->
@@ -243,7 +246,7 @@ internal class PodioModel(
             } }
             // Following is an explicit freshness request, even when an older inbox cache is still fresh.
             if (added) loadInbox(library.state.value.shows, force = true, episodeLimit = library.state.value.inboxEpisodesPerShow)
-            else offerUndo(PodioUndo("Unfollowed ${show.title.ifBlank { "the show" }}") { toggleFollow(show) })
+            else offerUndo(PodioUndo("Unfollowed ${show.title.ifBlank { "the show" }}") { toggleFollow(show, unlocked = true) })
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { error = "Couldn't save or refresh your followed show. Retry from Following." }
     } }
@@ -433,6 +436,9 @@ internal class PodioModel(
                 PodioCatalogue.isSpotifyLink(show.feed) -> "No matching public feed was available for this Spotify link. Try the publisher's RSS feed; Spotify-only audio isn't supported."
                 YouTubePodcasts.showId(show.feed) != null && failure is IllegalArgumentException && failure.message.orEmpty().contains("not identified as a podcast") -> "This YouTube playlist isn't identified as a podcast show."
                 YouTubePodcasts.showId(show.feed) != null -> "Couldn't load this public YouTube Music podcast. Please retry."
+                failure.message.orEmpty().contains("HTTP 401") || failure.message.orEmpty().contains("HTTP 403") ->
+                    if (PodioFeedLogins.forUrl(show.feed) != null) "This feed didn't take the user name and password. Open it again with the right ones."
+                    else "This feed asks for a user name and password. Open it as https://name:password@… to sign in; they stay on this device."
                 else -> "Couldn't load this podcast feed. Please retry."
             } }
             finally { feedLoading = false }
@@ -459,14 +465,48 @@ internal class PodioModel(
     }
 
     fun openLink(address: String, onOpened: () -> Unit) {
-        val url = PodioCatalogue.httpUrl(address)
+        // A private feed's login typed into the address is kept apart from it, on this device only.
+        val (clean, login) = PodioFeedLogins.split(address)
+        val url = PodioCatalogue.httpUrl(clean)
         addFeed = false
         if (url == null) { error = "Enter an HTTP or HTTPS feed URL."; return }
         onOpened()
-        open(PodcastShow(PodioCatalogue.identity(url), "", "", url))
+        if (login == null) { open(PodcastShow(PodioCatalogue.identity(url), "", "", url)); return }
+        scope.launch {
+            try { withContext(Dispatchers.IO) { library.update { it.copy(feedLogins = it.feedLogins + (url to login)) } } }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { }
+            open(PodcastShow(PodioCatalogue.identity(url), "", "", url))
+        }
     }
 
-    fun importSubscriptions(text: String, onImported: () -> Unit) { scope.launch {
+    /** A show waiting for the PIN before it is followed ([PodioFollowLock]); "" asks for an OPML import ([pendingOpml]). */
+    var lockedFollow by mutableStateOf<PodcastShow?>(null)
+    private var pendingOpml: (() -> Unit)? = null
+
+    /** Follows [show] once [pin] opens the lock; false when it does not. */
+    fun unlockFollow(pin: String): Boolean {
+        if (!PodioFollowLock.matches(library.state.value.followLock, pin)) return false
+        val show = lockedFollow
+        lockedFollow = null
+        val opml = pendingOpml
+        pendingOpml = null
+        if (opml != null) opml() else if (show != null) toggleFollow(show, unlocked = true)
+        return true
+    }
+
+    fun cancelLockedFollow() { lockedFollow = null; pendingOpml = null }
+
+    fun importSubscriptions(text: String, onImported: () -> Unit) {
+        if (library.state.value.followLock != null) {
+            pendingOpml = { importNow(text, onImported) }
+            lockedFollow = PodcastShow("", "", "", "")
+            return
+        }
+        importNow(text, onImported)
+    }
+
+    private fun importNow(text: String, onImported: () -> Unit) { scope.launch {
         try {
             val added = withContext(Dispatchers.IO) { library.importOpml(text) }
             notice = "Imported $added new podcast subscriptions."; importingOpml = false; onImported()

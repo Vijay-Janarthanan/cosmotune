@@ -386,6 +386,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         onDismiss = { m.addFeed = false },
     )
     m.stationDialog?.let { editing -> StationDialog(m, editing.takeIf { it.id.isNotEmpty() }) { m.stationDialog = null } }
+    if (m.lockedFollow != null) FollowLockDialog(m)
     if (m.importingOpml) com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = { m.importingOpml = false },
         title = "Import podcast subscriptions",

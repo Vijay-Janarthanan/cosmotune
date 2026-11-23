@@ -64,6 +64,7 @@ fun PodioSettingsSection(storage: File, modifier: Modifier = Modifier,
         catch (_: Exception) { message = "Couldn't save the Podio settings. Check available storage and retry." }
     }
     fun import(text: String) = scope.launch {
+        if (saved.followLock != null) { message = "Following new shows is locked. Turn the lock off below to import."; pasting = false; return@launch }
         try { val added = withContext(Dispatchers.IO) { library.importOpml(text) }; message = "Imported $added new podcast subscriptions."; pasting = false }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { message = e.message?.take(180) ?: "Couldn't import this OPML document." }
@@ -101,6 +102,7 @@ fun PodioSettingsSection(storage: File, modifier: Modifier = Modifier,
         OrbitSwitchRow("Save each song as its own file", saved.recordBySong, { on -> save { it.copy(recordBySong = on) } },
             detail = "When the station names its songs; up to three hours a recording", plain = true, switchModifier = Modifier.testTag("settings:podio:record-by-song"))
         PodioAlarmSettings(saved, { change -> save(change) }, exactAlarms, onAllowExactAlarms)
+        PodioFollowLockSettings(saved) { change -> save(change) }
         if (automation) {
             OrbitLabel("Automation", fonts, look.dim, Modifier.padding(top = 8.dp))
             Text("Apps such as Tasker can play a saved station by its name, go on with what you were listening to, or pause. " +

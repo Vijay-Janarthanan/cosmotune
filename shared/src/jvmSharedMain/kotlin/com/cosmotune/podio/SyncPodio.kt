@@ -27,7 +27,8 @@ object SyncPodio {
     private val json = Json { ignoreUnknownKeys = true }
 
     fun snapshot(saved: PodioSaved): Map<String, JsonObject> = buildMap {
-        saved.shows.filter { portable(it.feed) }.forEach { show ->
+        // A private feed stays on the device that has its login.
+        saved.shows.filter { portable(it.feed) && it.feed !in saved.feedLogins }.forEach { show ->
             put("show:${show.id}", json.encodeToJsonElement(show.copy(people = emptyList(), funding = emptyList())).jsonObject)
         }
         saved.stations.filter { portable(it.url) }.forEach { station ->

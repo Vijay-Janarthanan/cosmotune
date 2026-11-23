@@ -394,7 +394,9 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     private suspend fun <T> attempt(block: suspend () -> T): T? = try { block() } catch(e: CancellationException) { throw e } catch (_: Exception) { null }
     private fun address(base: String, path: String, params: Map<String, String>): String = (base.trimEnd('/') + path).toHttpUrl().newBuilder()
         .apply { params.forEach { (k, v) -> addQueryParameter(k, v) } }.build().toString()
-    private suspend fun read(url: String): String = readRequest(Request.Builder().url(url).header("User-Agent", "Cosmotune-Podio/1 (+https://github.com/Vijay-Janarthanan/cosmotune)").build())
+    private suspend fun read(url: String): String = readRequest(Request.Builder().url(url).header("User-Agent", "Cosmotune-Podio/1 (+https://github.com/Vijay-Janarthanan/cosmotune)")
+        // A private feed's own server gets its login; no other server ever sees it.
+        .apply { PodioFeedLogins.forUrl(url)?.let { header("Authorization", PodioFeedLogins.header(it)) } }.build())
     private suspend fun readRequest(request: Request): String = suspendCancellableCoroutine { continuation ->
         val call = client.newCall(request)
         continuation.invokeOnCancellation { call.cancel() }
@@ -598,14 +600,18 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** Listening by day ("2026-11-23") and show id ([PodioStats]). */
     val listened: Map<String, Map<String, Long>> = emptyMap(),
     /** The radio alarm ([PodioAlarms]), or none. */
-    val alarm: PodioAlarm? = null)
+    val alarm: PodioAlarm? = null,
+    /** The user names and passwords of private feeds ([PodioFeedLogins]), by feed address; they stay on this device. */
+    val feedLogins: Map<String, PodioFeedLogin> = emptyMap(),
+    /** The PIN that following a new show asks for ([PodioFollowLock]), or none. */
+    val followLock: PodioFollowLockPin? = null)
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {
             val lock = Any()
             val state = kotlinx.coroutines.flow.MutableStateFlow(runCatching {
                 Json { ignoreUnknownKeys = true }.decodeFromString<PodioSaved>(file.readText())
-            }.getOrDefault(PodioSaved()))
+            }.getOrDefault(PodioSaved()).also { PodioFeedLogins.known = it.feedLogins })
         }
         private val stores = java.util.concurrent.ConcurrentHashMap<String, java.lang.ref.WeakReference<Store>>()
         private fun sharedStore(file: File): Store = synchronized(stores) {
@@ -643,13 +649,16 @@ class PodioLibrary(private val file: File) {
                 showSettings = it.showSettings.filterKeys(followed::contains), showTags = it.showTags.filterKeys(followed::contains),
                 favouriteEpisodes = it.favouriteEpisodes.take(PodioFavourites.MAX),
                 knownEpisodes = it.knownEpisodes.filterKeys(followed::contains).mapValues { (_, ids) -> ids.take(PodioRefresh.KNOWN_PER_SHOW) },
-                seenEpisodes = it.seenEpisodes.toList().takeLast(2000).toSet(), bookmarks = it.bookmarks.takeLast(PodioBookmarks.MAX))
+                seenEpisodes = it.seenEpisodes.toList().takeLast(2000).toSet(), bookmarks = it.bookmarks.takeLast(PodioBookmarks.MAX),
+                // Logins of followed shows stay; a few more for feeds opened but not followed yet.
+                feedLogins = it.feedLogins.entries.sortedByDescending { (feed, _) -> shows.any { show -> show.feed == feed } }.take(50).associate { e -> e.toPair() })
         }
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, file.name + ".tmp")
         temp.writeText(json.encodeToString(next))
         java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         state.value = next
+        PodioFeedLogins.known = next.feedLogins
     }
 
     fun importOpml(xml: String): Int {
