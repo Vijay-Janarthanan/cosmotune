@@ -139,11 +139,12 @@ private fun SharedAccountSheet(
         onDismiss = onDismiss,
         onAddAccount = onAddAccount,
         extra = {
-            com.cosmotune.ui.kit.KitDivider()
-            com.cosmotune.ui.kit.KitSettingsRow(
-                title = stringResource(R.string.settings),
-                icon = com.cosmotune.ui.components.CosmoIcons.Settings,
-                onClick = { onOpenSettings(); onDismiss() },
+            // A row like the sheet's own "Add account" and "Sign out" (not a settings row with its brown tile).
+            com.cosmotune.ui.orbit.OrbitSongRow(
+                title = stringResource(R.string.settings), subtitle = "", cover = null,
+                fonts = com.cosmotune.ui.orbit.orbitFonts(), look = com.cosmotune.ui.orbit.orbitLook(),
+                onClick = { onOpenSettings(); onDismiss() }, icon = com.cosmotune.ui.components.CosmoIcons.Settings,
+                height = 56.dp, discSize = 36.dp, modifier = Modifier.fillMaxWidth(),
             )
         },
     )

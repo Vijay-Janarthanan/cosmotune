@@ -60,7 +60,6 @@ import com.cosmotune.ui.kit.KitButton
 import com.cosmotune.ui.kit.KitButtonKind
 import com.cosmotune.ui.kit.KitDivider
 import com.cosmotune.ui.kit.KitGroup
-import com.cosmotune.ui.kit.KitSettingsRow
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType

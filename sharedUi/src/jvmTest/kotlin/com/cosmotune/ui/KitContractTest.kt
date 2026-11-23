@@ -39,7 +39,7 @@ class KitContractTest {
 
     @Test fun theKitTakesItsColoursFromThePaletteAndDrawsNoCondensedType() {
         for ((file, code) in sources) {
-            assertTrue("LocalCosmoColors.current" in code, "$file reads the palette")
+            assertTrue("LocalCosmoColors.current" in code || "orbitLook()" in code, "$file reads the palette (directly or through Orbit's look)")
             assertFalse("displayFamily" in code, "$file draws no condensed display type")
             assertFalse(Regex("""FontWeight\((7[5-9]\d|8\d\d|9\d\d)\)""").containsMatchIn(code), "$file asks for no black weight")
         }
