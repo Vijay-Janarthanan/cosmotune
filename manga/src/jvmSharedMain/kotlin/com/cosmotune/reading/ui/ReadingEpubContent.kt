@@ -165,11 +165,55 @@ internal object ReadingEpubScripts {
     }
 
     /** A screen on or back ([forward]): a page of two columns sideways, else nine tenths of the screen down. */
-    fun page(forward: Boolean, slide: Boolean = false): String {
+    fun page(forward: Boolean, slide: Boolean = false, curl: Boolean = false): String {
         val sign = if (forward) "" else "-"
-        val how = if (slide) "smooth" else "auto"
-        return "(function(){if(document.documentElement.getAttribute('data-cosmo-columns'))window.scrollBy({left:${sign}window.innerWidth,behavior:'$how'});else window.scrollBy({top:${sign}window.innerHeight*0.88,behavior:'$how'});return '';})()"
+        val how = if (slide && !curl) "smooth" else "auto"
+        val move = "if(document.documentElement.getAttribute('data-cosmo-columns'))window.scrollBy({left:${sign}window.innerWidth,behavior:'$how'});else window.scrollBy({top:${sign}window.innerHeight*0.88,behavior:'$how'});"
+        if (!curl) return "(function(){$move return '';})()"
+        // Like paper: the screen swings away from its spine edge, the next one swings in from the other side, a shade following the fold.
+        return "(function(){var b=document.body;if(!b||window.__cosmoTurning){$move return '';}window.__cosmoTurning=1;var f=$forward;" +
+            "function at(){var cols=document.documentElement.getAttribute('data-cosmo-columns');return (cols?(window.scrollX+(f?0:window.innerWidth))+'px '+(window.innerHeight/2)+'px':(f?'0px ':'100% ')+(window.scrollY+window.innerHeight/2)+'px');}" +
+            "var shade=document.createElement('div');shade.style.cssText='position:fixed;top:0;bottom:0;left:0;right:0;pointer-events:none;z-index:2147483645;opacity:0;transition:opacity .17s;background:linear-gradient('+(f?'to left':'to right')+',rgba(0,0,0,.28),rgba(0,0,0,0) 60%)';document.documentElement.appendChild(shade);" +
+            "b.style.transformOrigin=at();b.style.transition='transform .17s ease-in';b.style.transform='perspective(1800px) rotateY('+(f?-62:62)+'deg)';shade.offsetWidth;shade.style.opacity='1';" +
+            "setTimeout(function(){b.style.transition='none';$move " +
+            "b.style.transformOrigin=(function(){var cols=document.documentElement.getAttribute('data-cosmo-columns');return cols?(window.scrollX+(f?window.innerWidth:0))+'px '+(window.innerHeight/2)+'px':(f?'100% ':'0px ')+(window.scrollY+window.innerHeight/2)+'px';})();" +
+            "b.style.transform='perspective(1800px) rotateY('+(f?62:-62)+'deg)';b.offsetWidth;b.style.transition='transform .2s ease-out';b.style.transform='';shade.style.opacity='0';" +
+            "setTimeout(function(){b.style.transition='';b.style.transform='';b.style.transformOrigin='';if(shade.parentNode)shade.parentNode.removeChild(shade);window.__cosmoTurning=0;},230);},175);return '';})()"
     }
+
+    /**
+     * The reading ruler: a band [lines] lines tall across the page, the page outside it dimmed; the round grip at its end edge drags
+     * it up or down. [lines] 0 takes it away. It never takes a tap or a selection (only the grip does).
+     */
+    fun ruler(lines: Int): String = """(function(n){var r=document.getElementById('cosmo-ruler');
+        if(n<=0){if(r)r.parentNode.removeChild(r);return '';}
+        if(!r){r=document.createElement('div');r.id='cosmo-ruler';r.style.cssText='position:fixed;left:0;right:0;pointer-events:none;z-index:2147483646;box-shadow:0 0 0 100vmax rgba(0,0,0,.42);border-radius:4px';
+        var g=document.createElement('div');g.id='cosmo-ruler-grip';g.setAttribute('aria-label','Move the reading ruler');
+        g.style.cssText='position:absolute;right:6px;top:50%;width:36px;height:36px;margin-top:-18px;border-radius:18px;background:rgba(128,128,128,.7);pointer-events:auto;touch-action:none;cursor:ns-resize';
+        r.appendChild(g);document.documentElement.appendChild(r);var drag=false;
+        g.addEventListener('pointerdown',function(e){drag=true;if(g.setPointerCapture)g.setPointerCapture(e.pointerId);e.preventDefault();e.stopPropagation();});
+        g.addEventListener('pointermove',function(e){if(!drag)return;window.__cosmoRulerAt=Math.min(.92,Math.max(.02,e.clientY/window.innerHeight));window.__cosmoRulerPlace();e.preventDefault();});
+        g.addEventListener('pointerup',function(){drag=false;});g.addEventListener('pointercancel',function(){drag=false;});
+        window.addEventListener('resize',function(){if(window.__cosmoRulerPlace)window.__cosmoRulerPlace();});}
+        window.__cosmoRulerLines=n;window.__cosmoRulerPlace=function(){var lh=parseFloat(window.getComputedStyle(document.body).lineHeight)||28,h=lh*window.__cosmoRulerLines+8;
+        r.style.height=h+'px';r.style.top=Math.max(0,Math.min(window.innerHeight-h,(window.__cosmoRulerAt||.33)*window.innerHeight-h/2))+'px';};
+        window.__cosmoRulerPlace();return '';})($lines)""".trimIndent()
+
+    /**
+     * Paragraph mode: one paragraph at a time in full ink, the rest faded, the one in focus kept in the middle of the screen.
+     * [step] 0 starts at the first paragraph on the screen, 1 and -1 move on and back. Gives "4/30", or "end" past the last one.
+     */
+    fun paragraph(step: Int): String = """(function(step){if(!document.body)return '';
+        var list=[].slice.call(document.body.querySelectorAll('p,li,blockquote,h1,h2,h3,h4,h5,h6,dd,dt,pre,figcaption')).filter(function(e){return (e.textContent||'').trim()&&!e.querySelector('p,li,blockquote,pre');});
+        if(!list.length)return '';
+        if(!document.getElementById('cosmo-para-style')){var st=document.createElement('style');st.id='cosmo-para-style';
+        st.textContent='.cosmo-para{opacity:.26;transition:opacity .2s}.cosmo-para.cosmo-para-on{opacity:1}';(document.head||document.documentElement).appendChild(st);}
+        var now=document.querySelector('.cosmo-para-on'),i=now?list.indexOf(now):-1;
+        if(step===0||i<0){i=0;for(var k=0;k<list.length;k++){if(list[k].getBoundingClientRect().bottom>window.innerHeight*0.08){i=k;break;}}}else i+=step;
+        if(i>=list.length)return 'end';if(i<0)i=0;
+        for(var j=0;j<list.length;j++){list[j].classList.add('cosmo-para');list[j].classList.remove('cosmo-para-on');}
+        list[i].classList.add('cosmo-para-on');list[i].scrollIntoView({block:'center'});return (i+1)+'/'+list.length;})($step)""".trimIndent()
+    const val paragraphOff = "(function(){var l=document.querySelectorAll('.cosmo-para');for(var i=0;i<l.length;i++){l[i].classList.remove('cosmo-para');l[i].classList.remove('cosmo-para-on');}return '';})()"
 
     /** Scrolls the chapter by itself at [pixelsPerSecond] (0 stops it); at its end it notes so for [autoScrollEnded]. */
     fun autoScroll(pixelsPerSecond: Int): String = "(function(v){if(window.__cosmoAutoId){cancelAnimationFrame(window.__cosmoAutoId);window.__cosmoAutoId=0;}window.__cosmoAutoEnd=0;if(v<=0)return '';" +

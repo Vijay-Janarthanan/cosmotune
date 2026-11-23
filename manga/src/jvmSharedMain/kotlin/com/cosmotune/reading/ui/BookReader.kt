@@ -15,6 +15,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.ViewDay
+import androidx.compose.material.icons.rounded.HorizontalRule
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
@@ -103,6 +105,9 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     var footnote by remember(document) { mutableStateOf<String?>(null) }
     var autoScrolling by remember(document) { mutableStateOf(false) }
     var speedReading by remember(document) { mutableStateOf(false) }
+    /** Paragraph mode's place ("4/30"), or null when it is off. */
+    var paragraph by remember(document) { mutableStateOf<String?>(null) }
+    var scrub by remember(document) { mutableStateOf<Float?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
     var picture by remember(document) { mutableStateOf<java.io.File?>(null) }
     val speech = if (epub != null) rememberReadingSpeech() else null
@@ -166,6 +171,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     val chapterEnd = if (epub != null) ReadingProgressMath.chapterEnd(locator, spine, sizes) else 1.0
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); now = System.currentTimeMillis() } }
+    val battery = rememberReadingBattery(ReadingFooterItem.BATTERY in preferences.footer)
     val latestOverall by rememberUpdatedState(overall)
     // Reading time: counted while the page moved in the last three minutes (or is being read aloud), saved each minute.
     LaunchedEffect(book.id) {
@@ -185,6 +191,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     SideEffect {
         page.tapZones = preferences.tapZones; page.invertZones = preferences.invertZones; page.volumeKeys = preferences.volumeKeys
         page.slide = preferences.slideTurn && !preferences.eInk
+        page.curl = preferences.curlTurn && !preferences.eInk
         page.onBrightness = if (preferences.brightnessSwipe) { delta -> updatePreferences(preferences.copy(brightness = (preferences.brightness + delta).coerceIn(0.3f, 1f))) } else null
         page.onTurn = { if (preferences.eInk) refresh++ }
     }
@@ -201,6 +208,18 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
             }
         }
     }
+    // The reading ruler is laid on each chapter as it loads.
+    LaunchedEffect(page, page.loads, preferences.rulerLines) { if (epub != null) page.run(ReadingEpubScripts.ruler(preferences.rulerLines)) }
+    // Paragraph mode: on to the next chapter past the last paragraph, starting again at its first.
+    fun paragraphStep(step: Int) = scope.launch {
+        val at = page.run(ReadingEpubScripts.paragraph(step))
+        if (at == "end") {
+            val next = epub?.spine?.getOrNull(epub.spine.indexOfFirst { it.href == page.href } + 1)
+            if (next == null) paragraph = "end" else saveLocation(ReadingLocator(resourceHref = next.href))
+        } else if (!at.isNullOrEmpty()) paragraph = at
+    }
+    LaunchedEffect(page.loads) { if (paragraph != null) { kotlinx.coroutines.delay(300); paragraphStep(0) } }
+    fun stopParagraphs() { paragraph = null; scope.launch { page.run(ReadingEpubScripts.paragraphOff) } }
     val canSearch = epub != null || supportsReadingPdfSearch()
     val section = epub?.spine?.indexOfFirst { it.href.substringBefore('#') == locator.resourceHref?.substringBefore('#') }?.takeIf { it >= 0 } ?: 0
     val look = orbitLook()
@@ -239,6 +258,13 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 OrbitReaderButton(Icons.Rounded.Add, "Faster", ink, fill, { updatePreferences(preferences.copy(autoScrollSpeed = (preferences.autoScrollSpeed + 10).coerceAtMost(300))) },
                     Modifier.testTag("books:auto:faster"))
             }
+            else if (paragraph != null) OrbitReaderCard(label = paragraph!!.split('/').let { if (it.size == 2) "Paragraph ${it[0]} of ${it[1]}" else "End of the book" },
+                progress = { overall.toFloat() }, fill = fill, ink = ink,
+                leading = { OrbitReaderButton(CosmoIcons.Close, "Stop paragraph mode", ink, fill, ::stopParagraphs, Modifier.testTag("books:paragraph:stop")) },
+                modifier = Modifier.testTag("books:paragraph")) {
+                OrbitReaderButton(CosmoIcons.ChevronLeft, "Previous paragraph", ink, fill, { paragraphStep(-1) }, Modifier.testTag("books:paragraph:previous"))
+                OrbitReaderButton(CosmoIcons.ChevronRight, "Next paragraph", ink, fill, { paragraphStep(1) }, Modifier.testTag("books:paragraph:next"))
+            }
             else if (aloud?.active == true) ReadAloudCard(aloud, fill, ink, onTimer = { panel = "Timer" }, onVoice = { panel = "Voice" })
             else selection?.let { words ->
                 ReaderSelectionBar(words, fill, ink, onHighlight = { highlight(words, it) }, onNote = { noting = words }, extra = {
@@ -255,14 +281,27 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 Text(if (epub != null) "Matches are highlighted in this chapter." else "Find matching pages on desktop and Android 15+. Earlier Android versions support EPUB search.",
                     style = ReadType.caption(), color = look.dim, modifier = Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 4.dp))
             }
+            // Dragging along the chapters line shows where it would land: the chapter's name and its opening words.
+            val scrubbed = scrub?.takeIf { tools && epub != null && epub.spine.size > 1 }?.let { f -> (f * (epub!!.spine.size - 1)).roundToInt() }
+            if (scrubbed != null) {
+                val target = epub!!.spine[scrubbed]
+                val opening by produceState("", target.href) { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { readingOpeningWords(target.file) } }
+                Column(Modifier.fillMaxWidth().clip(ReadShape.md).background(fill).padding(horizontal = 18.dp, vertical = 14.dp).testTag("books:scrub-preview"),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Chapter ${scrubbed + 1} of ${epub.spine.size}".uppercase(), style = orbitFonts().label, color = ink.copy(alpha = 0.75f))
+                    Text(target.title.ifBlank { epub.navigation.flatNavigation().firstOrNull { it.href.substringBefore('#') == target.href }?.title ?: "Untitled chapter" },
+                        style = ReadType.rowTitle(), color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (opening.isNotBlank()) Text(opening, style = ReadType.body(), color = ink.copy(alpha = 0.8f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                }
+            }
             // A tap on the middle of the page shows the tools where the page can tell (the phone); the desktop keeps the button.
-            if (aloud?.active == true || autoScrolling) Unit
+            if (aloud?.active == true || autoScrolling || paragraph != null) Unit
             else if (!tools) Column(Modifier.fillMaxWidth()) {
                 if (preferences.footerBar) com.cosmotune.ui.orbit.OrbitProgressLine({ overall.toFloat() }, look.dim, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), moon = 3.dp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, if (readingCenterTap) Alignment.CenterHorizontally else Alignment.End),
                     verticalAlignment = Alignment.CenterVertically) {
                     val chapterTitle = if (epub != null) epub.spine.getOrNull(section)?.title?.takeIf { it.isNotBlank() } ?: "Chapter ${section + 1} of ${epub.spine.size}" else "Page ${locator.page + 1}"
-                    val line = ReadingProgressMath.footer(preferences.footer, chapterTitle, overall, chapterEnd, state.paces[book.id], now)
+                    val line = ReadingProgressMath.footer(preferences.footer, chapterTitle, overall, chapterEnd, state.paces[book.id], now, battery = battery)
                     if (line.isNotBlank() || readingCenterTap) Text(line.ifBlank { bookReaderLabel(epub, section, locator) }.uppercase(), style = orbitFonts().label,
                         color = look.dim.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).testTag("books:page-line"))
                     if (!readingCenterTap) OrbitReaderButton(CosmoIcons.MoreVertical, "Show reading tools", ink, fill, { tools = true }, Modifier.background(fill, CircleShape).testTag("books:show-tools"))
@@ -273,6 +312,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 fill = fill, ink = ink,
                 onSeek = if (epub != null && epub.spine.size > 1) ({ f -> epub.spine.getOrNull((f * (epub.spine.size - 1)).roundToInt())?.let { saveLocation(ReadingLocator(resourceHref = it.href)) } }) else null,
                 leading = { OrbitReaderButton(CosmoIcons.ChevronLeft, "Library", ink, fill, onBack, Modifier.testTag("books:reader-back")) },
+                onScrub = { scrub = it },
                 modifier = Modifier.testTag("books:reader-card"),
             ) {
                 if (epub != null) {
@@ -299,6 +339,12 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                             enabled = epub != null && preferences.columns == 1) { tools = false; autoScrolling = true },
                         OrbitMenuItem("Speed reading", detail = if (epub == null) "Works in reflowing books, not PDFs." else "One word at a time", icon = Icons.Rounded.Speed,
                             enabled = epub != null) { speedReading = true },
+                        OrbitMenuItem("Paragraph mode", detail = if (epub == null) "Works in reflowing books, not PDFs." else "One paragraph at a time", icon = Icons.Rounded.ViewDay,
+                            enabled = epub != null) { tools = false; paragraphStep(0) },
+                        OrbitMenuItem("Reading ruler", detail = if (epub == null) "Works in reflowing books, not PDFs." else "A band that follows your line; drag its grip",
+                            icon = Icons.Rounded.HorizontalRule, selected = preferences.rulerLines > 0, enabled = epub != null) {
+                            updatePreferences(preferences.copy(rulerLines = if (preferences.rulerLines > 0) 0 else 2))
+                        },
                         OrbitMenuItem("Read aloud", detail = if (aloud == null) "Reading aloud works in reflowing books, not PDFs." else null,
                             icon = androidx.compose.material.icons.Icons.Rounded.RecordVoiceOver, enabled = aloud != null) { aloud?.start() },
                         OrbitMenuItem("Highlights and notes", detail = if (epub == null) "Highlights work in reflowing books, not PDFs." else marks.size.takeIf { it > 0 }?.toString(),
@@ -519,9 +565,16 @@ internal fun ReadingAppearanceChoices(preferences: ReadingPreferences, reflowabl
                 if (preferences.tapZones) com.cosmotune.ui.orbit.OrbitSwitchRow("Left side turns forward", preferences.invertZones, { onChange(preferences.copy(invertZones = it)) }, Modifier.padding(vertical = 2.dp))
                 com.cosmotune.ui.orbit.OrbitSwitchRow("Volume keys turn pages", preferences.volumeKeys, { onChange(preferences.copy(volumeKeys = it)) }, Modifier.padding(vertical = 2.dp),
                     switchModifier = Modifier.testTag("books:volume-keys"))
-                com.cosmotune.ui.orbit.OrbitSwitchRow("Slide on turning", preferences.slideTurn, { onChange(preferences.copy(slideTurn = it)) }, Modifier.padding(vertical = 2.dp))
+                Text("When a page turns", style = ReadType.caption(), color = orbitLook().dim, modifier = Modifier.padding(top = 8.dp))
+                ReadChipRow(Modifier.padding(top = 8.dp, bottom = 4.dp), inset = 0.dp) {
+                    val turn = when { preferences.eInk || (!preferences.slideTurn && !preferences.curlTurn) -> 0; preferences.curlTurn -> 2; else -> 1 }
+                    listOf("At once", "Slide", "Like paper").forEachIndexed { index, label ->
+                        ReadChip(label, turn == index, { onChange(preferences.copy(slideTurn = index == 1, curlTurn = index == 2, eInk = if (index > 0) false else preferences.eInk)) },
+                            Modifier.testTag("books:turn:$index"))
+                    }
+                }
                 com.cosmotune.ui.orbit.OrbitSwitchRow("Swipe the left edge for brightness", preferences.brightnessSwipe, { onChange(preferences.copy(brightnessSwipe = it)) }, Modifier.padding(vertical = 2.dp))
-                com.cosmotune.ui.orbit.OrbitSwitchRow("E-ink screen", preferences.eInk, { onChange(preferences.copy(eInk = it, slideTurn = if (it) false else preferences.slideTurn)) },
+                com.cosmotune.ui.orbit.OrbitSwitchRow("E-ink screen", preferences.eInk, { onChange(preferences.copy(eInk = it, slideTurn = if (it) false else preferences.slideTurn, curlTurn = if (it) false else preferences.curlTurn)) },
                     Modifier.padding(vertical = 2.dp), switchModifier = Modifier.testTag("books:eink"))
                 if (preferences.eInk) Text("Black text on white, no motion, and a quick black flash every few turns to clear the screen.", style = ReadType.caption(), color = orbitLook().dim)
             }
@@ -557,6 +610,13 @@ internal fun ReadingAppearanceChoices(preferences: ReadingPreferences, reflowabl
             com.cosmotune.ui.orbit.OrbitSwitchRow("Book and chapter over the page", preferences.showTitle, { onChange(preferences.copy(showTitle = it)) }, Modifier.padding(vertical = 2.dp))
             com.cosmotune.ui.orbit.OrbitSwitchRow("Hide picture captions", preferences.hideCaptions, { onChange(preferences.copy(hideCaptions = it)) }, Modifier.padding(vertical = 2.dp))
         }
+        if (reflowable) ReadSheetSection("Reading ruler") {
+            ReadChipRow(inset = 0.dp) {
+                listOf(0 to "Off", 1 to "1 line", 2 to "2 lines", 3 to "3 lines").forEach { (lines, label) ->
+                    ReadChip(label, preferences.rulerLines == lines, { onChange(preferences.copy(rulerLines = lines)) }, Modifier.testTag("books:ruler:$lines"))
+                }
+            }
+        }
         ReadSheetSection("Brightness · ${(preferences.brightness * 100).toInt()}%") {
             ReadSlider(preferences.brightness, { onChange(preferences.copy(brightness = it.coerceIn(0.3f, 1f))) }, 0.3f..1f, 6, "Brightness", Modifier.testTag("books:brightness"))
         }
@@ -565,6 +625,15 @@ internal fun ReadingAppearanceChoices(preferences: ReadingPreferences, reflowabl
         Spacer(Modifier.height(16.dp))
     }
 }
+
+/** A chapter's first words (about two lines' worth), for the preview while dragging along the book. */
+internal fun readingOpeningWords(file: java.io.File, limit: Int = 240): String = runCatching {
+    val html = file.inputStream().use { it.readNBytes(64 * 1024) }.decodeToString()
+    val body = html.substringAfter("<body", html).substringAfter('>')
+    body.replace(Regex("""(?is)<(script|style|head)[^>]*>.*?</\1>"""), " ").replace(Regex("<[^>]+>"), " ")
+        .replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'")
+        .replace(Regex("""\s+"""), " ").trim().take(limit)
+}.getOrDefault("")
 
 /** "Chapter 3 of 12 · 35 %" for a book with chapters, "Page 6 · 35 %" for a PDF. */
 internal fun bookReaderLabel(epub: ReadingDocument.Epub?, section: Int, locator: ReadingLocator): String {

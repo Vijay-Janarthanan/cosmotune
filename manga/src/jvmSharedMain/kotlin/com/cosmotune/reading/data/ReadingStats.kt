@@ -12,7 +12,7 @@ import kotlinx.serialization.Serializable
 
 /** What the reader's foot line can show, in the order chosen. */
 enum class ReadingFooterItem(val label: String) {
-    CHAPTER("Chapter"), CHAPTER_LEFT("Time left in chapter"), BOOK_LEFT("Time left in book"), PERCENT("Book %"), CLOCK("Clock")
+    CHAPTER("Chapter"), CHAPTER_LEFT("Time left in chapter"), BOOK_LEFT("Time left in book"), PERCENT("Book %"), CLOCK("Clock"), BATTERY("Battery")
 }
 
 /** Where a reader is in a whole book, and how long is left, from chapter sizes and the reader's own pace. */
@@ -51,13 +51,14 @@ internal object ReadingProgressMath {
 
     /** The foot line: [items] in order, those that cannot be told yet left out. */
     fun footer(items: List<ReadingFooterItem>, chapterTitle: String, overall: Double, chapterEnd: Double, pace: ReadingPace?, nowMs: Long,
-        zone: ZoneId = ZoneId.systemDefault()): String = items.mapNotNull { item ->
+        zone: ZoneId = ZoneId.systemDefault(), battery: Int? = null): String = items.mapNotNull { item ->
         when (item) {
             ReadingFooterItem.CHAPTER -> chapterTitle.takeIf { it.isNotBlank() }
             ReadingFooterItem.CHAPTER_LEFT -> timeFor(chapterEnd - overall, pace)?.let { duration(it) + " left in chapter" }
             ReadingFooterItem.BOOK_LEFT -> timeFor(1.0 - overall, pace)?.let { duration(it) + " left in book" }
             ReadingFooterItem.PERCENT -> "${(overall * 100).toInt()} %"
             ReadingFooterItem.CLOCK -> Instant.ofEpochMilli(nowMs).atZone(zone).toLocalTime().let { "%02d:%02d".format(it.hour, it.minute) }
+            ReadingFooterItem.BATTERY -> battery?.takeIf { it in 0..100 }?.let { "Battery $it %" }
         }
     }.joinToString(" · ")
 }

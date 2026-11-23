@@ -126,8 +126,8 @@ internal actual val readingCenterTap: Boolean = false
     Column(modifier) {
         if (searchQuery.isNotBlank()) Text("$matches matches in this section", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium)
         if (!preferences.scrollMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            ReadTextButton("Previous screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(false, preferences.slideTurn && !preferences.eInk)) } } })
-            ReadTextButton("Next screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(true, preferences.slideTurn && !preferences.eInk)) } } })
+            ReadTextButton("Previous screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(false, preferences.slideTurn && !preferences.eInk, preferences.curlTurn && !preferences.eInk)) } } })
+            ReadTextButton("Next screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(true, preferences.slideTurn && !preferences.eInk, preferences.curlTurn && !preferences.eInk)) } } })
         }
         SwingPanel(factory = { controller.panel }, modifier = Modifier.fillMaxSize())
     }
@@ -157,7 +157,7 @@ private class DesktopEpubController(document: ReadingDocument.Epub, private val 
                         javafx.scene.input.KeyCode.PAGE_UP, javafx.scene.input.KeyCode.LEFT -> false
                         else -> null
                     }
-                    if (forward != null && !key.isShiftDown) { web.engine.executeScript(ReadingEpubScripts.page(forward, control?.slide == true)); key.consume() }
+                    if (forward != null && !key.isShiftDown) { web.engine.executeScript(ReadingEpubScripts.page(forward, control?.slide == true, control?.curl == true)); key.consume() }
                 }
                 panel.scene = Scene(web)
                 started.complete(Unit)

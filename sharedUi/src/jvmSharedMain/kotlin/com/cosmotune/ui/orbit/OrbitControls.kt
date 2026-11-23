@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -139,8 +140,11 @@ fun OrbitRoundButton(
  * as the volume); null makes it a read-only line.
  */
 @Composable
-fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Modifier, onSeek: ((Float) -> Unit)? = null, moon: Dp = 6.dp, live: Boolean = false) {
+fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Modifier, onSeek: ((Float) -> Unit)? = null, moon: Dp = 6.dp, live: Boolean = false,
+    /** Hears where a drag is (0 to 1) while it lasts, and null when it ends, for a preview of the place. */
+    onScrub: ((Float?) -> Unit)? = null) {
     var drag by remember { mutableStateOf<Float?>(null) }
+    if (onScrub != null) LaunchedEffect(drag) { onScrub(drag) }
     val input = if (onSeek == null) Modifier else Modifier
         .pointerInput(onSeek) { detectTapGestures { onSeek((it.x / size.width).coerceIn(0f, 1f)) } }
         .pointerInput(onSeek) {

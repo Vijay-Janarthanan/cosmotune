@@ -84,7 +84,7 @@ private fun scriptResult(raw: String?): String? = runCatching {
                     if (event.x > width / 3f && event.x < width * 2f / 3f) latestTap()
                     else if (control?.tapZones == true) {
                         val forward = (event.x >= width * 2f / 3f) != (control.invertZones)
-                        evaluateJavascript(ReadingEpubScripts.page(forward, control.slide), null); control.onTurn?.invoke(forward)
+                        evaluateJavascript(ReadingEpubScripts.page(forward, control.slide, control.curl), null); control.onTurn?.invoke(forward)
                     }
                     return false
                 }
@@ -116,7 +116,7 @@ private fun scriptResult(raw: String?): String? = runCatching {
                     android.view.KeyEvent.KEYCODE_VOLUME_UP -> if (control?.volumeKeys == true) false else return@setOnKeyListener false
                     else -> return@setOnKeyListener false
                 }
-                evaluateJavascript(ReadingEpubScripts.page(forward, control?.slide == true), null); control?.onTurn?.invoke(forward)
+                evaluateJavascript(ReadingEpubScripts.page(forward, control?.slide == true, control?.curl == true), null); control?.onTurn?.invoke(forward)
                 true
             }
             webViewClient = object : WebViewClient() {
@@ -193,8 +193,8 @@ private fun scriptResult(raw: String?): String? = runCatching {
     Column(modifier) {
         if (searchQuery.isNotBlank()) Text("$matches matches in this section", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium)
         if (!preferences.scrollMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            ReadTextButton("Previous screen", { web.evaluateJavascript(ReadingEpubScripts.page(false, preferences.slideTurn && !preferences.eInk), null); control?.onTurn?.invoke(false) })
-            ReadTextButton("Next screen", { web.evaluateJavascript(ReadingEpubScripts.page(true, preferences.slideTurn && !preferences.eInk), null); control?.onTurn?.invoke(true) })
+            ReadTextButton("Previous screen", { web.evaluateJavascript(ReadingEpubScripts.page(false, preferences.slideTurn && !preferences.eInk, preferences.curlTurn && !preferences.eInk), null); control?.onTurn?.invoke(false) })
+            ReadTextButton("Next screen", { web.evaluateJavascript(ReadingEpubScripts.page(true, preferences.slideTurn && !preferences.eInk, preferences.curlTurn && !preferences.eInk), null); control?.onTurn?.invoke(true) })
         }
         AndroidView(factory = { web }, modifier = Modifier.fillMaxSize())
     }
@@ -203,7 +203,7 @@ private fun scriptResult(raw: String?): String? = runCatching {
 /** The kinds of file Read imports; Kindle and some other books carry no type on Android, so any file can be picked and is checked on import. */
 private val READING_IMPORT_TYPES = arrayOf("application/epub+zip", "application/pdf", "application/x-mobipocket-ebook", "application/vnd.amazon.ebook",
     "application/x-fictionbook+xml", "text/plain", "text/html", "text/markdown", "application/rtf", "text/rtf", "multipart/related", "message/rfc822",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.comicbook+zip", "application/x-cbz", "application/zip",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.comicbook+zip", "application/x-cbz", "application/zip", "application/vnd.ms-htmlhelp", "application/x-chm",
     "application/octet-stream")
 
 private val pageKeys = setOf(android.view.KeyEvent.KEYCODE_PAGE_DOWN, android.view.KeyEvent.KEYCODE_PAGE_UP, android.view.KeyEvent.KEYCODE_DPAD_RIGHT,

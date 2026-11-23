@@ -342,6 +342,13 @@ private fun BookLibrary(scope: ReadScope) {
     var tag by rememberSaveable { mutableStateOf<String?>(null) }
     val tags = state.books.flatMap { it.tags }.distinct().sortedBy { it.lowercase() }
     val books = state.shelf(shelf, "").filter { tag == null || tag in it.tags }.ordered(order, state)
+    // Choosing several books at once, to tag them or mark them finished together; the list shows a tick on each row.
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    var chosen by remember { mutableStateOf(emptySet<String>()) }
+    var bulkTagging by remember { mutableStateOf(false) }
+    if (bulkTagging) BulkTagsSheet(state.books.filter { it.id in chosen }, tags, onSave = { add, remove ->
+        scope.action { scope.repository.editTags(chosen, add, remove) }
+    }, onDismiss = { bulkTagging = false })
     val saved = if (shelf == BookShelf.SAVED) state.saved else emptyList()
     val reading = state.books.filter { it.id in state.progress && it.id !in state.finished }.sortedByDescending { state.progress[it.id]?.updatedAtMs ?: 0L }
     val hero = reading.firstOrNull()
@@ -383,6 +390,21 @@ private fun BookLibrary(scope: ReadScope) {
                     ReadPill(group.label, icon = CosmoIcons.Library, onClick = { group = BookGroup.entries[(group.ordinal + 1) % BookGroup.entries.size] },
                         modifier = Modifier.testTag("books:group"))
                     ReadIconButton(if (rows) CosmoIcons.Grid else CosmoIcons.List, if (rows) "Show as a grid" else "Show as a list", { rows = !rows }, Modifier.testTag("books:layout"))
+                    if (shelf != BookShelf.SAVED && books.isNotEmpty())
+                        ReadIconButton(CosmoIcons.Check, if (selecting) "Stop choosing books" else "Choose several books", { selecting = !selecting; chosen = emptySet() },
+                            Modifier.testTag("books:select"), on = selecting)
+                }
+                if (selecting && shelf != BookShelf.SAVED) Row(Modifier.fillMaxWidth().clip(ReadShape.md).background(orbitLook().row).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
+                    .testTag("books:selection-bar"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (chosen.isEmpty()) "Tap books to choose them" else "${chosen.size} chosen", style = ReadType.rowTitle(), color = orbitLook().ink, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    val all = books.map { it.id }.toSet()
+                    ReadPill(if (chosen.containsAll(all)) "None" else "All", onClick = { chosen = if (chosen.containsAll(all)) emptySet() else all }, modifier = Modifier.testTag("books:select-all"))
+                    if (chosen.isNotEmpty()) {
+                        ReadPill("Tags", icon = CosmoIcons.Pin, onClick = { bulkTagging = true }, modifier = Modifier.testTag("books:bulk-tags"))
+                        ReadPill("Finished", icon = CosmoIcons.Check, onClick = { val ids = chosen; scope.action { ids.forEach { scope.repository.markFinished(it) } } },
+                            modifier = Modifier.testTag("books:bulk-finished"))
+                    }
                 }
                 if (tags.isNotEmpty()) ReadChipRow(Modifier.padding(bottom = 4.dp)) {
                     tags.forEach { name -> ReadChip(name, tag == name, { tag = if (tag == name) null else name }, Modifier.testTag("books:tag:$name")) }
@@ -414,7 +436,16 @@ private fun BookLibrary(scope: ReadScope) {
                 if (heading != null) item(key = "group:$heading", span = { GridItemSpan(maxLineSpan) }) {
                     ReadSection(heading, Modifier.readBleed(), subtitle = members.size.toString())
                 }
-                items(members, key = { "${heading.orEmpty()}:${it.id}" }) { book -> if (rows) BookRow(scope, book) else BookCard(scope, book) }
+                items(members, key = { "${heading.orEmpty()}:${it.id}" }, span = if (selecting) ({ GridItemSpan(maxLineSpan) }) else null) { book ->
+                    if (selecting) {
+                        val on = book.id in chosen
+                        val toggle = { chosen = if (on) chosen - book.id else chosen + book.id }
+                        ReadCoverRow(book.title, state.bookLine(book), book.coverPath?.let(::File), onClick = toggle, key = book.id, highlighted = on,
+                            modifier = Modifier.testTag("books:choose:${book.id}")) {
+                            ReadIconButton(CosmoIcons.Check, if (on) "Chosen" else "Choose", toggle, on = on)
+                        }
+                    } else if (rows) BookRow(scope, book) else BookCard(scope, book)
+                }
             }
         }
     }
@@ -727,6 +758,41 @@ private fun BookTagsSheet(book: ReadingBook, known: List<String>, onSave: (Set<S
             com.cosmotune.ui.orbit.OrbitInputField(typed, { typed = it.take(40) }, "A new tag, such as To lend or Book club", modifier = Modifier.fillMaxWidth().testTag("books:tag-field"))
         }
         if (typed.isNotBlank()) ReadChipRow { ReadChip("Add “${typed.trim()}”", false, { chosen = chosen + typed.trim(); typed = "" }, icon = CosmoIcons.Plus) }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** Whether all of [this] have [tag] (true), none (false) or some (null). */
+internal fun List<ReadingBook>.tagShare(tag: String): Boolean? {
+    val count = count { tag in it.tags }
+    return when (count) { size -> true; 0 -> false; else -> null }
+}
+
+/** Tags for several books at once: a tag all of them have is on, one only some have is marked "some" and left alone until tapped. */
+@Composable
+private fun BulkTagsSheet(books: List<ReadingBook>, known: List<String>, onSave: (Set<String>, Set<String>) -> Unit, onDismiss: () -> Unit) {
+    val start = remember(books) { known.associateWith { books.tagShare(it) } }
+    var states by remember(books) { mutableStateOf(start) }
+    var typed by remember { mutableStateOf("") }
+    fun finish() {
+        val extra = typed.trim().takeIf { it.isNotEmpty() }
+        val add = states.filter { (name, on) -> on == true && start[name] != true }.keys + setOfNotNull(extra)
+        val remove = states.filter { (name, on) -> on == false && start[name] != false }.keys
+        if (add.isNotEmpty() || remove.isNotEmpty()) onSave(add, remove)
+        onDismiss()
+    }
+    com.cosmotune.ui.kit.KitSheet(onDismiss = ::finish) {
+        ReadSheetHeader(if (books.size == 1) "Tags for 1 book" else "Tags for ${books.size} books", onDone = ::finish)
+        if (states.isNotEmpty()) ReadChipRow(Modifier.padding(vertical = 4.dp)) {
+            states.keys.sortedBy { it.lowercase() }.forEach { name ->
+                val on = states[name]
+                ReadChip(if (on == null) "$name · some" else name, on == true, { states = states + (name to (on != true)) }, Modifier.testTag("books:bulk-tag:$name"))
+            }
+        }
+        Box(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+            com.cosmotune.ui.orbit.OrbitInputField(typed, { typed = it.take(40) }, "A new tag for all of them", modifier = Modifier.fillMaxWidth().testTag("books:bulk-tag-field"))
+        }
+        if (typed.isNotBlank()) ReadChipRow { ReadChip("Add “${typed.trim()}”", false, { states = states + (typed.trim() to true); typed = "" }, icon = CosmoIcons.Plus) }
         Spacer(Modifier.height(16.dp))
     }
 }

@@ -14,6 +14,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.ZoomOut
+import androidx.compose.material.icons.rounded.ViewColumn
+import androidx.compose.ui.platform.testTag
 import com.cosmotune.reading.data.*
 import java.io.File
 import java.io.InputStream
@@ -58,6 +60,8 @@ class ReadingPageControl {
     var invertZones = false
     var volumeKeys = false
     var slide = true
+    /** Turning like paper: the page swings over from its edge (see [ReadingEpubScripts.page]). */
+    var curl = false
     var onBrightness: ((Float) -> Unit)? = null
     /** Turns a screen on or back from the platform page (keys, taps); also counts toward a refresh in e-ink mode. */
     var onTurn: ((Boolean) -> Unit)? = null
@@ -106,6 +110,52 @@ internal fun pdfContentBounds(image: ImageBitmap): androidx.compose.ui.unit.IntR
     return rect.takeIf { it.width < width * 0.97f || it.height < height * 0.97f }
 }
 
+/**
+ * The columns of text on a page ([pixels] row by row, [width] wide), left to right, as the part of the page each takes (a small
+ * border kept); empty when the page is one column. A column is split off where a clear upright gap of paper runs down the printed part.
+ */
+internal fun pdfColumns(pixels: IntArray, width: Int, height: Int): List<androidx.compose.ui.unit.IntRect> {
+    if (width < 64 || height < 64) return emptyList()
+    fun ink(p: Int) = ((p shr 16) and 0xFF) + ((p shr 8) and 0xFF) + (p and 0xFF) < 600
+    val step = maxOf(1, height / 600)
+    val counts = IntArray(width)
+    var top = height; var bottom = -1
+    var y = 0
+    while (y < height) {
+        var any = false
+        for (x in 0 until width) if (ink(pixels[y * width + x])) { counts[x]++; any = true }
+        if (any) { if (y < top) top = y; bottom = y }
+        y += step
+    }
+    if (bottom < 0) return emptyList()
+    val left = counts.indexOfFirst { it > 0 }; val right = counts.indexOfLast { it > 0 }
+    // A gutter: a run of nearly blank upright lines at least 2 % of the page wide, inside the printed part (headers crossing it are allowed).
+    val rows = (bottom - top) / step + 1
+    val blank = maxOf(1, rows / 40)
+    val minGap = maxOf(4, width / 50)
+    val spans = mutableListOf<IntRange>()
+    var start = left; var x = left; var gapFrom = -1
+    while (x <= right) {
+        if (counts[x] <= blank) { if (gapFrom < 0) gapFrom = x }
+        else { if (gapFrom >= 0 && x - gapFrom >= minGap && gapFrom > start) { spans += start until gapFrom; start = x }; gapFrom = -1 }
+        x++
+    }
+    spans += start..right
+    // Columns narrower than a sixth of the printed width are figures or margins notes, not text columns.
+    val printed = right - left + 1
+    val columns = spans.filter { it.last - it.first + 1 >= printed / 6 }
+    if (columns.size < 2) return emptyList()
+    val pad = width / 100
+    return columns.map { androidx.compose.ui.unit.IntRect((it.first - pad).coerceAtLeast(0), (top - pad).coerceAtLeast(0), (it.last + pad + 1).coerceAtMost(width), (bottom + step + pad).coerceAtMost(height)) }
+}
+
+/** [pdfColumns] of a rendered page. */
+internal fun pdfColumns(image: ImageBitmap): List<androidx.compose.ui.unit.IntRect> {
+    val pixels = IntArray(image.width * image.height)
+    image.readPixels(pixels)
+    return pdfColumns(pixels, image.width, image.height)
+}
+
 /** Light on dark (inverted) and the contrast, as one colour filter for a PDF page; null when the page stays as printed. */
 internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.graphics.ColorFilter? {
     if (!dark && contrast == 1f) return null
@@ -122,6 +172,10 @@ internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.grap
     var engine by remember(document.file) { mutableStateOf<ReadingPdfEngine?>(null) }
     var failure by remember(document.file) { mutableStateOf<String?>(null) }
     var zoom by remember(document.file) { mutableStateOf(1f) }
+    // Zoom to a column: one column of a page at a time across the screen, the arrows going through the columns before the page turns.
+    var byColumn by remember(document.file) { mutableStateOf(false) }
+    var column by remember(document.file) { mutableStateOf(0) }
+    var columnCount by remember(document.file) { mutableStateOf(0) }
     var image by remember(document.file) { mutableStateOf<ImageBitmap?>(null) }
     var searching by remember { mutableStateOf(false) }
     var searchMessage by remember { mutableStateOf<String?>(null) }
@@ -168,12 +222,20 @@ internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.grap
         val fonts = com.cosmotune.ui.orbit.orbitFonts()
         FlowRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
-            com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.ChevronLeft, "Previous page", look, { navigate(page - 1) }, size = 36.dp, enabled = page > 0)
-            com.cosmotune.ui.orbit.OrbitLabel(if (pageCount > 0) "Page ${page + 1} of $pageCount · ${(zoom * 100).toInt()} %" else "Opening…", fonts, look.dim,
+            val inColumns = byColumn && columnCount > 1
+            com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.ChevronLeft, if (inColumns) "Previous column" else "Previous page", look, {
+                if (inColumns && column > 0) column-- else { column = if (byColumn) -1 else 0; navigate(page - 1) }
+            }, size = 36.dp, enabled = page > 0 || (inColumns && column > 0))
+            com.cosmotune.ui.orbit.OrbitLabel(if (pageCount == 0) "Opening…" else if (inColumns) "Page ${page + 1} of $pageCount · column ${column.coerceAtLeast(0) + 1} of $columnCount"
+                else "Page ${page + 1} of $pageCount · ${(zoom * 100).toInt()} %", fonts, look.dim,
                 Modifier.heightIn(min = 36.dp).wrapContentHeight())
-            com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.ChevronRight, "Next page", look, { navigate(page + 1) }, size = 36.dp, enabled = page + 1 < pageCount)
+            com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.ChevronRight, if (inColumns) "Next column" else "Next page", look, {
+                if (inColumns && column + 1 < columnCount) column++ else { column = 0; navigate(page + 1) }
+            }, size = 36.dp, enabled = page + 1 < pageCount || (inColumns && column + 1 < columnCount))
             com.cosmotune.ui.orbit.WatchRoundButton(androidx.compose.material.icons.Icons.Rounded.ZoomOut, "Zoom out", look, { zoom = (zoom - .25f).coerceAtLeast(.5f) }, size = 36.dp)
             com.cosmotune.ui.orbit.WatchRoundButton(androidx.compose.material.icons.Icons.Rounded.ZoomIn, "Zoom in", look, { zoom = (zoom + .25f).coerceAtMost(4f) }, size = 36.dp)
+            com.cosmotune.ui.orbit.WatchRoundButton(androidx.compose.material.icons.Icons.Rounded.ViewColumn, if (byColumn) "Show whole pages" else "Zoom to a column", look,
+                { byColumn = !byColumn; column = 0 }, size = 36.dp, on = byColumn, modifier = Modifier.testTag("books:pdf-columns"))
             if (searchQuery.isNotBlank() && engine?.supportsSearch == true)
                 com.cosmotune.ui.orbit.WatchCardChip("Next match", look.ink, fonts, { searchNext++ }, icon = com.cosmotune.ui.components.CosmoIcons.Search)
         }
@@ -196,7 +258,9 @@ internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.grap
                 failure != null -> Text(failure!!, Modifier.padding(24.dp))
                 image != null -> Box(Modifier.fillMaxSize().verticalScroll(vertical).horizontalScroll(horizontal), contentAlignment = Alignment.TopCenter) {
                     val shown = image!!
-                    val crop = remember(shown, preferences.pdfCrop) { if (preferences.pdfCrop) pdfContentBounds(shown) else null }
+                    val columns = remember(shown, byColumn) { if (byColumn) pdfColumns(shown) else emptyList() }
+                    SideEffect { columnCount = columns.size; if (column < 0 || column >= columns.size) column = if (column < 0) (columns.size - 1).coerceAtLeast(0) else 0 }
+                    val crop = remember(shown, preferences.pdfCrop, columns, column) { columns.getOrNull(column) ?: if (preferences.pdfCrop) pdfContentBounds(shown) else null }
                     val painter = remember(shown, crop) {
                         if (crop == null) androidx.compose.ui.graphics.painter.BitmapPainter(shown)
                         else androidx.compose.ui.graphics.painter.BitmapPainter(shown, androidx.compose.ui.unit.IntOffset(crop.left, crop.top), androidx.compose.ui.unit.IntSize(crop.width, crop.height))

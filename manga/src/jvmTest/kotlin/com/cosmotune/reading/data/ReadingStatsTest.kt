@@ -26,6 +26,8 @@ class ReadingStatsTest {
             "The storm", .5, .6, pace, 3_600_000L * 9 + 60_000 * 5, ZoneOffset.UTC)
         assertEquals("The storm · 50 min left in book · 50 % · 09:05", line)
         assertEquals("The storm", ReadingProgressMath.footer(listOf(ReadingFooterItem.CHAPTER, ReadingFooterItem.CHAPTER_LEFT), "The storm", .5, .6, null, 0))
+        assertEquals("50 % · Battery 64 %", ReadingProgressMath.footer(listOf(ReadingFooterItem.PERCENT, ReadingFooterItem.BATTERY), "", .5, .6, null, 0, battery = 64))
+        assertEquals("50 %", ReadingProgressMath.footer(listOf(ReadingFooterItem.PERCENT, ReadingFooterItem.BATTERY), "", .5, .6, null, 0), "no battery on this device")
     }
 
     @Test fun readingTimeAddsUpByDayAndBookWithAStreak() = runBlocking<Unit> {

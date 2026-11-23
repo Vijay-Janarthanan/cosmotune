@@ -90,7 +90,11 @@ import kotlinx.serialization.Serializable
     val autoScrollSpeed: Int = 40, val eInk: Boolean = false, val slideTurn: Boolean = true, val tapZones: Boolean = true, val invertZones: Boolean = false,
     val volumeKeys: Boolean = false, val brightnessSwipe: Boolean = true,
     /** PDF pages: light on dark (inverted), white margins trimmed, and their contrast (1 is as printed). */
-    val pdfDark: Boolean = false, val pdfCrop: Boolean = false, val pdfContrast: Float = 1f)
+    val pdfDark: Boolean = false, val pdfCrop: Boolean = false, val pdfContrast: Float = 1f,
+    /** The reading ruler's height in lines (0: no ruler). */
+    val rulerLines: Int = 0,
+    /** Pages turn like paper (the page swings over from its edge) instead of sliding. */
+    val curlTurn: Boolean = false)
 @Serializable data class ReadingOpdsSource(val id: String, val name: String, val url: String,
     val username: String = "", val password: String = "", val allowInsecureHttp: Boolean = false)
 @Serializable data class ReadingCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())

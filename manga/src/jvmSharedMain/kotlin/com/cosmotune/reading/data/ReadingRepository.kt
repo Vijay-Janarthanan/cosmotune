@@ -244,6 +244,13 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         require(clean.size <= 30) { "A book can have up to 30 tags." }
         store.update { old -> old.copy(books = old.books.map { if (it.id == bookId) it.copy(tags = clean) else it }) }
     }
+    /** Adds [add] to and takes [remove] off each of [bookIds]' tags at once (books chosen together in the library). */
+    suspend fun editTags(bookIds: Set<String>, add: Set<String>, remove: Set<String>) {
+        val clean = add.map { it.trim() }.filter { it.isNotEmpty() }.onEach { require(it.length <= 40 && it.none(Char::isISOControl)) { "Keep a tag under 40 characters." } }.toSet()
+        store.update { old -> old.copy(books = old.books.map { book ->
+            if (book.id !in bookIds) book else book.copy(tags = (book.tags - remove + clean).let { if (it.size > 30) book.tags - remove else it })
+        }) }
+    }
     /** Saves the current look as a style called [name] (replacing one of that name), or removes it with [remove]. */
     suspend fun saveProfile(name: String, preferences: ReadingPreferences, remove: Boolean = false) {
         val clean = title(name)
