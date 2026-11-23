@@ -27,7 +27,7 @@ internal fun PlayerOptions(songId: String, bluetoothSupported: Boolean, onDismis
     val current=tuning ?: SongPlaybackTuning()
     CosmoAlertDialog(onDismissRequest=onDismiss,title="Player options",confirmLabel="Done",onConfirm=onDismiss,content={
         if(SongPlaybackMemory.isMusic(songId)) {
-            PlayerOptionSwitch("For this song","Remember a speed and key for this recording. Other songs follow the defaults.",tuning!=null,
+            PlayerOptionSwitch("For this song","Remember a speed, key and sound effect for this recording. Other songs follow the defaults.",tuning!=null,
                 { settings.setSongPlayback(songId,if(it) current else null) })
             if(tuning!=null) {
                 CosmoSliderRow(icon=CosmoIcons.Play,title="Song speed",subtitle="Changes this recording only.",
@@ -36,6 +36,14 @@ internal fun PlayerOptions(songId: String, bluetoothSupported: Boolean, onDismis
                 CosmoSliderRow(icon=CosmoIcons.Equaliser,title="Song pitch",subtitle="Semitones, independent of speed.",
                     value=current.pitchSemitones.toString(),sliderValue=current.pitchSemitones.toFloat(),
                     onSliderValue={ settings.setSongPlayback(songId,current.copy(pitchSemitones=it.roundToInt())) },valueRange=-12f..12f,steps=23)
+                // The song's own sound effect: "As in Settings" follows Settings > Sound > Sound effects.
+                CosmoSettingsRow(icon=CosmoIcons.Waveform,title="Song sound effect",subtitle="Plays this recording with its own effect, or with none.")
+                FlowRow(Modifier.fillMaxWidth().padding(horizontal=12.dp).padding(bottom=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    CosmoSettingsChip("As in Settings",current.effect==null,{ settings.setSongPlayback(songId,current.copy(effect=null)) })
+                    com.cosmotune.audio.SoundEffect.entries.forEach { option ->
+                        CosmoSettingsChip(option.label,current.effect==option.name,{ settings.setSongPlayback(songId,current.copy(effect=option.name)) })
+                    }
+                }
             }
         }
         PlayerOptionSwitch("Player lyrics","Show timed lyrics beside the artwork when there is room. The Lyrics panel remains available.",inline,settings::setInlineLyrics)

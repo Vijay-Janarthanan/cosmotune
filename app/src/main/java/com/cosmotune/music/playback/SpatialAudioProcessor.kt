@@ -47,12 +47,12 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
     private fun applyEffects(samples: FloatArray, count: Int) {
         val fx = effects ?: return
         val extras = Extras.settings
-        fx.process(samples, count, extras.soundEffect.value, extras.soundEffectStrength.value / 100f, extras.volumeBoostGain)
+        fx.process(samples, count, extras.effectNow(), extras.soundEffectStrength.value / 100f, extras.volumeBoostGain)
     }
 
     /** Whether the effect stage has anything to do, so the 16-bit path can pass a block straight through otherwise. */
     private val effectsWanted: Boolean
-        get() = effects != null && (Extras.settings.soundEffect.value != com.cosmotune.audio.SoundEffect.NONE || Extras.settings.volumeBoostGain > 1f || effectsTail > 0)
+        get() = effects != null && (Extras.settings.effectNow() != com.cosmotune.audio.SoundEffect.NONE || Extras.settings.volumeBoostGain > 1f || effectsTail > 0)
 
     /** Blocks still to run after the effect was turned off, so its fade-out and the boost's glide down are heard. */
     private var effectsTail = 0
@@ -113,7 +113,7 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
         val processor = dsp
         val withEffects = effectsWanted
         effectsTail = when {
-            Extras.settings.soundEffect.value != com.cosmotune.audio.SoundEffect.NONE || Extras.settings.volumeBoostGain > 1f -> EFFECT_TAIL_BLOCKS
+            Extras.settings.effectNow() != com.cosmotune.audio.SoundEffect.NONE || Extras.settings.volumeBoostGain > 1f -> EFFECT_TAIL_BLOCKS
             else -> (effectsTail - 1).coerceAtLeast(0)
         }
         if ((!enabled && !withEffects) || processor == null) {

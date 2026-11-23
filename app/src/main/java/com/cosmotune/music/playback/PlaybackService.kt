@@ -6948,6 +6948,7 @@ class PlaybackService : MediaLibraryService() {
 
     private fun applySongTuning(player: ExoPlayer) {
         val id = player.currentMediaItem?.mediaId
+        com.cosmotune.settings.Extras.settings.playingSongId = id
         if (!com.cosmotune.podio.PodioPlaybackPolicy.isPodio(id)) player.setPlaybackSpeed(musicTuning(id).speed)
         applyPitch(player)
     }

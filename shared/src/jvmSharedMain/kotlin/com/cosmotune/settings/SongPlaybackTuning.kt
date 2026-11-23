@@ -1,10 +1,16 @@
 package com.cosmotune.settings
 
 /** A recording's override is separate from global defaults and never applies to Podio. */
-data class SongPlaybackTuning(val speed: Float = 1f, val pitchSemitones: Int = 0) {
+data class SongPlaybackTuning(
+    val speed: Float = 1f,
+    val pitchSemitones: Int = 0,
+    /** This recording's own sound effect ([com.cosmotune.audio.SoundEffect] by name, "NONE" for none); null follows Settings. */
+    val effect: String? = null,
+) {
     val pitchFactor: Float get() = ExtrasSettings.pitchFactorOf(pitchSemitones)
     fun normalized() = copy(speed = speed.takeIf { it.isFinite() }?.coerceIn(0.25f, 3f) ?: 1f,
-        pitchSemitones = pitchSemitones.coerceIn(-12, 12))
+        pitchSemitones = pitchSemitones.coerceIn(-12, 12),
+        effect = effect?.takeIf { name -> com.cosmotune.audio.SoundEffect.entries.any { it.name == name } })
 }
 object SongPlaybackMemory {
     fun isMusic(id: String?): Boolean = !id.isNullOrBlank() && !id.startsWith("podio:")
@@ -15,16 +21,18 @@ object SongPlaybackMemory {
         val out = linkedMapOf<String, SongPlaybackTuning>()
         raw.take(7_000).lineSequence().forEach { line ->
             val fields = line.split('\t')
-            if (fields.size == 3 && valid(fields[0])) {
+            if ((fields.size == 3 || fields.size == 4) && valid(fields[0])) {
                 val speed = fields[1].toFloatOrNull()
                 val pitch = fields[2].toIntOrNull()
                 if (speed != null && speed.isFinite() && speed in 0.25f..3f && pitch != null && pitch in -12..12)
-                    out[fields[0]] = SongPlaybackTuning(speed, pitch)
+                    out[fields[0]] = SongPlaybackTuning(speed, pitch, fields.getOrNull(3)?.ifBlank { null }).normalized()
             }
         }
         return out.entries.toList().takeLast(100).associate { it.toPair() }
     }
-    fun encode(map: Map<String, SongPlaybackTuning>) = map.entries.joinToString("\n") { it.key + "\t" + it.value.speed + "\t" + it.value.pitchSemitones }
+    fun encode(map: Map<String, SongPlaybackTuning>) = map.entries.joinToString("\n") {
+        it.key + "\t" + it.value.speed + "\t" + it.value.pitchSemitones + (it.value.effect?.let { effect -> "\t" + effect } ?: "")
+    }
     fun with(map: Map<String, SongPlaybackTuning>, id: String, tuning: SongPlaybackTuning?): Map<String, SongPlaybackTuning> {
         val out = LinkedHashMap(map); out.remove(id)
         if (valid(id) && tuning != null) out[id] = tuning.normalized()

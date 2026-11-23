@@ -25,7 +25,7 @@ internal class DesktopSpatialAudio(private val channels: Int, sampleRate: Int) {
         if (!applies) return
         val extras = com.cosmotune.settings.Extras.settings
         dsp.process(samples, count, enabled, extras.spatialPreset.value, extras.spatialSurround.value)
-        effects?.process(samples, count, extras.soundEffect.value, extras.soundEffectStrength.value / 100f, extras.volumeBoostGain)
+        effects?.process(samples, count, extras.effectNow(), extras.soundEffectStrength.value / 100f, extras.volumeBoostGain)
     }
 
     fun reset() {

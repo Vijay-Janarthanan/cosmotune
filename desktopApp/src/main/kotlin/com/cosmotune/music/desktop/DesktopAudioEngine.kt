@@ -156,7 +156,11 @@ class DesktopPlaybackEngine(
         com.cosmotune.settings.Extras.settings.songPlayback.value, playbackSpeed,
         com.cosmotune.settings.Extras.settings.pitchSemitones.value)
     private var blendTuning = com.cosmotune.settings.SongPlaybackTuning()
-    private fun audibleTuning() = if (fadeRemaining > 0) blendTuning else tuningFor(current?.song?.videoId)
+    private fun audibleTuning(): com.cosmotune.settings.SongPlaybackTuning {
+        // The sound effects follow the song heard now, which may have one of its own (Player options, For this song).
+        com.cosmotune.settings.Extras.settings.playingSongId = current?.song?.videoId
+        return if (fadeRemaining > 0) blendTuning else tuningFor(current?.song?.videoId)
+    }
     val playbackRate: Float get() = audibleTuning().speed
     @Volatile private var volume = 1f
     private val muteResume = com.cosmotune.settings.MuteResume()

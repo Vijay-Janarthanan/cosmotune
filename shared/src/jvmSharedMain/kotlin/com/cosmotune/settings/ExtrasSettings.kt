@@ -147,6 +147,13 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putInt(KEY_VOLUME_BOOST, clamped)
     }
 
+    /** The song playing now, set by the host as songs change, so [effectNow] can follow a song's own effect. */
+    @Volatile var playingSongId: String? = null
+
+    /** The effect to play now: the playing song's own (Player options, For this song) when it has one, else [soundEffect]. */
+    fun effectNow(): SoundEffect =
+        playingSongId?.let { songPlaybackFlow.value[it]?.effect }?.let(SoundEffect::named) ?: soundEffectFlow.value
+
     fun setSoundEffect(value: SoundEffect) {
         soundEffectFlow.value = value
         store.putString(KEY_SOUND_EFFECT, value.name)
