@@ -49,6 +49,10 @@ import kotlin.math.ceil
  * and the lyrics a fade-length behind the audio — words arriving late, fixable only by dragging
  * the scrubber.
  */
+/** What the player says about a song no source can play. */
+private const val UNAVAILABLE_MESSAGE = "This song isn't available"
+private const val SKIPPING_MESSAGE = "This song isn't available — skipping"
+
 internal fun blendElapsedUs(samples: Long, channels: Int, sampleRate: Int): Long {
     if (sampleRate <= 0 || channels <= 0 || samples <= 0L) return 0L
     return (samples / channels) * 1_000_000L / sampleRate
@@ -57,6 +61,11 @@ internal fun blendElapsedUs(samples: Long, channels: Int, sampleRate: Int): Long
 class DesktopPlaybackEngine(
     private val onEnded: () -> Unit,
     private val onCrossfaded: (Song) -> Unit = {},
+    /**
+     * Moves the queue past a song no source can play, without the end-of-song bookkeeping (a scrobble, the sleep
+     * timer) of [onEnded]; false when there is nothing to move on to.
+     */
+    private val onUnavailable: () -> Boolean = { false },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(DesktopPlaybackState())
@@ -217,6 +226,9 @@ class DesktopPlaybackEngine(
     /** Set around the [onEnded] an outage's one skip makes, so the [load] it causes keeps the outage. */
     @Volatile private var outageSkip = false
 
+    /** The run of songs skipped because nothing could play them; see [skipUnavailable]. */
+    private val unavailableSkips = com.cosmotune.music.playback.recovery.UnavailableSkips()
+
     private val progressWatchdog = PlaybackProgressWatchdog(now = { System.nanoTime() / 1_000_000L })
 
     /** Owned by the audio thread once handed over; never touched from outside. */
@@ -348,6 +360,7 @@ class DesktopPlaybackEngine(
                         onSuccess = { track ->
                             track.mixHandoff = recoverHandoff
                             searchingBetterFor = song.videoId.takeIf { live.pendingSubstitute != null }
+                            unavailableSkips.played()
                             commands += Command.Start(track, playWhenReady)
                             live.pendingSubstitute?.let { watchForUpgrade(song, it) }
                         },
@@ -363,6 +376,10 @@ class DesktopPlaybackEngine(
                     val reported = priorFailure ?: failure
                     // The reason is on screen as an error and was nowhere else: a song that will not play left no trace.
                     DesktopTrackLog.log("could not play '${song.title}': ${reported.message ?: reported.javaClass.simpleName}")
+                    if (com.cosmotune.music.playback.recovery.UnavailableSkips.isUnavailable(failure)) {
+                        skipUnavailable(song)
+                        return@fold
+                    }
                     _state.value = DesktopPlaybackState(
                         song = song,
                         volume = volume,
@@ -372,6 +389,21 @@ class DesktopPlaybackEngine(
                 },
             )
         }
+    }
+
+    /**
+     * A song whose upload is gone and that no other source holds: said plainly, and the queue moved on, as the phone
+     * does, instead of the error sitting on screen until the listener presses next. It stays on screen, saying so, when
+     * there is nothing to move on to, or when the run of such songs has come round to this one again or grown too long.
+     */
+    private fun skipUnavailable(song: Song) {
+        _state.value = DesktopPlaybackState(song = song, volume = volume, error = UNAVAILABLE_MESSAGE)
+        if (unavailableSkips.shouldSkip(song.videoId) && onUnavailable()) {
+            DesktopPlayerHost.showMessage(SKIPPING_MESSAGE)
+            DesktopTrackLog.log("'${song.title}' cannot be played from any source; skipping it")
+            return
+        }
+        DesktopTrackLog.log("'${song.title}' cannot be played from any source; stopping on it")
     }
 
     /**
