@@ -514,7 +514,7 @@ class DefaultWatchRepository(
         val live = async { if (filter == HomeFilter.FILMS || filter == HomeFilter.SERIES) emptyList() else runCatching { liveNow(if (filter == HomeFilter.LIVE) 30 else 12) }.getOrDefault(emptyList()) }
         if (filter == HomeFilter.LIVE) return@coroutineScope WatchHome(null, emptyList(), live.await(), emptyList(), empty = live.await().isEmpty())
         val pluginRows = async { pluginRows(type) }
-        val metaRows = async { runCatching { withTimeoutOrNull(config.timeoutMs) { metadata.rows(type) } }.getOrNull().orEmpty() }
+        val metaRows = async { runCatching { withTimeoutOrNull(config.timeoutMs) { metadata.rows(type, preferences.value.homeLanguages) } }.getOrNull().orEmpty() }
         // While the plugins' rows load, the free plugins are asked whether they can play the most popular films.
         val probed = async { if (type == TitleType.SERIES) emptyMap() else probeFree(popularFilms(metaRows.await())) }
         val free = pluginRows.await()

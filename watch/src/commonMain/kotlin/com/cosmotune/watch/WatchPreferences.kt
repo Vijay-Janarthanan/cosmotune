@@ -9,4 +9,6 @@ data class WatchPreferences(val density: WatchDensity = WatchDensity.BALANCED, v
     /** How Watch search orders results, kept per viewer. */
     val searchSort: WatchSort = WatchSort.BEST,
     /** How the player draws subtitles. */
-    val subtitles: WatchSubtitleStyle = WatchSubtitleStyle())
+    val subtitles: WatchSubtitleStyle = WatchSubtitleStyle(),
+    /** Original languages (codes of [WatchLanguage]) whose Top 10, films, web series and daily soaps get their own rows on Home. */
+    val homeLanguages: List<String> = listOf("ta", "hi"))

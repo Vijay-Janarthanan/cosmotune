@@ -102,8 +102,10 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
     // Live TV is a tab of its own, not one of Home's filters.
     val filter = fixed ?: chosen.takeIf { it != HomeFilter.LIVE } ?: HomeFilter.ALL
     val viewer by repository.activeProfile.collectAsState()
+    // The home languages pick their own rows, so another choice is another set of rows.
+    val languages = repository.preferences.collectAsState().value.homeLanguages.joinToString(",")
     // The rows of each tab stay for the process (and on the disk): coming back shows them at once while they refresh.
-    val entry = remember(repository, filter, viewer) { watchHomeEntry(repository, filter, viewer) }
+    val entry = remember(repository, filter, viewer, languages) { watchHomeEntry(repository, filter, "$viewer:$languages") }
     // Where the page was scrolled to stays too: opening a title and coming back finds the same place.
     val listState = remember(filter, viewer) { WatchHomeMemory.page(filter.name + ":" + viewer) }
     val cached by entry.collectOnPage()

@@ -44,7 +44,7 @@ import com.cosmotune.watch.model.WatchProfile
 import kotlinx.coroutines.launch
 
 /** Which of the settings' small dialogs is open. */
-private enum class WatchSettingsDialog { FOLDER, DENSITY, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
+private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
 
 /**
  * Watch settings on the same rows Video's settings use ([CosmoSettingsGroup], [CosmoSettingsRow]): Sources and add-ons first
@@ -112,6 +112,8 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
         item(key = "settings:display") {
             CosmoSettingsGroup(header = "Display") {
                 CosmoSettingsRow(Icons.Rounded.GridView, "Poster size", subtitle = preferences.density.label, onClick = { dialog = WatchSettingsDialog.DENSITY })
+                CosmoSettingsRow(CosmoIcons.Translate, "Languages on Home", subtitle = homeLanguagesText(preferences.homeLanguages),
+                    onClick = { dialog = WatchSettingsDialog.LANGUAGES })
                 val sub = preferences.subtitles
                 CosmoSettingsRow(CosmoIcons.Lyrics, "Subtitle look", subtitle = "${sub.sizePercent}% · ${sub.colour.label} · ${sub.background.label.lowercase()} behind",
                     onClick = { dialog = WatchSettingsDialog.SUBTITLES })
@@ -193,6 +195,22 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                         scope.launch { repository.setPreferences(preferences.copy(density = density)) }; dialog = null
                     }, haptic = false)
                 }
+            }
+        }
+        WatchSettingsDialog.LANGUAGES -> WatchDialog("Display", "Languages on Home", onDismiss = { dialog = null }) {
+            val chosen = preferences.homeLanguages
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.cosmotune.watch.WatchLanguage.entries.forEach { language ->
+                        val on = language.code in chosen
+                        OrbitSelectChip(language.label, on, fonts, look, onClick = {
+                            val next = if (on) chosen - language.code else (chosen + language.code).takeLast(MAX_HOME_LANGUAGES)
+                            scope.launch { repository.setPreferences(preferences.copy(homeLanguages = next)) }
+                        }, haptic = false)
+                    }
+                }
+                Text("Each language gets Top 10 films and series, then its films, web series and daily soaps on Home. Pick up to $MAX_HOME_LANGUAGES; another one takes the place of the first.",
+                    style = fonts.body, color = look.dim)
             }
         }
         WatchSettingsDialog.SUBTITLES -> WatchSubtitleLookDialog { dialog = null }
@@ -302,6 +320,15 @@ private fun seedTimeText(minutes: Int): String = when {
     minutes < 1440 -> "${minutes / 60} hours"
     minutes == 1440 -> "1 day"
     else -> "${minutes / 1440} days"
+}
+
+/** How many languages may have their own rows on Home; each adds five rows. */
+private const val MAX_HOME_LANGUAGES = 4
+
+/** "Tamil and Hindi", "None". */
+internal fun homeLanguagesText(codes: List<String>): String {
+    val names = codes.map { code -> com.cosmotune.watch.WatchLanguage.entries.firstOrNull { it.code == code }?.label ?: code }
+    return when (names.size) { 0 -> "None"; 1 -> names[0]; else -> names.dropLast(1).joinToString(", ") + " and " + names.last() }
 }
 
 /** "250 MB", "1 GB". */

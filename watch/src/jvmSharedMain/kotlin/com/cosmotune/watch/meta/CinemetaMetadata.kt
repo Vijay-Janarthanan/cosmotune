@@ -29,7 +29,7 @@ class CinemetaMetadata(http: WatchHttp, manifestUrl: String = "https://v3-cineme
     override suspend fun queryAbility(query: com.cosmotune.watch.WatchQuery, currentYear: Int) = addon.queryAbility(query, currentYear)
     override suspend fun find(query: com.cosmotune.watch.WatchQuery, currentYear: Int) = addon.find(query, currentYear)
 
-    override suspend fun rows(type: TitleType?): List<HomeRow> = coroutineScope {
+    override suspend fun rows(type: TitleType?, languages: List<String>): List<HomeRow> = coroutineScope {
         val rows = buildList {
             if (type != TitleType.SERIES) add(Triple("cinemeta:movie/top", "Popular films", TitleType.FILM))
             if (type != TitleType.FILM) add(Triple("cinemeta:series/top", "Popular series", TitleType.SERIES))
