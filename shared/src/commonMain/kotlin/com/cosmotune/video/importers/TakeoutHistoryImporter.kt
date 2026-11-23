@@ -50,9 +50,15 @@ object TakeoutHistoryImporter {
 
         var skipped = 0
         val watches = ArrayList<Watch>()
+        val searches = ArrayList<Pair<Long, String>>()
         for (element in root) {
             val entry = element.asObject()
             val titleUrl = entry?.get("titleUrl").asText()
+            // the search history file: "Searched for ..." with the words in the address; kept as recent searches
+            searchOf(titleUrl)?.let { words ->
+                searches += (entry?.get("time").asText()?.let(ImportSupport::parseTimeMs) ?: 0L) to words
+                continue
+            }
             val videoId = titleUrl?.let(ImportSupport::videoIdOf)
             val timeMs = entry?.get("time").asText()?.let(ImportSupport::parseTimeMs)
             val details = entry?.get("details")
@@ -101,7 +107,35 @@ object TakeoutHistoryImporter {
                 watchCount = views.size,
             )
         }.sortedByDescending { it.lastWatchedMs }
-        return ImportPreview(history = history, skipped = skipped).explainedIfEmpty()
+        val recent = searches.sortedByDescending { it.first }.map { it.second }.distinctBy { it.lowercase() }.take(MAX_SEARCHES)
+        return ImportPreview(history = history, skipped = skipped, searches = recent).explainedIfEmpty()
+    }
+
+    /** How many of the newest searches are kept (the recent searches list keeps no more). */
+    private const val MAX_SEARCHES = 50
+
+    /** The words of a search address (`/results?search_query=cats+and+dogs`), or null for any other address. */
+    internal fun searchOf(url: String?): String? {
+        if (url == null || "/results" !in url) return null
+        val query = url.substringAfter('?', "").split('&').firstOrNull { it.startsWith("search_query=") }?.substringAfter('=') ?: return null
+        return decode(query).trim().takeIf { it.isNotEmpty() }
+    }
+
+    private fun decode(text: String): String {
+        val bytes = ArrayList<Byte>()
+        var i = 0
+        while (i < text.length) {
+            val c = text[i]
+            when {
+                c == '+' -> { bytes += ' '.code.toByte(); i++ }
+                c == '%' && i + 2 < text.length -> {
+                    val hex = text.substring(i + 1, i + 3).toIntOrNull(16)
+                    if (hex != null) { bytes += hex.toByte(); i += 3 } else { bytes += c.code.toByte(); i++ }
+                }
+                else -> { c.toString().encodeToByteArray().forEach { bytes += it }; i++ }
+            }
+        }
+        return bytes.toByteArray().decodeToString()
     }
 
     /**

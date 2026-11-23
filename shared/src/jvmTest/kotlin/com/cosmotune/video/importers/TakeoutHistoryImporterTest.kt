@@ -19,7 +19,8 @@ class TakeoutHistoryImporterTest {
     @Test
     fun readsWatchedVideosNewestFirstAndSkipsAdsRemovedVideosMusicAndSearches() {
         assertEquals(listOf(V0, V1, V2, V3, V4, V7), preview.history.map { it.item.id })
-        assertEquals(4, preview.skipped, "the ad, the removed video, the Music entry and the search")
+        assertEquals(3, preview.skipped, "the ad, the removed video and the Music entry")
+        assertEquals(listOf("wood"), preview.searches, "a search becomes a recent search")
         assertNull(preview.reason)
         assertEquals(preview.history.sortedByDescending { it.lastWatchedMs }, preview.history)
     }
