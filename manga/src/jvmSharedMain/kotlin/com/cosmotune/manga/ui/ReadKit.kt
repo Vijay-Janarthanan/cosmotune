@@ -286,8 +286,9 @@ internal fun ReadCoverCard(
     progress: Float? = null,
     onContinue: (() -> Unit)? = null,
     key: String = title,
+    onLongClick: (() -> Unit)? = null,
 ) {
-    WatchCard(title, meta, cover, key, orbitFonts(), orbitLook(), onClick, modifier, width = width, progress = progress, onPlay = onContinue)
+    WatchCard(title, meta, cover, key, orbitFonts(), orbitLook(), onClick, modifier, width = width, progress = progress, onPlay = onContinue, onLongClick = onLongClick)
 }
 
 /** A tall cover on its own (a page's lead, a header): [WatchPicture] at 2:3. */

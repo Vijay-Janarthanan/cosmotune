@@ -53,6 +53,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -230,7 +231,10 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
         modifier = Modifier.testTag("manga:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
         val pageScope = MangaScope(repository, navigation, updates, onMusic, showAccount, bottom, ::action, ::openBook) { error = it }
-        Column(Modifier.fillMaxSize()) {
+        val picking = remember { MangaPicking() }
+        LaunchedEffect(navigation.tab, navigation.source, navigation.page, navigation.book?.id) { picking.clear() }
+        MangaBackHandler(picking.active) { picking.clear() }
+        androidx.compose.runtime.CompositionLocalProvider(LocalMangaPicking provides picking) { Box(Modifier.fillMaxSize()) { Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.padding(top = 8.dp), onDismiss = { error = null }) }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = orbitLook().accent)
             Box(Modifier.weight(1f)) {
@@ -248,6 +252,8 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
                 }
             }
         }
+        if (picking.active) MangaPickBar(pageScope, picking, Modifier.align(Alignment.BottomCenter).padding(bottom = bottom))
+        } }
     }
 }
 
@@ -291,9 +297,15 @@ internal fun MangaBookCard(scope: MangaScope, book: MangaBook, meta: String?, mo
     val cover = rememberMangaCover(scope.repository, book)
     val progress = if (inLibrary) state.progress[book.id]?.takeIf { !it.finished && it.pageCount > 0 }?.let { (it.page + 1f) / it.pageCount } else null
     val counts = if (inLibrary) mangaCoverCounts(book, state) else null
-    Box(modifier) {
-        ReadCoverCard(book.title, meta, cover, onClick = { scope.openBook(book) }, width = width, progress = progress, key = book.id,
-            onContinue = if (inLibrary && book.chapters.isNotEmpty()) ({ scope.continueReading(book, state) }) else null)
+    // Holding a cover chooses it (Komikku's bulk favourite); while some are chosen a tap chooses too. The mark sits in the line under it.
+    val picking = LocalMangaPicking.current
+    val chosen = picking?.has(book) == true
+    val undo = LocalOrbitUndo.current
+    Box(modifier.semantics { if (chosen) stateDescription = "Chosen" }) {
+        ReadCoverCard(book.title, if (chosen) "✓ " + mangaText("Chosen") else meta, cover, width = width, progress = progress, key = book.id,
+            onClick = { if (picking?.active == true) picking.toggle(book) else scope.openBook(book) },
+            onContinue = if (inLibrary && book.chapters.isNotEmpty() && picking?.active != true) ({ scope.continueReading(book, state) }) else null,
+            onLongClick = { if (picking != null) picking.toggle(book) else mangaSetInLibrary(scope, undo, listOf(book), add = state.books.none { it.id == book.id }) })
         if (counts != null && (counts.unread > 0 || counts.downloaded > 0)) Row(Modifier.align(Alignment.TopStart).padding(6.dp).testTag("manga:badges:${book.id}"),
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (counts.unread > 0) MangaCountBadge(counts.unread, peach = true, label = "${counts.unread} unread")
@@ -395,6 +407,7 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
         } }, onFailure = { scope.onError(it.message ?: "Folder could not be opened") })
     }
     val books = mangaLibraryOrder(mangaGenreFilter(mangaLibraryFilter(state.collectionBooks(collection), filters.toSet(), state), genres.toSet(), types.toSet()), sort, state)
+        .filterNot { it.id in MangaPendingRemovals.ids }
     val reading = state.books.filter { book -> state.progress[book.id]?.let { !it.finished || mangaContinue(book, state).resumes } == true }
         .maxByOrNull { state.progress[it.id]?.updatedAtMs ?: 0L }
     val discovery = state.sources.firstOrNull { it.enabled && MangaSourcePolicy.allowed(it) }
