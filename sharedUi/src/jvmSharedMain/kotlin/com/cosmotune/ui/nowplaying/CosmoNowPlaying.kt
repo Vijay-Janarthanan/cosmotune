@@ -375,7 +375,12 @@ fun CosmoNowPlaying(
     }
     val sleepTimer = rememberSleepTimer()
     var sleepMenuOpen by remember { mutableStateOf(false) }
-    val sleepMenu: @Composable () -> Unit = { SleepTimerMenu(sleepMenuOpen, { sleepMenuOpen = false }, orbitType, orbitInk) }
+    var repeatTimesOpen by remember { mutableStateOf(false) }
+    val repeatHold by com.cosmotune.music.playback.RepeatTimes.hold.collectAsState()
+    val sleepMenu: @Composable () -> Unit = {
+        SleepTimerMenu(sleepMenuOpen, { sleepMenuOpen = false }, orbitType, orbitInk)
+        RepeatTimesMenu(repeatTimesOpen, { repeatTimesOpen = false }, song.videoId, orbitType, orbitInk)
+    }
     // The rarer actions, in the top row's "more" (the phone adds shuffle and repeat, which its card has no room for).
     val moreItems: (Boolean) -> List<OrbitMenuItem> = { phone ->
         buildList {
@@ -387,6 +392,7 @@ fun CosmoNowPlaying(
             if (SleepTimerUi.control != null) {
                 add(OrbitMenuItem("Sleep timer", sleepTimer?.line() ?: "Pause after a while", CosmoIcons.Timer, selected = sleepTimer != null) { sleepMenuOpen = true })
             }
+            add(repeatTimesItem(repeatHold) { repeatTimesOpen = true })
             if (phone) {
                 add(OrbitMenuItem(if (shuffleEnabled) "Shuffle is on" else "Shuffle", null, CosmoIcons.Shuffle, selected = shuffleEnabled, keepOpen = true, onClick = onToggleShuffle))
                 add(OrbitMenuItem(repeatLabel(repeatMode), null, if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, selected = repeatMode != RepeatModes.OFF, keepOpen = true, onClick = onCycleRepeat))

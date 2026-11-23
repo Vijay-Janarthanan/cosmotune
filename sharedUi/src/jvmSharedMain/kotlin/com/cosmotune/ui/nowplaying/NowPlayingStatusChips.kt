@@ -72,6 +72,7 @@ fun activeChips(
 @Composable
 fun NowPlayingStatusChips(chips: List<ActiveChip>, fonts: OrbitFonts, look: OrbitLook, bestPart: (() -> Unit)? = null) {
     SleepTimerChip(fonts, look)
+    RepeatTimesChip(fonts, look)
     for (chip in chips) {
         OrbitChip(
             chip.title, fonts, look, onClick = chip.onClick, selected = true,

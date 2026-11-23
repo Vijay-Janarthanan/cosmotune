@@ -792,6 +792,26 @@ class PlaybackService : MediaLibraryService() {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    /**
+     * "Repeat this song" a number of times: while a hold for the playing song runs, the player repeats one song (so the
+     * laps are seamless and nothing blends away from it), and the listener's own repeat setting comes back when it ends.
+     */
+    private fun holdRepeatTimes() {
+        var saved: Int? = null
+        scope.launch {
+            com.cosmotune.music.playback.RepeatTimes.hold.collect { hold ->
+                val exoPlayer = player ?: return@collect
+                if (hold != null && hold.videoId == exoPlayer.currentMediaItem?.mediaId) {
+                    if (saved == null) saved = exoPlayer.repeatMode
+                    exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
+                } else if (hold == null) {
+                    saved?.let { exoPlayer.repeatMode = it }
+                    saved = null
+                }
+            }
+        }
+    }
+
     private data class PodioPosition(val id: String?, val positionMs: Long, val playing: Boolean, val loading: Boolean = false, val durationMs: Long = 0)
     private val podioPositions = kotlinx.coroutines.channels.Channel<PodioPosition>(kotlinx.coroutines.channels.Channel.BUFFERED)
     private val podioProgressScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -1167,6 +1187,9 @@ class PlaybackService : MediaLibraryService() {
             // A repeat or the queue moving on is a moment the phone is awake;
             // a timer that is overdue stops here rather than a lap later.
             SleepTimerWatcher.checkDue()
+            // Repeat this song N times: a lap of the held song uses one play; any other song ends the hold.
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) com.cosmotune.music.playback.RepeatTimes.consume(mediaItem?.mediaId)
+            else com.cosmotune.music.playback.RepeatTimes.songChanged(mediaItem?.mediaId)
 
             // No crossfade case to allow for here any more. A blended advance
             // never reaches this callback — the incoming track starts as the
@@ -1452,6 +1475,7 @@ class PlaybackService : MediaLibraryService() {
     override fun onCreate() {
         super.onCreate()
         registerNetworkCallback()
+        holdRepeatTimes()
 
         if (com.cosmotune.music.data.innertube.Innertube.cookie == null) {
             // The active session of the account registry, and the channel it acts as, the way the application restores it. The

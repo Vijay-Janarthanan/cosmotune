@@ -838,6 +838,7 @@ fun CosmotuneDesktopApp() {
         com.cosmotune.podio.PodioPlaybackPolicy.speedOnTransition(playbackEngine.state.value.song?.videoId, song.videoId, playbackSpeed)
             ?.let(playbackEngine::setPlaybackSpeed)
         selectedSong = song
+        com.cosmotune.music.playback.RepeatTimes.songChanged(song.videoId)
         history = (listOf(song) + history.filterNot { it.videoId == song.videoId }).take(50)
         saveQueue()
         persistence.saveHistory(history)
@@ -1767,8 +1768,8 @@ fun CosmotuneDesktopApp() {
                 } else if (DesktopListenTogether.inRoom) {
                     // A room moves on by its shared clock (DesktopPartySync), once for everyone; a
                     // player that finished a moment early waits for it rather than skipping too.
-                } else if (repeatMode == DesktopRepeatMode.ONE) {
-                    // Replayed in place. [startSong] makes the track a queue of one, which threw
+                } else if (repeatMode == DesktopRepeatMode.ONE || com.cosmotune.music.playback.RepeatTimes.consume(selectedSong?.videoId)) {
+                    // Replayed in place (repeat one, or one of the plays "Repeat this song" asked for). [startSong] makes the track a queue of one, which threw
                     // the rest of the queue away the first time it repeated.
                     val song = selectedSong
                     if (song != null && liveQueue.current?.videoId == song.videoId) {
