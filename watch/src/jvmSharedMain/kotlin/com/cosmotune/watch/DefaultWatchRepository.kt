@@ -38,6 +38,8 @@ import com.cosmotune.watch.plugins.iptv.XtreamPlugin
 import com.cosmotune.watch.plugins.local.LocalFolderPlugin
 import com.cosmotune.watch.plugins.servers.JellyfinPlugin
 import com.cosmotune.watch.plugins.servers.PlexPlugin
+import com.cosmotune.watch.plugins.servers.ServerSession
+import com.cosmotune.watch.store.ProfileSession
 import com.cosmotune.watch.plugins.stremio.StremioClient
 import com.cosmotune.watch.plugins.stremio.StremioPlugin
 import com.cosmotune.watch.live.LiveChannelNow
@@ -213,7 +215,7 @@ class DefaultWatchRepository(
 
     private val builtInPlugins: List<WatchPlugin> = builtIns?.invoke(http, store.state.value) ?: defaultBuiltIns()
     /** Built plugins, with the spec each was built from: a changed spec (a script update, a cloud restore) rebuilds it. */
-    private val userPlugins = ConcurrentHashMap<String, Pair<UserSourceSpec, WatchPlugin>>()
+    private val userPlugins = ConcurrentHashMap<String, Pair<Pair<UserSourceSpec, ServerSession?>, WatchPlugin>>()
     /** What [checkScriptUpdate] downloaded, held so [applyScriptUpdate] installs exactly those bytes. */
     private val offeredScripts = ConcurrentHashMap<String, Pair<String, String>>()
     private val status = MutableStateFlow<Map<String, Pair<String?, Boolean>>>(emptyMap())
@@ -266,7 +268,9 @@ class DefaultWatchRepository(
             val plugin = pluginFor(s)
             PluginInfo(s.id, plugin?.kind ?: kindOf(s.spec), s.name ?: s.spec.label.ifBlank { describe(s.spec) }, describe(s.spec), plugin?.badge ?: "ADD",
                 builtIn = false, enabled = s.enabled, defaultEnabled = true, capabilities = plugin?.capabilities.orEmpty(),
-                status = health[s.id]?.first, error = health[s.id]?.second == true)
+                status = health[s.id]?.first, error = health[s.id]?.second == true,
+                profileSignIn = s.profileSessions[state.activeProfile]?.let { "Signed in as ${it.user} for this profile" },
+                perProfileSignIn = s.spec is UserSourceSpec.Jellyfin || s.spec is UserSourceSpec.Emby)
         }
         return built + mine
     }
@@ -292,8 +296,12 @@ class DefaultWatchRepository(
     private fun host(url: String) = runCatching { java.net.URI(if ("://" in url) url else "http://$url").host }.getOrNull() ?: url
 
     /** Builds (once) the plugin of a stored source. */
-    private fun pluginFor(s: StoredSource): WatchPlugin? = userPlugins[s.id]?.takeIf { it.first == s.spec }?.second
-        ?: runCatching { build(s) }.getOrNull()?.also { userPlugins[s.id] = s.spec to it }
+    private fun pluginFor(s: StoredSource): WatchPlugin? = (s.spec to sessionOf(s)).let { built ->
+        userPlugins[s.id]?.takeIf { it.first == built }?.second ?: runCatching { build(s) }.getOrNull()?.also { userPlugins[s.id] = built to it }
+    }
+
+    /** The sign-in a server is used with: the profile in use's own, else the one it was added with. */
+    private fun sessionOf(s: StoredSource): ServerSession? = s.profileSessions[store.state.value.activeProfile]?.session ?: s.session
 
     private fun build(s: StoredSource): WatchPlugin = when (val spec = s.spec) {
         is UserSourceSpec.NuvioScript -> com.cosmotune.watch.plugins.nuvio.NuvioScriptPlugin(s.id, s.name ?: spec.label.ifBlank { "Watch script" },
@@ -304,8 +312,8 @@ class DefaultWatchRepository(
                 setOf(Capability.CATALOG, Capability.SEARCH, Capability.META, Capability.STREAMS, Capability.SUBTITLES, Capability.LIVE),
                 torrentsEnabled = ::torrentsEnabled)
         }
-        is UserSourceSpec.Jellyfin -> JellyfinPlugin(s.id, s.name ?: spec.label.ifBlank { "Jellyfin" }, http, spec.server, requireNotNull(s.session))
-        is UserSourceSpec.Emby -> JellyfinPlugin(s.id, s.name ?: spec.label.ifBlank { "Emby" }, http, spec.server, requireNotNull(s.session), emby = true)
+        is UserSourceSpec.Jellyfin -> JellyfinPlugin(s.id, s.name ?: spec.label.ifBlank { "Jellyfin" }, http, spec.server, requireNotNull(sessionOf(s)))
+        is UserSourceSpec.Emby -> JellyfinPlugin(s.id, s.name ?: spec.label.ifBlank { "Emby" }, http, spec.server, requireNotNull(sessionOf(s)), emby = true)
         is UserSourceSpec.Plex -> PlexPlugin(s.id, s.name ?: spec.label.ifBlank { "Plex" }, "PLEX", PluginKind.PLEX_SERVER, http,
             JellyfinPlugin.normalise(spec.server), { spec.token }, store.state.value.deviceId, free = false)
         is UserSourceSpec.M3u -> PlaylistPlugin(s.id, s.name ?: spec.label.ifBlank { "Playlist" }, "M3U", PluginKind.M3U, http, { listOf(spec.url) },
@@ -447,6 +455,28 @@ class DefaultWatchRepository(
         m.configurationRequired -> "This add-on must be configured on its own page first; paste the configured link"
         m.resources.none { it.name in setOf("stream", "subtitles", "catalog", "meta") } -> "This add-on offers nothing Watch can use"
         else -> null
+    }
+
+    override suspend fun signInForProfile(id: String, user: String, password: String): String? = try {
+        val source = store.state.value.sources.firstOrNull { it.id == id } ?: error("This server is no longer added")
+        val (server, emby) = when (val spec = source.spec) {
+            is UserSourceSpec.Jellyfin -> spec.server to false
+            is UserSourceSpec.Emby -> spec.server to true
+            else -> error("This source has no sign-in")
+        }
+        val session = JellyfinPlugin.signIn(http, server, user.trim(), password, emby, store.state.value.deviceId)
+        val profile = store.state.value.activeProfile
+        update { s -> s.copy(sources = s.sources.map { if (it.id == id) it.copy(profileSessions = it.profileSessions + (profile to ProfileSession(user.trim(), session)), updatedAtMs = config.now()) else it }) }
+        userPlugins.remove(id); channelCache = null
+        null
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+        e.message ?: "That sign-in did not work"
+    }
+
+    override suspend fun useSharedSignIn(id: String) {
+        val profile = store.state.value.activeProfile
+        update { s -> s.copy(sources = s.sources.map { if (it.id == id) it.copy(profileSessions = it.profileSessions - profile, updatedAtMs = config.now()) else it }) }
+        userPlugins.remove(id); channelCache = null
     }
 
     override suspend fun removeUserSource(id: String) {
@@ -621,7 +651,7 @@ class DefaultWatchRepository(
      * dozen catalogues shows all of them without the home waiting for every one.
      */
     private suspend fun pluginRows(type: TitleType?): List<HomeRow> {
-        val catalogs = each(activePlugins().filter { Capability.CATALOG in it.capabilities }) { p -> p.catalogs().filter { it.home && (type == null || !it.anyKind && (it.type == null || it.type == type)) } }
+        val catalogs = each(activePlugins().filter { Capability.CATALOG in it.capabilities }) { p -> p.catalogs().filter { it.home && (type != null || !it.tabOnly) && (type == null || !it.anyKind && (it.type == null || it.type == type)) } }
         val defs = catalogs.flatMap { (p, list) -> list.orEmpty().mapIndexed { i, c -> Triple(p, c, i < FIRST_ROWS_PER_PLUGIN) } }
         return coroutineScope {
             defs.map { (p, c, first) ->
@@ -713,12 +743,29 @@ class DefaultWatchRepository(
             else -> activePlugins().firstOrNull { it.id == key.namespace }?.let { runCatching { it.title(key) }.getOrNull() }
                 ?: builtInPlugins.firstOrNull { it.id == key.namespace }?.let { runCatching { it.title(key) }.getOrNull() }
         } ?: return null
-        val ratings = store.state.value.settings["watch.key.omdb"]?.let { apiKey ->
-            base.summary.ids.imdb?.let { imdb -> runCatching { com.cosmotune.watch.meta.OmdbRatings.fetch(http, imdb, apiKey) }.getOrNull() }
+        val ids = base.summary.ids
+        val mdb = store.state.value.settings["watch.key.mdblist"]?.let { apiKey ->
+            runCatching { com.cosmotune.watch.meta.MdbListRatings.fetch(http, ids.imdb, ids.tmdb, base.summary.type == TitleType.SERIES, apiKey) }.getOrNull()
         }.orEmpty()
-        val enriched = if (ratings.isEmpty()) base else base.copy(ratings = (base.ratings + ratings).distinctBy { it.source })
+        val ratings = mdb + store.state.value.settings["watch.key.omdb"]?.let { apiKey ->
+            ids.imdb?.let { imdb -> runCatching { com.cosmotune.watch.meta.OmdbRatings.fetch(http, imdb, apiKey) }.getOrNull() }
+        }.orEmpty()
+        val rated = if (ratings.isEmpty()) base else base.copy(ratings = (base.ratings + ratings).distinctBy { it.source })
+        val enriched = simklPicks(rated) ?: rated
         titles[key] = enriched; titles[base.key] = enriched
         return enriched
+    }
+
+    /** The title with Simkl's More like this, when the listener chose it and Simkl is connected; null to keep TMDB's. */
+    private suspend fun simklPicks(title: Title): Title? {
+        if (!preferences.value.simklPicks) return null
+        val client = tracking.clientIdOf(WatchTracker.SIMKL) ?: return null
+        val picks = runCatching {
+            com.cosmotune.watch.meta.SimklPicks(http, client).picks(title.summary.ids, title.summary.type) { name, year, type ->
+                metadata.search(name).firstOrNull { it.type == type && com.cosmotune.watch.meta.NameMatch.same(it.name, name) && (year == null || it.year == null || kotlin.math.abs(it.year - year) <= 1) }
+            }
+        }.getOrNull()
+        return picks?.takeIf { it.isNotEmpty() }?.let { title.copy(moreLikeThis = it) }
     }
 
     override suspend fun episodes(series: WatchKey, season: Int): List<Episode> {
@@ -796,9 +843,11 @@ class DefaultWatchRepository(
         is PlayTarget.Film -> if (target.ids.imdb != null && target.year != null) target else title(target.key)?.summary?.let {
             target.copy(ids = target.ids.merge(it.ids), year = target.year ?: it.year, runtimeMin = target.runtimeMin ?: it.runtimeMin)
         } ?: target
-        is PlayTarget.EpisodeOf -> if (target.seriesIds.imdb != null) target else target.key.seriesKey?.let { title(it) }?.summary?.let {
-            target.copy(seriesIds = target.seriesIds.merge(it.ids), year = target.year ?: it.year)
-        } ?: target
+        is PlayTarget.EpisodeOf -> {
+            val series = if (target.seriesIds.imdb != null && target.season <= 1) null else target.key.seriesKey?.let { title(it) }
+            if (series == null) target else target.copy(seriesIds = target.seriesIds.merge(series.summary.ids), year = target.year ?: series.summary.year,
+                absoluteEpisode = target.absoluteEpisode ?: PlayTarget.absoluteOf(series.seasons, target.season, target.episode))
+        }
         else -> target
     }
 
@@ -1052,6 +1101,24 @@ class DefaultWatchRepository(
         editPlaylists { list -> list.map { if (it.id == id) it.copy(name = label, updatedAtMs = config.now()) else it } }
     }
     override suspend fun deletePlaylist(id: String) { editPlaylists { list -> list.filterNot { it.id == id } } }
+    private fun noteKey(key: WatchKey) = "note.${store.state.value.activeProfile}.${key.value}"
+    override suspend fun note(key: WatchKey): String? = store.state.value.settings[noteKey(key)]
+    override suspend fun setNote(key: WatchKey, text: String) {
+        val kept = text.trim().take(2_000)
+        val at = noteKey(key)
+        update { s -> s.copy(settings = if (kept.isEmpty()) s.settings - at else s.settings + (at to kept)) }
+    }
+    override suspend fun movePlaylistItem(id: String, from: Int, to: Int) {
+        editPlaylists { list -> list.map { if (it.id == id) it.copy(items = com.cosmotune.watch.model.WatchPlaylist.moved(it.items, from, to), updatedAtMs = config.now()) else it } }
+    }
+    override suspend fun movePlaylist(id: String, to: Int) {
+        editPlaylists { list -> com.cosmotune.watch.model.WatchPlaylist.moved(list, list.indexOfFirst { it.id == id }, to) }
+    }
+    override suspend fun setPlaylistPoster(id: String, url: String?): Boolean {
+        val poster = url?.let { com.cosmotune.watch.model.WatchPlaylist.posterOf(it) ?: return false }
+        editPlaylists { list -> list.map { if (it.id == id) it.copy(posterUrl = poster, updatedAtMs = config.now()) else it } }
+        return true
+    }
     override suspend fun setPlaylistItem(id: String, title: TitleSummary, included: Boolean) {
         editPlaylists { list -> list.map { playlist ->
             if (playlist.id != id) playlist else playlist.copy(items = (playlist.items.filterNot { it.key == title.key } + if (included) listOf(title) else emptyList()), updatedAtMs = config.now())
@@ -1060,7 +1127,7 @@ class DefaultWatchRepository(
     private val configuredServicesState = MutableStateFlow(store.state.value.settings.keys.filter { it.startsWith("watch.key.") }.map { it.removePrefix("watch.key.") }.toSet())
     override val configuredServices: StateFlow<Set<String>> = configuredServicesState.asStateFlow()
     override suspend fun setServiceKey(service: String, key: String) {
-        require(service in setOf("omdb", "subdl", "realdebrid", "alldebrid", "torbox"))
+        require(service in setOf("omdb", "mdblist", "subdl", "realdebrid", "alldebrid", "torbox"))
         require(key.length <= 200 && key.all { it.isLetterOrDigit() || it in "_-" })
         update { state -> state.copy(settings = if (key.isBlank()) state.settings - "watch.key.$service" else state.settings + ("watch.key.$service" to key)) }
         titles.clear()
@@ -1139,6 +1206,8 @@ class DefaultWatchRepository(
             }) return false
         unlockedProfileId = id
         update { it.selectProfile(id) }
+        // A server this profile signs in to as itself lists its own channels.
+        channelCache = null
         return true
     }
     override suspend fun setProfilePin(pin: String?) {
@@ -1230,6 +1299,7 @@ class DefaultWatchRepository(
     }
 
     override suspend fun clearProgress(key: WatchKey) { update { s -> s.copy(progress = s.progress - key.value) } }
+    override suspend fun history(): List<WatchProgress> = store.state.value.progress.values.filter { it.summary != null }.sortedByDescending { it.updatedAtMs }
 
     fun close() { scope.coroutineContext[kotlinx.coroutines.Job]?.cancel() }
 

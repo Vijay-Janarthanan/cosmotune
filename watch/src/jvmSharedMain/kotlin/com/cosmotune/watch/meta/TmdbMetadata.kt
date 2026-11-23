@@ -132,7 +132,8 @@ class TmdbMetadata(
         return get("/tv/$id/season/$season", ttl = 6 * WatchHttp.HOUR).list("episodes").mapNotNull { ep ->
             val n = ep.int("episode_number") ?: return@mapNotNull null
             Episode(WatchKey.tmdbEpisode(id, season, n), seriesKey, season, n, ep.str("name") ?: "Episode $n", ep.str("overview"),
-                img(ep.str("still_path"), "w500"), ep.str("air_date"), ep.int("runtime"), ExternalIds(tmdb = ep.int("id")))
+                img(ep.str("still_path"), "w500"), ep.str("air_date"), ep.int("runtime"), ExternalIds(tmdb = ep.int("id")),
+                rating = ep.double("vote_average")?.takeIf { it > 0 && (ep.int("vote_count") ?: 0) >= 3 })
         }
     }
 

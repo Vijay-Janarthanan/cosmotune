@@ -99,6 +99,7 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
     val yours = plugins.filter { !it.builtIn }
     var adding by remember { mutableStateOf(false) }
     var updating by remember { mutableStateOf<PluginInfo?>(null) }
+    var signingIn by remember { mutableStateOf<PluginInfo?>(null) }
     var sharing by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
     var importLink by remember { mutableStateOf<String?>(null) }
@@ -120,6 +121,8 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
                         OrbitMenuItem("Move up", "Its copies rank higher", enabled = i > 0) { scope.launch { repository.moveUserSource(p.id, i - 1) } },
                         OrbitMenuItem("Move down", null, enabled = i < yours.lastIndex) { scope.launch { repository.moveUserSource(p.id, i + 1) } },
                         if (p.kind == com.cosmotune.watch.plugin.PluginKind.NUVIO_SCRIPT) OrbitMenuItem("Check for update", "Compare with its source before installing") { updating = p } else null,
+                        if (p.perProfileSignIn) OrbitMenuItem("Sign in for this profile", p.profileSignIn ?: "See the server as your own user here") { signingIn = p } else null,
+                        if (p.profileSignIn != null) OrbitMenuItem("Use the shared sign-in", "The account the server was added with") { scope.launch { repository.useSharedSignIn(p.id) } } else null,
                         OrbitMenuItem("Remove", "Forget it and its sign-in", CosmoIcons.Close) { scope.launch { repository.removeUserSource(p.id) } },
                     ))
             }
@@ -163,6 +166,7 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
     }
     if (adding) AddSourceDialog(repository, fonts, look) { adding = false }
     updating?.let { plugin -> ScriptUpdateDialog(plugin, repository, fonts, look) { updating = null } }
+    signingIn?.let { plugin -> ProfileSignInDialog(plugin, repository, fonts, look) { signingIn = null } }
     if (sharing) SharePackDialog(repository, fonts, look) { sharing = false }
     if (importing) ImportPackDialog(repository, fonts, look) { importing = false }
     importLink?.let { link -> ImportPackDialog(repository, fonts, look, initialLink = link) { importLink = null } }
@@ -412,6 +416,36 @@ private fun ScriptUpdateDialog(plugin: PluginInfo, repository: WatchRepository, 
             },
             confirmEnabled = !busy && found?.available == true,
             dismissLabel = "Close",
+            onDismiss = onDone,
+        )
+    }
+}
+
+/** A server's sign-in for the profile in use alone: from then on this profile sees the server's library, progress and channels as that user. */
+@Composable
+private fun ProfileSignInDialog(plugin: PluginInfo, repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook, onDone: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var user by remember(plugin.id) { mutableStateOf("") }
+    var password by remember(plugin.id) { mutableStateOf("") }
+    var busy by remember(plugin.id) { mutableStateOf(false) }
+    var message by remember(plugin.id) { mutableStateOf<String?>(null) }
+    WatchDialog("Sign in for this profile", plugin.name, onDone) {
+        Text(message ?: "Other profiles keep the sign-in the server was added with. The password is not kept.", style = fonts.body,
+            color = if (message != null) look.accent else look.dim, modifier = Modifier.padding(bottom = 16.dp))
+        WatchField("User", user, { user = it }, fonts, look)
+        WatchField("Password", password, { password = it }, fonts, look, password = true)
+        com.cosmotune.ui.sheets.CosmoDialogActions(
+            confirmLabel = if (busy) "Signing in…" else "Sign in",
+            onConfirm = {
+                busy = true
+                scope.launch {
+                    val failed = repository.signInForProfile(plugin.id, user, password)
+                    busy = false
+                    if (failed == null) onDone() else message = failed
+                }
+            },
+            confirmEnabled = !busy && user.isNotBlank(),
+            dismissLabel = "Cancel",
             onDismiss = onDone,
         )
     }

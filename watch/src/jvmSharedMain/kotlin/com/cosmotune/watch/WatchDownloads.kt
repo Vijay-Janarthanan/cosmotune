@@ -128,7 +128,10 @@ class WatchDownloads(
 
     /** Owned by this application-scoped download repository, never by a page's composition. */
     val batches: WatchBatchDownloads by lazy { WatchBatchDownloads(this, scope) }
+    @Volatile private var repository: WatchRepository? = null
+
     fun bindRepository(repository: WatchRepository) {
+        this.repository = repository
         batches.bind(repository)
         val torrentRepository = repository as? DefaultWatchRepository ?: return
         torrentEngine = torrentRepository.torrents
@@ -428,6 +431,10 @@ class WatchDownloads(
         val d = state.value.firstOrNull { it.id == id } ?: return
         if (d.torrent != null) runCatching { fileOf(d).deleteRecursively() } else runCatching { fileOf(d).delete() }
         runCatching { partOf(d).delete() }
+        if (d.torrent == null) runCatching {
+            DownloadExtras.posterFile(fileOf(d)).delete()
+            DownloadExtras.subtitleFiles(fileOf(d)).forEach { it.first.delete() }
+        }
         streams.remove(id)
         state.update { list -> list.filter { it.id != id } }
         save()
@@ -442,7 +449,35 @@ class WatchDownloads(
     fun streamOf(d: WatchDownload): Stream = Stream(
         StreamSource("downloads", "Downloads", "ON DEVICE"), "On this device", d.line, fileOf(d).toURI().toString(), StreamProtocol.LOCAL_FILE,
         d.container, filename = d.fileName, sizeBytes = d.totalBytes ?: fileOf(d).length(), durationMs = d.durationMs,
+        subtitles = savedSubtitles(d),
     )
+
+    /** The poster saved beside a finished download, for its row when offline; null when there is none. */
+    fun posterOf(d: WatchDownload): File? = DownloadExtras.posterFile(fileOf(d)).takeIf { it.isFile && it.length() > 0 }
+
+    /** The subtitle files saved beside a download, as the player's subtitles (they work with no connection). */
+    private fun savedSubtitles(d: WatchDownload): List<com.cosmotune.watch.model.Subtitle> = DownloadExtras.subtitleFiles(fileOf(d)).map { (file, language) ->
+        com.cosmotune.watch.model.Subtitle("dl:${d.id}:${file.name}", file.toURI().toString(), language, language.uppercase(), file.extension.lowercase(),
+            com.cosmotune.watch.model.SubtitleOrigin.LOCAL_FILE)
+    }
+
+    /**
+     * Keeps what the copy needs offline beside the file: its poster and backdrop, and up to [DownloadExtras.MAX_SUBTITLES] subtitle
+     * files (the copy's own, then what the subtitle add-ons find). A failure here never fails the download.
+     */
+    private suspend fun saveExtras(start: WatchDownload, stream: Stream) {
+        val file = fileOf(start)
+        runCatching {
+            (start.summary?.posterUrl ?: start.summary?.backdropUrl)?.takeIf { it.startsWith("http") }?.let { url ->
+                downloader.download(url, emptyMap(), DownloadExtras.posterFile(file), null) { _, _ -> }
+            }
+        }
+        val target: PlayTarget? = start.episode ?: start.film ?: start.item
+        val found = runCatching { target?.let { repository?.subtitles(it, stream, emptyList()) }.orEmpty() }.getOrDefault(emptyList())
+        DownloadExtras.pick(stream.subtitles + found).forEach { sub ->
+            runCatching { downloader.download(sub.url!!, emptyMap(), DownloadExtras.subtitleFile(file, sub), null) { _, _ -> } }
+        }
+    }
 
     private fun run(start: WatchDownload, stream: Stream, fresh: Boolean = false) {
         val id = start.id
@@ -468,6 +503,7 @@ class WatchDownloads(
                         }
                     }
                     finish(start, part, length, coroutineContext[Job])
+                    saveExtras(start, stream)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {

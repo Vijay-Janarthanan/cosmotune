@@ -162,7 +162,9 @@ class IptvParsersTest {
                     "get_live_categories" -> """[{"category_id":"1","category_name":"News"}]"""
                     "get_live_streams" -> """[{"num":1,"name":"News One","stream_id":11,"stream_icon":"https://i/1.png","epg_channel_id":"NewsOne.us","category_id":"1","tv_archive":1,"tv_archive_duration":2},
                         {"num":2,"name":"Local","stream_id":12,"epg_channel_id":null,"category_id":"9"}]"""
-                    "get_vod_streams" -> """[{"name":"EN - The Matrix (1999)","stream_id":55,"tmdb":"603","container_extension":"mkv"}]"""
+                    "get_vod_streams" -> """[{"name":"EN - The Matrix (1999)","stream_id":55,"tmdb":"603","container_extension":"mkv","category_id":"7"},
+                        {"name":"Paddington (2014)","stream_id":56,"container_extension":"mp4","category_id":"8"}]"""
+                    "get_vod_categories" -> """[{"category_id":"7","category_name":"Action"},{"category_id":"8","category_name":"Kids"}]"""
                     else -> "[]"
                 }
                 MockResponse().setBody(body)
@@ -180,6 +182,10 @@ class IptvParsersTest {
             val film = plugin.streams(PlayTarget.Film(WatchKey.tmdbFilm(603), com.cosmotune.watch.model.ExternalIds(tmdb = 603), "The Matrix", 1999))
             assertEquals("${s.base}/movie/user/p%40ss/55.mkv", film.single().url)
             assertEquals(com.cosmotune.watch.model.Container.MKV, film.single().container)
+            // The provider's folders are rows of the Films tab, never of Home.
+            val folders = plugin.catalogs().filter { it.tabOnly }
+            assertEquals(listOf("Action · Family", "Kids · Family"), folders.map { it.name })
+            assertEquals(listOf("Paddington"), plugin.catalogPage(folders[1]).map { it.name })
         }
     }
 

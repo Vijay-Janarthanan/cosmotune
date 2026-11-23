@@ -31,6 +31,8 @@ data class CatalogDef(
      * shows only on its page. It is a row of Home, not of the Films or Series tabs.
      */
     val anyKind: Boolean = false,
+    /** A folder of a source (an IPTV provider's "Action", "Kids"): a row of the Films or Series tab, never of Home. */
+    val tabOnly: Boolean = false,
 )
 
 /**
@@ -101,6 +103,10 @@ data class PluginInfo(
     /** "signed in", "340 channels", or the last error. */
     val status: String? = null,
     val error: Boolean = false,
+    /** A Jellyfin or Emby server: who this profile is signed in as ("Signed in as Mia for this profile"), or null for the shared sign-in. */
+    val profileSignIn: String? = null,
+    /** Whether this source takes a sign-in of each profile's own (Jellyfin, Emby). */
+    val perProfileSignIn: Boolean = false,
 )
 
 /** What the user adds on the Plugins page ("Yours"). Secrets are sealed by the store, never kept in plain settings. */

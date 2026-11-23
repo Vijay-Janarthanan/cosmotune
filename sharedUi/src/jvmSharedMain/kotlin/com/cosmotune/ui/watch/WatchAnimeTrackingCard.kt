@@ -55,6 +55,16 @@ internal fun WatchAnimeTrackingCard(tracking: AnimeTracking, fonts: OrbitFonts, 
         when {
             status.connected -> {
                 Text("Connected${status.user?.let { " as $it" } ?: ""}.", style = fonts.body, color = look.ink)
+                if (service == AnimeTracker.ANILIST) {
+                    // Private entries: shows this profile adds or moves on are seen on its AniList only by the listener.
+                    val repository = watchRepository()
+                    val prefs by repository.preferences.collectAsState()
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Keep these entries private", style = fonts.body, color = look.ink, modifier = Modifier.weight(1f))
+                        com.cosmotune.ui.orbit.OrbitSwitch(prefs.animePrivate, { on -> scope.launch { repository.setPreferences(prefs.copy(animePrivate = on)) } }, look,
+                            "Keep these entries private")
+                    }
+                }
                 WatchCardChip("Disconnect", look.ink, fonts, onClick = { scope.launch { tracking.disconnect(service) } })
             }
             status.clientId == null -> {

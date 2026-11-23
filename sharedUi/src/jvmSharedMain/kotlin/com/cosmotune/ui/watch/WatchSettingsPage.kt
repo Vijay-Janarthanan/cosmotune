@@ -1,7 +1,11 @@
 package com.cosmotune.ui.watch
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,7 +48,7 @@ import com.cosmotune.watch.model.WatchProfile
 import kotlinx.coroutines.launch
 
 /** Which of the settings' small dialogs is open. */
-private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, RESTORE, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID, AT_ONCE, CONTINUE }
+private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, RESTORE, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID, AT_ONCE, CONTINUE, MPV }
 
 /**
  * Watch settings on the same rows Video's settings use ([CosmoSettingsGroup], [CosmoSettingsRow]): Sources and add-ons first
@@ -131,12 +135,22 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     trailing = {
                         OrbitSwitch(preferences.passthrough, { on -> scope.launch { repository.setPreferences(preferences.copy(passthrough = on)) } }, look, "Surround to your amplifier")
                     })
+                if (com.cosmotune.ui.components.platformSdkInt == null) CosmoSettingsRow(CosmoIcons.Settings, "Player options",
+                    subtitle = com.cosmotune.watch.MpvOptions.parse(preferences.mpvOptions).options.size.let { if (it == 0) "For people who know mpv" else if (it == 1) "1 option set" else "$it options set" },
+                    onClick = { dialog = WatchSettingsDialog.MPV })
                 CosmoSettingsRow(CosmoIcons.Clock, "Continue watching keeps", subtitle = com.cosmotune.watch.WatchContinueCutoff.label(preferences.continueDays),
                     onClick = { dialog = WatchSettingsDialog.CONTINUE })
                 CosmoSettingsRow(Icons.Rounded.SkipNext, "Skip intros, recaps and credits", subtitle = "A button shows when the times are known",
                     trailing = {
                         OrbitSwitch(preferences.animeSkips, { on -> scope.launch { repository.setPreferences(preferences.copy(animeSkips = on)) } }, look,
                             "Skip intros, recaps and credits")
+                    })
+                val simkl = repository.tracking?.clientIdOf(com.cosmotune.watch.WatchTracker.SIMKL) != null
+                CosmoSettingsRow(CosmoIcons.Heart, "More like this from Simkl",
+                    subtitle = if (simkl) "What people who liked a title also liked" else "Connect Simkl in Connected services first",
+                    trailing = {
+                        OrbitSwitch(preferences.simklPicks && simkl, { on -> scope.launch { repository.setPreferences(preferences.copy(simklPicks = on)) } }, look,
+                            "More like this from Simkl", enabled = simkl)
                     })
             }
         }
@@ -261,6 +275,23 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     style = fonts.body, color = look.dim)
             }
         }
+        WatchSettingsDialog.MPV -> WatchDialog("Player options", "mpv options", onDismiss = { dialog = null }) {
+            var text by remember { mutableStateOf(preferences.mpvOptions) }
+            val parsed = com.cosmotune.watch.MpvOptions.parse(text)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("One option a line, as in an mpv.conf: deband=yes. They apply now and to every video. Keys stay Cosmotune's, so there is no input.conf.",
+                    style = fonts.body, color = look.dim)
+                Box(Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(20.dp)).background(look.chip).padding(16.dp)) {
+                    if (text.isEmpty()) Text("deband=yes\nsub-scale=1.2", style = fonts.body.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = look.dim)
+                    androidx.compose.foundation.text.BasicTextField(text, { text = it.take(4_000) }, textStyle = fonts.body.copy(color = look.ink, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent), modifier = Modifier.fillMaxSize())
+                }
+                if (parsed.refused.isNotEmpty()) Text("Left out: " + parsed.refused.joinToString(", "), style = fonts.body, color = look.accent)
+                com.cosmotune.ui.sheets.CosmoDialogActions(confirmLabel = "Save", onConfirm = {
+                    scope.launch { repository.setPreferences(repository.preferences.value.copy(mpvOptions = text.trim())) }; dialog = null
+                }, dismissLabel = "Cancel", onDismiss = { dialog = null })
+            }
+        }
         WatchSettingsDialog.CONTINUE -> WatchDialog("Continue watching", "Keep titles from", onDismiss = { dialog = null }) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Titles you last played longer ago than this leave the row. Where you were is kept.", style = fonts.body, color = look.dim)
@@ -357,13 +388,14 @@ private fun ServiceKeys(fonts: OrbitFonts, look: OrbitLook) {
     var message by remember { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OrbitLabel("Additional ratings and subtitles", fonts, look.dim)
-        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            listOf("omdb" to "OMDb ratings", "subdl" to "SubDL subtitles").forEach { (id, label) ->
+        // Wraps: three services do not fit side by side on a phone.
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("omdb" to "OMDb ratings", "mdblist" to "MDBList ratings", "subdl" to "SubDL subtitles").forEach { (id, label) ->
                 OrbitSelectChip(label + if (id in configured) " · connected" else "", service == id, fonts, look, onClick = { service = id; message = null }, haptic = false)
             }
         }
         WatchField("API key", apiKey, { apiKey = it.take(200) }, fonts, look, password = true)
-        Text("Keys stay in protected device storage. OMDb supplies attributed IMDb, Rotten Tomatoes and Metacritic ratings when available. SubDL adds individual subtitle files to the player’s subtitle search.", style = fonts.body, color = look.dim)
+        Text("Keys stay in protected device storage. OMDb supplies attributed IMDb, Rotten Tomatoes and Metacritic ratings when available. MDBList adds TMDB, Trakt, Letterboxd, audience and more; its key is free at mdblist.com. SubDL adds individual subtitle files to the player’s subtitle search.", style = fonts.body, color = look.dim)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             WatchCardChip("Save key", look.ink, fonts, enabled = apiKey.isNotBlank(), onClick = {
                 scope.launch { runCatching { repository.setServiceKey(service, apiKey) }.onSuccess { apiKey = ""; message = "Saved" }.onFailure { message = "The key could not be saved" } }
@@ -371,6 +403,17 @@ private fun ServiceKeys(fonts: OrbitFonts, look: OrbitLook) {
             if (service in configured) WatchCardChip("Remove key", look.ink, fonts, onClick = { scope.launch { repository.setServiceKey(service, "") } })
         }
         message?.let { Text(it, style = fonts.body, color = look.dim) }
+        // Which ratings a title page shows: every source the keys bring, each one on or off.
+        val prefs by repository.preferences.collectAsState()
+        OrbitLabel("Ratings on title pages", fonts, look.dim, Modifier.padding(top = 8.dp))
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.cosmotune.watch.meta.MdbListRatings.sources.forEach { source ->
+                val shown = source !in prefs.hiddenRatings
+                OrbitSelectChip(source, shown, fonts, look, onClick = {
+                    scope.launch { repository.setPreferences(prefs.copy(hiddenRatings = if (shown) prefs.hiddenRatings + source else prefs.hiddenRatings - source)) }
+                }, haptic = false)
+            }
+        }
     }
 }
 

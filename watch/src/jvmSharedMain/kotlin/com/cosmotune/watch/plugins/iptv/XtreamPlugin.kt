@@ -99,7 +99,15 @@ class XtreamPlugin(
     override suspend fun catalogs(): List<CatalogDef> = listOf(
         CatalogDef(id, "vod", "Films on $displayName", TitleType.FILM, pageSize = 40),
         CatalogDef(id, "series", "Series on $displayName", TitleType.SERIES, pageSize = 40),
-    )
+    ) + folders("get_vod_categories", "vod", TitleType.FILM) + folders("get_series_categories", "series", TitleType.SERIES)
+
+    /** The provider's own folders of films or series, each a row of its tab, in the provider's order. */
+    private suspend fun folders(action: String, kind: String, type: TitleType): List<CatalogDef> =
+        runCatching { (call(action) as? JsonArray).orEmpty() }.getOrDefault(emptyList()).mapNotNull { c ->
+            val cid = c.str("category_id") ?: return@mapNotNull null
+            val name = c.str("category_name")?.trim()?.ifBlank { null } ?: return@mapNotNull null
+            CatalogDef(id, "$kind:$cid", "$name · $displayName", type, pageSize = 40, tabOnly = true)
+        }
 
     private suspend fun vodList() = lock.withLock { vod ?: (call("get_vod_streams") as? JsonArray).orEmpty().toList().also { vod = it } }
     private suspend fun seriesList() = lock.withLock { series ?: (call("get_series") as? JsonArray).orEmpty().toList().also { series = it } }
@@ -121,7 +129,14 @@ class XtreamPlugin(
     override suspend fun catalogPage(catalog: CatalogDef, skip: Int): List<TitleSummary> = when (catalog.id) {
         "vod" -> vodList().sortedByDescending { it.long("added") ?: 0 }.drop(skip).take(catalog.pageSize).mapNotNull { vodSummary(it, TitleType.FILM) }
         "series" -> seriesList().sortedByDescending { it.long("last_modified") ?: 0 }.drop(skip).take(catalog.pageSize).mapNotNull { vodSummary(it, TitleType.SERIES) }
-        else -> emptyList()
+        else -> {
+            val (kind, cid) = catalog.id.substringBefore(':') to catalog.id.substringAfter(':')
+            when (kind) {
+                "vod" -> vodList().filter { it.str("category_id") == cid }.sortedByDescending { it.long("added") ?: 0 }.drop(skip).take(catalog.pageSize).mapNotNull { vodSummary(it, TitleType.FILM) }
+                "series" -> seriesList().filter { it.str("category_id") == cid }.sortedByDescending { it.long("last_modified") ?: 0 }.drop(skip).take(catalog.pageSize).mapNotNull { vodSummary(it, TitleType.SERIES) }
+                else -> emptyList()
+            }
+        }
     }
 
     override suspend fun search(query: String, type: TitleType?): List<TitleSummary> {

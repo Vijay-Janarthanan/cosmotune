@@ -138,6 +138,8 @@ data class Episode(
     val ids: ExternalIds = ExternalIds(),
     /** MyAnimeList marks this anime episode as filler or a recap; null for a story episode or one nothing is known of. */
     val kind: EpisodeKind? = null,
+    /** The episode's own score, 0..10 (TMDB's vote average), when enough people rated it. */
+    val rating: Double? = null,
 )
 
 /** What MyAnimeList says an anime episode is, when it is not part of the story. */
@@ -337,7 +339,19 @@ sealed interface PlayTarget {
         val episodeIds: ExternalIds = ExternalIds(),
         val episodeName: String? = null,
         val year: Int? = null,
+        /** The episode counted from the first of the series (S2 E3 after a 12-episode season is 15), for add-ons that number anime that way. */
+        val absoluteEpisode: Int? = null,
     ) : PlayTarget
+
+    companion object {
+        /** [episode] of [season] counted from the series' first episode, over [seasons] (specials left out); null for season 1 or unknown counts. */
+        fun absoluteOf(seasons: List<Season>, season: Int, episode: Int): Int? {
+            if (season <= 1) return null
+            val before = seasons.filter { it.number in 1 until season }
+            if (before.size != season - 1 || before.any { it.episodeCount <= 0 }) return null
+            return before.sumOf { it.episodeCount } + episode
+        }
+    }
 
     @Serializable
     data class Live(val channel: Channel) : PlayTarget { override val key: WatchKey get() = channel.key }

@@ -4,6 +4,7 @@ import com.cosmotune.watch.AnimeTracker
 import com.cosmotune.watch.AnimeTracking
 import com.cosmotune.watch.AnimeTrackingStatus
 import com.cosmotune.watch.store.WatchStore
+import com.cosmotune.watch.store.allProfiles
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -160,8 +161,10 @@ class AnimeTrackingService(
         val id = media.int("id") ?: return
         val entry = media.obj("mediaListEntry")
         val update = Auth.update(entry?.int("progress"), entry?.text("status") == "COMPLETED", episode, media.int("episodes")) ?: return
-        graphql(token, "mutation(\$id:Int,\$p:Int,\$s:MediaListStatus){SaveMediaListEntry(mediaId:\$id,progress:\$p,status:\$s){id}}",
-            buildJsonObject { put("id", id); put("p", update.episodes); put("s", if (update.completed) "COMPLETED" else "CURRENT") })
+        // A profile that keeps its list private makes the entries it writes private; otherwise an entry's own setting is left alone.
+        val hidden = store.state.value.let { it.allProfiles()[it.activeProfile]?.preferences?.animePrivate } == true
+        graphql(token, "mutation(\$id:Int,\$p:Int,\$s:MediaListStatus${if (hidden) ",\$x:Boolean" else ""}){SaveMediaListEntry(mediaId:\$id,progress:\$p,status:\$s${if (hidden) ",private:\$x" else ""}){id}}",
+            buildJsonObject { put("id", id); put("p", update.episodes); put("s", if (update.completed) "COMPLETED" else "CURRENT"); if (hidden) put("x", true) })
     }
 
     private suspend fun pushMal(token: String, malId: Int, episode: Int) {

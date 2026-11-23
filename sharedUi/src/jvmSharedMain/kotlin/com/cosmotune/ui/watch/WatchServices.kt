@@ -118,6 +118,8 @@ sealed interface WatchRoute {
     data class Torrent(val text: String? = null, val fileKey: String? = null) : WatchRoute
     /** The Calendar of the followed series' new and coming episodes. */
     data object Calendar : WatchRoute
+    /** What this profile played, by day. */
+    data object History : WatchRoute
 }
 
 /**

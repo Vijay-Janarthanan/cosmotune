@@ -31,7 +31,13 @@ data class StoredSource(
     val updatedAtMs: Long = addedAtMs,
     /** The add-on's manifest name, shown on the Plugins page and in packs. */
     val name: String? = null,
+    /** A server's sign-ins of single profiles, by profile id, with the user each signed in as; the others use [session]. */
+    val profileSessions: Map<String, ProfileSession> = emptyMap(),
 )
+
+/** One profile's own sign-in to a server. */
+@Serializable
+data class ProfileSession(val user: String, val session: ServerSession)
 
 @Serializable
 data class WatchState(

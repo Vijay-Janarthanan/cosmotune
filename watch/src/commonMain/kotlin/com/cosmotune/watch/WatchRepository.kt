@@ -237,6 +237,16 @@ interface WatchRepository {
     suspend fun renamePlaylist(id: String, name: String) {}
     suspend fun deletePlaylist(id: String) {}
     suspend fun setPlaylistItem(id: String, title: TitleSummary, included: Boolean) {}
+    /** Moves the title at [from] in playlist [id] to [to]. */
+    suspend fun movePlaylistItem(id: String, from: Int, to: Int) {}
+    /** The profile in use's own note on [key] (a title), or null. */
+    suspend fun note(key: WatchKey): String? = null
+    /** Keeps [text] as the profile in use's note on [key]; blank removes it. At most 2,000 characters. */
+    suspend fun setNote(key: WatchKey, text: String) {}
+    /** Moves playlist [id] to [to] in the list of playlists. */
+    suspend fun movePlaylist(id: String, to: Int) {}
+    /** Sets playlist [id]'s cover to the picture at [url], or back to its first title's poster for null. False when [url] is not a picture address. */
+    suspend fun setPlaylistPoster(id: String, url: String?): Boolean = false
     suspend fun setAnimeMapping(series: WatchKey, season: Int, malId: Int?) {}
     suspend fun skipIntervals(target: PlayTarget, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> = emptyList()
     /** The skips and chapters of [stream]: the server's own markers first, then [skipIntervals]' databases where they do not overlap. */
@@ -415,6 +425,10 @@ interface WatchRepository {
     /** Checks the source (manifest, sign-in, playlist) before adding it; nothing is stored when it fails. */
     suspend fun addUserSource(spec: UserSourceSpec): AddSourceResult
     suspend fun removeUserSource(id: String)
+    /** Signs the profile in use in to the server [id] as [user]; from then on that profile sees the server as that user. Null when done, else why not. */
+    suspend fun signInForProfile(id: String, user: String, password: String): String? = "This source has no sign-in"
+    /** Forgets the profile in use's own sign-in to [id]; it uses the one the server was added with again. */
+    suspend fun useSharedSignIn(id: String) {}
     /** Moves a user source up or down the Plugins page; the order is the order its streams rank in. */
     suspend fun moveUserSource(id: String, toIndex: Int) {}
 
@@ -444,6 +458,8 @@ interface WatchRepository {
     /** Called by the player every few seconds and on stop. */
     suspend fun saveProgress(progress: WatchProgress)
     suspend fun clearProgress(key: WatchKey)
+    /** Everything this profile has played, with where it got to (the History page). */
+    suspend fun history(): List<WatchProgress> = emptyList()
     /**
      * Marks [key] (a film or an episode) as watched to the end at [atMs], or as not watched (its progress cleared): it leaves
      * Continue watching, the episode rows show it, and Trakt or Simkl, when connected, are told it was watched.

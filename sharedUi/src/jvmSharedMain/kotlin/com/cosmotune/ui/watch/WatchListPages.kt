@@ -91,6 +91,7 @@ internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
                     com.cosmotune.ui.orbit.OrbitSelectChip("My list · ${list.size}", true, fonts, look, onClick = {}, haptic = false)
                     com.cosmotune.ui.orbit.OrbitSelectChip("Playlists · ${playlists.size}", false, fonts, look, onClick = { WatchNav.open(WatchRoute.Playlists()) }, haptic = false)
                     com.cosmotune.ui.orbit.OrbitSelectChip("Calendar", false, fonts, look, onClick = { WatchNav.open(WatchRoute.Calendar) }, haptic = false)
+                    com.cosmotune.ui.orbit.OrbitSelectChip("History", false, fonts, look, onClick = { WatchNav.open(WatchRoute.History) }, haptic = false)
                     if (actions.downloads != null) com.cosmotune.ui.orbit.OrbitSelectChip("Downloads · ${kept.size}", false, fonts, look, onClick = { WatchNav.go(WatchTab.DOWNLOADS) }, haptic = false)
                 }
             }
@@ -246,7 +247,8 @@ private fun DownloadRow(d: com.cosmotune.watch.WatchDownload, downloads: com.cos
     val playFile: (java.io.File) -> Unit = { f -> d.target?.let { t -> WatchNav.open(WatchRoute.Play(t, d.summary, downloads.streamOf(d, f))) } }
     val play = { if (d.torrent != null) videos.firstOrNull()?.let(playFile) else d.target?.let { t -> WatchNav.open(WatchRoute.Play(t, d.summary, downloads.streamOf(d))) }; Unit }
     com.cosmotune.ui.orbit.WatchRowFrame(look, modifier, height = 84.dp, onClick = if (done) play else null) {
-        com.cosmotune.ui.orbit.WatchPicture(d.summary?.backdropUrl ?: d.summary?.posterUrl, d.key.value, Modifier.padding(start = 4.dp).size(96.dp, 56.dp), radius = 14.dp)
+        // The poster kept with the download shows with no connection.
+        com.cosmotune.ui.orbit.WatchPicture(downloads.posterOf(d) ?: d.summary?.backdropUrl ?: d.summary?.posterUrl, d.key.value, Modifier.padding(start = 4.dp).size(96.dp, 56.dp), radius = 14.dp)
         Column(Modifier.weight(1f)) {
             androidx.compose.material3.Text(d.title, style = fonts.title, color = look.ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             val status = when (d.status) {

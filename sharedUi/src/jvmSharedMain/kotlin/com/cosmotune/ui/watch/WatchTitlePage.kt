@@ -3,7 +3,9 @@ package com.cosmotune.ui.watch
 import com.cosmotune.ui.orbit.OrbitCollapsedHeader
 import com.cosmotune.ui.orbit.OrbitCollapsingHeaderBar
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -118,6 +120,7 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
     val details: @Composable (Modifier) -> Unit = { modifier ->
         Column(modifier.padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             WatchTitleFacts(shown, page, fonts, look, showMissingPlot = title != null)
+            TitleNote(shown.key, repository, actions, fonts, look)
         }
     }
 
@@ -489,7 +492,10 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
     Column(Modifier.padding(top = 12.dp)) {
         Row(Modifier.fillMaxWidth().padding(end = side), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(start = side), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                seasons.forEach { s -> OrbitSelectChip(if (s.number == 0) "Specials" else s.name, s.number == chosen, fonts, look, onClick = { season = s.number }, haptic = false) }
+                // Seasons with their own posters show them, the chosen one ringed; others are chips.
+                if (seasons.count { it.posterUrl != null } * 2 >= seasons.size && seasons.size > 1) seasons.forEach { s ->
+                    SeasonPoster(s, s.number == chosen, fonts, look) { season = s.number }
+                } else seasons.forEach { s -> OrbitSelectChip(if (s.number == 0) "Specials" else s.name, s.number == chosen, fonts, look, onClick = { season = s.number }, haptic = false) }
             }
             if (actions.downloads != null && !episodes.isNullOrEmpty()) {
                 WatchRoundButton(CosmoIcons.Download, "Download episodes", look, onClick = { batchOpen = true }, modifier = Modifier.padding(start = 8.dp))
@@ -519,6 +525,39 @@ private fun SeriesBody(page: Title, nextUp: NextUp?, actions: WatchActions, font
     }
 }
 
+/** The profile's own note on a title (where an anime left off, who recommended it): shown under the facts, Add or Edit opens it. */
+@Composable
+private fun TitleNote(key: WatchKey, repository: com.cosmotune.watch.WatchRepository, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook) {
+    var edits by remember(key) { mutableStateOf(0) }
+    val note by produceState<String?>(null, key, edits) { value = runCatching { repository.note(key) }.getOrNull() }
+    var open by remember(key) { mutableStateOf(false) }
+    var text by remember(key) { mutableStateOf("") }
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        note?.let {
+            OrbitLabel("Your note", fonts, look.dim)
+            Text(it, style = fonts.body, color = look.ink)
+        }
+        WatchCardChip(if (note == null) "Add a note" else "Edit note", look.ink, fonts, onClick = { text = note.orEmpty(); open = true })
+    }
+    if (open) com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = { open = false }, title = "Your note",
+        message = "Only this profile sees it.", confirmLabel = "Save", dismissLabel = "Cancel", onConfirm = {
+            actions.launch { repository.setNote(key, text); edits++; open = false }
+        }) { WatchField("Note", text, { text = it.take(2_000) }, fonts, look, placeholder = "Up to episode 12, recommended by Mia") }
+}
+
+/** A season tab as its poster with its name under it; the chosen one has a ring in the accent. */
+@Composable
+private fun SeasonPoster(s: com.cosmotune.watch.model.Season, chosen: Boolean, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
+    val name = if (s.number == 0) "Specials" else s.name
+    Column(Modifier.width(76.dp).clip(RoundedCornerShape(14.dp)).clickable(onClickLabel = name, role = androidx.compose.ui.semantics.Role.Tab, onClick = onClick).padding(2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        WatchPicture(s.posterUrl, "${s.seriesKey.value}:${s.number}", Modifier.size(72.dp, 106.dp)
+            .then(if (chosen) Modifier.border(2.dp, look.accent, RoundedCornerShape(12.dp)) else Modifier), radius = 12.dp)
+        Text(name, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = if (chosen) look.accent else look.ink, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+    }
+}
+
 @Composable
 private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watched: Boolean, fonts: OrbitFonts, look: OrbitLook, onMark: () -> Unit, onClick: () -> Unit) {
     WatchRowFrame(look, height = 97.dp, highlighted = next, onClick = onClick) {
@@ -535,7 +574,7 @@ private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watc
             Text("${e.number}. ${e.name}", style = fonts.title.copy(fontSize = 14.sp, lineHeight = 18.sp), color = if (next) look.accent else look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val inProgress = progress != null && !progress.completed && progress.fraction > 0f
             val second = if (inProgress) leftText(progress!!.remainingMs) else e.overview?.lineSequence()?.firstOrNull { it.isNotBlank() }
-            Text(listOfNotNull(runtimeText(e.runtimeMin), e.kind?.label, second).joinToString(" · "), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
+            Text(listOfNotNull(runtimeText(e.runtimeMin), e.rating?.let { "★ %.1f".format(it) }, e.kind?.label, second).joinToString(" · "), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
                 color = if (next) look.accent else look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
         WatchRoundButton(CosmoIcons.Check, if (watched) "Mark episode ${e.number} as not watched" else "Mark episode ${e.number} as watched", look,
