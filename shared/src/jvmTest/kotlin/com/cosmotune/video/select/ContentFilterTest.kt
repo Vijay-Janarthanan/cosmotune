@@ -62,4 +62,14 @@ class ContentFilterTest {
     @Test fun wordsAreCleaned() {
         assertEquals(listOf("Cat", "dog"), ContentFilter.cleanWords(listOf(" Cat ", "", "cat", "dog")))
     }
+
+    @Test fun membersOnlyVideosGoWhenAsked() {
+        val paid = com.cosmotune.video.model.VideoItem("p", "Behind the scenes", "UCx", "X", null, null, 60, null, null, null, isPaid = true)
+        val free = paid.copy(id = "f", isPaid = false)
+        val filter = ContentFilter(emptyList(), emptySet(), hidePaid = true)
+        kotlin.test.assertFalse(filter.keep(paid))
+        kotlin.test.assertTrue(filter.keep(free))
+        kotlin.test.assertTrue(ContentFilter.NONE.keep(paid))
+        kotlin.test.assertFalse(com.cosmotune.video.settings.VideoSettings(hidePaid = true).contentFilter().isEmpty)
+    }
 }

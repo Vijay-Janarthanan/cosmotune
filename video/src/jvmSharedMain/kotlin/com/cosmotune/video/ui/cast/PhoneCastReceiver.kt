@@ -26,7 +26,7 @@ object PhoneCastHost {
 /**
  * Lets the YouTube app on a phone cast here while Video is open and "Let the YouTube app cast here" is on: the lounge
  * receiver runs, a video the phone sends opens its watch page (in place of a watch page on show), and the phone's
- * controls drive the player.
+ * controls drive the player. On the same Wi-Fi the phone also finds this screen by itself (DIAL), without the code.
  */
 @Composable
 internal fun PhoneCastReceiver(navigator: VideoNavigator) {
@@ -49,6 +49,12 @@ internal fun PhoneCastReceiver(navigator: VideoNavigator) {
             },
         )
         launch { receiver.state.collect { PhoneCastHost.show(it) } }
+        // The phone's app also finds this screen on the home network (DIAL), and casts without a code.
+        launch {
+            runCatching {
+                com.cosmotune.video.cast.dial.DialServer(name = "Cosmotune", screen = receiver::dialScreen, onPair = { code -> receiver.pair(code) }).run()
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+        }
         try {
             receiver.run()
         } finally {

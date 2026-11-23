@@ -41,6 +41,9 @@ class LoungeScreen(
     private val base: String = "https://www.youtube.com/api/lounge",
     private val device: String = UUID.randomUUID().toString(),
 ) : LoungeLink {
+    override val deviceId: String get() = device
+    override val loungeToken: String? get() = token
+
     private val json = Json { ignoreUnknownKeys = true }
     private val sending = Mutex()
     private var rid = 1
@@ -48,7 +51,7 @@ class LoungeScreen(
     private var sid: String? = null
     private var gsession: String? = null
     private var lastId = 0
-    private var token: String? = null
+    @Volatile private var token: String? = null
 
     /** The screen's id: [saved] when there is one, else a new one from the lounge. */
     override suspend fun screenId(saved: String?): String = saved?.takeIf { it.isNotBlank() } ?: post("$base/pairing/generate_screen_id", emptyMap()).trim().also {

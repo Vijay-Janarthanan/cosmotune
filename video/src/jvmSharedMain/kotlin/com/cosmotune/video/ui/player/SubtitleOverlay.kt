@@ -46,7 +46,8 @@ private const val SUB_SHADOW_BLUR = 6f
 /**
  * The subtitles, drawn by the app from the engine's [cues] (spec 6.5): centred, 12 % of the box above its bottom, rising above the
  * bottom row while the chrome shows ([lift] is the chrome's visibility, 0..1, read in the layout phase; [liftDp] where the bottom row
- * ends); white Hanken Grotesk 500 at [fontSp] times the size setting [scale] (0.8, 1, 1.25), on black 60 % when [background].
+ * ends); Hanken Grotesk 500 in [color] (white unless the listener picked another) at [fontSp] times the size setting [scale] (0.8, 1,
+ * 1.25), on black 60 % when [background]. With [top] they sit 12 % below the top instead, and the chrome does not move them.
  */
 @Composable
 internal fun BoxScope.SubtitleOverlay(
@@ -56,6 +57,8 @@ internal fun BoxScope.SubtitleOverlay(
     background: Boolean,
     lift: () -> Float,
     liftDp: Dp,
+    color: Color = Color.White,
+    top: Boolean = false,
 ) {
     if (cues.isEmpty()) return
     val type = LocalCosmoType.current
@@ -81,13 +84,16 @@ internal fun BoxScope.SubtitleOverlay(
         Text(
             text = text,
             style = style,
-            color = Color.White,
+            color = color,
             textAlign = TextAlign.Center,
             maxLines = SUB_MAX_LINES,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .offset { IntOffset(0, -(base + (raised - base) * lift().coerceIn(0f, 1f)).toPx().roundToInt()) }
+                .align(if (top) Alignment.TopCenter else Alignment.BottomCenter)
+                .offset {
+                    if (top) IntOffset(0, base.toPx().roundToInt())
+                    else IntOffset(0, -(base + (raised - base) * lift().coerceIn(0f, 1f)).toPx().roundToInt())
+                }
                 .widthIn(max = maxWidth * SUB_MAX_WIDTH)
                 .then(if (background) Modifier.background(Color.Black.copy(alpha = SUB_BACKGROUND_ALPHA), shape) else Modifier)
                 .padding(horizontal = SUB_PAD_H_DP.dp, vertical = SUB_PAD_V_DP.dp),

@@ -10,6 +10,8 @@ enum class ImportFormat {
     TAKEOUT_HISTORY_JSON,
     TAKEOUT_PLAYLIST_CSV,
     OPML,
+    FREETUBE,
+    LIBRETUBE,
     COSMOTUNE_EXPORT,
     UNKNOWN,
 }
@@ -23,7 +25,8 @@ enum class ImportFormat {
  *   `newpipe.settings` in a folder) is a NewPipe backup (the database comes first in the files NewPipe writes); a `Takeout/` folder, or a name with "takeout" or "youtube" in the
  *   archive's or the first entry's path, is a Takeout archive; any other ZIP is [ImportFormat.UNKNOWN].
  * - XML with an `<opml` tag: OPML. JSON object: the Cosmotune export (`"format": "cosmotune-video"`), else NewPipe's
- *   subscriptions (`service_id`, `app_version` or `subscriptions`), but not a LibreTube backup. JSON array: the older
+ *   subscriptions (`service_id`, `app_version` or `subscriptions`); FreeTube's export files and LibreTube's backup
+ *   ([ForkBackupImporter]). JSON array: the older
  *   Takeout subscriptions (`youtube#subscription`) or the watch history (`titleUrl`).
  * - CSV: channel ids in the first column of the first two lines are Takeout subscriptions; the playlist layouts are Takeout
  *   playlists. A raw SQLite file is not recognised (only the backup ZIP is read, spec 8.2).
@@ -76,7 +79,8 @@ object ImportDetector {
 
     private fun detectJsonObject(text: String): ImportFormat = when {
         text.contains("\"cosmotune-video\"") -> ImportFormat.COSMOTUNE_EXPORT
-        text.contains("\"watchHistory\"") || text.contains("\"localPlaylists\"") -> ImportFormat.UNKNOWN
+        ForkBackupImporter.isFreeTube(text) -> ImportFormat.FREETUBE
+        ForkBackupImporter.isLibreTube(text) -> ImportFormat.LIBRETUBE
         text.contains("\"service_id\"") || text.contains("\"app_version\"") || text.contains("\"subscriptions\"") ->
             ImportFormat.NEWPIPE_SUBSCRIPTIONS
         else -> ImportFormat.UNKNOWN

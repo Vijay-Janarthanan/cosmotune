@@ -33,6 +33,8 @@ import com.cosmotune.video.resources.video_dl_toast_started
 import com.cosmotune.video.resources.video_channel_hidden
 import com.cosmotune.video.resources.video_dl_view
 import com.cosmotune.video.resources.video_link_copied
+import com.cosmotune.video.resources.video_file_not_saved
+import com.cosmotune.video.resources.video_file_saved
 import com.cosmotune.video.shorts.ShortsOrigin
 import com.cosmotune.video.ui.blocks.VideoAction
 import com.cosmotune.video.ui.blocks.VideoSheetContext
@@ -194,7 +196,7 @@ fun rememberVideoActions(): VideoActionHandler {
  * What a toast of the action host says: "Link copied"; the download host's (plan task Y-32, spec 5.16) "Downloading in 720p · Change",
  * "Added to Downloads · View", "Already downloaded" and "Already in Downloads · View".
  */
-internal enum class ActionToastKind { CHANNEL_HIDDEN, LINK_COPIED, DOWNLOAD_STARTED, DOWNLOAD_ADDED, ALREADY_DOWNLOADED, ALREADY_IN_DOWNLOADS }
+internal enum class ActionToastKind { CHANNEL_HIDDEN, LINK_COPIED, DOWNLOAD_STARTED, DOWNLOAD_ADDED, ALREADY_DOWNLOADED, ALREADY_IN_DOWNLOADS, FILE_SAVED, FILE_NOT_SAVED }
 
 /**
  * One toast; [serial] tells two toasts of the same kind apart, so a second copy shows again. [detail] fills its text (the quality of
@@ -274,11 +276,14 @@ private fun ActionToastHost(state: VideoActionsState, contentPadding: PaddingVal
         ActionToastKind.DOWNLOAD_ADDED -> stringResource(Res.string.video_dl_added)
         ActionToastKind.ALREADY_DOWNLOADED -> stringResource(Res.string.video_dl_already)
         ActionToastKind.ALREADY_IN_DOWNLOADS -> stringResource(Res.string.video_dl_in_downloads)
+        ActionToastKind.FILE_SAVED -> stringResource(Res.string.video_file_saved)
+        ActionToastKind.FILE_NOT_SAVED -> stringResource(Res.string.video_file_not_saved)
     }
     val actionLabel = when (toast.kind) {
         ActionToastKind.DOWNLOAD_STARTED -> stringResource(Res.string.video_dl_toast_change)
         ActionToastKind.DOWNLOAD_ADDED, ActionToastKind.ALREADY_IN_DOWNLOADS -> stringResource(Res.string.video_dl_view)
-        ActionToastKind.LINK_COPIED, ActionToastKind.ALREADY_DOWNLOADED, ActionToastKind.CHANNEL_HIDDEN -> null
+        ActionToastKind.LINK_COPIED, ActionToastKind.ALREADY_DOWNLOADED, ActionToastKind.CHANNEL_HIDDEN,
+        ActionToastKind.FILE_SAVED, ActionToastKind.FILE_NOT_SAVED -> null
     }
     LaunchedEffect(toast) {
         delay(TOAST_MS)

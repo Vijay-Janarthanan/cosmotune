@@ -149,7 +149,7 @@ fun VideoPlayerBox(
         if (localAspect != null) surface?.Surface(Modifier.fillMaxSize(), localAspect) else surface?.Surface(Modifier.fillMaxSize(), shownScale)
         if (!chrome) {
             val cues by playback.engine.cues.collectAsState()
-            SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp)
+            SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp, color = Color(settings.captionsColor.argb), top = settings.captionsTop)
             return@Box
         }
         if (!controls) {
@@ -210,7 +210,7 @@ private fun BoxScope.PagePlayerLayer(
         Box(Modifier.matchParentSize().then(if (hoverControls) Modifier.hoverReveal(hover, layout) else Modifier)) {
             if (posterShown) ThumbnailFrame(poster, Modifier.matchParentSize().testTag("video:watch:poster"), RectangleShape)
             val cues by playback.engine.cues.collectAsState()
-            SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp)
+            SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp, color = Color(settings.captionsColor.argb), top = settings.captionsTop)
             Box(
                 Modifier.matchParentSize().playerGestures(
                     playback = playback,
@@ -218,6 +218,8 @@ private fun BoxScope.PagePlayerLayer(
                     platform = platform,
                     feedback = feedback,
                     stepSeconds = settings.doubleTapSeconds,
+                    swipeEdge = settings.swipeEdgePercent / 100f,
+                    swipeSpeed = settings.swipeSpeed,
                     live = state.live,
                     onTap = {
                         when {
@@ -355,6 +357,8 @@ private fun BoxScope.PlayerChrome(
             background = settings.captionsBackground,
             lift = { visibility.value },
             liftDp = metrics.subtitleLiftDp.dp,
+            color = Color(settings.captionsColor.argb),
+            top = settings.captionsTop,
         )
 
         if (locked) {
@@ -371,6 +375,8 @@ private fun BoxScope.PlayerChrome(
                     platform = platform,
                     feedback = feedback,
                     stepSeconds = settings.doubleTapSeconds,
+                    swipeEdge = settings.swipeEdgePercent / 100f,
+                    swipeSpeed = settings.swipeSpeed,
                     live = state.live,
                     onTap = {
                         if (layout == PlayerLayout.WINDOW) {

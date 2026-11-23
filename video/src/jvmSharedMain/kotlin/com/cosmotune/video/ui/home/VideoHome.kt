@@ -174,7 +174,7 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     val kioskVideos = remember(model.items, settings.homeHiddenVideos, settings.homeHiddenChannels) {
         HomePlanner.feedback(model.items.filterNot(ShortsFilter::isShort), settings.homeHiddenVideos, settings.homeHiddenChannels)
     }
-    val contentFilter = remember(settings.hiddenWords, settings.hiddenChannels) { settings.contentFilter() }
+    val contentFilter = remember(settings.hiddenWords, settings.hiddenChannels, settings.hidePaid) { settings.contentFilter() }
     val shorts = remember(feedItems, related, recentIds, model.items, accountItems, hideShorts, settings.homeHiddenVideos, settings.homeHiddenChannels, contentFilter) {
         if (hideShorts) {
             emptyList()

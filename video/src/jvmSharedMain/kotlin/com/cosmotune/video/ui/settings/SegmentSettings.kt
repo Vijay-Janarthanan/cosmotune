@@ -31,6 +31,8 @@ import com.cosmotune.video.resources.video_set_sponsorblock_count
 import com.cosmotune.video.resources.video_set_sponsorblock_count_summary
 import com.cosmotune.video.resources.video_set_sponsorblock_on_short
 import com.cosmotune.video.resources.video_set_using_sponsorblock
+import com.cosmotune.video.resources.video_set_whole_labels
+import com.cosmotune.video.resources.video_set_whole_labels_summary
 import com.cosmotune.video.segments.SegmentAction
 import com.cosmotune.video.segments.SegmentCategory
 import com.cosmotune.video.settings.SegmentBehaviour
@@ -69,6 +71,12 @@ internal fun SponsorBlockSettings(
             checked = settings.countSkips,
             onCheckedChange = { value -> update { it.copy(countSkips = value) } },
             subtitle = stringResource(Res.string.video_set_sponsorblock_count_summary),
+        )
+        CosmoSettingsSubRow(
+            title = stringResource(Res.string.video_set_whole_labels),
+            checked = settings.wholeVideoLabels,
+            onCheckedChange = { value -> update { it.copy(wholeVideoLabels = value) } },
+            subtitle = stringResource(Res.string.video_set_whole_labels_summary),
         )
         // The channels where nothing is skipped ("Don't skip on this channel" in the player's settings); a tap takes one off.
         if (settings.sponsorBlockExcluded.isNotEmpty()) {

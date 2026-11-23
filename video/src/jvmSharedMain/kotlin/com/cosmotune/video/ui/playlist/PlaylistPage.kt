@@ -167,6 +167,7 @@ private fun RemotePlaylistPage(playlistId: String, contentPadding: PaddingValues
     val complete = paged.state == PagedState.READY && !paged.hasMore
     var preparing by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf<VideoItem?>(null) }
+    val exporter = rememberPlaylistExporter()
     val listState = rememberLazyListState()
     val line = if (wide) PageLine.WideColumn else PageLine.Phone
 
@@ -216,6 +217,7 @@ private fun RemotePlaylistPage(playlistId: String, contentPadding: PaddingValues
         onRename = null,
         onDelete = null,
         onOpenOwner = playlist?.ownerId?.let { owner -> { navigator.push(VideoRoute.Channel(owner)) } },
+        onExport = playlist?.let { p -> { kind -> exporter.export(p.title, kind) { model.everything() } } },
     )
 
     val keys = uniqueKeys(items)
@@ -287,6 +289,7 @@ private fun LocalPlaylistPage(id: String, contentPadding: PaddingValues, wide: B
     ReorderAutoScroll(reorder, listState, thresholdPx = with(density) { AUTOSCROLL_EDGE.toPx() }, maxStepPx = with(density) { AUTOSCROLL_STEP.toPx() })
     var menu by remember { mutableStateOf<VideoItem?>(null) }
     var dialog by remember { mutableStateOf(PlaylistDialog.NONE) }
+    val exporter = rememberPlaylistExporter()
     val reduced = LocalReducedMotion.current
     val line = if (wide) PageLine.WideColumn else PageLine.Phone
 
@@ -316,6 +319,7 @@ private fun LocalPlaylistPage(id: String, contentPadding: PaddingValues, wide: B
         onRename = { dialog = PlaylistDialog.RENAME },
         onDelete = { dialog = PlaylistDialog.DELETE },
         onOpenOwner = null,
+        onExport = { kind -> exporter.export(playlist.name, kind) { items } },
     )
 
     val keys = uniqueKeys(items)

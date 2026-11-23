@@ -13,6 +13,9 @@ enum class CodecPreference { AUTO, AV1, VP9, H264 }
 /** How DeArrow titles are cased (spec 5.11, 7.2: as given, sentence case, title case). */
 enum class TitleCase { AS_GIVEN, SENTENCE, TITLE }
 
+/** The colour of the subtitles' text (ARGB). */
+enum class CaptionColor(val argb: Long) { WHITE(0xFFFFFFFF), YELLOW(0xFFFFE94D), CYAN(0xFF8EF0FF), GREEN(0xFFB6F5C4) }
+
 /**
  * Video settings (spec 5.11; defaults in the constructor). Qualities are a height, or null for Auto: Auto on Wi-Fi and on
  * mobile data by default (the owner's decision, Q7). [captionsScale] is the size setting (0.8, 1 or 1.25);
@@ -33,6 +36,12 @@ data class VideoSettings(
     val captionsLanguage: String? = null,
     val captionsScale: Float = 1f,
     val captionsBackground: Boolean = true,
+    /** The subtitles' text colour. */
+    val captionsColor: CaptionColor = CaptionColor.WHITE,
+    /** The subtitles sit at the top of the picture instead of the bottom. */
+    val captionsTop: Boolean = false,
+    /** Members-only and paid videos are left out of every list. */
+    val hidePaid: Boolean = false,
     val sponsorBlock: Boolean = true,
     val segmentBehaviours: Map<SegmentCategory, SegmentBehaviour> = SegmentCategory.defaults(),
     val segmentsOnBar: Boolean = true,
@@ -93,10 +102,21 @@ data class VideoSettings(
     val loungeScreenId: String? = null,
     /** A headset's or a car's previous and next keys skip back and on instead of changing the video. */
     val mediaKeysSeek: Boolean = false,
+    /** Cards and the watch page say when SponsorBlock labels the whole video (sponsored, self-promotion, exclusive access). */
+    val wholeVideoLabels: Boolean = true,
+    /** The listener's private random SponsorBlock id, made on the first segment they send. */
+    val sponsorBlockUserId: String? = null,
+    /** How much of the width at each side full screen's brightness and volume drags take, in percent. */
+    val swipeEdgePercent: Int = 40,
+    /** A drag in the middle of full screen changes the speed. */
+    val swipeSpeed: Boolean = false,
     val smoothness: SmoothnessSettings = SmoothnessSettings() /* frame smoothing: off, so frames are shown as they come */,
 ) {
     companion object {
         /** The quality rows' choices (spec 5.11): Auto (null), 2160p, 1440p, 1080p, 720p, 480p, 360p, 240p, 144p. */
+        /** The swipe area choices, in percent of the width. */
+        val SWIPE_EDGE_CHOICES: List<Int> = listOf(25, 30, 35, 40, 45, 50)
+
         val QUALITY_CHOICES: List<Int?> = listOf(null, 2160, 1440, 1080, 720, 480, 360, 240, 144)
 
         /** The double-tap seek choices in seconds (spec 5.11: 5, 10, 15, 30; default 10). */

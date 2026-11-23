@@ -94,6 +94,7 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
 
     OpenPendingVideo(host, navigator)
     com.cosmotune.video.ui.cast.PhoneCastReceiver(navigator)
+    com.cosmotune.video.ui.branding.WholeVideoGate()
 
     val capsule = rememberVideoCapsule(graph.playback)
     val videoLoaded by remember(capsule) { derivedStateOf { capsule.value.song != null } }

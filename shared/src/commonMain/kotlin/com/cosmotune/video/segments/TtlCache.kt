@@ -62,6 +62,12 @@ class TtlCache<K, V : Any>(
         entries.remove(key)
     }
 
+    /** Forgets every key [drop] picks. */
+    @Synchronized
+    fun removeWhere(drop: (K) -> Boolean) {
+        entries.keys.removeAll(drop)
+    }
+
     /** Forgets everything. */
     @Synchronized
     fun clear() {

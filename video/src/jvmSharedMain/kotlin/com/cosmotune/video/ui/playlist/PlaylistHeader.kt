@@ -77,6 +77,8 @@ import com.cosmotune.video.resources.video_meta_join
 import com.cosmotune.video.resources.video_play_all
 import com.cosmotune.video.resources.video_playlist
 import com.cosmotune.video.resources.video_rename
+import com.cosmotune.video.resources.video_playlist_save_csv
+import com.cosmotune.video.resources.video_playlist_save_links
 import com.cosmotune.video.resources.video_save_playlist
 import com.cosmotune.video.resources.video_saved_playlist
 import com.cosmotune.video.resources.video_share
@@ -132,6 +134,8 @@ internal class PlaylistActions(
     val onRename: (() -> Unit)?,
     val onDelete: (() -> Unit)?,
     val onOpenOwner: (() -> Unit)?,
+    /** Saves the playlist to a file: as a list of links, or as the site's own CSV. */
+    val onExport: ((com.cosmotune.video.library.PlaylistExport.Kind) -> Unit)? = null,
 )
 
 /**
@@ -158,7 +162,7 @@ internal fun PlaylistCard(shown: PlaylistShown, actions: PlaylistActions, wide: 
     val shuffle = stringResource(SharedRes.string.cosmo_shuffle)
     val downloadAll = stringResource(Res.string.video_dl_all)
     val save = stringResource(if (shown.saved) Res.string.video_unsave_playlist else Res.string.video_save_playlist)
-    val hasMore = actions.onShare != null || actions.onRename != null || actions.onDelete != null
+    val hasMore = actions.onShare != null || actions.onRename != null || actions.onDelete != null || actions.onExport != null
     // The shared compact header (as the album page): the picture as its disc beside the words, Shuffle, Save, Download all and More
     // as the one row of actions, and Play all in the bite.
     OrbitPageHeader(
@@ -213,6 +217,12 @@ private fun PlaylistMore(actions: PlaylistActions, ink: Color, fill: Color) {
             open = open, onDismiss = { open = false }, fonts = orbitFonts(), look = orbitLook(),
             items = listOfNotNull(
                 actions.onShare?.let { OrbitMenuItem(share, icon = CosmoIcons.Share, onClick = it) },
+                actions.onExport?.let { export ->
+                    OrbitMenuItem(stringResource(Res.string.video_playlist_save_links), icon = CosmoIcons.Download) { export(com.cosmotune.video.library.PlaylistExport.Kind.LINKS) }
+                },
+                actions.onExport?.let { export ->
+                    OrbitMenuItem(stringResource(Res.string.video_playlist_save_csv), icon = CosmoIcons.Download) { export(com.cosmotune.video.library.PlaylistExport.Kind.CSV) }
+                },
                 actions.onRename?.let { OrbitMenuItem(rename, onClick = it) },
                 actions.onDelete?.let { OrbitMenuItem(delete, icon = CosmoIcons.Close, onClick = it) },
             ),

@@ -7,19 +7,26 @@ import com.cosmotune.video.model.VideoItem
  * The listener's own filter (Settings, Content, Filters): videos whose title holds a hidden word, videos of a hidden channel, and
  * comments with a hidden word, by a hidden channel or with fewer likes than [commentMinLikes] are left out of Home, the feed,
  * search, Up next, Shorts and the comments. A word matches as a whole word, any case; a word written `/like this/` is a regular
- * expression (one that does not compile matches nothing).
+ * expression (one that does not compile matches nothing). With [hidePaid] the members-only and paid videos go too.
  */
-class ContentFilter(words: Collection<String>, private val channels: Set<String>, private val commentMinLikes: Long = 0) {
+class ContentFilter(
+    words: Collection<String>,
+    private val channels: Set<String>,
+    private val commentMinLikes: Long = 0,
+    private val hidePaid: Boolean = false,
+) {
     private val words: List<String> = words.toList()
     private val patterns: List<Regex> = words.mapNotNull { patternOf(it) }
 
     /** Whether [other] hides the same things. */
-    fun sameAs(other: ContentFilter): Boolean = words == other.words && channels == other.channels && commentMinLikes == other.commentMinLikes
+    fun sameAs(other: ContentFilter): Boolean =
+        words == other.words && channels == other.channels && commentMinLikes == other.commentMinLikes && hidePaid == other.hidePaid
 
     /** Whether nothing is hidden: the lists pass through untouched. */
-    val isEmpty: Boolean get() = patterns.isEmpty() && channels.isEmpty() && commentMinLikes <= 0
+    val isEmpty: Boolean get() = patterns.isEmpty() && channels.isEmpty() && commentMinLikes <= 0 && !hidePaid
 
     fun keep(item: VideoItem): Boolean {
+        if (hidePaid && item.isPaid) return false
         if (item.channelId != null && item.channelId in channels) return false
         return patterns.none { it.containsMatchIn(item.title) }
     }
@@ -67,5 +74,5 @@ class ContentFilter(words: Collection<String>, private val channels: Set<String>
 
 /** The listener's filter as these settings hold it. */
 fun com.cosmotune.video.settings.VideoSettings.contentFilter(): ContentFilter =
-    if (hiddenWords.isEmpty() && hiddenChannels.isEmpty() && commentMinLikes <= 0) ContentFilter.NONE
-    else ContentFilter(hiddenWords, hiddenChannels.keys, commentMinLikes)
+    if (hiddenWords.isEmpty() && hiddenChannels.isEmpty() && commentMinLikes <= 0 && !hidePaid) ContentFilter.NONE
+    else ContentFilter(hiddenWords, hiddenChannels.keys, commentMinLikes, hidePaid)

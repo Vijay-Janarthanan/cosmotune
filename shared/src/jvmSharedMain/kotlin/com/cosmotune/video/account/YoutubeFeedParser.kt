@@ -409,7 +409,18 @@ internal object YoutubeFeedParser {
             isLive = live,
             isUpcoming = upcoming,
             isShort = isShort,
+            isPaid = membersOnly(node),
         )
+    }
+
+    /** Whether a lockup carries the members-only badge (its style names it, wherever the site puts it). */
+    private fun membersOnly(node: JsonElement?): Boolean = when (node) {
+        is JsonObject -> node.entries.any { (key, value) ->
+            ((key == "badgeStyle" || key == "style") && (value as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty().contains("MEMBERS_ONLY")) ||
+                membersOnly(value)
+        }
+        is JsonArray -> node.any(::membersOnly)
+        else -> false
     }
 
     private fun shortsLockup(node: JsonObject): VideoItem? {
@@ -501,6 +512,7 @@ internal object YoutubeFeedParser {
             isLive = live,
             isUpcoming = upcoming,
             isShort = short,
+            isPaid = badgeStyles.any { it.contains("MEMBERS_ONLY") },
         )
     }
 

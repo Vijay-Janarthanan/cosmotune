@@ -77,6 +77,8 @@ import com.cosmotune.video.resources.video_import_opml
 import com.cosmotune.video.resources.video_import_skipped
 import com.cosmotune.video.resources.video_import_summary
 import com.cosmotune.video.resources.video_import_takeout
+import com.cosmotune.video.resources.video_import_freetube
+import com.cosmotune.video.resources.video_import_libretube
 import com.cosmotune.video.resources.video_set_export
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.music.sharedui.resources.cancel
@@ -136,6 +138,8 @@ fun ImportPage(contentPadding: PaddingValues, wide: Boolean) {
         ImportRow(ImportKind.NEWPIPE_SUBSCRIPTIONS, VideoIcons.Subscriptions, Res.string.video_import_newpipe_subs),
         ImportRow(ImportKind.NEWPIPE_BACKUP, VideoIcons.History, Res.string.video_import_newpipe_db),
         ImportRow(ImportKind.TAKEOUT, CosmoIcons.Library, Res.string.video_import_takeout),
+        ImportRow(ImportKind.FREETUBE, VideoIcons.History, Res.string.video_import_freetube),
+        ImportRow(ImportKind.LIBRETUBE, VideoIcons.History, Res.string.video_import_libretube),
         ImportRow(ImportKind.OPML, CosmoIcons.List, Res.string.video_import_opml),
         ImportRow(ImportKind.COSMOTUNE, CosmoIcons.Download, Res.string.video_import_cosmotune),
     )

@@ -27,6 +27,12 @@ interface LoungeLink {
     suspend fun register(screenId: String, code: String)
     suspend fun run(onCommand: suspend (LoungeCommand) -> Unit)
     suspend fun send(events: List<Pair<String, Map<String, String>>>)
+
+    /** This device's id in the lounge. */
+    val deviceId: String get() = ""
+
+    /** The lounge token once connected. */
+    val loungeToken: String? get() = null
 }
 
 /**
@@ -45,6 +51,23 @@ class LoungeReceiver(
 ) {
     private val ui = MutableStateFlow(LoungeUi())
     val state: StateFlow<LoungeUi> = ui.asStateFlow()
+
+    @Volatile private var screenId: String? = null
+
+    /** The lounge screen for a phone that finds this device on the home network (null until connected). */
+    fun dialScreen(): com.cosmotune.video.cast.dial.DialScreen? =
+        screenId?.let { com.cosmotune.video.cast.dial.DialScreen(it, link.deviceId, link.loungeToken) }
+
+    /** Registers the code a phone on the home network sent with its launch, so it joins without the code typed. */
+    suspend fun pair(code: String) {
+        val id = screenId ?: return
+        try {
+            link.register(id, code)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: IOException) {
+        }
+    }
 
     private var queue: List<String> = emptyList()
     private var index = 0
@@ -68,6 +91,7 @@ class LoungeReceiver(
         val id = link.screenId(savedScreenId)
         if (id != savedScreenId) saveScreenId(id)
         link.connect(id)
+        screenId = id
         ui.update { it.copy(failed = false) }
         launch {
             while (isActive) {

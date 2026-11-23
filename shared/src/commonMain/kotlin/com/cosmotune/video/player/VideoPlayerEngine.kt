@@ -243,6 +243,12 @@ interface VideoPlayerEngine {
     /** Skips the silent parts (lectures, podcasts filmed as video). The default does nothing ([EngineCapabilities.skipSilence]). */
     fun setSkipSilence(on: Boolean) {}
 
+    /**
+     * Writes the picture showing now to [path] (a PNG) and says whether it did. The default cannot (the phone grabs the picture from
+     * its screen instead).
+     */
+    suspend fun screenshot(path: String): Boolean = false
+
     /** Frees the player; the engine is not used again. */
     fun release()
 }

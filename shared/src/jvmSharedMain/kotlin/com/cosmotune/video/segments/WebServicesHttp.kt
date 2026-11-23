@@ -1,5 +1,7 @@
 package com.cosmotune.video.segments
 
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import com.cosmotune.CosmoConfig
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.JsonElement
@@ -61,10 +63,19 @@ object WebServicesHttp {
      * GETs [url] with the agent and returns the status and, for a 2xx answer, the body as text. Throws [IOException] when
      * the connection fails or the body is larger than [MAX_BODY_BYTES]; cancelling the coroutine cancels the call.
      */
-    internal suspend fun get(http: OkHttpClient, url: HttpUrl, userAgent: String): WebAnswer = suspendCancellableCoroutine { continuation ->
-        val call = http.newCall(
-            Request.Builder().url(url).header("User-Agent", userAgent).header("Accept", "application/json").get().build(),
+    internal suspend fun get(http: OkHttpClient, url: HttpUrl, userAgent: String): WebAnswer =
+        send(http, Request.Builder().url(url).header("User-Agent", userAgent).header("Accept", "application/json").get().build())
+
+    /** POSTs [json] to [url] with the agent, answering as [get] does. */
+    internal suspend fun postJson(http: OkHttpClient, url: HttpUrl, json: String, userAgent: String): WebAnswer =
+        send(
+            http,
+            Request.Builder().url(url).header("User-Agent", userAgent).header("Accept", "application/json")
+                .post(json.toRequestBody("application/json; charset=utf-8".toMediaType())).build(),
         )
+
+    private suspend fun send(http: OkHttpClient, request: Request): WebAnswer = suspendCancellableCoroutine { continuation ->
+        val call = http.newCall(request)
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {

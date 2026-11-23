@@ -127,6 +127,20 @@ import com.cosmotune.video.resources.video_home_use_account
 import com.cosmotune.video.resources.video_set_resume_short
 import com.cosmotune.video.resources.video_set_seconds
 import com.cosmotune.video.resources.video_set_speed
+import com.cosmotune.video.resources.video_set_hide_paid
+import com.cosmotune.video.resources.video_set_hide_paid_note
+import com.cosmotune.video.resources.video_set_captions_color
+import com.cosmotune.video.resources.video_set_captions_place
+import com.cosmotune.video.resources.video_captions_bottom
+import com.cosmotune.video.resources.video_captions_top
+import com.cosmotune.video.resources.video_captions_white
+import com.cosmotune.video.resources.video_captions_yellow
+import com.cosmotune.video.resources.video_captions_cyan
+import com.cosmotune.video.resources.video_captions_green
+import com.cosmotune.video.resources.video_set_swipe_speed_note
+import com.cosmotune.video.resources.video_set_swipe_speed
+import com.cosmotune.video.resources.video_set_swipe_edge_value
+import com.cosmotune.video.resources.video_set_swipe_edge
 import com.cosmotune.video.resources.video_set_title_case
 import com.cosmotune.video.resources.video_set_using_dearrow
 import com.cosmotune.video.resources.video_size_large
@@ -137,6 +151,7 @@ import com.cosmotune.video.segments.SegmentCategory
 import com.cosmotune.video.settings.CodecPreference
 import com.cosmotune.video.settings.TitleCase
 import com.cosmotune.video.resources.video_settings_label
+import com.cosmotune.video.settings.CaptionColor
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.player.SPEEDS
@@ -153,7 +168,7 @@ import androidx.compose.runtime.setValue
 internal typealias SettingsUpdate = ((VideoSettings) -> VideoSettings) -> Unit
 
 /** The choices that open a [ChoiceSheet] (a category of SponsorBlock opens its own, see [CategoryChoiceSheet]). */
-private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP }
+private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP, SWIPE_EDGE }
 
 /** What the page asks about before it clears something. */
 private enum class Confirm { CLEAR_HISTORY, CLEAR_SEARCHES }
@@ -301,6 +316,16 @@ private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pi
             SwitchRow(VideoIcons.Forward, stringResource(Res.string.video_set_keys_seek), settings.mediaKeysSeek, subtitle = stringResource(Res.string.video_set_keys_seek_note)) { value ->
                 update { it.copy(mediaKeysSeek = value) }
             }
+            // full screen's drags are the touch screen's (the phone's; a TV has none, the row is harmless there)
+            CosmoSettingsRow(
+                icon = CosmoIcons.Brightness,
+                title = stringResource(Res.string.video_set_swipe_edge),
+                subtitle = stringResource(Res.string.video_set_swipe_edge_value, settings.swipeEdgePercent),
+                onClick = { open(SettingsChoice.SWIPE_EDGE) },
+            )
+            SwitchRow(VideoIcons.Speed, stringResource(Res.string.video_set_swipe_speed), settings.swipeSpeed, subtitle = stringResource(Res.string.video_set_swipe_speed_note)) { value ->
+                update { it.copy(swipeSpeed = value) }
+            }
         }
         // Picture in picture is the phone's: the desktop (and a phone without it) is not asked.
         if (pipSupported) {
@@ -335,6 +360,22 @@ private fun CaptionSettings(settings: VideoSettings, update: SettingsUpdate, loc
             modifier = Modifier.padding(start = CosmoSettingsInsets.textStart, end = CosmoSettingsInsets.side, bottom = SEGMENT_BOTTOM),
             compact = true,
         )
+        CosmoSettingsRow(icon = CosmoIcons.Brightness, title = stringResource(Res.string.video_set_captions_color))
+        CosmoSettingsSegmented(
+            options = CaptionColor.entries.map { captionColorLabel(it) },
+            selectedIndex = settings.captionsColor.ordinal,
+            onSelect = { index -> update { it.copy(captionsColor = CaptionColor.entries[index]) } },
+            modifier = Modifier.padding(start = CosmoSettingsInsets.textStart, end = CosmoSettingsInsets.side, bottom = SEGMENT_BOTTOM),
+            compact = true,
+        )
+        CosmoSettingsRow(icon = CosmoIcons.Sort, title = stringResource(Res.string.video_set_captions_place))
+        CosmoSettingsSegmented(
+            options = listOf(stringResource(Res.string.video_captions_bottom), stringResource(Res.string.video_captions_top)),
+            selectedIndex = if (settings.captionsTop) 1 else 0,
+            onSelect = { index -> update { it.copy(captionsTop = index == 1) } },
+            modifier = Modifier.padding(start = CosmoSettingsInsets.textStart, end = CosmoSettingsInsets.side, bottom = SEGMENT_BOTTOM),
+            compact = true,
+        )
         CosmoSettingsSubRow(
             title = stringResource(Res.string.video_set_captions_background_short),
             checked = settings.captionsBackground,
@@ -342,6 +383,17 @@ private fun CaptionSettings(settings: VideoSettings, update: SettingsUpdate, loc
         )
     }
 }
+
+/** A caption colour's name. */
+@Composable
+internal fun captionColorLabel(color: CaptionColor): String = stringResource(
+    when (color) {
+        CaptionColor.WHITE -> Res.string.video_captions_white
+        CaptionColor.YELLOW -> Res.string.video_captions_yellow
+        CaptionColor.CYAN -> Res.string.video_captions_cyan
+        CaptionColor.GREEN -> Res.string.video_captions_green
+    },
+)
 
 /** The index in [VideoSettings.CAPTION_SCALES] nearest to [scale], so a stored size between two still shows one chosen. */
 internal fun nearestScale(scale: Float): Int =
@@ -381,6 +433,7 @@ private fun ContentSettings(settings: VideoSettings, update: SettingsUpdate, loc
     CosmoSettingsGroup(header = stringResource(Res.string.video_set_content)) {
         SwitchRow(CosmoIcons.User, stringResource(Res.string.video_home_use_account), settings.homeAccountEnabled) { value -> update { it.copy(homeAccountEnabled = value) } }
         SwitchRow(VideoIcons.Shorts, stringResource(Res.string.video_set_hide_shorts), settings.hideShorts) { value -> update { it.copy(hideShorts = value) } }
+        SwitchRow(VideoIcons.Lock, stringResource(Res.string.video_set_hide_paid), settings.hidePaid, subtitle = stringResource(Res.string.video_set_hide_paid_note)) { value -> update { it.copy(hidePaid = value) } }
         val hidden = settings.hiddenWords.size + settings.hiddenChannels.size
         CosmoSettingsRow(
             icon = CosmoIcons.Sort,
@@ -537,6 +590,13 @@ private fun SettingsChoiceSheet(choice: SettingsChoice, settings: VideoSettings,
             options = SPEEDS.map { ChoiceOption(it, stringResource(Res.string.video_speed_value, speedLabel(it))) },
             selected = settings.defaultSpeed,
             onSelect = { value -> update { it.copy(defaultSpeed = value) } },
+            onDismiss = onDismiss,
+        )
+        SettingsChoice.SWIPE_EDGE -> ChoiceSheet(
+            title = stringResource(Res.string.video_set_swipe_edge),
+            options = VideoSettings.SWIPE_EDGE_CHOICES.map { ChoiceOption(it, stringResource(Res.string.video_set_swipe_edge_value, it)) },
+            selected = settings.swipeEdgePercent,
+            onSelect = { value -> update { it.copy(swipeEdgePercent = value) } },
             onDismiss = onDismiss,
         )
         SettingsChoice.DOUBLE_TAP -> ChoiceSheet(

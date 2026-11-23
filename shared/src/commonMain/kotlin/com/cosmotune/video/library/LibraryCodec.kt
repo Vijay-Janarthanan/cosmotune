@@ -371,6 +371,13 @@ internal data class SettingsDocument(
     val phoneCasting: Boolean = false,
     val loungeScreenId: String? = null,
     val mediaKeysSeek: Boolean = false,
+    val wholeVideoLabels: Boolean = true,
+    val sponsorBlockUserId: String? = null,
+    val swipeEdgePercent: Int = 40,
+    val swipeSpeed: Boolean = false,
+    val captionsColor: String = DEFAULTS.captionsColor.name,
+    val captionsTop: Boolean = false,
+    val hidePaid: Boolean = false,
     val smoothness: SmoothnessDto = SmoothnessDto(),
 )
 
@@ -450,6 +457,13 @@ internal fun VideoSettings.toDocument() = SettingsDocument(
     phoneCasting = phoneCasting,
     loungeScreenId = loungeScreenId,
     mediaKeysSeek = mediaKeysSeek,
+    wholeVideoLabels = wholeVideoLabels,
+    sponsorBlockUserId = sponsorBlockUserId,
+    swipeEdgePercent = swipeEdgePercent,
+    swipeSpeed = swipeSpeed,
+    captionsColor = captionsColor.name,
+    captionsTop = captionsTop,
+    hidePaid = hidePaid,
     smoothness = smoothness.toDto(),
 )
 
@@ -513,6 +527,13 @@ internal fun SettingsDocument.toSettings(): VideoSettings {
         phoneCasting = phoneCasting,
         loungeScreenId = loungeScreenId?.takeIf { it.isNotBlank() && it.length <= 64 },
         mediaKeysSeek = mediaKeysSeek,
+        wholeVideoLabels = wholeVideoLabels,
+        sponsorBlockUserId = sponsorBlockUserId?.takeIf { it.length in 30..128 },
+        swipeEdgePercent = swipeEdgePercent.takeIf { it in VideoSettings.SWIPE_EDGE_CHOICES } ?: 40,
+        swipeSpeed = swipeSpeed,
+        captionsColor = com.cosmotune.video.settings.CaptionColor.entries.firstOrNull { it.name == captionsColor } ?: DEFAULTS.captionsColor,
+        captionsTop = captionsTop,
+        hidePaid = hidePaid,
         smoothness = smoothness.toDomain(),
     )
 }

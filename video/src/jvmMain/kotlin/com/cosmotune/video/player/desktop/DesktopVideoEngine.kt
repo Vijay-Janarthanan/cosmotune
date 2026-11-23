@@ -199,6 +199,15 @@ class DesktopVideoEngine internal constructor(
         post { playerRef?.set("af", filter) }
     }
 
+    /** mpv's `screenshot-to-file` of the video alone (no subtitles), on the engine's thread. */
+    override suspend fun screenshot(path: String): Boolean = kotlinx.coroutines.suspendCancellableCoroutine { done ->
+        post {
+            val player = playerRef
+            val ok = player != null && player.isLoaded() && player.command("screenshot-to-file", path, "video") >= 0
+            if (done.isActive) done.resumeWith(Result.success(ok))
+        }
+    }
+
     override fun setMuted(muted: Boolean) {
         snapshotFlow.update { it.copy(muted = muted) }
         post { playerRef?.set("mute", if (muted) "yes" else "no") }

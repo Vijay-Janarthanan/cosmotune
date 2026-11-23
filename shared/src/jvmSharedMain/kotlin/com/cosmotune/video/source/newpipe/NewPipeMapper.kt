@@ -174,6 +174,8 @@ internal object NewPipeMapper {
             isLive = live,
             isUpcoming = upcoming,
             isShort = item.isShortFormContent,
+            isPaid = item.contentAvailability == org.schabi.newpipe.extractor.stream.ContentAvailability.MEMBERSHIP ||
+                item.contentAvailability == org.schabi.newpipe.extractor.stream.ContentAvailability.PAID,
         )
     }
 
