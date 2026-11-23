@@ -105,7 +105,7 @@ fun WhatsNewWelcomeSheet(
     modifier: Modifier = Modifier,
 ) {
     WhatsNewSheet(
-        WhatsNew(welcome.version, welcome.highlights, WhatsNewAction("Got it", onDismiss), onFullNotes = onOpenFullNotes),
+        WhatsNew(welcome.version, welcome.highlights, WhatsNewAction("Got it", onDismiss), onFullNotes = onOpenFullNotes, earlier = welcome.earlier),
         onDismiss,
         modifier,
     )

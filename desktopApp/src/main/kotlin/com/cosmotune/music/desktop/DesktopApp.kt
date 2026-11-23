@@ -3587,6 +3587,7 @@ fun CosmotuneDesktopApp() {
                     highlights = welcome.highlights,
                     primary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_got_it", "Got it"], close),
                     onFullNotes = { DesktopExternalLinks.open(welcome.releaseUrl) },
+                    earlier = welcome.earlier,
                 ),
                 onDismiss = close,
             )

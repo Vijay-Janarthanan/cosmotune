@@ -46,7 +46,13 @@ internal object DesktopUpdateChecker {
     data class ReleaseAsset(val name: String, val url: String, val size: Long?)
 
     /** The running build's own release, for the "what's new" card on the first launch after an update. */
-    data class WelcomeInfo(val version: String, val releaseUrl: String, val highlights: List<ReleaseHighlight>)
+    data class WelcomeInfo(
+        val version: String,
+        val releaseUrl: String,
+        val highlights: List<ReleaseHighlight>,
+        /** The releases skipped since the version last launched, newest first and short ([com.cosmotune.SkippedReleases]). */
+        val earlier: List<com.cosmotune.ReleaseHighlightSet> = emptyList(),
+    )
 
     private const val LATEST_RELEASE_URL = com.cosmotune.CosmoConfig.LATEST_RELEASE_API
 
@@ -91,7 +97,8 @@ internal object DesktopUpdateChecker {
      * The running build's "what's new", once per update: when the version last launched ([persistence]) is older than this one,
      * reads this version's own release and gives its highlights. A first launch with nothing recorded (a fresh install, or the
      * build before this card existed) only records the version. Null as well with no network, which leaves the record alone so
-     * the next launch tries again; [welcomeSeen] records the version once the card is closed.
+     * the next launch tries again; [welcomeSeen] records the version once the card is closed. A listener who skipped releases
+     * (1.0.31 straight to 1.0.33) is told what each of them brought too, from the recent releases' notes.
      */
     suspend fun checkWelcome(persistence: DesktopPersistence): WelcomeInfo? = runCatching {
         val seen = persistence.string(KEY_SEEN_VERSION)
@@ -115,8 +122,20 @@ internal object DesktopUpdateChecker {
             persistence.saveString(KEY_SEEN_VERSION, currentVersion)
             return@runCatching null
         }
-        WelcomeInfo(currentVersion, url, highlights)
+        WelcomeInfo(currentVersion, url, highlights, earlier = skippedSince(seen))
     }.getOrNull()
+
+    /** The releases between [seen] and this one, from the recent releases' notes; nothing for one step or without the network. */
+    private suspend fun skippedSince(seen: String): List<com.cosmotune.ReleaseHighlightSet> = runCatching {
+        val response = http.get("https://api.github.com/repos/${com.cosmotune.CosmoConfig.PROJECT_REPO}/releases?per_page=30") {
+            header("Accept", "application/vnd.github+json")
+        }
+        if (!response.status.isSuccess()) return@runCatching emptyList()
+        val releases = json.parseToJsonElement(response.bodyAsText()).jsonArray.mapNotNull { it as? JsonObject }
+            .filter { it["draft"]?.jsonPrimitive?.contentOrNull != "true" && it["prerelease"]?.jsonPrimitive?.contentOrNull != "true" }
+            .mapNotNull { r -> r["tag_name"]?.jsonPrimitive?.contentOrNull?.let { it to r["body"]?.jsonPrimitive?.contentOrNull } }
+        com.cosmotune.SkippedReleases.of(releases, since = seen, current = currentVersion).filter { it.version != currentVersion }
+    }.getOrDefault(emptyList())
 
     /** The welcome card was closed: this version is not welcomed again. */
     fun welcomeSeen(persistence: DesktopPersistence) = persistence.saveString(KEY_SEEN_VERSION, currentVersion)

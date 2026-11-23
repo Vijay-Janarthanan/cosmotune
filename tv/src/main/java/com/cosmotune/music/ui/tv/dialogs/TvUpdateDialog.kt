@@ -110,7 +110,7 @@ fun TvUpdateDialog(update: AppUpdateChecker.UpdateInfo, onDismiss: () -> Unit) {
 @Composable
 fun TvWhatsNewDialog(welcome: AppUpdateChecker.WelcomeInfo, onDismiss: () -> Unit) {
     var showCode by remember { mutableStateOf(false) }
-    val card = WhatsNew(welcome.version, welcome.highlights, WhatsNewAction("Got it", onDismiss), onFullNotes = { showCode = !showCode })
+    val card = WhatsNew(welcome.version, welcome.highlights, WhatsNewAction("Got it", onDismiss), onFullNotes = { showCode = !showCode }, earlier = welcome.earlier)
     WhatsNewDialog(card.showingCode(showCode, if (showCode) "Back to what's new" else null), onDismiss, WhatsNewSurface.TV, TV_DIALOG) {
         if (showCode) ReleaseCode(welcome.releaseUrl, "Scan with your phone to read the full release notes.")
     }
