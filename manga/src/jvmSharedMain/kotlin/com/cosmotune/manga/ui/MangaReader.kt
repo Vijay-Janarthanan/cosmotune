@@ -87,9 +87,14 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
         var chapters by remember { mutableStateOf(false) }
         val rotation = rememberReaderRotation()
         val saved = remember { repository.store.state.value.progress[chapter.bookId]?.takeIf { it.chapterId == chapter.id } }
-        var mode by rememberSaveable { mutableStateOf(saved?.mode ?: repository.store.state.value.readerMode) }
+        // A series keeps the direction and scale chosen for it; a new one starts with the defaults of Settings › Manga.
+        var mode by rememberSaveable { mutableStateOf(repository.store.state.value.let { it.seriesMode[chapter.bookId] ?: saved?.mode ?: it.readerMode }) }
         val library by repository.store.state.collectAsState()
-        val fit = library.readerFit
+        val fit = library.seriesFit[chapter.bookId] ?: library.readerFit
+        LaunchedEffect(mode) {
+            if (library.seriesMode[chapter.bookId] != mode && library.books.any { it.id == chapter.bookId })
+                runCatching { repository.store.update { it.copy(seriesMode = it.seriesMode + (chapter.bookId to mode)) } }
+        }
         val scope = rememberCoroutineScope()
         // Zoom per page, shared by gestures, keys and the buttons; a page opens at 100 %.
         val zoom = remember { mutableStateMapOf<String, Float>() }
@@ -102,7 +107,7 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
         }
         fun chooseFit(value: MangaReaderFit) {
             scope.launch {
-                try { repository.store.update { it.copy(readerFit = value) } }
+                try { repository.store.update { it.copy(seriesFit = it.seriesFit + (chapter.bookId to value)) } }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) { error = failure.message ?: "Reader setting could not be saved" }
                 runCatching { focus.requestFocus() }
@@ -159,7 +164,7 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (failure: Exception) { error = failure.message ?: "Reader setting could not be saved" }
                 } })
-            Text(mangaText("The direction you choose is remembered with this chapter's reading position."), style = ReadType.meta(),
+            Text(mangaText("The direction and scale you choose here are kept for this series. Settings › Manga sets them for new series."), style = ReadType.meta(),
                 color = orbitLook().dim, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             Spacer(Modifier.height(16.dp))
         }

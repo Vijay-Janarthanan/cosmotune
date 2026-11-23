@@ -156,6 +156,9 @@ data class MangaLibraryState(
     val readerTapInvert: Boolean = false,
     /** The volume keys turn pages while reading. */
     val readerVolumeKeys: Boolean = false,
+    /** The reading direction and scale chosen in the reader for one series (Mihon's per-series reader settings), by series id. */
+    val seriesMode: Map<String, MangaReaderMode> = emptyMap(),
+    val seriesFit: Map<String, MangaReaderFit> = emptyMap(),
     /** Covers the listener chose for a series (a page set as cover), by series id: a file in the library's covers folder. */
     val customCovers: Map<String, String> = emptyMap(),
     /** Titles the listener gave a series, kept over the source's when the series refreshes. */
