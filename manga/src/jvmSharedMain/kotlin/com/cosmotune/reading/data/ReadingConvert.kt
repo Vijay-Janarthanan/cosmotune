@@ -18,13 +18,13 @@ import org.jsoup.nodes.TextNode
 
 /**
  * Turns the book files people already own (MOBI and Kindle AZW3, FB2, TXT, HTML, Markdown, Word DOCX, RTF, saved web pages and
- * CBZ comics) into a small EPUB package on import, so the reader, search, bookmarks and highlights work the same for every format.
+ * CBZ comics, CHM help books) into a small EPUB package on import, so the reader, search, bookmarks and highlights work the same for every format.
  * Nothing is fetched: images come from inside the file only. Protected (DRM) Kindle books are refused with a plain message.
  */
 internal object ReadingConvert {
     /** The file kinds Read converts, by extension. */
     val extensions = setOf("txt", "text", "md", "markdown", "html", "htm", "xhtml", "mhtml", "mht", "fb2", "fbz", "docx", "rtf",
-        "mobi", "azw", "azw3", "prc", "cbz")
+        "mobi", "azw", "azw3", "prc", "cbz", "chm")
 
     /** The converted kind of [name], or null when Read does not convert it ("book.fb2.zip" is FB2). */
     fun kindOf(name: String): String? {
@@ -36,7 +36,7 @@ internal object ReadingConvert {
     /** How the book's Details names its original file. */
     fun label(kind: String): String = when (kind) {
         "txt", "text" -> "TXT"; "md", "markdown" -> "Markdown"; "html", "htm", "xhtml" -> "HTML"; "mhtml", "mht" -> "Web page"
-        "fb2", "fbz" -> "FB2"; "docx" -> "Word"; "rtf" -> "RTF"; "mobi", "prc" -> "MOBI"; "azw" -> "AZW"; "azw3" -> "AZW3"; "cbz" -> "CBZ"
+        "fb2", "fbz" -> "FB2"; "docx" -> "Word"; "rtf" -> "RTF"; "mobi", "prc" -> "MOBI"; "azw" -> "AZW"; "azw3" -> "AZW3"; "cbz" -> "CBZ"; "chm" -> "CHM help"
         else -> kind.uppercase()
     }
 
@@ -60,6 +60,7 @@ internal object ReadingConvert {
             "rtf" -> ReadingConvertDocs.rtf(file.readBytes(), fallbackTitle)
             "mobi", "azw", "azw3", "prc" -> ReadingMobi.convert(file.readBytes(), fallbackTitle)
             "cbz" -> cbz(file, fallbackTitle)
+            "chm" -> ReadingChm.convert(file, fallbackTitle)
             else -> throw IllegalArgumentException("Read cannot open this kind of file.")
         }
         require(book.chapters.isNotEmpty() && book.chapters.any { it.html.isNotBlank() }) { "This file has no text to read." }

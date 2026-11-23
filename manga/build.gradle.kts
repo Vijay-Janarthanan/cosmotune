@@ -37,6 +37,24 @@ val generateParserChannel by tasks.registering {
     }
 }
 
+// CHM help books: Apache Tika's CHM reader (Apache-2.0, see NOTICE.md), only its CHM classes and the two exceptions they throw,
+// so the rest of Tika (and its office libraries) stays out of the app.
+val tikaChm by configurations.creating { isTransitive = false }
+dependencies {
+    tikaChm("org.apache.tika:tika-parser-microsoft-module:3.3.1")
+    tikaChm("org.apache.tika:tika-core:3.3.1")
+}
+val tikaChmJar by tasks.registering(Jar::class) {
+    archiveFileName.set("tika-chm-3.3.1.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("tikaChm"))
+    from({ tikaChm.map { zipTree(it) } }) {
+        include("org/apache/tika/parser/microsoft/chm/**", "org/apache/tika/exception/TikaException.class", "org/apache/tika/exception/TikaMemoryLimitException.class")
+        exclude("org/apache/tika/parser/microsoft/chm/ChmParser*")
+    }
+    from({ tikaChm.filter { it.name.startsWith("tika-core") }.map { zipTree(it) } }) { include("META-INF/LICENSE*", "META-INF/NOTICE*") }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
 kotlin {
     androidTarget { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
     jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
@@ -55,6 +73,9 @@ kotlin {
     }
     jvmSharedMain.dependencies {
         api("com.github.Kotatsu-Redo:kotatsu-parsers-redo:9f1b46a9e0")
+        implementation(files(tikaChmJar))
+        implementation("commons-io:commons-io:2.20.0")
+        implementation("org.slf4j:slf4j-api:2.0.16")
     }
     sourceSets.androidMain.dependencies {
         implementation("androidx.work:work-runtime-ktx:2.11.2")

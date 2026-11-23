@@ -362,7 +362,7 @@ private fun BookLibrary(scope: ReadScope) {
                     var adding by remember { mutableStateOf(false) }
                     ReadIconButton(CosmoIcons.Plus, "Add books", { if (!scope.busy) adding = true }, Modifier.testTag("books:import"))
                     com.cosmotune.ui.orbit.OrbitMenu(adding, { adding = false }, listOfNotNull(
-                        com.cosmotune.ui.orbit.OrbitMenuItem("Import a book file", detail = "EPUB, PDF, Kindle, FB2, Word, text or CBZ", icon = CosmoIcons.Plus) { scope.importBooks() },
+                        com.cosmotune.ui.orbit.OrbitMenuItem("Import a book file", detail = "EPUB, PDF, Kindle, FB2, Word, text, CBZ or CHM help", icon = CosmoIcons.Plus) { scope.importBooks() },
                         com.cosmotune.ui.orbit.OrbitMenuItem("Add a folder of books", detail = "New books in it are added each time Read opens", icon = CosmoIcons.Library) { scope.addFolder() },
                         com.cosmotune.ui.orbit.OrbitMenuItem("Check folders for new books", icon = CosmoIcons.Repeat) { scope.scanFolders() }.takeIf { state.folders.isNotEmpty() },
                         com.cosmotune.ui.orbit.OrbitMenuItem("Save a web page", detail = "An article's text and pictures, to read later", icon = CosmoIcons.Explore) { clipping = "page" },
