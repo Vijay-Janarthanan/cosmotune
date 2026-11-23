@@ -78,6 +78,7 @@ import com.cosmotune.video.resources.video_no_subscriptions
 import com.cosmotune.video.resources.video_shorts
 import com.cosmotune.video.resources.video_guide_show_less
 import com.cosmotune.video.resources.video_guide_show_more
+import com.cosmotune.video.resources.video_search
 import com.cosmotune.video.resources.video_tab_home
 import com.cosmotune.music.sharedui.resources.library
 import com.cosmotune.music.sharedui.resources.Res as SharedRes
@@ -156,6 +157,8 @@ internal fun VideoDesktopSidebarContent(focusSearch: Boolean, onSearchFocused: (
                     contentPadding = PaddingValues(horizontal = RING_ROOM, vertical = RING_ROOM),
                     verticalArrangement = Arrangement.spacedBy(NAV_LIST_GAP),
                 ) {
+                    // Search is the first row under the mode chip, in every mode; the header's field is its box.
+                    item(key = "nav:search") { SidebarNavRow(CosmoIcons.Search, stringResource(Res.string.video_search), navigator.searching) { tapSidebarSearch(navigator) } }
                     items(nav.take(PRIMARY_ROWS), key = { "nav:${it.label}" }) { item -> SidebarNavRow(if (item.selected) item.selectedIcon else item.icon, item.label, item.selected, item.onClick) }
                     item(key = "divider-you") { Spacer(Modifier.height(10.dp)) }
                     item(key = "heading-you") { SidebarHeading(stringResource(SharedRes.string.library)) }
@@ -208,6 +211,7 @@ private fun SidebarRail(nav: List<SidebarNavItem>, route: VideoRoute, navigator:
     val yourPages = route == VideoRoute.Library || route == VideoRoute.History || route == VideoRoute.WatchLater || route == VideoRoute.Liked ||
         route == VideoRoute.SavedPlaylists || route == VideoRoute.Downloads || route is VideoRoute.LocalPlaylist
     Column(modifier.fillMaxSize().padding(horizontal = 2.dp), verticalArrangement = Arrangement.spacedBy(NAV_LIST_GAP)) {
+        RailItem(CosmoIcons.Search, stringResource(Res.string.video_search), navigator.searching) { tapSidebarSearch(navigator) }
         for (item in nav.take(PRIMARY_ROWS)) RailItem(if (item.selected) item.selectedIcon else item.icon, item.label, item.selected, item.onClick)
         RailItem(CosmoIcons.Library, you, yourPages) { navigator.push(VideoRoute.Library) }
     }
@@ -251,6 +255,12 @@ private fun RailItem(icon: ImageVector, label: String, selected: Boolean, onClic
 @Composable
 private fun SidebarHeading(text: String) {
     com.cosmotune.ui.orbit.OrbitNavSectionLabel(text, Modifier.padding(start = 6.dp, top = 6.dp, bottom = 4.dp))
+}
+
+/** The sidebar's Search row: the search page (or, on it, an empty box), and the header's field focused. */
+internal fun tapSidebarSearch(navigator: VideoNavigator) {
+    navigator.tapSearch()
+    DesktopVideoState.requestSearchFocus()
 }
 
 /** Enter in the sidebar's search field: the query joins the recent searches, then the search page shows its results (a second search replaces the first). */

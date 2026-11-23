@@ -198,14 +198,13 @@ fun KitCoverGradient(url: String?, modifier: Modifier = Modifier) {
 }
 
 /**
- * What ends a root page's top bar on every root page of every mode (DESIGN_SYSTEM.md 4.1, 5.2): Search, then the account's avatar.
- * [account] is the avatar button (the host's own, which opens the account sheet); [pageAction] (at most one) comes before Search;
- * [showSearch] false is the Search page's own bar.
+ * What ends a root page's top bar on every root page of every mode (DESIGN_SYSTEM.md 4.1, 5.2): the page's one action, then the
+ * account's avatar. [account] is the avatar button (the host's own, which opens the account sheet); [pageAction] (at most one) comes
+ * first. Search is never here: it is the round button beside the tabs in every mode (`CosmoNavSearch`).
  */
 @Composable
-fun KitRootActions(onSearch: () -> Unit, searchLabel: String, account: @Composable () -> Unit = {}, pageAction: @Composable () -> Unit = {}, showSearch: Boolean = true) {
+fun KitRootActions(account: @Composable () -> Unit = {}, pageAction: @Composable () -> Unit = {}) {
     pageAction()
-    if (showSearch) KitIconButton(CosmoIcons.Search, searchLabel, onSearch)
     account()
 }
 

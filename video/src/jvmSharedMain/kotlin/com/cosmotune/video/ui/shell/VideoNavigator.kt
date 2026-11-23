@@ -71,6 +71,28 @@ class VideoNavigator(private val stack: VideoBackStack = VideoBackStack()) {
         revision++
     }
 
+    /** The search page's hold on its box (see [tapSearch]). */
+    val searchFocus = com.cosmotune.ui.search.CosmoSearchFocus()
+
+    /** Bumped when the round Search button is pressed on the search page: the page empties its box. */
+    var searchClears by mutableIntStateOf(0)
+        private set
+
+    /** Whether the search page is on show (the round Search button is lit, and no tab is). */
+    val searching: Boolean get() = top is VideoRoute.Search
+
+    /**
+     * The round Search button (the dock's, the rail's, the desktop sidebar's row): opens the search page, or, on it, empties the box
+     * (the results of the last search go with it) and focuses it.
+     */
+    fun tapSearch() {
+        if (searching) {
+            if ((top as VideoRoute.Search).query.isNotEmpty()) replaceTop(VideoRoute.Search())
+            searchClears++
+        } else push(VideoRoute.Search())
+        searchFocus.request()
+    }
+
     /**
      * Every page of every tab, each with a key that tells one entry of the stacks from another (its tab, the route itself and
      * how many times the same route stands lower on that tab), for the nav host to keep a page's saved state apart from the

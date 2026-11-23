@@ -147,6 +147,7 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
             onTabSelected = { selectVideoTab(navigator, it) },
             // A wide window's sidebar carries the tabs.
             navigation = compact,
+            search = com.cosmotune.video.ui.shell.videoNavSearch(navigator),
             bottomChrome = { showTabs, _ ->
                 // A narrow window keeps the tabs beside the Shorts pager (it has no sidebar and no Back key): the dock is dark there.
                 if (showTabs || (!fullPage && capsuleShown)) {

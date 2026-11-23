@@ -19,17 +19,27 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import com.cosmotune.design.ShellMetrics
-import com.cosmotune.ui.orbit.OrbitSearchPill
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import com.cosmotune.ui.search.CosmoRecent
+import com.cosmotune.ui.search.CosmoSearchChoice
+import com.cosmotune.ui.search.CosmoSearchPage
+import com.cosmotune.ui.search.CosmoSearchRecents
+import com.cosmotune.ui.search.CosmoSearchStatus
+import com.cosmotune.ui.search.searchCountLabel
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
-import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.model.ListItem
@@ -47,7 +57,6 @@ import com.cosmotune.video.shorts.ShortsOrigin
 import com.cosmotune.video.ui.actions.rememberDownloadedIds
 import com.cosmotune.video.ui.actions.rememberVideoActions
 import com.cosmotune.video.ui.blocks.VideoActionsSheet
-import com.cosmotune.video.ui.blocks.VideoChips
 import com.cosmotune.video.ui.blocks.rememberSubscribeToggle
 import com.cosmotune.video.ui.blocks.VideoSheetContext
 import com.cosmotune.video.ui.desktop.DesktopVideoState
@@ -104,7 +113,6 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    val focusRequester = remember { FocusRequester() }
 
     val settings by graph.settings.settings.collectAsState()
     val hideShorts = settings.hideShorts
@@ -123,14 +131,7 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
     val mode = searchMode(typed, submitted)
     // Opened by typing in the sidebar from another page (Y-34): the typed text stays, and the page shows its suggestions.
     if (sidebar) LaunchedEffect(route.query) { if (!DesktopVideoState.takeKeepTyped()) DesktopVideoState.query = route.query }
-    if (!sidebar) {
-        LaunchedEffect(Unit) {
-            if (route.query.isEmpty()) {
-                runCatching { focusRequester.requestFocus() }
-                keyboard?.show()
-            }
-        }
-    }
+    if (!sidebar) LaunchedEffect(Unit) { if (route.query.isEmpty()) navigator.searchFocus.request() }
 
     fun submit(text: String) {
         val query = text.trim()
@@ -151,8 +152,7 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
             DesktopVideoState.requestSearchFocus()
         } else {
             own = text
-            runCatching { focusRequester.requestFocus() }
-            keyboard?.show()
+            navigator.searchFocus.request()
         }
     }
 
@@ -181,69 +181,82 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
         onPlaylist = { playlist -> navigator.push(VideoRoute.Playlist(playlist.id)) },
     )
 
-    Column(
-        Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        if (!sidebar) {
-            OrbitSearchPill(
-                query = typed,
-                onQueryChange = { own = it },
-                onSubmit = { submit(own) },
-                placeholder = stringResource(Res.string.video_search_hint),
-                fonts = orbitFonts(),
-                look = orbitLook(),
-                focusRequester = focusRequester,
-                modifier = Modifier.listWidth(wide).padding(horizontal = CosmoSpacing.margin).padding(top = 4.dp, bottom = FIELD_GAP + 4.dp),
-            )
+    // The round Search button pressed again while on Search ([VideoNavigator.tapSearch]) empties the box (the focus is its own).
+    val clears = navigator.searchClears
+    val seenClears = remember { clears }
+    LaunchedEffect(clears) { if (clears != seenClears) { if (sidebar) DesktopVideoState.query = "" else own = "" } }
+
+    val bottom = contentPadding.calculateBottomPadding()
+    val status = when (mode) {
+        SearchMode.IDLE -> CosmoSearchStatus.Idle
+        SearchMode.TYPING -> CosmoSearchStatus.Typing
+        SearchMode.RESULTS -> when {
+            tab == null || tab.phase == SearchPhase.NOT_STARTED || tab.phase == SearchPhase.LOADING -> CosmoSearchStatus.Searching
+            tab.phase == SearchPhase.FAILED -> CosmoSearchStatus.Failed(stringResource(searchErrorMessage(tab.error))) { tab.retry(scope) }
+            visible.isEmpty() && tab.next == null -> CosmoSearchStatus.Empty()
+            else -> CosmoSearchStatus.Results(visible.size, searchCountLabel(visible.size) + if (tab.next != null) "+" else "")
         }
-        val bottom = contentPadding.calculateBottomPadding()
-        when (mode) {
-            SearchMode.IDLE -> LazyColumn(Modifier.weight(1f).listWidth(wide), contentPadding = PaddingValues(bottom = bottom)) {
-                recentRows(
-                    recents = recentSearches,
-                    onPick = ::pick,
-                    onRemove = { library.removeSearch(it) },
-                    onClear = { library.clearSearches() },
-                )
-            }
-            SearchMode.TYPING -> LazyColumn(Modifier.weight(1f).listWidth(wide), contentPadding = PaddingValues(bottom = bottom)) {
-                suggestionRows(rows, typed, onPick = ::pick, onFill = ::fill)
-            }
-            SearchMode.RESULTS -> {
-                val labels = filters.map { filterLabel(it) }
-                VideoChips(
-                    labels = labels,
-                    selected = filters.indexOf(filter),
-                    onSelect = { filterName = filters[it].name },
-                    modifier = Modifier.listWidth(wide),
-                )
-                if (tab != null) {
-                    if (filter == SearchFilter.SHORTS && tab.phase == SearchPhase.READY && videos.isNotEmpty()) {
-                        val side = if (wide) VideoMetrics.DESKTOP_MARGIN_DP.dp else CosmoSpacing.margin
-                        ShortsGrid(
-                            items = videos,
-                            onOpen = { navigator.openShort(it, ShortsOrigin.Search(submitted), videos) },
-                            onLoadMore = { tab.loadMore(scope) },
-                            contentPadding = PaddingValues(start = side, end = side, bottom = bottom),
-                            wide = wide,
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
-                        )
-                    } else {
-                        ResultsList(
-                            tab = tab,
-                            visible = visible,
-                            wide = wide,
-                            callbacks = callbacks,
-                            subscribed = subscribed,
-                            downloaded = downloaded,
-                            bottomPadding = bottom,
-                            scope = scope,
-                            modifier = Modifier.weight(1f).listWidth(wide),
-                        )
+    }
+    CosmoSearchPage(
+        eyebrow = "Video",
+        query = typed,
+        onQueryChange = { own = it },
+        onSubmit = { submit(own) },
+        placeholder = stringResource(Res.string.video_search_hint),
+        status = status,
+        modifier = Modifier.testTag("video:search"),
+        focus = navigator.searchFocus,
+        contentPadding = PaddingValues(top = contentPadding.calculateTopPadding(), bottom = bottom),
+        // On the desktop the header's field is the box.
+        showField = !sidebar,
+        columnMaxWidth = if (wide) LIST_MAX_WIDTH else androidx.compose.ui.unit.Dp.Unspecified,
+        // The source's own kinds; it has no upload-date, length or sort filter to offer.
+        kinds = filters.map { CosmoSearchChoice(it.name, filterLabel(it)) },
+        kind = filter.name,
+        onKind = { filterName = it },
+        recents = CosmoSearchRecents(
+            recentSearches.map { CosmoRecent(it, it) },
+            onPick = { pick(it.title) },
+            onRemove = { library.removeSearch(it.title) },
+            onClear = { library.clearSearches() },
+        ),
+        browseTitle = "Your channels",
+        browse = subscriptions.takeIf { it.isNotEmpty() }?.let { channels -> { side ->
+            item(key = "browse:channels") {
+                com.cosmotune.ui.orbit.OrbitChipRow(side) {
+                    channels.sortedByDescending { it.lastUploadMs ?: Long.MIN_VALUE }.take(20).forEach { channel ->
+                        ChannelChip(channel.name, channel.avatarUrl) { navigator.push(VideoRoute.Channel(channel.channelId)) }
                     }
                 }
             }
+        } },
+        typing = { listModifier, _ ->
+            LazyColumn(listModifier, contentPadding = PaddingValues(bottom = bottom)) {
+                suggestionRows(rows, typed, onPick = ::pick, onFill = ::fill)
+            }
+        },
+    ) { listModifier, side ->
+        if (tab != null && filter == SearchFilter.SHORTS && videos.isNotEmpty()) {
+            ShortsGrid(
+                items = videos,
+                onOpen = { navigator.openShort(it, ShortsOrigin.Search(submitted), videos) },
+                onLoadMore = { tab.loadMore(scope) },
+                contentPadding = PaddingValues(start = side, end = side, bottom = bottom),
+                wide = wide,
+                modifier = listModifier,
+            )
+        } else if (tab != null) {
+            ResultsList(
+                tab = tab,
+                visible = visible,
+                wide = wide,
+                callbacks = callbacks,
+                subscribed = subscribed,
+                downloaded = downloaded,
+                bottomPadding = bottom,
+                scope = scope,
+                modifier = listModifier,
+            )
         }
     }
 
@@ -255,6 +268,23 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
             onDismiss = { sheet = null },
             downloaded = item.id in downloaded,
         )
+    }
+}
+
+/** A channel you follow, as a chip: its picture as a small disc and its name; it opens the channel's page. */
+@Composable
+private fun ChannelChip(name: String, avatar: String?, onClick: () -> Unit) {
+    val look = orbitLook()
+    val fonts = orbitFonts()
+    androidx.compose.foundation.layout.Row(
+        Modifier.height(40.dp).clip(CircleShape).background(look.chip).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .padding(start = 8.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        com.cosmotune.ui.orbit.Disc(avatar, 24.dp)
+        androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
+        androidx.compose.material3.Text(name, style = fonts.chip, color = look.ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 200.dp))
     }
 }
 
@@ -286,11 +316,6 @@ private fun sidebarSearchShown(): Boolean {
     return onDesktop && roomForSidebar
 }
 
-/** A wide page keeps its list at most 840 dp wide, centred (the column that holds it centres it). */
-private fun Modifier.listWidth(wide: Boolean): Modifier = if (wide) widthIn(max = LIST_MAX_WIDTH).fillMaxWidth() else fillMaxWidth()
 
 /** The widest the results list gets on a wide page (spec 5.3). */
 private val LIST_MAX_WIDTH = 840.dp
-
-/** Between the field and what stands under it. */
-private val FIELD_GAP = 4.dp

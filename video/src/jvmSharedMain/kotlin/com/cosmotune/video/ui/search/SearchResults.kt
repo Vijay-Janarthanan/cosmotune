@@ -41,8 +41,6 @@ import com.cosmotune.video.resources.video_error_bot
 import com.cosmotune.video.resources.video_error_network
 import com.cosmotune.video.resources.video_error_parsing
 import com.cosmotune.video.resources.video_list_error
-import com.cosmotune.video.resources.video_no_results
-import com.cosmotune.video.resources.video_no_results_hint
 import com.cosmotune.video.resources.video_retry
 import com.cosmotune.video.select.ShortsFilter
 import com.cosmotune.video.source.VideoSource
@@ -78,7 +76,6 @@ import androidx.compose.runtime.setValue
 internal const val LOAD_MORE_AHEAD = 4
 
 /** The skeleton rows of a first page that is loading, and of a next page that is. */
-private const val SKELETON_ROWS = 8
 private const val MORE_SKELETON_ROWS = 3
 
 /** Where a tab is: never asked, waiting for its first page, holding its rows, or failed on its first page. */
@@ -263,9 +260,9 @@ internal class SearchRowCallbacks(
 // the list
 
 /**
- * The results of [tab] as one lazy list: skeleton rows while the first page loads, the empty state with Try again when it failed,
- * "No results" when there is nothing to show and nothing more to ask for, else a row for each of [visible] (a video row, a channel
- * row with its Subscribe button, a playlist row) with the next page's skeleton rows or a Try again at the end. The next page is asked
+ * The results of [tab] as one lazy list: a row for each of [visible] (a video row, a channel row with its Subscribe button, a
+ * playlist row) with the next page's skeleton rows or a Try again at the end. The first page's loading, its failure and an empty
+ * answer are the shared search page's own states ([com.cosmotune.ui.search.CosmoSearchStatus]), drawn in place above this list. The next page is asked
  * for when the list is scrolled to within [LOAD_MORE_AHEAD] rows of its end, and at once when the filter has taken out everything
  * so far. [bottomPadding] is what the page keeps clear for the floating chrome; [wide] gives the rows the desktop's thumbnail.
  */
@@ -296,15 +293,7 @@ internal fun ResultsList(
     }
     LazyColumn(state = listState, modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = bottomPadding)) {
         when {
-            tab.phase == SearchPhase.FAILED -> item(key = "error") {
-                CosmoEmptyState(
-                    message = stringResource(searchErrorMessage(tab.error)),
-                    actionLabel = stringResource(Res.string.video_retry),
-                    onAction = { tab.retry(scope) },
-                )
-            }
-            tab.phase != SearchPhase.READY -> items(SKELETON_ROWS, key = { "skeleton:$it" }) { ResultSkeletonRow(wide) }
-            nothingShown && tab.next == null -> item(key = "empty") { NoResults(tab.query) }
+            tab.phase != SearchPhase.READY -> Unit
             else -> {
                 items(visible, key = { it.searchKey() }) { entry -> ResultRow(entry, wide, callbacks, subscribed, downloaded) }
                 when {
@@ -366,16 +355,6 @@ private fun SearchVideoRow(item: VideoItem, wide: Boolean, downloaded: Boolean, 
             downloaded = downloaded,
         )
     }
-}
-
-/** The page of a search that found nothing: the empty state with the query in curly quotes and the hint. */
-@Composable
-private fun NoResults(query: String) {
-    CosmoEmptyState(
-        message = stringResource(Res.string.video_no_results_hint),
-        title = stringResource(Res.string.video_no_results, "“$query”"),
-        icon = CosmoIcons.Search,
-    )
 }
 
 /** The shape of a [VideoRow] while it loads: the thumbnail, a title line and a shorter meta line, in the shimmer. */

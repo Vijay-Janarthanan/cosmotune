@@ -26,6 +26,7 @@ import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.PlayerStatus
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_search
 import com.cosmotune.video.resources.video_shorts
 import com.cosmotune.video.resources.video_tab_home
 import com.cosmotune.video.resources.video_tab_subscriptions
@@ -60,6 +61,11 @@ internal fun videoTabs(): List<CosmoTab> {
         )
     }
 }
+
+/** Video's round Search button, beside the bar's tabs and at the head of the rail: lit on the search page, when no tab is. */
+@Composable
+internal fun videoNavSearch(navigator: VideoNavigator): com.cosmotune.ui.shell.CosmoNavSearch =
+    com.cosmotune.ui.shell.CosmoNavSearch(stringResource(Res.string.video_search), selected = navigator.searching, onClick = navigator::tapSearch)
 
 private const val TAB_HOME = 0
 private const val TAB_SHORTS = 1
@@ -118,6 +124,7 @@ fun VideoBottomChrome(
     // Without the tabs and without a video the dock has nothing to hold.
     if (!showTabs && song == null) return
     CosmoBottomChrome(
+        search = videoNavSearch(navigator),
         tabs = videoTabs(),
         selectedIndex = videoTabIndex(navigator),
         onTabSelected = { index -> selectVideoTab(navigator, index) },

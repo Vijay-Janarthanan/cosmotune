@@ -151,36 +151,6 @@ internal fun LazyListScope.suggestionRows(rows: List<SuggestionRow>, typed: Stri
 }
 
 /**
- * The idle page: the recent searches with "Clear" in the overline and a remove button on each row, or, when there are none, the empty
- * state that says what to search for.
- */
-internal fun LazyListScope.recentRows(recents: List<String>, onPick: (String) -> Unit, onRemove: (String) -> Unit, onClear: () -> Unit) {
-    if (recents.isEmpty()) {
-        item(key = "idle:empty") {
-            CosmoEmptyState(message = stringResource(Res.string.video_search_hint), icon = CosmoIcons.Search)
-        }
-        return
-    }
-    item(key = "recent:header") {
-        Row(Modifier.fillMaxWidth().padding(end = CosmoSpacing.margin), verticalAlignment = Alignment.CenterVertically) {
-            OrbitGroupLabel(stringResource(Res.string.video_recent_searches), Modifier.weight(1f))
-            CommentLink(text = stringResource(Res.string.video_clear), onClick = onClear)
-        }
-    }
-    items(recents, key = { "recent:$it" }) { text ->
-        SearchTextRow(
-            text = text,
-            typed = "",
-            leading = CosmoIcons.Clock,
-            onClick = { onPick(text) },
-            trailingIcon = CosmoIcons.Close,
-            trailingDescription = stringResource(Res.string.video_remove_search),
-            onTrailing = { onRemove(text) },
-        )
-    }
-}
-
-/**
  * One 48 dp row: [leading] (20 dp, `textTertiary`), 14 dp of gap, [text] in 15.5 sp with the part [typed] covers in weight 700, and a
  * 40 dp plain button at the end. The text is the row's button (a tap, a hold's focus ring, a role); the end button is its own.
  */
