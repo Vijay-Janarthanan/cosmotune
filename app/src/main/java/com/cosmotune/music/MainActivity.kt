@@ -1863,6 +1863,15 @@ private fun CosmotuneApp(
             // bounded queue before the controller connects, so this resumes
             // both a live session and one recovered after process death.
             LinkRequest.Resume -> if (session.mediaItemCount > 0) session.play()
+            // A song file opened from a file manager plays on its own, read from where it is.
+            is LinkRequest.AudioFile -> {
+                val song = withContext(Dispatchers.IO) { LocalMediaRepository.songForOpenedFile(context, request.uri) }
+                if (song == null) {
+                    Toast.makeText(context, context.getString(R.string.couldnt_open_link), Toast.LENGTH_SHORT).show()
+                } else {
+                    play(listOf(song), 0)
+                }
+            }
             is LinkRequest.ImportPlaylist -> Unit
         }
         MusicLink.handled()

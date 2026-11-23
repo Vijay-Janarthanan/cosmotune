@@ -221,6 +221,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
             </intent-filter>
+            <!-- A song file opened the same way plays in Music (MusicLink.AudioFile). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
 
             <!-- Public Listen Together invites. autoVerify makes a tap open
                  Cosmotune directly once the domain publishes its assetlinks

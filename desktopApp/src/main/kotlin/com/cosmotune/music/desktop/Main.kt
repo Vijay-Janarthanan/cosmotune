@@ -34,7 +34,17 @@ import org.jetbrains.compose.resources.painterResource
 
 internal val desktopSharedPlaylist = MutableStateFlow<String?>(null)
 
+/** A song file Cosmotune was opened with ("Open with" in the file manager): Music plays it. */
+internal val desktopOpenedAudio = MutableStateFlow<String?>(null)
+
+/** Whether [arg] is a song file on this computer (by its name; the folder scan's own check). */
+internal fun isAudioFileArg(arg: String): Boolean = runCatching {
+    val path = java.nio.file.Path.of(arg)
+    java.nio.file.Files.isRegularFile(path) && path.fileName.toString().substringAfterLast(".", "").lowercase() in DesktopLocalMusic.supportedExtensions + setOf("opus", "oga")
+}.getOrDefault(false)
+
 private fun offerDesktopLink(link: String) {
+    if (isAudioFileArg(link)) { desktopOpenedAudio.value = link; return }
     val playlist = SharedPlaylistLink.fromOpenUri(link)
     if (playlist != null) desktopSharedPlaylist.value = playlist
     else com.cosmotune.desktop.DesktopWatch.offer(link)
@@ -45,13 +55,17 @@ fun main(args: Array<String>) {
     // A Watch add-on link the system opened Cosmotune with (stremio://..., cosmotune://watch/...): its Install sheet waits.
     val openLink = args.firstOrNull {
         com.cosmotune.watch.InstallLinks.isInstallLink(it) || com.cosmotune.watch.InstallLinks.isPackLink(it) ||
-            SharedPlaylistLink.fromOpenUri(it) != null
+            SharedPlaylistLink.fromOpenUri(it) != null || isAudioFileArg(it)
     }
     openLink?.let(::offerDesktopLink)
     // macOS hands URL-scheme opens (the bundle declares stremio:// and cosmotune://) to a running app through this handler.
     runCatching {
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.APP_OPEN_URI)) {
             java.awt.Desktop.getDesktop().setOpenURIHandler { event -> offerDesktopLink(event.uri.toString()) }
+        }
+        // And a song file opened with Cosmotune from Finder.
+        if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.APP_OPEN_FILE)) {
+            java.awt.Desktop.getDesktop().setOpenFileHandler { event -> event.files.firstOrNull()?.let { offerDesktopLink(it.absolutePath) } }
         }
     }
     // Cosmotune already running: the link goes to that process (its Install sheet opens there) and this one ends.

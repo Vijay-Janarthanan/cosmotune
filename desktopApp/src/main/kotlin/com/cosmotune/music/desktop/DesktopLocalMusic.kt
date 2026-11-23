@@ -12,7 +12,7 @@ import kotlin.io.path.nameWithoutExtension
 
 /** Finds ordinary audio files without requiring an Android MediaStore. */
 object DesktopLocalMusic {
-    private val supportedExtensions = setOf("aac", "flac", "m4a", "mp3", "ogg", "wav", "webm")
+    internal val supportedExtensions = setOf("aac", "flac", "m4a", "mp3", "ogg", "wav", "webm")
     private var previousRoots = emptyList<Path>()
     private var previousFilter: Boolean? = null
     private var previousSongs = emptyList<Song>()

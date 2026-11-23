@@ -426,6 +426,16 @@ object LocalMediaRepository {
      * fills in what the retriever couldn't read, since the media scanner and
      * `MediaMetadataRetriever` do not agree on every container.
      */
+    /** The song a file opened from another app is (its own tags, its name as the provider gives it), or null when it cannot be read. */
+    fun songForOpenedFile(context: Context, uriStr: String): Song? = runCatching {
+        val uri = Uri.parse(uriStr)
+        val name = if (uri.scheme == "file") uri.lastPathSegment else
+            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getString(0) else null
+            }
+        buildSongFromUri(context, uriStr, name ?: uri.lastPathSegment ?: "Song")
+    }.getOrNull()
+
     private fun buildSongFromUri(
         context: Context,
         uriStr: String,

@@ -3671,6 +3671,16 @@ fun CosmotuneDesktopApp() {
         LaunchedEffect(sharedPlaylistLink) {
             if (sharedPlaylistLink != null) cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC)
         }
+        // A song file opened with Cosmotune from the file manager plays on its own, read from where it is.
+        val openedAudio by desktopOpenedAudio.collectAsState()
+        LaunchedEffect(openedAudio) {
+            val path = openedAudio ?: return@LaunchedEffect
+            desktopOpenedAudio.value = null
+            val song = withContext(Dispatchers.IO) { runCatching { with(DesktopLocalMusic) { java.nio.file.Path.of(path).toSong() } }.getOrNull() }
+                ?: return@LaunchedEffect
+            cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC)
+            playSongs(listOf(song))
+        }
         val windowActions = LocalDesktopWindowActions.current
         // A room's videos open in Video mode, which the room switches to through the stored mode.
         SideEffect { DesktopRoomVideo.look = cosmoShell?.settings }
