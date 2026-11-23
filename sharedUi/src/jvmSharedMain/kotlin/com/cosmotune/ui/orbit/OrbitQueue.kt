@@ -1,5 +1,6 @@
 package com.cosmotune.ui.orbit
 
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -373,8 +374,11 @@ private fun QueueRow(
                 Spacer(Modifier.width(4.dp))
             }
             if (handle != null) {
-                Box(handle.size(40.dp), contentAlignment = Alignment.Center) {
-                    Icon(CosmoIcons.Queue, "Hold to move", tint = look.dim, modifier = Modifier.size(20.dp))
+                // The drag handle (≡), not the queue glyph, which reads as "add to queue"; its name shows as a tooltip.
+                val grip = rememberOrbitTooltipState()
+                Box(handle.size(40.dp).orbitTooltip(grip, enabled = orbitIsDesktop), contentAlignment = Alignment.Center) {
+                    Icon(androidx.compose.material.icons.Icons.Rounded.DragHandle, "Hold to move", tint = look.dim, modifier = Modifier.size(20.dp))
+                    OrbitTooltipPill(grip, "Hold to move")
                 }
             } else if (!now) OrbitRowTime(song.durationText, fonts, look)
         },
