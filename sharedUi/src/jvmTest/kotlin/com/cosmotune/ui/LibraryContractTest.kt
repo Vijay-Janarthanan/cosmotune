@@ -268,7 +268,7 @@ class LibraryContractTest {
     @Test fun historyIsOrbitRowsUnderDayLabelsKeyedOnTheIdAndTheIndex() {
         val code = SourceContract.code(lib("CosmoHistory"))
         assertTrue("OrbitSongRowFor(" in code && "OrbitLabel(" in code, "Home's rows under mono day labels (board batch-a 1)")
-        assertTrue("YtMusicRepository.historyDays" in code && "historyGroups(songs, days)" in code, "the days come from the history read")
+        assertTrue("YtMusicRepository.historyDays" in code && "historyGroups(songs, days, span)" in code, "the days come from the history read")
         assertTrue("OrbitPageHeading(" in code && "title = \"History\"" in code && "OrbitStatCard(" in code, "the heading and one quiet stat card")
         assertFalse("HorizontalDivider" in code || "Divider" in code, "no dividers")
         assertTrue("key = { \"\${songs[group.first + it].videoId}:\${group.first + it}\" }" in code, "keyed on the id and the index")
