@@ -46,6 +46,8 @@ internal fun PlayerOptions(songId: String, bluetoothSupported: Boolean, onDismis
                 }
             }
         }
+        val fresh by settings.freshShuffle.collectAsState()
+        PlayerOptionSwitch("Fresh shuffle","Shuffle still plays everything, but the songs you heard lately tend to come later.",fresh,settings::setFreshShuffle)
         PlayerOptionSwitch("Player lyrics","Show timed lyrics beside the artwork when there is room. The Lyrics panel remains available.",inline,settings::setInlineLyrics)
         PlayerOptionSwitch("Romanised lyrics only","With Romanise on, show each line in Latin letters alone instead of under the original script.",romanisedOnly,settings::setRomanisedOnly)
         CosmoSettingsRow(icon=CosmoIcons.Lyrics,title="Orbit Read alignment",subtitle="Auto follows each line's writing direction. Duet voices keep their own lanes.")
