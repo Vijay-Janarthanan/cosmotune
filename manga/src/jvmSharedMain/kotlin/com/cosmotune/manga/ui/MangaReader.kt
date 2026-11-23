@@ -75,6 +75,16 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, boo
     onChapter: (MangaChapter) -> Unit = {}) {
     val reading by repository.store.state.collectAsState()
     ReaderKeepScreenOn(reading.readerKeepScreenOn)
+    // Time with the reader open counts toward Statistics, a minute at a time (the last part minute when it closes).
+    LaunchedEffect(Unit) {
+        var since = System.currentTimeMillis()
+        try {
+            while (true) { kotlinx.coroutines.delay(60_000); val now = System.currentTimeMillis(); runCatching { repository.store.addReadingTime(now - since) }; since = now }
+        } finally {
+            val left = System.currentTimeMillis() - since
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { runCatching { repository.store.addReadingTime(left) } }
+        }
+    }
     key(chapter.id) {
         MangaBackHandler(true, onBack)
         var pages by remember { mutableStateOf(emptyList<MangaPage>()) }

@@ -98,11 +98,13 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
         require(value.pageCount > 0 && value.page in 0 until value.pageCount && value.pageOffsetPx in 0..10_000_000)
         if (state.value.incognito) return
         update { it.copy(progress = it.progress + (value.bookId to value), readerMode = value.mode, newChapters = it.newChapters - value.chapterId,
-            readChapters = if (value.finished) it.readChapters + value.chapterId else it.readChapters) }
+            readChapters = if (value.finished) it.readChapters + value.chapterId else it.readChapters,
+            readLog = if (value.finished && value.chapterId !in it.readLog) logged(it.readLog, value.chapterId) else it.readLog) }
     }
 
     suspend fun markRead(chapter: MangaChapter, read: Boolean) = update {
         it.copy(readChapters = if (read) it.readChapters + chapter.id else it.readChapters - chapter.id, newChapters = it.newChapters - chapter.id,
+            readLog = if (read && chapter.id !in it.readLog) logged(it.readLog, chapter.id) else if (!read) it.readLog - chapter.id else it.readLog,
             progress = if (!read && it.progress[chapter.bookId]?.chapterId == chapter.id) it.progress - chapter.bookId else it.progress)
     }
 
@@ -230,6 +232,19 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
     /** Removal changes only subscriptions; previously trusted installed sources remain usable. */
     suspend fun removeExtensionStore(indexUrl: String) = update { old ->
         old.copy(extensionStores = old.extensionStores.filterNot { it.indexUrl == indexUrl })
+    }
+
+    private fun logged(log: Map<String, Long>, chapterId: String): Map<String, Long> {
+        val next = log + (chapterId to System.currentTimeMillis())
+        return if (next.size <= 20_000) next else next.entries.sortedBy { it.value }.drop(next.size - 20_000).associate { it.key to it.value }
+    }
+
+    /** Adds [ms] of reading to today's total (not while incognito); the last 400 days are kept. */
+    suspend fun addReadingTime(ms: Long) {
+        if (ms <= 0 || state.value.incognito) return
+        val day = java.time.LocalDate.now().toString()
+        update { old -> old.copy(readingTime = (old.readingTime + (day to (old.readingTime[day] ?: 0L) + ms.coerceAtMost(3_600_000L))).let { times ->
+            if (times.size > 400) times.toSortedMap().entries.drop(times.size - 400).associate { it.key to it.value } else times }) }
     }
 
     /** Read marks that came from another device before [book]'s chapters were known become real read marks once they are. */

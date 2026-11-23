@@ -160,6 +160,10 @@ data class MangaLibraryState(
     val lockManga: Boolean = false,
     /** Manga's screens are kept out of screenshots, screen recording and the recent-apps preview. */
     val secureScreen: Boolean = false,
+    /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
+    val readLog: Map<String, Long> = emptyMap(),
+    /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */
+    val readingTime: Map<String, Long> = emptyMap(),
     /** E-ink screens (Kotatsu's E-Ink settings): pages turn at once with no sliding, in high contrast, with a black flash between them when [readerEInkFlash]. */
     val readerEInk: Boolean = false,
     val readerEInkFlash: Boolean = false,
@@ -225,6 +229,32 @@ fun MangaLibraryState.collectionBooks(selection: String): List<MangaBook> = when
     "" -> books.filter { book -> collections.none { it.hidden && book.id in it.bookIds } }
     "unassigned" -> books.filter { book -> collections.none { book.id in it.bookIds } }
     else -> books.filter { it.id in collections.find { collection -> collection.id == selection }?.bookIds.orEmpty() }
+}
+
+/** Reading statistics (Mihon's and Readest's): totals, the last seven days, and the series read most. */
+data class MangaStats(val series: Int, val chapters: Int, val chaptersWeek: Int, val timeMs: Long, val timeWeekMs: Long, val daysRead: Int,
+    val top: List<Pair<MangaBook, Int>>)
+
+fun mangaStats(state: MangaLibraryState, nowMs: Long = System.currentTimeMillis(), zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): MangaStats {
+    val weekAgo = nowMs - 7L * 86_400_000L
+    val today = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+    val week = (0..6).map { today.minusDays(it.toLong()).toString() }.toSet()
+    val byBook = state.books.map { book -> book to book.chapters.count { it.id in state.readChapters } }.filter { it.second > 0 }
+    return MangaStats(
+        series = state.books.size,
+        chapters = state.readChapters.size,
+        chaptersWeek = state.readLog.values.count { it >= weekAgo },
+        timeMs = state.readingTime.values.sum(),
+        timeWeekMs = state.readingTime.filterKeys { it in week }.values.sum(),
+        daysRead = state.readingTime.count { it.value > 0 },
+        top = byBook.sortedByDescending { it.second }.take(5),
+    )
+}
+
+/** "3 h 20 min", "45 min", "under a minute": a reading time for Statistics. */
+fun mangaDuration(ms: Long): String {
+    val minutes = ms / 60_000
+    return when { minutes < 1 -> "under a minute"; minutes < 60 -> "$minutes min"; else -> "${minutes / 60} h" + if (minutes % 60 > 0) " ${minutes % 60} min" else "" }
 }
 
 /** The result of a library update check so far: [failures] maps a series id to the reason its source could not be checked. */

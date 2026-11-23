@@ -380,6 +380,7 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
     var types by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var options by remember { mutableStateOf(false) }
     var dupes by remember { mutableStateOf(false) }
+    var stats by remember { mutableStateOf(false) }
     val pick = rememberMangaImport { name, open ->
         scope.action { onBusy(true); try { repository.store.save(repository.store.archives.import(name, open)) } finally { onBusy(false) } }
     }
@@ -429,11 +430,13 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
         items(books, key = { it.id }) { book -> MangaBookCard(scope, book, null, inLibrary = true) }
     }
     if (dupes) MangaDuplicatesSheet(scope) { dupes = false }
+    if (stats) MangaStatsSheet(scope) { stats = false }
     if (options) KitSheet(onDismiss = { options = false }, title = mangaText("Library")) {
         ReadSheetRow(mangaText("Import comic"), CosmoIcons.Plus, { options = false; pick() }, enabled = !busy)
         ReadSheetRow(mangaText("Image folder"), Icons.Rounded.Folder, { options = false; pickFolder() }, enabled = !busy)
         ReadSheetRow(mangaText("Downloads"), CosmoIcons.Downloaded, { options = false; scope.navigation.page = MangaPages.DOWNLOADS }, Modifier.testTag("manga:downloads"))
         ReadSheetRow(mangaText("Manage sources"), CosmoIcons.Settings, { options = false; scope.navigation.select(MangaTabs.SOURCES) })
+        ReadSheetRow(mangaText("Statistics"), CosmoIcons.List, { options = false; stats = true }, Modifier.testTag("manga:stats"))
         val duplicates = remember(state.books) { mangaDuplicates(state) }
         if (duplicates.isNotEmpty()) ReadSheetRow(mangaText("Duplicates") + " · ${duplicates.size}", CosmoIcons.List, { options = false; dupes = true }, Modifier.testTag("manga:duplicates"))
         ReadSheetSection(mangaText("Sort by")) {
@@ -497,6 +500,40 @@ private fun MangaDuplicatesSheet(scope: MangaScope, onDismiss: () -> Unit) {
                             undo.showThen(words) { scope.repository.store.update { before } }
                         } }, Modifier.testTag("manga:dupe:keep:${book.id}"))
                     }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** Statistics: series, chapters read and time spent reading, all time and in the last seven days, and the series read most. */
+@Composable
+private fun MangaStatsSheet(scope: MangaScope, onDismiss: () -> Unit) {
+    val state by scope.repository.store.state.collectAsState()
+    val stats = remember(state) { mangaStats(state) }
+    val look = orbitLook()
+    KitSheet(onDismiss = onDismiss) {
+        ReadSheetHeader(mangaText("Statistics"), onDone = onDismiss)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).testTag("manga:stats:sheet"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                mangaText("Series in your library") to stats.series.toString(),
+                mangaText("Chapters read") to stats.chapters.toString(),
+                mangaText("Chapters read this week") to stats.chaptersWeek.toString(),
+                mangaText("Time reading") to mangaDuration(stats.timeMs),
+                mangaText("Time reading this week") to mangaDuration(stats.timeWeekMs),
+                mangaText("Days you read") to stats.daysRead.toString(),
+            ).forEach { (label, value) ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.compose.material3.Text(label, style = ReadType.body(), color = look.dim, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.Text(value, style = ReadType.rowTitle(), color = look.ink)
+                }
+            }
+            if (stats.top.isNotEmpty()) ReadOverline(mangaText("Read most"), Modifier.padding(top = 8.dp), inset = 0.dp)
+            stats.top.forEach { (book, count) ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.compose.material3.Text(book.title, style = ReadType.body(), color = look.ink, maxLines = 1, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.Text(if (count == 1) "1 chapter" else "$count chapters", style = ReadType.meta(), color = look.dim)
                 }
             }
         }
