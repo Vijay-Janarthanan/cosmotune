@@ -331,6 +331,8 @@ internal object DesktopSourceRegistry {
         /** A download: addons that said `allowDownloads: 0` are left out, see [adapters]. */
         forDownload: Boolean = false,
     ): Result<DesktopStream> = runCatching {
+        // A song from the listener's WebDAV or SMB share plays from there.
+        if (DesktopNetworkShares.owns(song)) return@runCatching DesktopNetworkShares.stream(song)
         if (song.videoId.startsWith("podio:")) {
             check(excludedSourceId?.startsWith("podio:") != true) { "This Podio stream could not be played" }
             com.cosmotune.podio.YouTubePodcasts.videoId(song.videoId)?.let { videoId ->

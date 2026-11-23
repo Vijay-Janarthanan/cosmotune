@@ -185,6 +185,8 @@ dependencies {
     // Already on the classpath through the NewPipe extractor.
     implementation("org.jsoup:jsoup:1.22.2")
     implementation("com.google.zxing:core:3.5.3")
+    // The SMB client behind an SMB share in Local music (DesktopNetworkShares), as on the phone.
+    implementation("com.hierynomus:smbj:0.15.0")
 
     implementation(project(":shared"))
     implementation(project(":sharedUi"))

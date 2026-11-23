@@ -2942,7 +2942,7 @@ fun CosmotuneDesktopApp() {
         // Unpacks the analyser and its models on first run.
         DesktopAnalysisRuntime.ensureStarted()
         DesktopHorizontalScroll.install()
-        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() + DesktopNetworkShares.cached }
         // A download record is a claim about a folder this app does not own, so it can outlive the
         // file it names. Checked once at startup rather than trusted: a stale entry showed the
         // track as downloaded, refused to fetch it again, and then would not play.
@@ -3023,17 +3023,25 @@ fun CosmotuneDesktopApp() {
         replaySummary = withContext(Dispatchers.IO) { DesktopListeningStats.summary(replayPeriod) }
     }
 
+    // The WebDAV server and SMB share are listed at start and after an edit, apart from the folder scan so a slow server
+    // never holds the local songs back.
+    LaunchedEffect(localMusicRevision) {
+        val before = DesktopNetworkShares.cached
+        val now = DesktopNetworkShares.refresh()
+        if (now != before) localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() } + now
+    }
+
     // Re-scanned when the filter or the folder changes, never on first composition.
     LaunchedEffect(localMusicRevision) {
         if (localMusicRevision == 0) return@LaunchedEffect
-        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() + DesktopNetworkShares.cached }
         DesktopLocalMusicWatcher.restart()
     }
 
     // Hidden folders and the shortest song shown (Settings, Local music) apply at once.
     LaunchedEffect(Unit) {
         com.cosmotune.ui.settings.cosmoLookSettings().localRules.drop(1).collectLatest {
-            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() + DesktopNetworkShares.cached }
         }
     }
 
@@ -3041,7 +3049,7 @@ fun CosmotuneDesktopApp() {
     LaunchedEffect(Unit) {
         DesktopLocalMusicWatcher.restart()
         DesktopLocalMusicWatcher.changes.collect {
-            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() + DesktopNetworkShares.cached }
         }
     }
 
@@ -6276,6 +6284,22 @@ private fun DesktopSettingsScreen(
                             folderLabel = DesktopLocalMusic.folderLabel()
                             onLocalMusicFolderChanged()
                         }
+                    }
+                    // Music on the listener's own WebDAV server or SMB share joins Local music (DesktopNetworkShares).
+                    var shareDialog by remember { mutableStateOf<String?>(null) }
+                    var shareRevision by remember { mutableStateOf(0) }
+                    val webDav = remember(shareRevision) { DesktopNetworkShares.webDav() }
+                    val smb = remember(shareRevision) { DesktopNetworkShares.smb() }
+                    SettingsRow(Icons.Rounded.Cloud, "WebDAV server", if (webDav.configured) webDav.url else "Play the songs on Nextcloud, a NAS or any WebDAV server") {
+                        shareDialog = "webdav"
+                    }
+                    SettingsRow(Icons.Rounded.Folder, "SMB share", if (smb.configured) "${smb.host}/${smb.share}" else "Play the songs in a shared folder on Windows, Samba or a NAS") {
+                        shareDialog = "smb"
+                    }
+                    val shareChanged = { shareRevision++; onLocalMusicFolderChanged() }
+                    when (shareDialog) {
+                        "webdav" -> DesktopWebDavDialog(onChanged = shareChanged, onDismiss = { shareDialog = null })
+                        "smb" -> DesktopSmbDialog(onChanged = shareChanged, onDismiss = { shareDialog = null })
                     }
                     SettingsToggle(
                         DesktopStrings["filter_non_music_audio", "Filter non-music audio"],

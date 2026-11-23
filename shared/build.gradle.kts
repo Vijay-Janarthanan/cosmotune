@@ -29,6 +29,8 @@ kotlin {
             dependencies {
                 // Compile-only: the two applications supply the runtime artifact themselves.
                 compileOnly("com.microsoft.onnxruntime:onnxruntime:1.20.0")
+                // The SMB library client (Local music on a shared folder); the phone and the desktop each ship it.
+                compileOnly("com.hierynomus:smbj:0.15.0")
                 // The network stack the lyrics providers and the YouTube Music
                 // client run on, at the phone's versions — both applications
                 // now call the same code, so they resolve the same libraries.

@@ -81,7 +81,7 @@ object SmbConnection {
      * the session as null (Samba) - hierynomus/smbj#872. Guest sends a real
      * NTLMv2 exchange and lands on the guest path smbj handles.
      */
-    internal fun authFor(username: String, password: String): AuthenticationContext =
+    fun authFor(username: String, password: String): AuthenticationContext =
         if (username.isBlank() && password.isBlank()) {
             AuthenticationContext.guest()
         } else {
