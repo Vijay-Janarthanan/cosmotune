@@ -58,6 +58,14 @@ private val SHOW_SPEEDS = listOf(1f, 1.25f, 1.5f, 1.75f, 2f)
             OrbitSwitchRow("Add new episodes to Up next", own.autoQueue, { on -> change { it.copy(autoQueue = on) } }, detail = "At the end of your queue", plain = true,
                 switchModifier = Modifier.testTag("podio:show-settings:queue"))
 
+            Text("Latest episodes in Following", style = fonts.body, color = look.ink, modifier = Modifier.padding(top = 4.dp))
+            OrbitChipRow(0.dp) {
+                OrbitSelectChip("Like the app (${saved.inboxEpisodesPerShow})", own.inboxEpisodes == null, fonts, look, { change { it.copy(inboxEpisodes = null) } }, haptic = false)
+                listOf(1, 3, 6, 12, 24).forEach { count ->
+                    OrbitSelectChip("$count", own.inboxEpisodes == count, fonts, look, { change { it.copy(inboxEpisodes = count) } }, haptic = false)
+                }
+            }
+
             OrbitLabel("Playback", fonts, look.dim, Modifier.padding(top = 16.dp))
             Text("Skip the intro", style = fonts.body, color = look.ink)
             OrbitChipRow(0.dp) {

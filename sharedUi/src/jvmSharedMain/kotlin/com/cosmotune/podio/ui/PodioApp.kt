@@ -171,7 +171,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     // Following lists the new episodes of the followed shows, and the Podcasts home what was started of them; the Following tab
     // counts the new ones, so the list is asked for (from its cache while that is fresh) wherever something is followed.
     val inboxWanted = section == PodioSection.FOLLOWING || section == PodioSection.PODCASTS || saved.shows.isNotEmpty()
-    LaunchedEffect(inboxWanted, saved.shows, saved.inboxEpisodesPerShow, inboxRequest) {
+    LaunchedEffect(inboxWanted, saved.shows, saved.inboxEpisodesPerShow, saved.showSettings.mapValues { it.value.inboxEpisodes }, inboxRequest) {
         if (inboxWanted) withContext(Dispatchers.Main.immediate) { m.loadInbox(saved.shows, force = inboxRequest > 0, episodeLimit = saved.inboxEpisodesPerShow) }
     }
 

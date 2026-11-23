@@ -297,6 +297,15 @@ internal class PodioModel(
         notice = if (was) "Removed from favourites" else "Added to favourites"
     }
 
+    /** Downloads the newest [count] episodes of [feed] (all of what is loaded when null) that are not downloaded or downloading. */
+    fun downloadNewest(feed: PodcastFeed, count: Int?, downloaded: List<PodioItem>, running: Set<String>) {
+        val start = host.onDownloadEpisode ?: return
+        val wanted = PodioRefresh.newestFirst(feed.episodes).let { if (count == null) it else it.take(count) }
+            .map { InboxEpisode(it, feed.show).item() }.filter { item -> downloaded.none { it.id == item.id } && item.id !in running }
+        wanted.forEach(start)
+        notice = when (wanted.size) { 0 -> "These episodes are downloaded already."; 1 -> "Downloading 1 episode"; else -> "Downloading ${wanted.size} episodes" }
+    }
+
     fun setShowTags(showId: String, tags: Collection<String>) = save { PodioTags.set(it, showId, tags) }
 
     fun moveInQueue(from: Int, to: Int) = changeQueue { PodioQueueOrder.move(it, from, to) }
@@ -504,8 +513,10 @@ internal class PodioModel(
                 try {
                     val feed = catalogue.feed(show.feed)
                     val shown = if (show.artwork.isBlank()) show.copy(artwork = feed.show.artwork) else show
+                    // A show's own count (its settings sheet) before the app's.
+                    val own = PodioShowRules.settings(library.state.value, show.id).inboxEpisodes ?: episodeLimit
                     feed.episodes.sortedByDescending { PodioFormat.publishedAt(it.published) ?: Long.MIN_VALUE }
-                        .take(episodeLimit).map { InboxEpisode(it, shown) }
+                        .take(own).map { InboxEpisode(it, shown) }
                 }
                 catch (e: CancellationException) { throw e }
                 catch (_: Exception) { null }

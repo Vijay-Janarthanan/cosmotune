@@ -213,8 +213,15 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
     val feed = m.opened
     val requested = m.requestedFeed
     val show = feed?.show ?: requested
-    var filter by remember(requested?.id) { mutableIntStateOf(0) }
-    var oldestFirst by remember(requested?.id) { mutableStateOf(false) }
+    // A followed show opens on the order and filter it was left with (its settings keep them).
+    val remembered = PodioShowRules.settings(env.saved, requested?.id)
+    var filter by remember(requested?.id) { mutableIntStateOf(remembered.filter) }
+    var oldestFirst by remember(requested?.id) { mutableStateOf(remembered.oldestFirst) }
+    fun keepView(nextFilter: Int, nextOldest: Boolean) {
+        filter = nextFilter; oldestFirst = nextOldest
+        val id = requested?.id ?: return
+        if (env.saved.shows.any { it.id == id }) m.save { PodioShowRules.change(it, id) { s -> s.copy(filter = nextFilter, oldestFirst = nextOldest) } }
+    }
     var more by remember { mutableStateOf(false) }
     val uri = androidx.compose.ui.platform.LocalUriHandler.current
     val openLink: (String) -> Unit = { url -> PodioCatalogue.httpUrl(url)?.let { runCatching { uri.openUri(it) } } }
@@ -282,11 +289,13 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
             }
             item(key = "episode-filters") {
                 OrbitChipRow(side, Modifier.padding(bottom = 10.dp)) {
-                    OrbitSelectChip("All", filter == 0, fonts, look, { filter = 0 }, haptic = false)
-                    OrbitSelectChip("Unplayed" + if (unplayed.isEmpty()) "" else " ${unplayed.size}", filter == 1, fonts, look, { filter = 1 }, haptic = false)
-                    OrbitSelectChip("Downloaded", filter == 2, fonts, look, { filter = 2 }, haptic = false)
+                    OrbitSelectChip("All", filter == 0, fonts, look, { keepView(0, oldestFirst) }, haptic = false)
+                    OrbitSelectChip("Unplayed" + if (unplayed.isEmpty()) "" else " ${unplayed.size}", filter == 1, fonts, look, { keepView(1, oldestFirst) }, haptic = false)
+                    OrbitSelectChip("Downloaded", filter == 2, fonts, look, { keepView(2, oldestFirst) }, haptic = false)
+                    OrbitSelectChip("Queued", filter == 3, fonts, look, { keepView(3, oldestFirst) }, haptic = false, modifier = Modifier.testTag("podio:show:filter:queued"))
+                    OrbitSelectChip("Favourites", filter == 4, fonts, look, { keepView(4, oldestFirst) }, haptic = false)
                     Spacer(Modifier.width(4.dp))
-                    OrbitSelectChip(if (oldestFirst) "Oldest first" else "Newest first", false, fonts, look, { oldestFirst = !oldestFirst }, icon = CosmoIcons.Sort, haptic = false,
+                    OrbitSelectChip(if (oldestFirst) "Oldest first" else "Newest first", false, fonts, look, { keepView(filter, !oldestFirst) }, icon = CosmoIcons.Sort, haptic = false,
                         modifier = Modifier.testTag("podio:show:order"))
                 }
             }
@@ -295,11 +304,14 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                 when (filter) {
                     1 -> !env.isPlayed(id, episode.durationSeconds * 1000)
                     2 -> env.downloaded.any { it.id == id }
+                    3 -> env.queue.entries.any { it.id == id } || env.queue.current?.id == id
+                    4 -> PodioFavourites.isFavourite(env.saved, id)
                     else -> true
                 }
             }.let { if (oldestFirst) it.reversed() else it }
             if (shown.isEmpty()) item(key = "filtered-none") {
-                Text(if (filter == 2) "No downloaded episodes of this show." else "Every episode here has been played.", style = fonts.body, color = look.dim,
+                Text(when (filter) { 2 -> "No downloaded episodes of this show."; 3 -> "No episode of this show is queued."; 4 -> "No favourite episodes of this show."
+                    else -> "Every episode here has been played." }, style = fonts.body, color = look.dim,
                     modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 16.dp))
             }
             val freshIds = fresh.map { it.id }.toSet()
@@ -329,6 +341,14 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
     val unplayedNew = feed?.episodes.orEmpty().map { it.item().id }.filter { env.isNew(it) }
     OrbitMenu(open, onDismiss, listOfNotNull(
         OrbitMenuItem("Refresh", icon = CosmoIcons.Replay) { m.open(show) },
+        feed?.takeIf { m.host.onDownloadEpisode != null && it.episodes.isNotEmpty() }?.let { loaded ->
+            OrbitMenuItem("Download the newest 5", icon = CosmoIcons.Download, testTag = "podio:show:download-5") { m.downloadNewest(loaded, 5, env.downloaded, env.downloadsRunning) }
+        },
+        feed?.takeIf { m.host.onDownloadEpisode != null && it.episodes.size > 5 }?.let { loaded ->
+            OrbitMenuItem("Download all ${loaded.episodes.size} episodes", detail = if (loaded.nextPage != null) "Load older ones first to include them" else null) {
+                m.downloadNewest(loaded, null, env.downloaded, env.downloadsRunning)
+            }
+        },
         OrbitMenuItem("Mark every episode seen", enabled = unplayedNew.isNotEmpty()) { m.markSeen(unplayedNew) }.takeIf { following },
         OrbitMenuItem("Show settings", detail = "New episodes, skips, speed, downloads", icon = CosmoIcons.Settings, testTag = "podio:show:settings") { m.showSettingsFor = show }.takeIf { following },
         OrbitMenuItem("Share show", icon = CosmoIcons.Share) { m.shareShow(feed?.show ?: show) },
@@ -665,6 +685,9 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                     }
                     Text(episode.title, style = fonts.heroTitle.copy(fontSize = 22.sp, lineHeight = 26.sp), color = ink, maxLines = 4, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 16.dp, end = 70.dp))
+                    PodioFormat.releasedAt(episode.published)?.let { out ->
+                        Text("Out $out", style = fonts.body.copy(fontSize = 13.sp), color = ink.copy(alpha = 0.75f), modifier = Modifier.padding(top = 6.dp).testTag("podio:episode:released"))
+                    }
                     val state = when { now -> "Playing now"; resumable -> PodioFormat.episodeMeta("Resume", PodioFormat.remaining(progress, episode.durationSeconds * 1000)); played -> "Played"; else -> "" }
                     if (state.isNotBlank()) Text(state, style = fonts.body, color = ink.copy(alpha = 0.8f), modifier = Modifier.padding(top = 6.dp, end = 70.dp))
                 }

@@ -23,6 +23,12 @@ import kotlinx.serialization.Serializable
     val keepDownloads: Int? = null,
     /** Louder, clearer speech for a quiet show; null follows "Voice boost". */
     val voiceBoost: Boolean? = null,
+    /** The show's page lists its oldest episode first. */
+    val oldestFirst: Boolean = false,
+    /** The show's page opens on this filter: 0 all, 1 unplayed, 2 downloaded, 3 queued, 4 favourites. */
+    val filter: Int = 0,
+    /** How many of its latest episodes Following lists; null follows Settings › Podio. */
+    val inboxEpisodes: Int? = null,
 ) {
     val isDefault: Boolean get() = this == PodioShowSettings()
 }
@@ -57,7 +63,7 @@ object PodioShowRules {
     fun change(saved: PodioSaved, showId: String, change: (PodioShowSettings) -> PodioShowSettings): PodioSaved {
         val next = change(settings(saved, showId)).let {
             it.copy(skipIntroSeconds = it.skipIntroSeconds.coerceIn(0, MAX_SKIP_SECONDS), skipOutroSeconds = it.skipOutroSeconds.coerceIn(0, MAX_SKIP_SECONDS),
-                keepDownloads = it.keepDownloads?.coerceIn(0, 100))
+                keepDownloads = it.keepDownloads?.coerceIn(0, 100), filter = it.filter.coerceIn(0, 4), inboxEpisodes = it.inboxEpisodes?.coerceIn(1, 24))
         }
         return saved.copy(showSettings = if (next.isDefault) saved.showSettings - showId else saved.showSettings + (showId to next))
     }
