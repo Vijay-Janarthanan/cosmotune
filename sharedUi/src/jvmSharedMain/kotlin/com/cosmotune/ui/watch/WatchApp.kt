@@ -180,23 +180,26 @@ fun WatchApp(
             }
         }
         if (showNavigation) {
-            // The bar or the rail: Home, Live TV, Search and My list (Films and Series light Home, whose own chips they are; a page
-            // opened over a tab lights that tab; Downloads, Plugins and Settings, which the profile menu opens, light none). The
-            // small player stands above the bar, or alone along the foot beside the rail.
+            // The bar or the rail: Home, Live TV, My list and Downloads, with Search as the round button beside them (the head of
+            // the rail), as in Music (Films and Series light Home, whose own chips they are; a page opened over a tab lights that
+            // tab; Search, Plugins and Settings light none). The small player stands above the bar, or alone along the foot beside
+            // the rail.
             val lit = if (tab == WatchTab.FILMS || tab == WatchTab.SERIES) WatchTab.HOME else tab
             val tabs = watchNavTabs()
+            val search = com.cosmotune.ui.shell.CosmoNavSearch("Search", selected = tab == WatchTab.SEARCH, onClick = WatchNav::tapSearch)
             com.cosmotune.ui.shell.CosmoNavShell(
                 windowWidth = maxWidth,
                 tabs = tabs,
                 selectedIndex = WATCH_PHONE_TABS.indexOf(lit),
                 onTabSelected = { WatchNav.go(WATCH_PHONE_TABS[it]) },
                 navigation = navShown,
+                search = search,
                 bottomChrome = { showTabs, _ ->
                     if (top !is WatchRoute.Play) com.cosmotune.ui.shell.CosmoBottomChrome(
                         tabs = tabs, selectedIndex = WATCH_PHONE_TABS.indexOf(lit), onTabSelected = { WatchNav.go(WATCH_PHONE_TABS[it]) },
                         song = null, isPlaying = false, isLoading = false, position = remember { com.cosmotune.music.playback.PlaybackPosition() },
                         durationMs = 0L, onPlayPause = {}, onNext = {}, onExpand = {}, controlsLocked = false, onBlockedControl = {},
-                        hazeState = null, onHeightChanged = { dockPx = it },
+                        hazeState = null, onHeightChanged = { dockPx = it }, search = search,
                         modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = com.cosmotune.ui.shell.CosmoNav.dockMaxWidth(showTabs)).fillMaxWidth(),
                         // Without a shell (a render, a test) the dock is drawn as Music's, since it draws only for the stored mode.
                         mode = if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) com.cosmotune.design.AppMode.MUSIC else com.cosmotune.design.AppMode.WATCH,
@@ -328,8 +331,8 @@ internal class WatchActions(
 internal fun WatchWash(color: Color, look: OrbitLook, modifier: Modifier = Modifier) =
     com.cosmotune.ui.orbit.OrbitPageWash(color, modifier, height = 620.dp, look = look, darkAlpha = 0.55f, lightAlpha = 0.22f, tail = 0.33f)
 
-/** The tabs of the bottom bar and the rail, in their order; Films and Series are Home's own chips. */
-internal val WATCH_PHONE_TABS = listOf(WatchTab.HOME, WatchTab.LIVE, WatchTab.SEARCH, WatchTab.MY_LIST)
+/** The tabs of the bottom bar and the rail, in their order; Films and Series are Home's own chips, and Search is the round button beside them. */
+internal val WATCH_PHONE_TABS = listOf(WatchTab.HOME, WatchTab.LIVE, WatchTab.MY_LIST, WatchTab.DOWNLOADS)
 
 /** [WATCH_PHONE_TABS] as the bar's and the rail's tabs: each its name and its two icons (outlined at rest, filled when chosen). */
 @Composable
@@ -340,17 +343,17 @@ private fun watchNavTabs(): List<com.cosmotune.ui.shell.CosmoTab> = remember {
         when (tab) {
             WatchTab.HOME -> com.cosmotune.ui.shell.CosmoTab(tab.label, CosmoIcons.Home, CosmoIcons.HomeFill)
             WatchTab.LIVE -> com.cosmotune.ui.shell.CosmoTab(tab.label, outlined.LiveTv, filled.LiveTv)
-            WatchTab.SEARCH -> com.cosmotune.ui.shell.CosmoTab(tab.label, CosmoIcons.Search, CosmoIcons.Search)
+            WatchTab.DOWNLOADS -> com.cosmotune.ui.shell.CosmoTab(tab.label, CosmoIcons.Download, CosmoIcons.Download)
             else -> com.cosmotune.ui.shell.CosmoTab(tab.label, outlined.BookmarkBorder, filled.Bookmark)
         }
     }
 }
 
 /** The pages the profile menu opens on the phone (they are not tabs there). */
-internal val WATCH_MENU_PAGES = setOf(WatchTab.DOWNLOADS, WatchTab.PLUGINS, WatchTab.SETTINGS)
+internal val WATCH_MENU_PAGES = setOf(WatchTab.PLUGINS, WatchTab.SETTINGS)
 
 /**
- * The phone's head of every tab: the mode pill, the Watch profile button (its menu holds Downloads, Plugins and Settings) and the
+ * The phone's head of every tab: the mode pill, the Watch profile button (its menu holds Plugins and Settings) and the
  * account button when the host gives one, then the Live pill. The tabs themselves are the bottom bar's (or the rail's).
  */
 @Composable
@@ -369,7 +372,7 @@ private fun WatchPhoneHeader(fonts: OrbitFonts, look: OrbitLook) {
 
 /**
  * The Watch profile button: the viewer's initial in a disc of their own colour. Its menu names the viewer (Switch profile goes to
- * the profiles in Watch settings), then Downloads with how many are kept, Plugins with how many are on, and Settings.
+ * the profiles in Watch settings), then Plugins with how many are on, and Settings (Downloads is a tab of its own).
  */
 @Composable
 private fun WatchProfileButton(fonts: OrbitFonts, look: OrbitLook) {
@@ -377,7 +380,6 @@ private fun WatchProfileButton(fonts: OrbitFonts, look: OrbitLook) {
     val profiles by repository.profiles.collectAsState()
     val active by repository.activeProfile.collectAsState()
     val plugins by repository.plugins.collectAsState()
-    val kept = LocalWatchDownloads.current?.items?.collectAsState()?.value.orEmpty().count { it.status == com.cosmotune.watch.WatchDownload.Status.DONE }
     val name = profiles.firstOrNull { it.id == active }?.name ?: "Watch"
     val (fill, ink) = com.cosmotune.ui.orbit.coverFill(null, "profile:$active")
     var open by remember { mutableStateOf(false) }
@@ -393,7 +395,6 @@ private fun WatchProfileButton(fonts: OrbitFonts, look: OrbitLook) {
             items = listOf(
                 com.cosmotune.ui.orbit.OrbitMenuItem("Switch profile", if (profiles.size <= 1) "Add a viewer" else "${profiles.size} profiles",
                     androidx.compose.material.icons.Icons.Rounded.Person) { WatchNav.go(WatchTab.SETTINGS) },
-                com.cosmotune.ui.orbit.OrbitMenuItem("Downloads", if (kept == 0) null else "$kept kept", CosmoIcons.Download) { WatchNav.go(WatchTab.DOWNLOADS) },
                 com.cosmotune.ui.orbit.OrbitMenuItem("Plugins", "${plugins.count { it.enabled }} on", androidx.compose.material.icons.Icons.Rounded.Extension) { WatchNav.go(WatchTab.PLUGINS) },
                 com.cosmotune.ui.orbit.OrbitMenuItem("Settings", null, CosmoIcons.Settings) { WatchNav.go(WatchTab.SETTINGS) },
             ),

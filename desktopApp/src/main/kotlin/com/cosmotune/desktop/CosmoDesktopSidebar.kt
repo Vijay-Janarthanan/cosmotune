@@ -276,11 +276,11 @@ private fun WatchSidebar() {
             Column(verticalArrangement = Arrangement.spacedBy(NAV_LIST_GAP)) {
                 fun go(t: com.cosmotune.ui.watch.WatchTab) = com.cosmotune.ui.watch.WatchNav.go(t)
                 val icons = androidx.compose.material.icons.Icons.Outlined
+                OrbitNavRow(CosmoIcons.Search, "Search", null, lit == com.cosmotune.ui.watch.WatchTab.SEARCH) { com.cosmotune.ui.watch.WatchNav.tapSearch() }
                 OrbitNavRow(CosmoIcons.Home, "Home", null, lit == com.cosmotune.ui.watch.WatchTab.HOME) { go(com.cosmotune.ui.watch.WatchTab.HOME) }
                 OrbitNavRow(icons.Movie, "Films", null, lit == com.cosmotune.ui.watch.WatchTab.FILMS) { go(com.cosmotune.ui.watch.WatchTab.FILMS) }
                 OrbitNavRow(icons.Tv, "Series", null, lit == com.cosmotune.ui.watch.WatchTab.SERIES) { go(com.cosmotune.ui.watch.WatchTab.SERIES) }
                 OrbitNavRow(icons.LiveTv, "Live TV", null, lit == com.cosmotune.ui.watch.WatchTab.LIVE) { go(com.cosmotune.ui.watch.WatchTab.LIVE) }
-                OrbitNavRow(CosmoIcons.Search, "Search", null, lit == com.cosmotune.ui.watch.WatchTab.SEARCH) { go(com.cosmotune.ui.watch.WatchTab.SEARCH) }
                 OrbitNavRow(icons.BookmarkBorder, "My list", null, lit == com.cosmotune.ui.watch.WatchTab.MY_LIST) { go(com.cosmotune.ui.watch.WatchTab.MY_LIST) }
                 OrbitNavRow(CosmoIcons.Download, "Downloads", null, lit == com.cosmotune.ui.watch.WatchTab.DOWNLOADS) { go(com.cosmotune.ui.watch.WatchTab.DOWNLOADS) }
             }
