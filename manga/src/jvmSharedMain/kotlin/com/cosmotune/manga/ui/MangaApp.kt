@@ -208,7 +208,7 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
     val current = navigation.chapter
     if (current != null) {
         val book = navigation.book
-        val next = book?.nextChapter(current)
+        val next = book?.nextChapter(current, state.readChapters + current.id, state.skipReadChapters)
         Box(Modifier.fillMaxSize().testTag("manga:root")) {
             MangaReader(repository, current, book = book, hasNext = next != null, onBack = { navigation.chapter = null }, onNext = { navigation.chapter = next },
                 onChapter = { navigation.chapter = it })

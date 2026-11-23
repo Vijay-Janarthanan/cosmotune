@@ -229,9 +229,10 @@ internal fun mangaLibraryOrder(books: List<MangaBook>, sort: String, state: Mang
 /** The library's filters (Mihon's): each one on keeps only the series that match it; several on keep the series matching all. */
 internal object MangaLibraryFilters {
     const val UNREAD = "unread"; const val DOWNLOADED = "downloaded"; const val STARTED = "started"; const val COMPLETED = "completed"; const val TRACKED = "tracked"
-    val all = listOf(UNREAD, DOWNLOADED, STARTED, COMPLETED, TRACKED)
+    const val BOOKMARKED = "bookmarked"
+    val all = listOf(UNREAD, DOWNLOADED, STARTED, COMPLETED, TRACKED, BOOKMARKED)
     fun label(filter: String): String = when (filter) {
-        UNREAD -> "Unread"; DOWNLOADED -> "Downloaded"; STARTED -> "Started"; COMPLETED -> "Finished"; else -> "Tracked"
+        UNREAD -> "Unread"; DOWNLOADED -> "Downloaded"; STARTED -> "Started"; COMPLETED -> "Finished"; BOOKMARKED -> "Bookmarked"; else -> "Tracked"
     }
 }
 
@@ -242,6 +243,7 @@ internal fun mangaLibraryFilter(books: List<MangaBook>, filters: Set<String>, st
         MangaLibraryFilters.STARTED -> book.chapters.any { it.id in state.readChapters } || state.progress.containsKey(book.id)
         MangaLibraryFilters.COMPLETED -> book.parserData?.state == "FINISHED"
         MangaLibraryFilters.TRACKED -> state.tracks[book.id].orEmpty().isNotEmpty()
+        MangaLibraryFilters.BOOKMARKED -> book.chapters.any { it.id in state.bookmarks }
         else -> true
     } }
 }

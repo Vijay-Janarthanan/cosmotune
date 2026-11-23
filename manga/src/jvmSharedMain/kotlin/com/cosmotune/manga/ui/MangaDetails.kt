@@ -62,6 +62,7 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
     var more by remember { mutableStateOf(false) }
     var migrate by remember(book.id) { mutableStateOf(false) }
     var editing by remember(book.id) { mutableStateOf(false) }
+    var noting by remember(book.id) { mutableStateOf(false) }
     val readOrFind: (MangaChapter) -> Unit = { chapter -> if (book.unlinkedSourceName() != null) migrate = true else onRead(chapter) }
     // A hold on a chapter starts choosing several (Mihon's selection): mark read or unread, download, remove downloads.
     var selection by remember(book.id) { mutableStateOf(emptySet<String>()) }
@@ -100,6 +101,16 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
     }
     MangaBackHandler(selection.isNotEmpty()) { selection = emptySet() }
     if (migrate) MangaMigrateSheet(scope, book) { migrate = false }
+    if (noting) KitSheet(onDismiss = { noting = false }) {
+        var note by remember { mutableStateOf(state.notes[book.id].orEmpty()) }
+        ReadSheetHeader(mangaText("Note"), onDone = { noting = false; scope.action {
+            repository.store.update { old -> old.copy(notes = note.trim().take(4_000).let { if (it.isBlank()) old.notes - book.id else old.notes + (book.id to it) }) }
+        } }, doneLabel = "Save")
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            com.cosmotune.ui.orbit.OrbitInputField(note, { note = it.take(4_000) }, mangaText("Your note on this series"), modifier = Modifier.fillMaxWidth().testTag("manga:note:field"))
+        }
+        Spacer(Modifier.height(16.dp))
+    }
     if (editing) KitSheet(onDismiss = { editing = false }) {
         var title by remember { mutableStateOf(state.books.find { it.id == book.id }?.title ?: book.title) }
         ReadSheetHeader(mangaText("Edit title"), onDone = { editing = false; scope.action { repository.store.retitle(book.id, title) } }, doneLabel = "Save")
@@ -127,6 +138,7 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
         }
         val share = rememberMangaShare { scope.onError(it) }
         if (website != null) ReadSheetRow(mangaText("Share series"), CosmoIcons.Share, { more = false; share.shareLink(book.title, website) }, Modifier.testTag("manga:share"))
+        if (saved) ReadSheetRow(mangaText(if (state.notes.containsKey(book.id)) "Edit note" else "Add note"), CosmoIcons.Plus, { more = false; noting = true }, Modifier.testTag("manga:note:edit"))
         if (saved) ReadSheetRow(mangaText("Edit title"), Icons.Rounded.Edit, { more = false; editing = true }, Modifier.testTag("manga:edit"))
         if (saved && state.customCovers.containsKey(book.id)) ReadSheetRow(mangaText("Use the source's cover"), CosmoIcons.Replay, { more = false; scope.action { repository.store.cover(book.id, null) } })
         if (book.sourceId != "local") ReadSheetRow(mangaText("Find on another source"), CosmoIcons.Search, { more = false; migrate = true }, Modifier.testTag("manga:migrate:open"))
@@ -180,6 +192,11 @@ private fun SelectionBar(scope: MangaScope, book: MangaBook, listed: List<MangaC
                 onSelection(emptySet())
                 mangaRemoveDownloads(scope, undo, downloaded, downloaded.singleOrNull()?.title ?: "${downloaded.size} $downloadsWord")
             })
+            val allMarked = chosen.all { it.id in state.bookmarks }
+            ReadPill(mangaText(if (allMarked) "Remove bookmark" else "Bookmark"), icon = CosmoIcons.Heart, onClick = {
+                onSelection(emptySet())
+                scope.action { repository.store.update { old -> old.copy(bookmarks = if (allMarked) old.bookmarks - chosen.map { it.id }.toSet() else old.bookmarks + chosen.map { it.id }) } }
+            }, modifier = Modifier.testTag("manga:selection:bookmark"))
             chosen.singleOrNull()?.let { only ->
                 val earlier = book.listedChapters(only.edition).takeWhile { it.id != only.id }.filter { it.id !in state.readChapters }
                 val earlierWords = "${earlier.size} " + mangaText("chapters marked read")
@@ -271,6 +288,13 @@ private fun SeriesAbout(scope: MangaScope, book: MangaBook) {
                     .padding(horizontal = ReadMargin + 4.dp, vertical = 4.dp))
         }
         if (book.tags.isNotEmpty()) ReadChipRow { book.tags.take(12).forEach { tag -> ReadPill(tag) } }
+        val state by scope.repository.store.state.collectAsState()
+        state.notes[book.id]?.let { note ->
+            Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin + 4.dp).testTag("manga:note"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(mangaText("Your note"), style = ReadType.rowTitle(), color = look.ink)
+                Text(note, style = ReadType.body(), color = look.dim)
+            }
+        }
     }
 }
 
@@ -305,7 +329,8 @@ private fun LazyListScope.chapterItems(scope: MangaScope, book: MangaBook, liste
         val fresh = item.id in state.newChapters
         val isNext = current?.id == item.id
         val meta = chapterSubtitle(item, state.progress[book.id], read)
-        val line = listOfNotNull(mangaText("Next").takeIf { isNext && meta.isBlank() }, mangaText("New").takeIf { fresh }, meta.ifBlank { null }).joinToString(" · ")
+        val line = listOfNotNull(mangaText("Next").takeIf { isNext && meta.isBlank() }, mangaText("New").takeIf { fresh }, mangaText("Bookmarked").takeIf { item.id in state.bookmarks },
+            meta.ifBlank { null }).joinToString(" · ")
         ReadChapterRow(
             title = item.title,
             meta = line,

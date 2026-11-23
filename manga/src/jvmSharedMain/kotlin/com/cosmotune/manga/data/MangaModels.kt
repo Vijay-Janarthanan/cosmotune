@@ -159,6 +159,12 @@ data class MangaLibraryState(
     /** The reading direction and scale chosen in the reader for one series (Mihon's per-series reader settings), by series id. */
     val seriesMode: Map<String, MangaReaderMode> = emptyMap(),
     val seriesFit: Map<String, MangaReaderFit> = emptyMap(),
+    /** The listener's own note on a series, by series id. */
+    val notes: Map<String, String> = emptyMap(),
+    /** Chapters the listener bookmarked. */
+    val bookmarks: Set<String> = emptySet(),
+    /** Going on to the next chapter skips chapters already read. */
+    val skipReadChapters: Boolean = false,
     /** Covers the listener chose for a series (a page set as cover), by series id: a file in the library's covers folder. */
     val customCovers: Map<String, String> = emptyMap(),
     /** Titles the listener gave a series, kept over the source's when the series refreshes. */
@@ -205,6 +211,18 @@ fun MangaLibraryState.collectionBooks(selection: String): List<MangaBook> = when
 
 /** The result of a library update check so far: [failures] maps a series id to the reason its source could not be checked. */
 data class MangaUpdateReport(val checked: Int, val total: Int, val newChapters: Int, val updatedSeries: Int, val failures: Map<String, String>)
+
+/**
+ * The chapter the reader goes on to after [current] (Mihon's skip rules): the next of the same edition, past chapters with the
+ * same number as one already passed (a second upload of it), and past read ones when [skipRead] is on.
+ */
+fun MangaBook.nextChapter(current: MangaChapter, read: Set<String>, skipRead: Boolean): MangaChapter? {
+    val edition = chapters.filter { it.language == current.language && it.branch == current.branch && it.scanlator == current.scanlator }
+        .sortedWith(compareBy({ it.volume }, { it.number }))
+    val index = edition.indexOfFirst { it.id == current.id }
+    if (index < 0) return null
+    return edition.drop(index + 1).firstOrNull { (current.number <= 0f || it.number != current.number) && (!skipRead || it.id !in read) }
+}
 
 /** Continue the same edition without jumping to another translation or restarting a missing chapter. */
 fun MangaBook.nextChapter(current: MangaChapter): MangaChapter? {
