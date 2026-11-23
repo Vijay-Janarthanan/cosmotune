@@ -72,7 +72,7 @@ class VisualPolishContractTest {
 
     @Test fun anIconButtonTakesARestingTint() {
         val button = SourceContract.read("$ui/components/CosmoIconButton.kt")
-        assertEquals("tint: Color? = null", SourceContract.parameters(button, "CosmoIconButton").last(), "one more optional parameter, at the end")
+        assertEquals(listOf("tint: Color? = null", "shortcut: String? = null"), SourceContract.parameters(button, "CosmoIconButton").takeLast(2), "optional parameters, at the end")
         val ink = SourceContract.code(button).substringAfter("val ink = when {").substringBefore("}")
         assertTrue(ink.indexOf("isOn -> look.ink") in 0 until ink.indexOf("tint != null -> tint"), "the tint is the resting ink; an on state keeps its own")
     }

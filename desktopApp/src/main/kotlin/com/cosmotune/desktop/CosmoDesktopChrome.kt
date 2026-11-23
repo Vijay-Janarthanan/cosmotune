@@ -96,10 +96,11 @@ internal fun CosmoDesktopTopBar(
                 CosmoIconButton(
                     CosmoIcons.ChevronLeft, DesktopStrings["back", "Back"], back,
                     style = CosmoIconButtonStyle.TONAL, size = 40.dp, enabled = backEnabled,
+                    shortcut = if (DesktopPlatform.isMac) "⌥←" else "Alt+Left",
                 )
                 Spacer(Modifier.weight(1f))
                 if (compact && !video && onSearch != null) {
-                    CosmoIconButton(CosmoIcons.Search, DesktopStrings["search", "Search"], onSearch, style = CosmoIconButtonStyle.TONAL, size = 40.dp)
+                    CosmoIconButton(CosmoIcons.Search, DesktopStrings["search", "Search"], onSearch, style = CosmoIconButtonStyle.TONAL, size = 40.dp, shortcut = if (DesktopPlatform.isMac) "⌘F" else "Ctrl+K")
                     Spacer(Modifier.width(8.dp))
                 }
                 // Live now, in every mode: the pill of the match or live show followed, which opens its panel; nothing when none is live.

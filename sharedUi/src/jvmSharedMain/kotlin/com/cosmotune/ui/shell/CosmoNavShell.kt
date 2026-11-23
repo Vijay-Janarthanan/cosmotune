@@ -1,5 +1,6 @@
 package com.cosmotune.ui.shell
 
+import com.cosmotune.ui.orbit.orbitTooltip
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -230,13 +231,18 @@ internal fun CosmoSearchButton(search: CosmoNavSearch, size: Dp, look: OrbitLook
     val interaction = remember { MutableInteractionSource() }
     val ground by animateColorAsState(if (search.selected) look.ink else fill, tween(180), label = "search-fill")
     val ink by animateColorAsState(if (search.selected) look.ground else look.dim, tween(180), label = "search-ink")
+    val tooltip = com.cosmotune.ui.orbit.rememberOrbitTooltipState()
     Box(
         modifier.size(size).cosmoFocusRing(interaction, size / 2, floating = true).clip(CircleShape).background(ground)
+            .orbitTooltip(tooltip)
             .selectable(selected = search.selected, interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = { haptics.play(Haptic.Select); search.onClick() })
             .semantics { contentDescription = search.label; selected = search.selected }
             .testTag(NAV_SEARCH_TAG),
         contentAlignment = Alignment.Center,
-    ) { Icon(CosmoIcons.Search, contentDescription = null, tint = ink, modifier = Modifier.size(24.dp)) }
+    ) {
+        Icon(CosmoIcons.Search, contentDescription = null, tint = ink, modifier = Modifier.size(24.dp))
+        com.cosmotune.ui.orbit.OrbitTooltipPill(tooltip, search.label)
+    }
 }
 
 /** The bottom bar's search button, at the tab bar's height on its fill. */
