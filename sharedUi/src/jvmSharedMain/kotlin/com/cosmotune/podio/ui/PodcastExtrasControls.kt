@@ -26,14 +26,19 @@ internal enum class ExtrasTab(val label: String) { CHAPTERS("Chapters"), TRANSCR
 /** What the publisher's chapters of an episode are once fetched, and whether they are still coming. */
 internal class EpisodeChapters(val list: List<PodcastChapter>, val loading: Boolean, val failed: Boolean)
 
-/** The publisher's chapters of [episode], fetched once per episode (the same file the notification reads). */
-@Composable internal fun rememberEpisodeChapters(episode: PodcastEpisode?, catalogue: PodioCatalogue): EpisodeChapters {
+private fun PodcastEpisode.hasChapterSource(localPath: String?) = chaptersUrl != null || inlineChapters.isNotEmpty() || localPath != null
+
+/**
+ * The chapters of [episode], fetched once per episode: the publisher's file, else those written into the downloaded copy
+ * ([localPath]), else the ones in the feed (Podlove, or times in the show notes).
+ */
+@Composable internal fun rememberEpisodeChapters(episode: PodcastEpisode?, catalogue: PodioCatalogue, localPath: String? = null): EpisodeChapters {
     var list by remember(episode?.id) { mutableStateOf(emptyList<PodcastChapter>()) }
-    var loading by remember(episode?.id) { mutableStateOf(episode?.chaptersUrl != null) }
+    var loading by remember(episode?.id) { mutableStateOf(episode?.hasChapterSource(localPath) == true) }
     var failed by remember(episode?.id) { mutableStateOf(false) }
     LaunchedEffect(episode?.id) {
-        if (episode?.chaptersUrl == null) { loading = false; return@LaunchedEffect }
-        try { list = catalogue.chapters(episode).take(2_000) }
+        if (episode == null || !episode.hasChapterSource(localPath)) { loading = false; return@LaunchedEffect }
+        try { list = catalogue.chapters(episode, localPath).take(2_000) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { failed = true }
         finally { loading = false }
@@ -49,15 +54,17 @@ internal class EpisodeChapters(val list: List<PodcastChapter>, val loading: Bool
  */
 @Composable internal fun EpisodeExtras(episode: PodcastEpisode, catalogue: PodioCatalogue, positionMs: Long?, onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier, start: ExtrasTab = ExtrasTab.CHAPTERS, listHeight: Dp = 280.dp, chapters: EpisodeChapters? = null,
-    trailing: @Composable RowScope.() -> Unit = {}) {
+    localPath: String? = null, trailing: @Composable RowScope.() -> Unit = {}) {
     val fonts = orbitFonts(); val look = orbitLook()
     val notes = remember(episode.id) { PodioFormat.plainText(episode.description) }
-    val tabs = listOfNotNull(ExtrasTab.CHAPTERS.takeIf { episode.chaptersUrl != null }, ExtrasTab.TRANSCRIPT.takeIf { episode.transcripts.isNotEmpty() },
+    val ownChapters = if (chapters == null) rememberEpisodeChapters(episode, catalogue, localPath) else null
+    val chapterState = chapters ?: ownChapters
+    // A downloaded copy only earns the tab if its own tag turned out to hold chapters.
+    val hasChapters = episode.chaptersUrl != null || episode.inlineChapters.isNotEmpty() || chapterState?.list?.isNotEmpty() == true
+    val tabs = listOfNotNull(ExtrasTab.CHAPTERS.takeIf { hasChapters }, ExtrasTab.TRANSCRIPT.takeIf { episode.transcripts.isNotEmpty() },
         ExtrasTab.NOTES.takeIf { notes.isNotBlank() })
     var chosen by remember(episode.id) { mutableStateOf(start) }
     val tab = chosen.takeIf { it in tabs } ?: tabs.firstOrNull()
-    val ownChapters = if (chapters == null) rememberEpisodeChapters(episode.takeIf { tab == ExtrasTab.CHAPTERS }, catalogue) else null
-    val chapterState = chapters ?: ownChapters
     var cues by remember(episode.id) { mutableStateOf<List<PodcastCue>?>(null) }
     var cueError by remember(episode.id) { mutableStateOf(false) }
     var attempt by remember(episode.id) { mutableIntStateOf(0) }
@@ -82,7 +89,7 @@ internal class EpisodeChapters(val list: List<PodcastChapter>, val loading: Bool
         val list = rememberLazyListState()
         val current = when (tab) {
             ExtrasTab.CHAPTERS -> positionMs?.let { PodioFormat.chapterAt(chapterState?.list.orEmpty(), it) } ?: -1
-            ExtrasTab.TRANSCRIPT -> positionMs?.let { p -> cues.orEmpty().indexOfLast { it.startMs <= p } } ?: -1
+            ExtrasTab.TRANSCRIPT -> positionMs?.let { p -> cues.orEmpty().indexOfLast { it.timed && it.startMs <= p } } ?: -1
             else -> -1
         }
         // The transcript keeps the line being spoken in view while it plays.
@@ -111,7 +118,8 @@ internal class EpisodeChapters(val list: List<PodcastChapter>, val loading: Bool
                     cues.orEmpty().isEmpty() -> Text("The publisher's transcript is empty.", style = fonts.body, color = look.dim, modifier = Modifier.padding(4.dp))
                     else -> LazyColumn(state = list) {
                         itemsIndexed(cues.orEmpty()) { index, cue ->
-                            ExtrasLine(listOfNotNull(PodioFormat.clock(cue.startMs), cue.speaker).joinToString(" · "), cue.text, index == current) { onSeek(cue.startMs) }
+                            ExtrasLine(listOfNotNull(PodioFormat.clock(cue.startMs).takeIf { cue.timed }, cue.speaker).joinToString(" · "), cue.text, index == current,
+                                onClick = if (cue.timed) ({ onSeek(cue.startMs) }) else null)
                         }
                     }
                 }
@@ -122,12 +130,13 @@ internal class EpisodeChapters(val list: List<PodcastChapter>, val loading: Bool
 }
 
 /** A chapter or a line of the transcript: its time (and speaker) over its words; the one playing in the accent. A tap plays from it. */
-@Composable private fun ExtrasLine(time: String, text: String, now: Boolean, onClick: () -> Unit) {
+@Composable private fun ExtrasLine(time: String, text: String, now: Boolean, onClick: (() -> Unit)?) {
     val fonts = orbitFonts(); val look = orbitLook()
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).then(if (now) Modifier.background(look.accent.copy(alpha = 0.14f)) else Modifier)
-        .clickable(role = Role.Button, onClickLabel = "Play from here", onClick = onClick).padding(horizontal = 10.dp, vertical = 10.dp),
+        .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClickLabel = "Play from here", onClick = onClick) else Modifier)
+        .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(time, style = fonts.label, color = if (now) look.accent else look.dim, modifier = Modifier.widthIn(min = 52.dp).padding(top = 2.dp))
+        if (time.isNotEmpty()) Text(time, style = fonts.label, color = if (now) look.accent else look.dim, modifier = Modifier.widthIn(min = 52.dp).padding(top = 2.dp))
         Text(text, style = fonts.body.copy(fontSize = 14.sp, lineHeight = 20.sp), color = if (now) look.accent else look.ink, modifier = Modifier.weight(1f))
     }
 }

@@ -598,7 +598,7 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
             }
             EpisodeExtras(episode, m.catalogue, positionMs = if (now) env.playback.positionMs else null,
                 onSeek = { position -> if (now) env.onSeek(position) else m.playEpisodeAt(entry, position) },
-                start = ExtrasTab.NOTES, listHeight = 360.dp)
+                start = ExtrasTab.NOTES, listHeight = 360.dp, localPath = env.downloaded.firstOrNull { it.id == item.id }?.downloadedPath)
         }
     }
 }
