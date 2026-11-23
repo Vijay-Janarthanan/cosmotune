@@ -265,6 +265,12 @@ fun EqualizerScreen(
                             enabled = enabled,
                         )
                     }
+                    com.cosmotune.ui.nowplaying.EqUserPresetsSection(
+                        bands = bands,
+                        onApply = { AppSettings.setEqualizerBands(it) },
+                        modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
+                        enabled = enabled,
+                    )
                     SettingsGroup(
                         header = stringResource(R.string.equalizer_bands),
                         footer = stringResource(R.string.equalizer_bands_footer),

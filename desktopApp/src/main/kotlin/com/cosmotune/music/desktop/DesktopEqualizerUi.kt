@@ -415,6 +415,12 @@ private fun ManualTab() {
         // seeing the curve move as a preset is picked is the point of having them.
         PresetList(preset, Modifier.width(168.dp))
     }
+    com.cosmotune.ui.nowplaying.EqUserPresetsSection(
+        bands = bands,
+        onApply = { DesktopEqualizerSettings.setBands(it) },
+        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+        side = panelInset(22.dp),
+    )
     Row(
         Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

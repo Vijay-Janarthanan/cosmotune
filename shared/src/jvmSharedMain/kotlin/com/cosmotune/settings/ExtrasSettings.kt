@@ -175,6 +175,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val sleepFadeOutFlow = MutableStateFlow(store.getBoolean(KEY_SLEEP_FADE_OUT, true))
     private val bestPartFlow = MutableStateFlow(store.getBoolean(KEY_BEST_PART, true))
     private val waveformSeekFlow = MutableStateFlow(store.getBoolean(KEY_WAVEFORM_SEEK, true))
+    private val eqUserPresetsFlow = MutableStateFlow(com.cosmotune.music.playback.EqUserPresets.decode(store.getString(KEY_EQ_USER_PRESETS, "")))
     private val screenOnFlow = MutableStateFlow(ScreenOnPolicy.named(store.getString(KEY_SCREEN_ON, ScreenOnPolicy.DEFAULT.name)))
 
     /**
@@ -197,6 +198,13 @@ class ExtrasSettings(private val store: KeyValueStore) {
     val waveformSeek: StateFlow<Boolean> = waveformSeekFlow.asStateFlow()
     fun setWaveformSeek(value: Boolean) { waveformSeekFlow.value = value; store.putBoolean(KEY_WAVEFORM_SEEK, value) }
 
+    /** The equaliser curves the listener saved by name (Your presets), newest first. */
+    val eqUserPresets: StateFlow<List<com.cosmotune.music.playback.EqUserPreset>> = eqUserPresetsFlow.asStateFlow()
+    fun setEqUserPresets(value: List<com.cosmotune.music.playback.EqUserPreset>) {
+        eqUserPresetsFlow.value = value
+        store.putString(KEY_EQ_USER_PRESETS, com.cosmotune.music.playback.EqUserPresets.encode(value))
+    }
+
     /** When the player keeps the screen on; see [ScreenOnPolicy]. */
     val screenOn: StateFlow<ScreenOnPolicy> = screenOnFlow.asStateFlow()
     fun setScreenOn(value: ScreenOnPolicy) { screenOnFlow.value = value; store.putString(KEY_SCREEN_ON, value.name) }
@@ -208,6 +216,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_BEST_PART = "extras_best_part"
         const val KEY_SCREEN_ON = "extras_screen_on"
         const val KEY_WAVEFORM_SEEK = "extras_waveform_seek"
+        const val KEY_EQ_USER_PRESETS = "extras_eq_user_presets"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"
