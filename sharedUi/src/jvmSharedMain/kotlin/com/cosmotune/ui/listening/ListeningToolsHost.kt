@@ -74,6 +74,14 @@ data class ListeningToolsHost(
     },
     /** Called only when the listener chooses catalogue matching in the import preview. */
     val matchPlaylistTrack: suspend (com.cosmotune.listening.MusicPlaylistImportRow) -> Song? = ::findPlaylistRecording,
+    /**
+     * Another music app's backup (InnerTune, Metrolist, ViMusic, Kreate, SimpMusic): [pickBackupFile] answers the picked file's
+     * bytes, [openSqlite] reads its database, [likeSongs] likes the songs that were liked there. The import is offered only
+     * when all three are given; its playlists are made with [createPlaylist].
+     */
+    val pickBackupFile: (suspend () -> ByteArray?)? = null,
+    val openSqlite: com.cosmotune.video.importers.SqliteOpener? = null,
+    val likeSongs: (suspend (List<Song>) -> Unit)? = null,
 )
 
 private suspend fun findPlaylistRecording(row: com.cosmotune.listening.MusicPlaylistImportRow): Song? =

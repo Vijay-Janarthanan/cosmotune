@@ -39,6 +39,8 @@ fun PhoneListeningTools(
     /** False until the library, history and restored queue behind [library] have had a chance to load. */
     libraryKnown: Boolean = true,
     openOn: com.cosmotune.ui.listening.ListeningTab? = null,
+    /** Likes the songs another music app's backup had liked (Backup > From another music app). */
+    likeSongs: (suspend (List<Song>) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var pending by remember { mutableStateOf<CompletableDeferred<Uri?>?>(null) }
@@ -206,6 +208,18 @@ fun PhoneListeningTools(
                 }
             } }
         },
+        pickBackupFile = {
+            check(pending == null) { "Finish the open file chooser first." }
+            val answer = CompletableDeferred<Uri?>().also { pending = it }
+            picker.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "*/*" })
+            answer.await()?.let { uri -> withContext(Dispatchers.IO) {
+                checkNotNull(context.contentResolver.openInputStream(uri)) { "The selected file could not be opened." }.use { it.readBytes() }
+            } }
+        },
+        openSqlite = com.cosmotune.video.importers.TempFileSqliteOpener(java.io.File(context.cacheDir, "other-app-import")) { path ->
+            com.cosmotune.video.importers.AndroidSqliteRows(path)
+        },
+        likeSongs = likeSongs,
         importPlaylistFile = {
             check(pending == null) { "Finish the open file chooser first." }
             val answer = CompletableDeferred<Uri?>().also { pending = it }

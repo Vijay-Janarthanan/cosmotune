@@ -3743,6 +3743,7 @@ fun CosmotuneDesktopApp() {
             com.cosmotune.desktop.DesktopListeningTools(
                 open = listeningToolsOpen,
                 onDismiss = { listeningToolsOpen = false; listeningToolsOpenOn = null },
+                likeSongs = { songs -> songs.filterNot { it.videoId in likedIds }.forEach { rate(it, LikeStatus.LIKE) } },
                 openOn = listeningToolsOpenOn,
                 syncPlaylists = com.cosmotune.desktop.desktopSyncPlaylists(playlists),
                 applySyncedPlaylists = { records, files ->

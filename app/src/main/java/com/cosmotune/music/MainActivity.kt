@@ -2589,6 +2589,9 @@ private fun CosmotuneApp(
         open = listeningToolsOpen,
         onDismiss = { listeningToolsOpen = false; listeningToolsOpenOn = null },
         openOn = listeningToolsOpenOn,
+        likeSongs = { songs ->
+            songs.filterNot { likeStatuses[it.videoId] == LikeStatus.LIKE }.forEach { viewModel.setLike(it.videoId, LikeStatus.LIKE, it) }
+        },
         library = com.cosmotune.listening.ListeningLibrary(
             songs = listeningLibraryPage?.likedSongs.orEmpty() + listeningLibraryPage?.librarySongs.orEmpty() + localPlaylists.flatMap { it.songs } + listeningHistory + player.queue,
             likedIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },

@@ -24,6 +24,8 @@ fun DesktopListeningTools(
     syncPlaylists: List<com.cosmotune.remote.SyncPlaylist> = emptyList(),
     applySyncedPlaylists: (suspend (List<com.cosmotune.remote.SyncRecord>, (String) -> File?) -> Unit)? = null,
     openOn: com.cosmotune.ui.listening.ListeningTab? = null,
+    /** Likes the songs another music app's backup had liked (Backup > From another music app). */
+    likeSongs: (suspend (List<Song>) -> Unit)? = null,
 ) {
     ListeningTools(open, ListeningToolsHost(
         file = desktopListeningFile(), library = library, queue = queue,
@@ -45,6 +47,16 @@ fun DesktopListeningTools(
                 file.readText(Charsets.UTF_8)
             } }
         },
+        pickBackupFile = {
+            chooseCosmotuneFile("", saving = false, title = "Choose the other app's backup")?.let { file -> withContext(Dispatchers.IO) {
+                require(file.length() <= 512L * 1024 * 1024) { "Choose a backup smaller than 512 MB." }
+                file.readBytes()
+            } }
+        },
+        openSqlite = com.cosmotune.video.importers.TempFileSqliteOpener(
+            File(System.getProperty("java.io.tmpdir"), "cosmotune-import"), ::JdbcSqliteRowsFor,
+        ),
+        likeSongs = likeSongs,
         importPlaylistFile = {
             chooseCosmotuneFile("", saving = false, title = "Import music playlist")?.let { selected -> withContext(Dispatchers.IO) {
                 val file = selected.canonicalFile
@@ -107,3 +119,6 @@ internal fun desktopTrash(): (suspend (List<Song>) -> Int)? {
         songs.mapNotNull { it.localPath?.let(::File)?.takeIf { f -> f.isAbsolute && f.isFile } }.distinct().count { runCatching { desktop.moveToTrash(it) }.getOrDefault(false) }
     } }
 }
+
+/** The desktop's SQLite reader (sqlite-jdbc) for a backup's database. */
+private fun JdbcSqliteRowsFor(path: String): com.cosmotune.video.importers.SqliteRows = com.cosmotune.video.importers.JdbcSqliteRows(path)
