@@ -279,6 +279,9 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
         TvFlashGlyph(flash, flashTick, Modifier.align(Alignment.BottomCenter))
         TvSeekNote(seekNote, seekTick, Modifier.align(Alignment.BottomCenter))
 
+        // The time of day, top right, while the card is up (CloudStream's player clock).
+        if (cardUp && !failed) TvPlayerClock(Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = TvDimensions.SafeMarginHorizontal))
+
         AnimatedVisibility(
             visible = cardUp && !failed,
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -642,4 +645,13 @@ private fun clock(ms: Long): String {
 private fun left(ms: Long): String {
     val min = ((ms + 59_999) / 60_000).toInt()
     return if (min >= 60) "${min / 60}h ${"%02d".format(min % 60)}m left" else "$min min left"
+}
+
+/** "21:40", the time now, refreshed on the minute. */
+@Composable
+private fun TvPlayerClock(modifier: Modifier) {
+    val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(60_000 - value % 60_000) } }
+    val text = remember(now) { java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) }
+    Text(text, style = TvType.Headline, color = TvGlass.TextPrimary,
+        modifier = modifier.clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 14.dp, vertical = 6.dp))
 }
