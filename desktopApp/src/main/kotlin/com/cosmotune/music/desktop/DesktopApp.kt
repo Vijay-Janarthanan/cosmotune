@@ -702,6 +702,8 @@ fun CosmotuneDesktopApp() {
     val activeAccount = accounts.firstOrNull { it.accountId == activeAccountId } ?: accounts.firstOrNull()
     // The account's own library, fetched once a session is in force.
     var libraryState by remember { mutableStateOf<UiState<LibraryPage>>(UiState.Loading) }
+    // Search's "In my library" chip (the board's 6a): the liked and added songs, the downloads and the saved collections.
+    var searchInMyLibrary by remember { mutableStateOf(false) }
     // Whether YouTube is actually accepting the session, which is not the same as having an account
     // saved.
     var youtubeSignedIn by remember { mutableStateOf(false) }
@@ -4951,7 +4953,7 @@ fun CosmotuneDesktopApp() {
                             contentPadding = sharedPagePadding,
                             showTitle = false,
                         )
-                        destination == DesktopDestination.SEARCH -> com.cosmotune.ui.search.SearchSwitch(
+                        destination == DesktopDestination.SEARCH -> { val searchUndo = com.cosmotune.ui.orbit.LocalOrbitUndo.current; com.cosmotune.ui.search.SearchSwitch(
                             query = query,
                             onQueryChange = ::editQuery,
                             filter = searchFilter,
@@ -4984,8 +4986,14 @@ fun CosmotuneDesktopApp() {
                                 }
                             },
                             onSongLongPress = ::openMenu,
+                            // A swipe on a search row (the live ones while typing too) queues the song with an Undo that takes it out again.
                             onSongSwipe = { song ->
-                                if (DesktopAppUiHost.swipeToPlayNext.value) playNext(song) else addToQueue(song)
+                                val next = DesktopAppUiHost.swipeToPlayNext.value
+                                if (next) playNext(song) else addToQueue(song)
+                                searchUndo?.show(if (next) "Plays next" else "Added to queue") {
+                                    val after = (liveQueue.index + 1 until liveQueue.songs.size).let { if (next) it else it.reversed() }
+                                    after.firstOrNull { liveQueue.songs[it].videoId == song.videoId }?.let(::removeFromQueue)
+                                }
                             },
                             onTopResultPlay = { song ->
                                 recordSongSearch(song)
@@ -5086,8 +5094,12 @@ fun CosmotuneDesktopApp() {
                                 },
                                 progress = addonSearchProgress,
                             ),
+                            myLibrary = com.cosmotune.ui.search.MyLibraryScope(searchInMyLibrary, { searchInMyLibrary = it }, remember(libraryState, downloads) {
+                                val page = (libraryState as? UiState.Success)?.data
+                                com.cosmotune.ui.search.MyLibrary.of(page?.likedSongs.orEmpty(), page?.librarySongs.orEmpty(), downloads, page?.shelves.orEmpty())
+                            }),
                             browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { selectDestination(DesktopDestination.EXPLORE); openMoodGenre(it) }, onRetry = { exploreReloads++ }),
-                        )
+                        ) }
                         destination == DesktopDestination.LIBRARY && libraryShowAll != null -> Column(Modifier.fillMaxSize()) {
                             // The phone keeps the grid's sort beside it, in the bar above; here it sits
                             // at the end of the row the way back is on.

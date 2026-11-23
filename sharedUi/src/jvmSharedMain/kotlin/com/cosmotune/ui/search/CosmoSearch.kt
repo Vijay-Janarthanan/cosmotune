@@ -164,12 +164,13 @@ fun CosmoSearch(
     onAddonHistoryClear: () -> Unit = {},
     onAddonSongClick: (List<Song>, Int) -> Unit = onSongClick,
     searchIn: com.cosmotune.ui.search.SearchInState? = null,
+    myLibrary: MyLibraryScope? = null,
     browse: CosmoBrowse? = null,
 ) {
-    val focusRequester = remember { FocusRequester() }
+    val searchFocus = rememberCosmoSearchFocus(focusOnOpen = false)
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val reduced = LocalReducedMotion.current
+    val focusRequester = searchFocus.requester
     val fonts = orbitFonts()
     val look = orbitLook()
 
@@ -217,55 +218,103 @@ fun CosmoSearch(
         onBrowseClick = onBrowseClick,
         onBrowseLongPress = onBrowseLongPress,
     )
+    // "In my library" (the board's 6a): the words looked for in what you keep, not on YouTube. YouTube's source only.
+    val libraryScope = myLibrary?.takeIf { !searchingLibrary && !searchingAddons }
+    val inMyLibrary = libraryScope?.on == true
+    val libraryFound = if (inMyLibrary) remember(query, filter, libraryScope?.library) { searchMyLibrary(query, filter, requireNotNull(libraryScope).library) } else emptyList()
+    val counts = rememberFilterCounts(query, filter, results)
+    val status: CosmoSearchStatus = when {
+        searchingLibrary -> songsStatus(libraryResults, retry = null)
+        searchingAddons -> when {
+            addonResults == null && query.isBlank() -> CosmoSearchStatus.Idle
+            searchIn?.progress != null -> CosmoSearchStatus.Results(0, "Your add-ons, source by source")
+            else -> songsStatus(addonResults, retry = onSubmit)
+        }
+        suggesting -> CosmoSearchStatus.Typing
+        inMyLibrary -> when {
+            query.isBlank() -> CosmoSearchStatus.Idle
+            libraryFound.isEmpty() -> CosmoSearchStatus.Empty("Nothing in your library matches “${query.trim()}”")
+            else -> CosmoSearchStatus.Results(libraryFound.size, searchCountLabel(libraryFound.size) + " in your library")
+        }
+        results == null -> CosmoSearchStatus.Idle
+        results is UiState.Loading -> CosmoSearchStatus.Searching
+        results is UiState.Error -> CosmoSearchStatus.Failed(results.message, onSubmit)
+        results is UiState.Success && results.data.isEmpty() -> CosmoSearchStatus.Empty()
+        else -> CosmoSearchStatus.Results((results as UiState.Success).data.size)
+    }
     BoxWithConstraints(modifier.fillMaxSize()) {
         val wide = maxWidth.value >= WIDE_SEARCH_DP
         val side = if (wide) 28.dp else 16.dp
         val (columns, cell) = orbitRecordGrid(maxWidth, side)
         val page = SearchPage(fonts, look, side, wide, columns, cell)
         val tiles = tileColumns(maxWidth.value, side.value)
-        Column(Modifier.fillMaxSize()) {
-            // The pill, the source switcher and the filter chips stay fixed at the top, outside the scrolling list, so they are
-            // always reachable rather than scrolling away with the results or the recent searches beneath them.
-            Column(Modifier.padding(top = topPadding)) {
-                if (showField) {
-                    OrbitSearchPill(
+        val bottom = contentPadding.calculateBottomPadding()
+        // The kinds are YouTube's categories: the Library source and the add-ons have none.
+        val youtube = !searchingLibrary && !searchingAddons
+        CosmoSearchPage(
+            eyebrow = "Music",
+            query = query,
+            onQueryChange = onQueryChange,
+            onSubmit = onSubmit,
+            placeholder = stringResource(
+                when {
+                    searchingLibrary -> Res.string.search_library_hint
+                    searchingAddons -> Res.string.search_addons_hint
+                    else -> Res.string.search_hint
+                },
+            ),
+            status = status,
+            modifier = Modifier,
+            focus = searchFocus,
+            contentPadding = PaddingValues(top = topPadding, bottom = bottom),
+            showField = showField,
+            fieldTrailing = sources?.let { { SourceChip(it, page) } },
+            kinds = if (youtube) FILTER_ENTRIES.map { CosmoSearchChoice(it.name, it.label, if (inMyLibrary) null else counts[it]) } else emptyList(),
+            kind = filter.name,
+            onKind = { name -> SearchFilter.entries.firstOrNull { it.name == name }?.let(onFilterChange) },
+            extraChips = libraryScope?.let { scope -> {
+                OrbitSelectChip("In my library", scope.on, fonts, look, { scope.onToggle(!scope.on) }, icon = CosmoIcons.Library,
+                    modifier = Modifier.testTag("search:in-my-library"))
+            } },
+            trailingChips = if (searchIn != null && !searchingLibrary) ({ SearchInChipsInRow(searchIn) }) else null,
+            recents = if (searchingAddons) {
+                CosmoSearchRecents(addonHistory.map { CosmoRecent(it, it) }, onPick = { onAddonHistoryClick(it.title) },
+                    onRemove = { onAddonHistoryRemove(it.title) }, onClear = onAddonHistoryClear)
+            } else {
+                CosmoSearchRecents(history.map { CosmoRecent(it.id, it.title, it.artworkUrl) },
+                    onPick = { recent -> history.firstOrNull { it.id == recent.id }?.let(onHistoryClick) },
+                    onRemove = { onHistoryRemove(it.id) }, onClear = onHistoryClear)
+            },
+            // Explore's moods and genres, under their own headings.
+            browseTitle = "",
+            browse = browse?.takeIf { !searchingAddons }?.let { explore -> { _ ->
+                browseTiles(state = explore.state, lists = lists, onOpen = explore.onOpen, onRetry = explore.onRetry, columns = tiles, side = page.side,
+                    fonts = page.fonts, look = page.look, together = true)
+            } },
+            typing = { listModifier, _ ->
+                LazyColumn(listModifier, contentPadding = PaddingValues(bottom = bottom)) {
+                    suggestionRows(
                         query = query,
-                        onQueryChange = onQueryChange,
-                        onSubmit = onSubmit,
-                        placeholder = stringResource(
-                            when {
-                                searchingLibrary -> Res.string.search_library_hint
-                                searchingAddons -> Res.string.search_addons_hint
-                                else -> Res.string.search_hint
-                            },
-                        ),
-                        fonts = fonts,
-                        look = look,
-                        focusRequester = focusRequester,
-                        modifier = Modifier.padding(start = side, end = side, top = 8.dp, bottom = 12.dp),
-                        trailing = sources?.let { { SourceChip(it, page) } },
+                        suggestions = suggestions,
+                        // Picking one is done typing, so the keyboard comes down with it and the results get the whole screen.
+                        onClick = { term ->
+                            onSuggestionClick(term)
+                            focusManager.clearFocus()
+                        },
+                        onFill = onQueryChange,
                     )
-                }
-                // One row of chips under the field: the filters (with counts, once there is a result set to narrow; they stay up
-                // for an empty or failed search too, or picking a filter that finds nothing would take away the control needed to
-                // leave it; they are YouTube's categories, so the Library source has none), then "Search in" (every installed
-                // source by name, the remembered choice selected; up while typing too, so where the query goes is chosen first).
-                val filtering = results != null && !suggesting && !searchingLibrary && !searchingAddons
-                val choosing = searchIn != null && !searchingLibrary
-                val counts = rememberFilterCounts(query, filter, results)
-                if (filtering || choosing) {
-                    OrbitChipRow(side, Modifier.padding(bottom = 12.dp).testTag("search:chips")) {
-                        if (filtering) SearchFilterChips(filter = filter, onFilterChange = onFilterChange, counts = counts, fonts = fonts, look = look)
-                        if (choosing) SearchInChipsInRow(requireNotNull(searchIn))
+                    if (showTypeahead) {
+                        typeaheadRows(
+                            typeaheadResults = typeaheadResults,
+                            actions = actions,
+                            onTypeaheadLongPress = onTypeaheadLongPress,
+                            page = page,
+                        )
                     }
                 }
-            }
-
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
-            ) {
+            },
+        ) { listModifier, _ ->
+            LazyColumn(state = listState, modifier = listModifier, contentPadding = PaddingValues(bottom = bottom)) {
                 when {
                     searchingLibrary -> libraryRows(
                         query = query.trim(),
@@ -277,9 +326,7 @@ fun CosmoSearch(
                         onSongSwipe = onSongSwipe,
                         page = page,
                     )
-                    searchingAddons -> if (addonResults == null && query.isBlank() && addonHistory.isNotEmpty()) {
-                        addonRecentChips(addonHistory, onAddonHistoryClick, onAddonHistoryRemove, onAddonHistoryClear, page)
-                    } else if (searchIn?.progress != null) {
+                    searchingAddons -> if (searchIn?.progress != null) {
                         // Source by source, each with its own state, as the answers come in.
                         addonSourceSections(searchIn.progress, searchIn, "addon", cosmo = true) { tracks, index, song ->
                             val current = playingRowMatcher(tracks, currentSong)(song)
@@ -309,38 +356,7 @@ fun CosmoSearch(
                             addons = true,
                         )
                     }
-                    suggesting -> {
-                        suggestionRows(
-                            query = query,
-                            suggestions = suggestions,
-                            // Picking one is done typing, so the keyboard comes down with it and the results get the whole screen.
-                            onClick = { term ->
-                                onSuggestionClick(term)
-                                focusManager.clearFocus()
-                            },
-                            onFill = onQueryChange,
-                        )
-                        if (showTypeahead) {
-                            typeaheadRows(
-                                typeaheadResults = typeaheadResults,
-                                actions = actions,
-                                onTypeaheadLongPress = onTypeaheadLongPress,
-                                page = page,
-                            )
-                        }
-                    }
-                    results == null -> idleRows(
-                        browse = browse,
-                        lists = lists,
-                        page = page,
-                        columns = tiles,
-                        history = history,
-                        onHistoryClick = onHistoryClick,
-                        onHistoryRemove = onHistoryRemove,
-                        onHistoryClear = onHistoryClear,
-                    )
-                    results is UiState.Loading -> songListSkeleton()
-                    results is UiState.Error -> item(key = "search:error") { MessageState(results.message) }
+                    inMyLibrary -> resultRows(rows = libraryFound, query = query, filter = filter, page = page, loadingMore = false, actions = actions)
                     results is UiState.Success -> resultRows(
                         rows = results.data,
                         query = query,
@@ -349,29 +365,35 @@ fun CosmoSearch(
                         loadingMore = loadingMore,
                         actions = actions,
                     )
+                    else -> Unit
                 }
             }
         }
     }
 }
 
+/**
+ * Music's "In my library" scope chip: whether it is [on], what turning it on or off does, and the [library] it then searches (the
+ * liked and added songs, the downloads, the saved albums, playlists and artists).
+ */
+class MyLibraryScope(val on: Boolean, val onToggle: (Boolean) -> Unit, val library: MyLibrary)
+
+/** A source that answers with songs (the Library folder, the add-ons) as the page's state; [retry] asks again where that helps. */
+private fun songsStatus(state: UiState<List<Song>>?, retry: (() -> Unit)?): CosmoSearchStatus = when (state) {
+    null -> CosmoSearchStatus.Idle
+    UiState.Loading -> CosmoSearchStatus.Searching
+    is UiState.Error -> if (retry != null) CosmoSearchStatus.Failed(state.message, retry) else CosmoSearchStatus.Empty(state.message)
+    is UiState.Success -> if (state.data.isEmpty()) CosmoSearchStatus.Empty() else CosmoSearchStatus.Results(state.data.size)
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------
 // the filters
 
-/** The order of the filter chips: the board's (All, Songs, Albums, Artists, Playlists, Videos); a filter added later goes last. */
+/** The order of the kind chips: the board's (All, Songs, Albums, Artists, Playlists, Videos); a filter added later goes last. */
 private val FILTER_ORDER = listOf(SearchFilter.ALL, SearchFilter.SONGS, SearchFilter.ALBUMS, SearchFilter.ARTISTS, SearchFilter.PLAYLISTS, SearchFilter.VIDEOS)
 
-/**
- * The filters as Orbit chips, every filter the search offers, each with its count where it is known ([rememberFilterCounts]). The
- * chip plays the select haptic itself, so only a tap that changes the filter buzzes.
- */
-@Composable
-private fun SearchFilterChips(filter: SearchFilter, onFilterChange: (SearchFilter) -> Unit, counts: Map<SearchFilter, Int>, fonts: OrbitFonts, look: OrbitLook) {
-    val entries = remember { SearchFilter.entries.sortedBy { FILTER_ORDER.indexOf(it).let { i -> if (i < 0) Int.MAX_VALUE else i } } }
-    entries.forEach { entry ->
-        OrbitSelectChip(entry.label, selected = entry == filter, fonts = fonts, look = look, onClick = { onFilterChange(entry) }, haptic = entry != filter, count = counts[entry])
-    }
-}
+/** Every filter the search offers, in [FILTER_ORDER]. */
+private val FILTER_ENTRIES: List<SearchFilter> = SearchFilter.entries.sortedBy { FILTER_ORDER.indexOf(it).let { i -> if (i < 0) Int.MAX_VALUE else i } }
 
 /**
  * How many of each kind the search found (namida's "Tracks 10 · Albums 1"): counted from the page of "All" for this query, and kept
@@ -429,99 +451,6 @@ private fun SourceChip(sources: SearchSources, page: SearchPage) {
             items = sources.options.mapIndexed { index, option -> OrbitMenuItem(option, selected = index == sources.selected) { sources.onSelect(index) } },
             fonts = page.fonts, look = page.look, header = "Search in", width = 220.dp,
         )
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------------------------
-// idle
-
-/**
- * Nothing searched yet: the recent searches as chips, then Explore's moods and genres as colour tiles. Without [browse] there are
- * no tiles. When there is nothing at all to show the old sentence stands in.
- */
-private fun LazyListScope.idleRows(
-    browse: CosmoBrowse?,
-    lists: BrowseLists?,
-    page: SearchPage,
-    columns: Int,
-    history: List<SearchHistoryEntity>,
-    onHistoryClick: (SearchHistoryEntity) -> Unit,
-    onHistoryRemove: (String) -> Unit,
-    onHistoryClear: () -> Unit,
-) {
-    if (history.isNotEmpty()) recentChips(history, onHistoryClick, onHistoryRemove, onHistoryClear, page)
-    val browsing = browse != null &&
-        browseTiles(state = browse.state, lists = lists, onOpen = browse.onOpen, onRetry = browse.onRetry, columns = columns, side = page.side, fonts = page.fonts, look = page.look, together = true)
-    if (history.isEmpty() && !browsing) {
-        item(key = "idle:empty") { MessageState(stringResource(Res.string.search_empty)) }
-    }
-}
-
-/** The mono "Recent" label with Clear at its end. */
-private fun LazyListScope.recentHeader(key: String, onClear: () -> Unit, page: SearchPage) {
-    item(key = key) {
-        Row(Modifier.fillMaxWidth().padding(start = page.side + 6.dp, end = page.side, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            OrbitLabel("Recent", page.fonts, page.look.dim, Modifier.weight(1f))
-            Text("Clear", style = page.fonts.chip.copy(fontSize = 13.sp), color = page.look.ink,
-                modifier = Modifier.clip(CircleShape).clickable(onClick = onClear).padding(horizontal = 12.dp, vertical = 8.dp))
-        }
-    }
-}
-
-/** What was searched for before, as chips: the cover as a small disc (a clock for words alone), the name, and a cross that removes it. */
-private fun LazyListScope.recentChips(
-    history: List<SearchHistoryEntity>,
-    onClick: (SearchHistoryEntity) -> Unit,
-    onRemove: (String) -> Unit,
-    onClear: () -> Unit,
-    page: SearchPage,
-) {
-    recentHeader("recent:header", onClear, page)
-    item(key = "recent:chips") {
-        OrbitChipRow(page.side, Modifier.padding(top = 6.dp)) {
-            history.forEach { entity ->
-                key("recent:${entity.id}") {
-                    RecentChip(entity.title, entity.artworkUrl, page, onClick = { onClick(entity) }, onRemove = { onRemove(entity.id) })
-                }
-            }
-        }
-    }
-}
-
-/** The Add-ons source's recents: the words searched before (no entity behind them), each searched again by a tap. */
-private fun LazyListScope.addonRecentChips(
-    history: List<String>,
-    onClick: (String) -> Unit,
-    onRemove: (String) -> Unit,
-    onClear: () -> Unit,
-    page: SearchPage,
-) {
-    recentHeader("addon-recent:header", onClear, page)
-    item(key = "addon-recent:chips") {
-        OrbitChipRow(page.side, Modifier.padding(top = 6.dp)) {
-            history.forEach { term ->
-                key("addon-recent:$term") { RecentChip(term, null, page, onClick = { onClick(term) }, onRemove = { onRemove(term) }) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RecentChip(title: String, artwork: String?, page: SearchPage, onClick: () -> Unit, onRemove: () -> Unit) {
-    val look = page.look
-    Row(
-        Modifier.height(40.dp).clip(CircleShape).background(look.chip).clickable(onClick = onClick).padding(start = 8.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-            if (artwork != null) Disc(artwork, 24.dp) else Icon(CosmoIcons.Clock, contentDescription = null, tint = look.dim, modifier = Modifier.size(16.dp))
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(title, style = page.fonts.chip, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
-        Box(
-            Modifier.padding(start = 4.dp).size(32.dp).clip(CircleShape).clickable(onClick = onRemove),
-            contentAlignment = Alignment.Center,
-        ) { Icon(CosmoIcons.Close, contentDescription = stringResource(Res.string.recent_search_remove, title), tint = look.dim, modifier = Modifier.size(14.dp)) }
     }
 }
 
@@ -661,6 +590,7 @@ private fun TypeaheadSong(song: Song, actions: SearchRowActions, onLongPress: ((
         onClick = { actions.onTopResultPlay(song) },
         modifier = modifier,
         onLongClick = onLongPress?.let { held -> { held(song) } },
+        onSwipe = { actions.onSongSwipe(song) },
         now = current,
         playing = actions.isPlaying && current,
     )

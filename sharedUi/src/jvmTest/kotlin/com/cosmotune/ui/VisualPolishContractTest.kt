@@ -66,7 +66,7 @@ class VisualPolishContractTest {
         assertEquals("haptic: Boolean = true", SourceContract.parameters(chip, "CosmoChip").last(), "one more optional parameter, at the end")
         assertTrue("haptic = haptic" in SourceContract.code(chip), "the chip hands its haptic to Orbit's chip")
         assertTrue(".clickable { if (haptic) haptics.play(Haptic.Select); onClick() }" in code("$ui/orbit/OrbitBrowse.kt"), "the select haptic only when asked")
-        assertTrue("haptic = entry != filter" in code("$ui/search/CosmoSearch.kt"), "a filter chip buzzes only when the filter changes")
+        assertTrue("haptic = choice.id != kind" in code("$ui/search/CosmoSearchPage.kt"), "a filter chip buzzes only when the filter changes")
         for (file in listOf("search/CosmoBrowseBlocks.kt", "settings/LookPreview.kt")) assertFalse("haptic =" in code("$ui/$file"), "$file keeps the haptic")
     }
 

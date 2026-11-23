@@ -67,6 +67,7 @@ fun SearchSwitch(
     onAddonHistoryClear: () -> Unit = {},
     onAddonSongClick: (List<Song>, Int) -> Unit = onSongClick,
     searchIn: com.cosmotune.ui.search.SearchInState? = null,
+    myLibrary: MyLibraryScope? = null,
     browse: CosmoBrowse? = null,
 ) {
     CosmoSearch(
@@ -83,6 +84,6 @@ fun SearchSwitch(
         onLibrarySongClick = onLibrarySongClick, sources = sources, searchingAddons = searchingAddons,
         addonResults = addonResults, addonHistory = addonHistory, onAddonHistoryClick = onAddonHistoryClick,
         onAddonHistoryRemove = onAddonHistoryRemove, onAddonHistoryClear = onAddonHistoryClear,
-        onAddonSongClick = onAddonSongClick, browse = browse, searchIn = searchIn,
+        onAddonSongClick = onAddonSongClick, browse = browse, searchIn = searchIn, myLibrary = myLibrary,
     )
 }
