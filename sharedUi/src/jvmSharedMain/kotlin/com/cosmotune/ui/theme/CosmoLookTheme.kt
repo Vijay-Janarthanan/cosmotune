@@ -70,15 +70,8 @@ fun CosmoLookTheme(
     val shell = remember(settings) { CosmoShellState(settings, dark) }
     val reduced = rememberReducedMotion()
     PaletteFollower(shell, dark, reduced)
-    // Look and colours, Interface size: the whole app drawn larger or smaller than the device's own scale.
-    val interfaceSize by settings.interfaceSize.collectAsState()
-    val baseDensity = androidx.compose.ui.platform.LocalDensity.current
-    val density = remember(baseDensity, interfaceSize) {
-        if (interfaceSize == com.cosmotune.settings.InterfaceSize.DEFAULT) baseDensity
-        else androidx.compose.ui.unit.Density(baseDensity.density * interfaceSize.scale, baseDensity.fontScale)
-    }
     // The theme choice for the chrome that changes it (the profile menus), and the cross-fade such a change goes through.
-    CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides density) {
+    ScaledToInterfaceSize(settings) {
     ThemeChoiceRoot(themeChoice, reduced) {
     legacy {
         val legacyScheme = MaterialTheme.colorScheme
@@ -109,6 +102,18 @@ fun CosmoLookTheme(
     }
     }
     }
+}
+
+/** Look and colours, Interface size: [content] drawn larger or smaller than the device's own scale. */
+@Composable
+private fun ScaledToInterfaceSize(settings: com.cosmotune.settings.CosmoLookSettings, content: @Composable () -> Unit) {
+    val interfaceSize by settings.interfaceSize.collectAsState()
+    val baseDensity = androidx.compose.ui.platform.LocalDensity.current
+    val density = remember(baseDensity, interfaceSize) {
+        if (interfaceSize == com.cosmotune.settings.InterfaceSize.DEFAULT) baseDensity
+        else androidx.compose.ui.unit.Density(baseDensity.density * interfaceSize.scale, baseDensity.fontScale)
+    }
+    CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides density, content = content)
 }
 
 /**

@@ -49,7 +49,7 @@ internal fun List<Song>.matchingQuery(query: String): List<IndexedValue<Song>> {
     val all = withIndex().toList()
     val needle = query.trim()
     if (needle.isEmpty()) return all
-    return all.filter { (_, song) -> com.cosmotune.music.data.LooseMatch.matches(needle, song.title, song.artist, song.albumName) }
+    return all.filter { (_, song) -> com.cosmotune.music.data.LooseMatch.matches(needle, song.title, song.artist) }
 }
 
 /** Whether every card of the shelf is an artist (a browse id of a channel, `UC...`): artists are drawn as circles. */
