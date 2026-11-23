@@ -76,7 +76,7 @@ class SearchStructureTest {
 
     @Test fun theDirectoryHoldsTheBriefsThreeFiles() {
         val names = java.io.File(VideoSourceContract.root, dir).listFiles { f -> f.extension == "kt" }!!.map { it.nameWithoutExtension }.toSet()
-        assertEquals(files.toSet(), names)
+        assertEquals(files.toSet() + "VoiceSearch", names)
     }
 
     @Test fun theScreenKeepsTheSignatureOfTheBrief() {

@@ -163,3 +163,11 @@ internal fun cancelStarted(downloads: DownloadController, ids: List<String>) {
 private fun openDownloads(navigator: VideoNavigator) {
     if (navigator.top != VideoRoute.Downloads) navigator.push(VideoRoute.Downloads)
 }
+
+/** Queues the videos of a saved download list (Import and export), each with the quality and subtitles it was asked with. */
+internal fun queueSavedDownloads(
+    downloads: com.cosmotune.video.downloads.DownloadController,
+    items: List<Pair<com.cosmotune.video.model.VideoItem, com.cosmotune.video.downloads.DownloadRequest>>,
+) {
+    for ((item, request) in items) downloads.enqueue(item, request)
+}

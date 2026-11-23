@@ -150,7 +150,7 @@ fun ImportPage(contentPadding: PaddingValues, wide: Boolean) {
                     toast.show(PageToastMessage.NotSaved)
                 } else {
                     val missing = DownloadListFile.missing(list, graph.downloads.downloads.value)
-                    for ((item, request) in missing) graph.downloads.enqueue(item, request)
+                    com.cosmotune.video.ui.actions.queueSavedDownloads(graph.downloads, missing)
                     toast.show(PageToastMessage.DownloadsAdded(missing.size))
                 }
             }

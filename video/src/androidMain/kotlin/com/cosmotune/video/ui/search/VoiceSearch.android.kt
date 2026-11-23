@@ -30,7 +30,7 @@ internal actual fun rememberVoiceInput(): VoiceInput? {
         pending.value = null
         if (!words.isNullOrEmpty()) deliver?.invoke(words)
     }
-    val launch by rememberUpdatedState(launcher)
+    val launch = rememberUpdatedState(launcher)
     if (!available) return null
     return remember {
         VoiceInput { onWords ->
@@ -38,7 +38,7 @@ internal actual fun rememberVoiceInput(): VoiceInput? {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            runCatching { launch.launch(intent) }.onFailure { pending.value = null }
+            runCatching { launch.value.launch(intent) }.onFailure { pending.value = null }
         }
     }
 }

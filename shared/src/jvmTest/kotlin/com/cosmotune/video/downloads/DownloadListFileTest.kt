@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class DownloadListFileTest {
-    private fun item(id: String) = VideoItem(id, "Title $id", "UCx", "Desk Lab", null, "https://i/$id.jpg", 600, null, null, null)
+    private fun item(id: String) = VideoItem(id, "Title $id", "UCx", "Desk Lab", null, "https://example.com/$id.jpg", 600, null, null, null)
 
     @Test fun aListReadsBackWithWhatWasAsked() {
         val request = DownloadRequest(DownloadQuality.Rung(720, 60), SubtitlePick(true, "ta"))

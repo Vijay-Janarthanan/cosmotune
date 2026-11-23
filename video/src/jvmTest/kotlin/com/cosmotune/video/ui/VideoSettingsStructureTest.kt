@@ -36,7 +36,7 @@ class VideoSettingsStructureTest {
     private val dir = "video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/settings"
     private fun read(path: String) = VideoSourceContract.read(path)
     private fun file(name: String) = read("$dir/$name.kt")
-    private val names = listOf("VideoSettingsPage", "SegmentSettings", "ChoiceSheet", "RegionList", "SettingsPlatform", "SmoothnessSettings", "ContentFilterSheet", "TvCodeSheet")
+    private val names = listOf("VideoSettingsPage", "SegmentSettings", "ChoiceSheet", "RegionList", "SettingsPlatform", "SmoothnessSettings", "ContentFilterSheet", "TvCodeSheet", "ProxySheet")
 
     /** Each file of the page without its comments. */
     private val sources: Map<String, String> get() = names.associateWith { VideoSourceContract.code(file(it)) }
