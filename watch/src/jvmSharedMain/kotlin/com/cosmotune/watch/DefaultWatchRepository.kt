@@ -1110,7 +1110,7 @@ class DefaultWatchRepository(
             activePlugins().firstOrNull { it.id == s.source.pluginId }?.let { p -> runCatching { p.playbackExtras(s, durationMs) }.getOrNull() }
         } ?: com.cosmotune.watch.model.PlaybackExtras()
         val skips = if (!preferences.value.animeSkips) emptyList() else com.cosmotune.watch.meta.IntroSkips.merge(server.skips, skipIntervals(target, durationMs))
-        return com.cosmotune.watch.model.PlaybackExtras(skips, server.chapters)
+        return com.cosmotune.watch.model.PlaybackExtras(skips, server.chapters, server.previews)
     }
     private val profilesState = MutableStateFlow(store.state.value.allProfiles().values.toList())
     override val profiles: StateFlow<List<com.cosmotune.watch.model.WatchProfile>> = profilesState.asStateFlow()

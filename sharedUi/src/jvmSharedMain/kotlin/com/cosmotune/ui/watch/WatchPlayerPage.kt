@@ -649,7 +649,8 @@ private fun FilmCard(
             if (!state.isLive && durationMs > 0) {
                 val skip = state.skipIntervals.firstOrNull { position() in it.startMs until it.endMs }
                 if (skip != null) com.cosmotune.ui.orbit.WatchCardChip(skip.label, ink, fonts, onClick = { controls.seekTo(skip.endMs) }, modifier = Modifier.padding(top = 8.dp))
-                OrbitProgressLine({ (position().toFloat() / durationMs).coerceIn(0f, 1f) }, ink, Modifier.padding(top = 12.dp, end = 90.dp), onSeek = { controls.seekTo((it * durationMs).toLong()) })
+                OrbitProgressLine({ (position().toFloat() / durationMs).coerceIn(0f, 1f) }, ink, Modifier.padding(top = 12.dp, end = 90.dp), onSeek = { controls.seekTo((it * durationMs).toLong()) },
+                    preview = state.previews?.let { previews -> { at -> WatchSeekThumb(previews, (at * durationMs).toLong()) } })
             }
             FlowRow(Modifier.padding(top = if (slim) 8.dp else 12.dp, end = 68.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -764,6 +765,7 @@ private fun WatchFullScreen(
         // Picture in picture where the device has it; a long press plays at 2x (not a live channel).
         actions = listOfNotNull(controls.pictureInPicture?.let { enter -> OrbitMenuItem("Picture in picture", "The film plays on in a small window", CosmoIcons.Pip, onClick = enter) }),
         speed = controls.speed.takeIf { !state.isLive },
+        seekPreview = state.previews?.let { previews -> { at -> WatchSeekThumb(previews, at) } },
         picture = { fill, m -> picture(m, 0.dp, if (fill) VideoView.FILL else VideoView.WHOLE) },
         overlay = { shown ->
             WatchLoading(state, fonts)

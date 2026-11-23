@@ -319,7 +319,7 @@ class EngineWatchPlayer(
             val stream = s.stream
             scope.launch {
                 val extras = runCatching { repository.playbackExtras(skipTarget, stream, duration) }.getOrDefault(com.cosmotune.watch.model.PlaybackExtras())
-                mutable.update { if (it.target?.key == skipTarget.key && it.stream?.url == stream?.url) it.copy(skipIntervals = extras.skips, chapters = extras.chapters) else it }
+                mutable.update { if (it.target?.key == skipTarget.key && it.stream?.url == stream?.url) it.copy(skipIntervals = extras.skips, chapters = extras.chapters, previews = extras.previews) else it }
             }
         }
         val remaining = duration - position

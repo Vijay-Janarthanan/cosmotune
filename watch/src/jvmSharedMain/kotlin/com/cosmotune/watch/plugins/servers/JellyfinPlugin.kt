@@ -165,11 +165,28 @@ class JellyfinPlugin(
      */
     override suspend fun playbackExtras(stream: Stream, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras {
         val itemId = stream.serverItemId ?: return com.cosmotune.watch.model.PlaybackExtras()
-        val item = runCatching { http.getJson("$server/Users/${session.userId}/Items/$itemId?Fields=Chapters", auth, 10 * 60_000L) }.getOrNull()
+        val item = runCatching { http.getJson("$server/Users/${session.userId}/Items/$itemId?Fields=Chapters,Trickplay", auth, 10 * 60_000L) }.getOrNull()
         val chapters = item?.list("Chapters").orEmpty()
         val segments = if (emby) emptyList() else runCatching { http.getJson("$server/MediaSegments/$itemId", auth, 10 * 60_000L).list("Items") }.getOrDefault(emptyList())
         return com.cosmotune.watch.model.PlaybackExtras(
-            com.cosmotune.watch.meta.IntroSkips.merge(segmentsOf(segments, durationMs), markersOf(chapters, durationMs)), chaptersOf(chapters))
+            com.cosmotune.watch.meta.IntroSkips.merge(segmentsOf(segments, durationMs), markersOf(chapters, durationMs)), chaptersOf(chapters),
+            if (emby) null else trickplayOf(item, itemId, stream.url.substringAfter("MediaSourceId=", "").substringBefore('&').ifBlank { itemId }))
+    }
+
+    /**
+     * Jellyfin's trickplay tiles (10.9 and later) for media source [msId], at the width nearest 320 px. The tiles are images, so
+     * the token goes in their address the way subtitle files' does.
+     */
+    internal fun trickplayOf(item: JsonElement?, itemId: String, msId: String): com.cosmotune.watch.model.SeekPreviews? {
+        val widths = (item.child("Trickplay").child(msId) as? kotlinx.serialization.json.JsonObject) ?: return null
+        val (width, info) = widths.entries.mapNotNull { (k, v) -> k.toIntOrNull()?.let { it to v } }.minByOrNull { kotlin.math.abs(it.first - 320) } ?: return null
+        val columns = info.int("TileWidth") ?: return null
+        val rows = info.int("TileHeight") ?: return null
+        val count = info.int("ThumbnailCount")?.takeIf { it > 0 } ?: return null
+        val interval = info.long("Interval")?.takeIf { it > 0 } ?: return null
+        val sheets = (count + columns * rows - 1) / (columns * rows)
+        return com.cosmotune.watch.model.SeekPreviews((0 until sheets).map { "$server/Videos/$itemId/Trickplay/$width/$it.jpg?MediaSourceId=$msId&api_key=${session.token}" },
+            info.int("Width") ?: width, info.int("Height") ?: (width * 9 / 16), columns, rows, interval, count)
     }
 
     companion object {

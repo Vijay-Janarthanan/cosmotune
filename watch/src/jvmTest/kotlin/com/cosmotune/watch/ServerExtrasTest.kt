@@ -5,6 +5,7 @@ import com.cosmotune.watch.model.Stream
 import com.cosmotune.watch.model.StreamSource
 import com.cosmotune.watch.model.WatchChapter
 import com.cosmotune.watch.model.WatchSkip
+import com.cosmotune.watch.model.WatchKey
 import com.cosmotune.watch.plugins.servers.JellyfinPlugin
 import com.cosmotune.watch.plugins.servers.PlexPlugin
 import com.cosmotune.watch.plugins.servers.ServerSession
@@ -52,5 +53,31 @@ class ServerExtrasTest {
             assertEquals(listOf("Start", "Middle"), extras.chapters.map { it.title })
             assertTrue(s.requests.all { it.getHeader("X-Emby-Token") == "tok" })
         }
+    }
+
+    @Test fun jellyfinTrickplayTilesBecomeSeekThumbnails() = runBlocking<Unit> {
+        TestServer().use { s ->
+            s.json("/MediaSegments/m1", """{"Items":[]}""")
+            s.json("/Users/u1/Items/m1", """{"Id":"m1","Trickplay":{"ms1":{
+                "160":{"Width":160,"Height":90,"TileWidth":10,"TileHeight":10,"ThumbnailCount":540,"Interval":10000},
+                "320":{"Width":320,"Height":180,"TileWidth":10,"TileHeight":10,"ThumbnailCount":540,"Interval":10000}}}}""")
+            val plugin = JellyfinPlugin("jf-1", "Home", s.http(), s.base, ServerSession("tok", "u1"))
+            val stream = Stream(StreamSource("jf-1", "Home", "JF"), "Direct play", url = "${s.base}/Videos/m1/stream?static=true&MediaSourceId=ms1",
+                protocol = StreamProtocol.PROGRESSIVE, serverItemId = "m1")
+            val previews = plugin.playbackExtras(stream, 5_400_000).previews!!
+            assertEquals(320, previews.frameWidth)
+            assertEquals(180, previews.frameHeight)
+            assertEquals(10_000L, previews.intervalMs)
+            assertEquals(540, previews.frames)
+            assertEquals(6, previews.sheets.size)
+            assertEquals("${s.base}/Videos/m1/Trickplay/320/5.jpg?MediaSourceId=ms1&api_key=tok", previews.sheets.last())
+            assertTrue(s.requests.any { "Trickplay" in it.path.orEmpty() })
+        }
+    }
+
+    @Test fun aSeekThumbnailIsFoundInItsSheet() {
+        val previews = com.cosmotune.watch.model.SeekPreviews(listOf("a", "b"), 320, 180, 10, 10, 10_000, 150)
+        assertEquals(com.cosmotune.watch.model.SeekPreviews.Frame(0, 3, 2), previews.frameAt(235_000))
+        assertEquals(com.cosmotune.watch.model.SeekPreviews.Frame(1, 9, 4), previews.frameAt(99_999_000))
     }
 }

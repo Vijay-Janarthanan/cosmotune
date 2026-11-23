@@ -38,6 +38,8 @@ data class WatchPlayerState(
     val skipIntervals: List<com.cosmotune.watch.model.WatchSkip> = emptyList(),
     /** The chapters of what plays, in order (a server's list, or the file's own). */
     val chapters: List<com.cosmotune.watch.model.WatchChapter> = emptyList(),
+    /** Seek thumbnails for what plays (a server's trickplay tiles), or null. */
+    val previews: com.cosmotune.watch.model.SeekPreviews? = null,
     /** In a room: "Your copy is 4 min longer: a different cut, so positions may not line up". */
     val lengthNote: String? = null,
     val muted: Boolean = false,
@@ -68,12 +70,12 @@ interface WatchPlayer {
     /** Fetches OpenSubtitles (and other subtitle plugins) for what is playing and adds them to [WatchPlayerState.subtitles]. */
     fun searchSubtitles(languages: List<String> = emptyList())
     fun setSubtitleDelay(ms: Long)
-    fun playNextEpisode()
-    /** Cancels the next-episode countdown for this episode. */
     /** Plays the sound as [mix] from now on, this video and the next (Night, Clear voices). */
     fun setSoundMix(mix: com.cosmotune.video.player.AudioMix) {}
     /** Decodes the picture in software only from now on (a changed choice reopens the copy playing, where it was). */
     fun setSoftwareDecoding(on: Boolean) {}
+    fun playNextEpisode()
+    /** Cancels the next-episode countdown for this episode. */
     fun cancelNextEpisode()
     /** Saves progress and unloads. */
     fun stop()
