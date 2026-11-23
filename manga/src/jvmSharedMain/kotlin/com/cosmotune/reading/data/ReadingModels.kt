@@ -111,6 +111,8 @@ import kotlinx.serialization.Serializable
     val folders: List<ReadingFolder> = emptyList(), val folderFiles: Map<String, String> = emptyMap(),
     /** The KOReader sync account, when the reader signed in. */
     val koSync: ReadingKoSync? = null,
+    /** Lines drawn on PDF pages. */
+    val inks: List<ReadingInkStroke> = emptyList(),
     /** The history: when each book was last opened (book id to the time); removing one there leaves the book and its place. */
     val opened: Map<String, Long> = emptyMap(),
     /** The Hardcover account, and the Hardcover book each library book was matched to (book id to it). */

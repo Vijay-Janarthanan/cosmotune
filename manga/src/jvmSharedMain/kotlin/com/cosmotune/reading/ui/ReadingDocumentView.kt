@@ -15,11 +15,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.ZoomOut
 import androidx.compose.material.icons.rounded.ViewColumn
+import androidx.compose.material.icons.rounded.Draw
 import androidx.compose.ui.platform.testTag
 import com.cosmotune.reading.data.*
 import java.io.File
 import java.io.InputStream
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
@@ -165,6 +167,68 @@ internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.grap
         sign * c, 0f, 0f, 0f, shift, 0f, sign * c, 0f, 0f, shift, 0f, 0f, sign * c, 0f, shift, 0f, 0f, 0f, 1f, 0f)))
 }
 
+/** Drawing on PDF pages, lent by the reader: the lines drawn, and the ways to keep and remove them. */
+internal class ReadingInkHost(val strokes: List<ReadingInkStroke>, val add: (page: Int, ink: ReadingInk, points: List<Float>) -> Unit,
+    val remove: (String) -> Unit, val clear: (page: Int) -> Unit)
+internal val LocalReadingInk = compositionLocalOf<ReadingInkHost?> { null }
+
+/**
+ * The lines drawn on a PDF page, over it, and (while [drawing]) a pen that draws more or an eraser that takes them away. Points are
+ * shares of the whole page; [crop] is the part of the page ([pageWidth] by [pageHeight] pixels) the view shows.
+ */
+@Composable
+private fun PdfInkLayer(host: ReadingInkHost, page: Int, crop: androidx.compose.ui.unit.IntRect?, pageWidth: Int, pageHeight: Int, drawing: Boolean, pen: ReadingInk?,
+    modifier: Modifier) {
+    val strokes = host.strokes.filter { it.page == page }
+    val live = remember(page) { mutableStateListOf<Float>() }
+    val latestStrokes by rememberUpdatedState(strokes)
+    fun toPage(x: Float, y: Float, width: Int, height: Int): Pair<Float, Float> {
+        val fx = x / width.coerceAtLeast(1); val fy = y / height.coerceAtLeast(1)
+        return if (crop == null) fx to fy else (crop.left + fx * crop.width) / pageWidth to (crop.top + fy * crop.height) / pageHeight
+    }
+    val input = if (!drawing) Modifier else Modifier.pointerInput(page, pen, crop) {
+        fun erase(at: androidx.compose.ui.geometry.Offset) {
+            val (x, y) = toPage(at.x, at.y, size.width, size.height)
+            latestStrokes.lastOrNull { ReadingInkMath.hits(it, x, y) }?.let { host.remove(it.id) }
+        }
+        detectDragGestures(
+            onDragStart = { at -> if (pen == null) erase(at) else { live.clear(); val (x, y) = toPage(at.x, at.y, size.width, size.height); live += x; live += y } },
+            onDragEnd = { if (pen != null && live.size >= 2) host.add(page, pen, live.toList()); live.clear() },
+            onDragCancel = { live.clear() },
+        ) { change, _ ->
+            change.consume()
+            if (pen == null) erase(change.position) else { val (x, y) = toPage(change.position.x, change.position.y, size.width, size.height); live += x; live += y }
+        }
+    }.pointerInput(page, pen, crop) {
+        detectTapGestures { at ->
+            val (x, y) = toPage(at.x, at.y, size.width, size.height)
+            if (pen == null) latestStrokes.lastOrNull { ReadingInkMath.hits(it, x, y) }?.let { host.remove(it.id) } else host.add(page, pen, listOf(x, y))
+        }
+    }
+    androidx.compose.foundation.Canvas(modifier.then(input).testTag("books:pdf-ink")) {
+        val scaleX = if (crop == null) size.width else size.width * pageWidth / crop.width.coerceAtLeast(1)
+        val scaleY = if (crop == null) size.height else size.height * pageHeight / crop.height.coerceAtLeast(1)
+        val left = if (crop == null) 0f else crop.left.toFloat() / pageWidth * scaleX
+        val top = if (crop == null) 0f else crop.top.toFloat() / pageHeight * scaleY
+        fun line(points: List<Float>, ink: ReadingInk) {
+            val colour = androidx.compose.ui.graphics.Color(ink.argb.toInt())
+            val width = ink.width * scaleX
+            if (points.size == 2) { drawCircle(colour, width / 2, androidx.compose.ui.geometry.Offset(points[0] * scaleX - left, points[1] * scaleY - top)); return }
+            val path = androidx.compose.ui.graphics.Path()
+            var i = 0
+            while (i + 1 < points.size) {
+                val x = points[i] * scaleX - left; val y = points[i + 1] * scaleY - top
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                i += 2
+            }
+            drawPath(path, colour, style = androidx.compose.ui.graphics.drawscope.Stroke(width, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        }
+        strokes.forEach { line(it.points, it.ink) }
+        if (pen != null && live.size >= 2) line(live.toList(), pen)
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun ReadingPdfView(document: ReadingDocument.Pdf, locator: ReadingLocator,
     searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit, onError: (String) -> Unit,
@@ -178,6 +242,10 @@ internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.grap
     var columnCount by remember(document.file) { mutableStateOf(0) }
     var image by remember(document.file) { mutableStateOf<ImageBitmap?>(null) }
     var searching by remember { mutableStateOf(false) }
+    // Drawing on the page: the pen (null for the eraser), on while [drawing].
+    val ink = LocalReadingInk.current
+    var drawing by remember(document.file) { mutableStateOf(false) }
+    var pen by remember { mutableStateOf<ReadingInk?>(ReadingInk.RED) }
     var searchMessage by remember { mutableStateOf<String?>(null) }
     var searchNext by remember { mutableStateOf(0) }
     val latestError by rememberUpdatedState(onError)
@@ -236,8 +304,20 @@ internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.grap
             com.cosmotune.ui.orbit.WatchRoundButton(androidx.compose.material.icons.Icons.Rounded.ZoomIn, "Zoom in", look, { zoom = (zoom + .25f).coerceAtMost(4f) }, size = 36.dp)
             com.cosmotune.ui.orbit.WatchRoundButton(androidx.compose.material.icons.Icons.Rounded.ViewColumn, if (byColumn) "Show whole pages" else "Zoom to a column", look,
                 { byColumn = !byColumn; column = 0 }, size = 36.dp, on = byColumn, modifier = Modifier.testTag("books:pdf-columns"))
+            if (ink != null) com.cosmotune.ui.orbit.WatchRoundButton(androidx.compose.material.icons.Icons.Rounded.Draw, if (drawing) "Stop drawing" else "Draw on the page", look,
+                { drawing = !drawing }, size = 36.dp, on = drawing, modifier = Modifier.testTag("books:pdf-draw"))
             if (searchQuery.isNotBlank() && engine?.supportsSearch == true)
                 com.cosmotune.ui.orbit.WatchCardChip("Next match", look.ink, fonts, { searchNext++ }, icon = com.cosmotune.ui.components.CosmoIcons.Search)
+        }
+        // The pens, the eraser, undo and clear, in their own row while drawing; the page does not scroll under the pen meanwhile.
+        if (ink != null && drawing) com.cosmotune.manga.ui.ReadChipRow(Modifier.padding(bottom = 6.dp).testTag("books:pdf-pens"), inset = 12.dp) {
+            ReadingInk.entries.forEach { choice -> com.cosmotune.manga.ui.ReadChip(choice.label, pen == choice, { pen = choice }, Modifier.testTag("books:pdf-pen:${choice.name}")) }
+            com.cosmotune.manga.ui.ReadChip("Eraser", pen == null, { pen = null }, Modifier.testTag("books:pdf-eraser"))
+            val onPage = ink.strokes.filter { it.page == page }
+            if (onPage.isNotEmpty()) {
+                com.cosmotune.manga.ui.ReadChip("Undo", false, { onPage.maxByOrNull { it.createdAtMs }?.let { ink.remove(it.id) } }, Modifier.testTag("books:pdf-undo"))
+                com.cosmotune.manga.ui.ReadChip("Clear page", false, { ink.clear(page) }, Modifier.testTag("books:pdf-clear"))
+            }
         }
         searchMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp), style = fonts.body, color = look.dim) }
         if (searching) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -256,7 +336,8 @@ internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.grap
             LaunchedEffect(page) { vertical.scrollTo(0); horizontal.scrollTo(0) }
             when {
                 failure != null -> Text(failure!!, Modifier.padding(24.dp))
-                image != null -> Box(Modifier.fillMaxSize().verticalScroll(vertical).horizontalScroll(horizontal), contentAlignment = Alignment.TopCenter) {
+                image != null -> Box(Modifier.fillMaxSize().verticalScroll(vertical, enabled = !drawing).horizontalScroll(horizontal, enabled = !drawing),
+                    contentAlignment = Alignment.TopCenter) {
                     val shown = image!!
                     val columns = remember(shown, byColumn) { if (byColumn) pdfColumns(shown) else emptyList() }
                     SideEffect { columnCount = columns.size; if (column < 0 || column >= columns.size) column = if (column < 0) (columns.size - 1).coerceAtLeast(0) else 0 }
@@ -266,10 +347,13 @@ internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.grap
                         else androidx.compose.ui.graphics.painter.BitmapPainter(shown, androidx.compose.ui.unit.IntOffset(crop.left, crop.top), androidx.compose.ui.unit.IntSize(crop.width, crop.height))
                     }
                     val ratio = if (crop != null) crop.width.toFloat() / crop.height else shown.width.toFloat() / shown.height
-                    Image(painter, "Page ${page + 1} of ${document.book.title}",
-                        Modifier.width(viewportWidth * zoom).aspectRatio(ratio)
-                            .pointerInput(Unit) { detectTapGestures { at -> if (at.x > size.width / 3f && at.x < size.width * 2f / 3f) onCenterTap() } },
-                        contentScale = ContentScale.FillBounds, colorFilter = pdfFilter(preferences.pdfDark, preferences.pdfContrast))
+                    Box(Modifier.width(viewportWidth * zoom).aspectRatio(ratio)) {
+                        Image(painter, "Page ${page + 1} of ${document.book.title}",
+                            Modifier.matchParentSize().pointerInput(Unit) { detectTapGestures { at -> if (at.x > size.width / 3f && at.x < size.width * 2f / 3f) onCenterTap() } },
+                            contentScale = ContentScale.FillBounds, colorFilter = pdfFilter(preferences.pdfDark, preferences.pdfContrast))
+                        if (ink != null && (drawing || ink.strokes.any { it.page == page }))
+                            PdfInkLayer(ink, page, crop, shown.width, shown.height, drawing, pen, Modifier.matchParentSize())
+                    }
                 }
                 else -> CircularProgressIndicator(Modifier.align(Alignment.Center))
             }

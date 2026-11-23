@@ -245,9 +245,16 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 ReadInlineBanner("${there.device} is further on, at ${(there.percentage * 100).toInt()} %.", Modifier.windowInsetsPadding(WindowInsets.statusBars).testTag("books:remote"),
                     actionLabel = "Go there", onAction = { saveLocation(there.locator); remote = null }, onDismiss = { remote = null })
             }
-            ReadingDocumentView(document, locator, preferences, search, onLocatorChanged = ::saveLocation,
-                onError = { error = it }, modifier = Modifier.weight(1f).fillMaxWidth().testTag("books:document"), onCenterTap = { tools = !tools },
-                control = page)
+            // A PDF can be drawn on: its lines are kept with the book (see ReadingRepository.addInk).
+            val inks = if (document is ReadingDocument.Pdf) ReadingInkHost(state.inks.filter { it.bookId == book.id },
+                add = { at, pen, points -> scope.launch { try { repository.addInk(book.id, at, pen, points) } catch (e: CancellationException) { throw e } catch (e: Exception) { error = e.message } } },
+                remove = { id -> scope.launch { runCatching { repository.removeInk(id) } } },
+                clear = { at -> scope.launch { runCatching { repository.clearInk(book.id, at) } } }) else null
+            CompositionLocalProvider(LocalReadingInk provides inks) {
+                ReadingDocumentView(document, locator, preferences, search, onLocatorChanged = ::saveLocation,
+                    onError = { error = it }, modifier = Modifier.weight(1f).fillMaxWidth().testTag("books:document"), onCenterTap = { tools = !tools },
+                    control = page)
+            }
         }
         // E-ink: every few page turns the screen goes black for a moment, as a full refresh clears ghosting.
         if (preferences.eInk && refresh > 0 && refresh % 6 == 0) {

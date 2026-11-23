@@ -173,6 +173,25 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         document
     } }
 
+    /** Keeps a line drawn on page [page] of the PDF [bookId] ([points]: x, y shares of the page). Gives it, or null when it is too short. */
+    suspend fun addInk(bookId: String, page: Int, ink: ReadingInk, points: List<Float>): ReadingInkStroke? {
+        val clean = ReadingInkMath.simplify(points)
+        if (clean.size < 2) return null
+        val stroke = ReadingInkStroke(UUID.randomUUID().toString(), bookId, page.coerceAtLeast(0), ink, clean)
+        store.update { old ->
+            require(old.books.any { it.id == bookId && it.format == ReadingFormat.PDF }) { "Drawing works on PDFs in the library." }
+            require(old.inks.size < ReadingInkMath.MAX_STROKES) { "There are too many drawings; clear some pages first." }
+            old.copy(inks = old.inks + stroke)
+        }
+        return stroke
+    }
+
+    /** Removes the drawn line [id]. */
+    suspend fun removeInk(id: String) = store.update { old -> old.copy(inks = old.inks.filterNot { it.id == id }) }
+
+    /** Removes every line drawn on [page] of [bookId]. */
+    suspend fun clearInk(bookId: String, page: Int) = store.update { old -> old.copy(inks = old.inks.filterNot { it.bookId == bookId && it.page == page }) }
+
     /** Takes [bookId] out of the history (all of it with null); the books and their places stay. */
     suspend fun forgetOpened(bookId: String?) = store.update { old -> old.copy(opened = if (bookId == null) emptyMap() else old.opened - bookId) }
 
@@ -382,6 +401,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     /** Deletes the files of a book [takeOutBook] took out, once its Undo has run out; nothing if it is back in the library. */
     suspend fun deleteTakenBook(taken: TakenBook) = imports.withLock { withContext(Dispatchers.IO) {
         if (state.value.books.any { it.id == taken.book.id }) return@withContext
+        if (state.value.inks.any { it.bookId == taken.book.id }) store.update { old -> old.copy(inks = old.inks.filterNot { it.bookId == taken.book.id }) }
         ownedFile(taken.book).delete()
         File(documents, taken.book.id).takeIf { it.exists() }?.let(ReadingEpub::deleteOwned)
     } }
