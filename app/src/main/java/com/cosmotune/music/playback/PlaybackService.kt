@@ -971,6 +971,7 @@ class PlaybackService : MediaLibraryService() {
     private var serviceLyrics: List<LyricLine>? = null
     private var lastPublishedSubtitle: String? = null
     private var lyricsTickerJob: Job? = null
+    private val statusBarLyrics by lazy { StatusBarLyrics(this) }
 
     /**
      * Everything the service books against the player it is currently on.
@@ -7934,6 +7935,7 @@ class PlaybackService : MediaLibraryService() {
         serviceLyricsJob?.cancel()
         serviceLyricsJob = null
         serviceLyrics = null
+        statusBarLyrics.clear()
         SleepTimerWatcher.removePauser(sleepPauser)
         SleepTimerWatcher.removeFader(sleepFader)
         cancelPrefetch()
@@ -8120,20 +8122,14 @@ class PlaybackService : MediaLibraryService() {
 
     private fun updateLyricSubtitle() {
         val exoPlayer = player ?: return
-        val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return
+        val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return statusBarLyrics.clear()
         val lines = serviceLyrics
         val pos = exoPlayer.currentPosition
-        val subtitleText = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
-            val idx = lines.indexOfLast { it.timeMs <= pos }
-            val currentLine = lines.getOrNull(idx)
-            if (currentLine != null && !currentLine.isGap && currentLine.text.isNotBlank()) {
-                "♪ ${currentLine.text}"
-            } else {
-                currentSong.artist
-            }
-        } else {
-            currentSong.artist
-        }
+        val sung = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
+            lines.getOrNull(lines.indexOfLast { it.timeMs <= pos })?.takeIf { !it.isGap && it.text.isNotBlank() }?.text
+        } else null
+        statusBarLyrics.show(sung?.takeIf { AppSettings.statusBarLyrics.value && exoPlayer.isPlaying })
+        val subtitleText = if (sung != null) "♪ $sung" else currentSong.artist
 
         if (subtitleText != lastPublishedSubtitle) {
             lastPublishedSubtitle = subtitleText

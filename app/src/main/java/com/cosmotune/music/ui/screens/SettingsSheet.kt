@@ -1225,6 +1225,17 @@ fun SettingsScreen(
                     onClick = { AppSettings.setSyncedLyrics(!syncedLyrics) },
                 )
             }
+            if (syncedLyrics) {
+                val statusBarLyrics by AppSettings.statusBarLyrics.collectAsStateWithLifecycle()
+                row(STATUS_BAR_LYRICS, "status bar", "meizu", "flyme", "lyric getter", divided = false) {
+                    SettingsSubRow(
+                        title = STATUS_BAR_LYRICS,
+                        checked = statusBarLyrics,
+                        onCheckedChange = AppSettings::setStatusBarLyrics,
+                        subtitle = STATUS_BAR_LYRICS_LINE,
+                    )
+                }
+            }
             // Nothing to choose between while the feature is off, and the
             // sources are third-party services being reached on the user's
             // connection — which is the part worth being able to narrow.
@@ -2730,3 +2741,7 @@ internal fun SegmentedControl(
 
 /** Settings > Downloads: the switch that puts exported downloads on the memory card. */
 private const val DOWNLOADS_ON_CARD = "Save to the memory card"
+
+/** Settings > Lyrics: the line being sung in the status bar. */
+private const val STATUS_BAR_LYRICS = "Lyrics in the status bar"
+private const val STATUS_BAR_LYRICS_LINE = "The line being sung, shown in the status bar on Meizu phones, or on others with a status bar lyrics module"

@@ -527,6 +527,9 @@ object AppSettings {
      */
     val syncedLyrics = MutableStateFlow(true)
 
+    /** The line being sung in the status bar (Meizu phones, status bar lyric modules); see [com.cosmotune.music.playback.StatusBarLyrics]. */
+    val statusBarLyrics = MutableStateFlow(false)
+
     /** The databases [syncedLyrics] may ask. Empty is the same as off. */
     val lyricsSources = MutableStateFlow(LyricsSource.offered.toSet())
 
@@ -921,6 +924,7 @@ object AppSettings {
             )
         }.getOrDefault(LastPlayerScreen.MAIN)
         syncedLyrics.value = prefs.getBoolean(KEY_SYNCED_LYRICS, true)
+        statusBarLyrics.value = prefs.getBoolean(KEY_STATUS_BAR_LYRICS, false)
         lyricsSources.value = readLyricsSources()
         lyricsSourceOrder.value = readLyricsSourceOrder()
         prioritizeSyllableSync.value = prefs.getBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, false)
@@ -1369,6 +1373,11 @@ object AppSettings {
     fun setTranslationLanguage(value: String) {
         translationLanguage.value = value
         prefs.edit().putString(KEY_TRANSLATION_LANGUAGE, value).apply()
+    }
+
+    fun setStatusBarLyrics(value: Boolean) {
+        statusBarLyrics.value = value
+        prefs.edit().putBoolean(KEY_STATUS_BAR_LYRICS, value).apply()
     }
 
     fun setSyncedLyrics(value: Boolean) {
@@ -2124,6 +2133,7 @@ object AppSettings {
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"
     private const val KEY_SYNCED_LYRICS = "synced_lyrics"
+    private const val KEY_STATUS_BAR_LYRICS = "status_bar_lyrics"
     private const val KEY_LYRICS_SOURCES = "lyrics_sources"
     private const val KEY_LYRICS_SOURCES_SEEN = "lyrics_sources_seen"
     private const val KEY_LYRICS_SOURCE_ORDER = "lyrics_source_order"
