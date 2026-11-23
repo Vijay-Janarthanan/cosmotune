@@ -158,7 +158,7 @@ private fun SelectionBar(scope: MangaScope, book: MangaBook, listed: List<MangaC
                 onSelection(emptySet())
                 markWithUndo(scope, undo, book, chosen, !allRead, state, markWords)
             }, modifier = Modifier.testTag("manga:selection:read"))
-            if (toDownload.isNotEmpty() && !scope.transfer.active) ReadPill(mangaText("Download") + " · ${toDownload.size}", icon = CosmoIcons.Download, onClick = {
+            if (toDownload.isNotEmpty()) ReadPill(mangaText("Download") + " · ${toDownload.size}", icon = CosmoIcons.Download, onClick = {
                 onSelection(emptySet()); mangaDownload(scope, book, toDownload)
             }, modifier = Modifier.testTag("manga:selection:download"))
             if (downloaded.isNotEmpty()) ReadPill(mangaText("Remove downloads") + " · ${downloaded.size}", icon = CosmoIcons.Close, onClick = {
@@ -242,9 +242,11 @@ private fun SeriesCard(scope: MangaScope, book: MangaBook, cover: Any?, saved: B
 private fun SeriesAbout(scope: MangaScope, book: MangaBook) {
     val look = orbitLook()
     Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (scope.transfer.active) Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalAlignment = Alignment.CenterVertically) {
-            Text(scope.transfer.progress, style = ReadType.meta(), color = look.dim, modifier = Modifier.weight(1f).padding(start = 4.dp, end = 12.dp))
-            ReadTextButton(mangaText("Cancel download"), { scope.transfer.job?.cancel() })
+        val queue by scope.repository.downloads.state.collectAsState()
+        val mine = queue.items.filter { it.book.id == book.id }
+        if (mine.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalAlignment = Alignment.CenterVertically) {
+            Text(mangaQueueLine(mine, queue), style = ReadType.meta(), color = look.dim, modifier = Modifier.weight(1f).padding(start = 4.dp, end = 12.dp))
+            ReadTextButton(mangaText("Cancel download"), { mine.forEach { scope.repository.downloads.cancel(it.chapter.id) } })
         }
         if (book.description.isNotBlank()) {
             var expanded by rememberSaveable(book.id) { mutableStateOf(false) }
@@ -282,6 +284,7 @@ private fun LazyListScope.chapterItems(scope: MangaScope, book: MangaBook, liste
     }
     itemsIndexed(listed, key = { _, chapter -> chapter.id }) { index, item ->
         val state by scope.repository.store.state.collectAsState()
+        val queue by scope.repository.downloads.state.collectAsState()
         val undo = LocalOrbitUndo.current
         val read = item.id in state.readChapters
         val fresh = item.id in state.newChapters
@@ -293,7 +296,7 @@ private fun LazyListScope.chapterItems(scope: MangaScope, book: MangaBook, liste
             meta = line,
             read = read,
             fresh = fresh,
-            download = mangaDownloadState(scope, item, state),
+            download = mangaDownloadState(item, state, queue),
             onClick = { onRead(item) },
             onLongClick = { onSelect(item) },
             onDownload = {

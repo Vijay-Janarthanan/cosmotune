@@ -5,6 +5,9 @@ import com.cosmotune.manga.data.MangaChapter
 import com.cosmotune.manga.data.MangaLibraryState
 import com.cosmotune.manga.data.MangaProgress
 import com.cosmotune.manga.data.MangaReaderMode
+import com.cosmotune.manga.data.MangaTapZones
+import com.cosmotune.manga.data.MangaQueued
+import com.cosmotune.manga.data.MangaQueueState
 import com.cosmotune.manga.data.listedChapters
 import java.time.Instant
 import java.time.LocalDate
@@ -217,6 +220,21 @@ internal fun mangaContinueLine(book: MangaBook, state: MangaLibraryState): Strin
 
 /** How many new chapters [days] hold in all, for the Updates tab's count and the mode switcher's line. */
 internal fun mangaNewCount(state: MangaLibraryState): Int = mangaUpdates(state).size
+
+/**
+ * The line a download queue shows for [items] (all of it, or one series' part): the chapter being fetched and its pages, how many
+ * more wait, and how many failed; "Paused" while the queue is held.
+ */
+internal fun mangaQueueLine(items: List<MangaQueued>, queue: MangaQueueState): String {
+    val running = items.find { it.chapter.id == queue.running }
+    val waiting = items.count { it.error == null && it.chapter.id != queue.running }
+    val failed = items.count { it.error != null }
+    return listOfNotNull(
+        if (queue.paused) "Paused" else running?.let { "Downloading " + it.chapter.title + if (it.total > 0) ": ${it.done} of ${it.total} pages" else "" },
+        waiting.takeIf { it > 0 }?.let { if (running != null && !queue.paused) "$it more waiting" else "$it waiting" },
+        failed.takeIf { it > 0 }?.let { "$it failed" },
+    ).joinToString(" · ")
+}
 
 /** What a tap on a page does: turn back, turn forward, or show and hide the reader's chrome. */
 internal enum class ReaderTap { PREVIOUS, NEXT, MENU }

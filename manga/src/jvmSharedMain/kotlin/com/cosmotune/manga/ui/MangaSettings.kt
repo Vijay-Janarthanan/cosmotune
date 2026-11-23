@@ -72,9 +72,23 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
                 ReadChip(mangaText("Fit page"), state.readerFit == MangaReaderFit.PAGE, { action { repository.store.update { it.copy(readerFit = MangaReaderFit.PAGE) } } })
                 ReadChip(mangaText("Fit width"), state.readerFit == MangaReaderFit.WIDTH, { action { repository.store.update { it.copy(readerFit = MangaReaderFit.WIDTH) } } })
             }
+            MangaReaderImageOptions(state) { block -> action { repository.store.update(block) } }
             OrbitSwitchRow(mangaText("Keep screen on while reading"), state.readerKeepScreenOn, { on -> action { repository.store.update { it.copy(readerKeepScreenOn = on) } } }, plain = true)
             OrbitSwitchRow(mangaText("Page number at the foot"), state.readerPageNumber, { on -> action { repository.store.update { it.copy(readerPageNumber = on) } } }, plain = true,
                 detail = mangaText("While the reader's card is hidden"))
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReadOverline(mangaText("Downloads"), inset = 0.dp)
+            OrbitSwitchRow(mangaText("Download new chapters"), state.autoDownloadNew, { on -> action { repository.store.update { it.copy(autoDownloadNew = on) } } }, plain = true,
+                detail = mangaText("When an update finds them"))
+            Text(mangaText("Download ahead while reading"), style = ReadType.rowTitle(), color = look.ink)
+            ReadChipRow(inset = 0.dp) {
+                listOf(0 to "Off", 2 to "Next 2", 5 to "Next 5", 10 to "Next 10").forEach { (count, label) ->
+                    ReadChip(mangaText(label), state.downloadAhead == count, { action { repository.store.update { it.copy(downloadAhead = count) } } }, Modifier.testTag("manga:ahead:$count"))
+                }
+            }
+            OrbitSwitchRow(mangaText("Remove chapters once read"), state.deleteAfterRead, { on -> action { repository.store.update { it.copy(deleteAfterRead = on) } } }, plain = true,
+                detail = mangaText("Frees space after you finish a downloaded chapter"))
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             error?.let { Text(it, style = ReadType.body(), color = Color(palette.danger)) }

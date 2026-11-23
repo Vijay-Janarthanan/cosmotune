@@ -175,6 +175,7 @@ internal fun MangaDownloadsPage(scope: MangaScope) {
     val list = rememberLazyListState()
     val groups = state.books.mapNotNull { book -> book.listedChapters().filter { state.downloads.containsKey(it.id) }.takeIf { it.isNotEmpty() }?.let { book to it } }
     val undo = LocalOrbitUndo.current
+    val queue by scope.repository.downloads.state.collectAsState()
     Column(Modifier.fillMaxSize()) {
         ReadBackHead("Library", onBack = { scope.navigation.page = null })
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
@@ -182,8 +183,27 @@ internal fun MangaDownloadsPage(scope: MangaScope) {
                 val count = groups.sumOf { it.second.size }
                 ReadPageHead(mangaText("Downloads"), if (count == 1) mangaText("1 chapter on this device") else "$count " + mangaText("chapters on this device"))
             }
-            if (scope.transfer.active) item(key = "running") {
-                Text(scope.transfer.progress, style = ReadType.meta(), color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 8.dp))
+            if (queue.items.isNotEmpty()) {
+                item(key = "queue:head") { Column {
+                    ReadSection(mangaText("Queue"), subtitle = mangaQueueLine(queue.items, queue))
+                    ReadChipRow(Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+                        ReadPill(mangaText(if (queue.paused) "Resume" else "Pause"), icon = CosmoIcons.Download, onClick = {
+                            if (queue.paused) scope.repository.downloads.resume() else scope.repository.downloads.pause()
+                        }, modifier = Modifier.testTag("manga:queue:pause"))
+                        ReadPill(mangaText("Cancel all"), icon = CosmoIcons.Close, onClick = { scope.repository.downloads.cancelAll() })
+                    }
+                } }
+                items(queue.items, key = { "queue:${it.chapter.id}" }) { entry ->
+                    val line = entry.error ?: if (entry.chapter.id == queue.running && entry.total > 0) "${entry.done} of ${entry.total} pages" else if (entry.chapter.id == queue.running) mangaText("Starting…") else mangaText("Waiting")
+                    ReadChapterRow(
+                        title = entry.book.title + " · " + entry.chapter.title, meta = line,
+                        read = false, fresh = false, download = if (entry.error != null) ReadDownload.AVAILABLE else ReadDownload.RUNNING,
+                        onClick = { scope.openBook(entry.book) }, onLongClick = { scope.openBook(entry.book) },
+                        onDownload = { if (entry.error != null) scope.repository.downloads.retry(entry.chapter.id) else scope.repository.downloads.cancel(entry.chapter.id) },
+                        modifier = Modifier.padding(horizontal = ReadMargin).testTag("manga:queue:${entry.chapter.id}"),
+                    )
+                }
+                item(key = "queue:gap") { Spacer(Modifier.height(16.dp)) }
             }
             if (groups.isEmpty()) item(key = "empty") {
                 ReadEmpty(mangaText("No downloads"), mangaText("Download chapters from a series page to read them without a connection."))

@@ -89,14 +89,6 @@ fun MangaApp(
 /** Where Manga's catalogue pages are kept between visits; null: a memory-only cache of the repository's own. */
 internal val LocalMangaPages = androidx.compose.runtime.staticCompositionLocalOf<PageCache?> { null }
 
-/** A download in progress: which chapters it covers and what it has done so far. */
-internal class MangaTransfer {
-    var job by mutableStateOf<Job?>(null)
-    var progress by mutableStateOf("")
-    var chapters by mutableStateOf(emptySet<String>())
-    val active: Boolean get() = job?.isActive == true
-}
-
 /** Where the mode is: its tab, and what is pushed over it (a catalogue, a page, a series, a chapter). */
 internal class MangaNavigation(tab: String, book: MangaBook?, chapter: MangaChapter?) {
     var tab by mutableStateOf(tab)
@@ -127,7 +119,6 @@ internal object MangaPages {
 internal class MangaScope(
     val repository: MangaRepository,
     val navigation: MangaNavigation,
-    val transfer: MangaTransfer,
     val updates: MangaUpdateCheck,
     val onMusic: (() -> Unit)?,
     val showAccount: Boolean,
@@ -169,7 +160,6 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
     LaunchedEffect(navigation.tab) { ModeNav.mangaTab.value = navigation.tab }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(repository.store.recoveryMessage) }
-    val transfer = remember { MangaTransfer() }
     val updates = remember { MangaUpdateCheck() }
     fun action(block: suspend () -> Unit): Job = scope.launch {
         error = null
@@ -229,7 +219,7 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
         counts = mapOf(MangaTabs.UPDATES to newChapters),
         modifier = Modifier.testTag("manga:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
-        val pageScope = MangaScope(repository, navigation, transfer, updates, onMusic, showAccount, bottom, ::action, ::openBook) { error = it }
+        val pageScope = MangaScope(repository, navigation, updates, onMusic, showAccount, bottom, ::action, ::openBook) { error = it }
         Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.padding(top = 8.dp), onDismiss = { error = null }) }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = orbitLook().accent)
@@ -326,7 +316,8 @@ internal fun MangaUpdateRow(scope: MangaScope, entry: MangaUpdateEntry) {
 @Composable
 internal fun MangaDownloadButton(scope: MangaScope, book: MangaBook, chapter: MangaChapter, state: MangaLibraryState) {
     val undo = LocalOrbitUndo.current
-    ReadDownloadButton(mangaDownloadState(scope, chapter, state)) {
+    val queue by scope.repository.downloads.state.collectAsState()
+    ReadDownloadButton(mangaDownloadState(chapter, state, queue)) {
         if (state.downloads.containsKey(chapter.id)) mangaRemoveDownloads(scope, undo, listOf(chapter), chapter.title) else mangaDownload(scope, book, listOf(chapter))
     }
 }
@@ -343,27 +334,17 @@ internal fun mangaRemoveDownloads(scope: MangaScope, undo: OrbitUndoState?, chap
     }
 }
 
-internal fun mangaDownloadState(scope: MangaScope, chapter: MangaChapter, state: MangaLibraryState): ReadDownload = when {
+internal fun mangaDownloadState(chapter: MangaChapter, state: MangaLibraryState, queue: MangaQueueState): ReadDownload = when {
     chapter.sourceId == "local" -> ReadDownload.NONE
     state.downloads.containsKey(chapter.id) -> ReadDownload.DONE
-    scope.transfer.active && chapter.id in scope.transfer.chapters -> ReadDownload.RUNNING
+    queue.has(chapter.id) -> ReadDownload.RUNNING
     else -> ReadDownload.AVAILABLE
 }
 
-/** Downloads [chapters] of [book] one after another (the series is saved first, so a download adds it to the library). */
+/** Puts [chapters] of [book] in the download queue (the series is saved first, so a download adds it to the library). */
 internal fun mangaDownload(scope: MangaScope, book: MangaBook, chapters: List<MangaChapter>) {
-    if (scope.transfer.active || chapters.isEmpty()) return
-    scope.transfer.chapters = chapters.map { it.id }.toSet()
-    scope.transfer.job = scope.action {
-        try {
-            scope.repository.store.save(book)
-            chapters.forEachIndexed { index, item ->
-                scope.repository.download(item) { done, total ->
-                    scope.transfer.progress = if (chapters.size == 1) "${item.title}: $done / $total pages" else "Chapter ${index + 1} of ${chapters.size} · ${item.title}: $done / $total pages"
-                }
-            }
-        } finally { scope.transfer.chapters = emptySet(); scope.transfer.progress = "" }
-    }
+    if (chapters.isEmpty()) return
+    scope.action { scope.repository.store.save(book); scope.repository.downloads.enqueue(book, chapters) }
 }
 
 /** The mono line of a series' card: "MANGA · 142 CHAPTERS · ONGOING". */

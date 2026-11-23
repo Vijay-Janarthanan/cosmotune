@@ -55,7 +55,10 @@ internal class MangaBackupTransfer(val export: (ByteArray) -> Unit, val restore:
                 } }, Modifier.testTag("manga:updates:$hours"))
             }
         }
-        Text("Checks saved series on enabled sources; no automatic downloads. Android uses connected, battery-safe background work. Desktop checks while the app is open.", style = ReadType.meta(), color = look.dim)
+        com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Skip finished series"), state.updateSkipFinished, { on -> scope.launch {
+            try { repository.store.update { it.copy(updateSkipFinished = on) } } catch (cancelled: CancellationException) { throw cancelled } catch (failure: Exception) { message = failure.message }
+        } }, plain = true, detail = mangaText("Finished series you have read to the end are not checked"))
+        Text("Checks saved series on enabled sources; new chapters download only when Downloads says so. Android uses connected, battery-safe background work. Desktop checks while the app is open.", style = ReadType.meta(), color = look.dim)
         if (state.lastUpdateAttemptMs > 0) Text(if (state.lastUpdateCompletedMs >= state.lastUpdateAttemptMs)
             "Last check: ${state.lastUpdateNewChapters} new chapters · ${state.lastUpdateFailures} unavailable series"
             else "The last check did not finish; use Check for updates to retry.", style = ReadType.meta(), color = look.dim)
