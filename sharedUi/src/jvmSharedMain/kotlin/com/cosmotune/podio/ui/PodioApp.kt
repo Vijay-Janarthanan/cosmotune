@@ -211,14 +211,24 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     LaunchedEffect(m.notice) { if (m.notice != null) { delay(5_000); m.notice = null } }
     fun openQueue() { m.playerSheet = false; m.queueOpen = true }
     val playingStation = if (live) (m.radio + saved.stations + listOfNotNull(m.selected)).firstOrNull { it.item().id == playback.id } else null
-    // What the station is playing now, from its own stream; asked again every half minute while it plays.
+    // What the station is playing now: as the player reads it from the stream when it does (the desktop), else asked of the
+    // stream again every half minute while it plays.
     var song by remember(playback.id) { mutableStateOf<String?>(null) }
+    val heardLive by PodioLiveTitle.current.collectAsUiState()
+    fun heard(title: String?, station: RadioStation) {
+        song = title?.takeIf { it != station.name }
+        // Each song the station names is kept in Heard on the radio.
+        song?.let { named -> m.save { PodioHistory.heard(it, named, station, System.currentTimeMillis()) } }
+    }
+    LaunchedEffect(heardLive, playingStation?.url) {
+        val station = playingStation ?: return@LaunchedEffect
+        val live = heardLive?.takeIf { PodioLiveTitle.same(it.url, station.url) } ?: return@LaunchedEffect
+        if (live.title != song) heard(live.title, station)
+    }
     LaunchedEffect(playback.id, playingStation?.url) {
-        val url = playingStation?.url ?: return@LaunchedEffect
+        val station = playingStation ?: return@LaunchedEffect
         while (isActive) {
-            song = catalogue.nowPlaying(url)?.takeIf { it != playingStation.name }
-            // Each song the station names is kept in Heard on the radio.
-            song?.let { title -> m.save { PodioHistory.heard(it, title, playingStation, System.currentTimeMillis()) } }
+            if (PodioLiveTitle.recent(station.url) == null) heard(catalogue.nowPlaying(station.url), station)
             delay(30_000)
         }
     }

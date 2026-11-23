@@ -153,6 +153,28 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
         transport: String? = null,
         /** A Podio station read by the app itself ([DesktopLiveStream]), so a recording can take its bytes. */
         live: Boolean = false,
+    ): Result<Unit> {
+        val ownReads = live && !windowed && transport == null && DesktopLiveStream.suits(url)
+        if (!ownReads) return openWith(url, headers, requested, windowed, transport, ownReads = false)
+        // A station the app's own reader cannot open (an old server that answers "ICY 200", a playlist served as a stream) still
+        // plays, through FFmpeg's own reader, and goes there straight away next time.
+        return openWith(url, headers, requested, windowed = false, transport = null, ownReads = true).recoverCatching { failure ->
+            DesktopTrackLog.log("station read by FFmpeg instead: ${failure.message ?: failure.javaClass.simpleName}")
+            DesktopLiveStream.refuse(url)
+            openWith(url, headers, requested, windowed = false, transport = null, ownReads = false).getOrThrow()
+        }
+    }
+
+    /** Whether the stream is read by the app itself ([DesktopLiveStream]) rather than by FFmpeg. */
+    val readsItself: Boolean get() = liveSource != null
+
+    private fun openWith(
+        url: String,
+        headers: Map<String, String>,
+        requested: DesktopPcmFormat,
+        windowed: Boolean,
+        transport: String?,
+        ownReads: Boolean,
     ): Result<Unit> = runCatching {
         av_log_set_level(AV_LOG_ERROR)
         ensureNetwork()
@@ -173,7 +195,6 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
         av_dict_set(options, "reconnect_delay_max", "5", 0)
         av_dict_set(options, "rw_timeout", "15000000", 0)
 
-        val ownReads = live && !windowed && transport == null && DesktopLiveStream.suits(url)
         val opened = when {
             windowed -> windowedContext(url, headers)
             ownReads -> liveContext(url, headers)
