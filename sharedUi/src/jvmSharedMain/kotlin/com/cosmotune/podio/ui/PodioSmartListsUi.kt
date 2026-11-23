@@ -83,6 +83,10 @@ internal fun LazyListScope.smartListItems(m: PodioModel, env: PodioEnv, side: Dp
                     OrbitSelectChip("Started", list.started, fonts, look, { list = list.copy(started = !list.started) }, haptic = false)
                     OrbitSelectChip("Downloaded", list.downloaded, fonts, look, { list = list.copy(downloaded = !list.downloaded) }, haptic = false)
                 }
+                OrbitLabel("Words", fonts, look.dim, Modifier.padding(top = 8.dp))
+                OrbitInputField(list.words, { list = list.copy(words = it.take(200)) }, "interview -trailer", modifier = Modifier.fillMaxWidth().testTag("podio:list:words"))
+                Text("Episodes that say these words in their title or notes; a word after - leaves those out.",
+                    style = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 16.sp), color = look.dim)
                 OrbitLabel("Length", fonts, look.dim, Modifier.padding(top = 8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     PodioSmartLists.LENGTHS.forEach { minutes ->
