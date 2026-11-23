@@ -276,7 +276,7 @@ class KitbaseVisualReviewTest {
                     androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
                         SearchInChipsInRow(
                             SearchInState(
-                                listOf(SearchInChoice("all", "All", SearchInStatus.SEARCHING), SearchInChoice("yt", "YouTube Music", SearchInStatus.READY),
+                                listOf(SearchInChoice("all", "All sources", SearchInStatus.SEARCHING), SearchInChoice("yt", "YouTube Music", SearchInStatus.READY),
                                     SearchInChoice("sflx-bandcamp", "Bandcamp", SearchInStatus.NEEDS_VERIFICATION), SearchInChoice("sub", "Navidrome", SearchInStatus.ERROR)),
                                 selected = "all", onSelect = {},
                             ),
