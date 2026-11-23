@@ -126,6 +126,30 @@ class CosmoLookSettings(private val store: KeyValueStore) {
 
     private fun readLines(key: String): List<String> = store.getString(key, "").split('\n').filter { it.isNotBlank() }
 
+    private val autoBackupFlow = MutableStateFlow(store.getInt(KEY_AUTO_BACKUP_DAYS, 0).coerceAtLeast(0))
+    private val autoBackupFolderFlow = MutableStateFlow(store.getString(KEY_AUTO_BACKUP_FOLDER, ""))
+
+    /** Days between automatic backups (0 off, 1 daily, 7 weekly), see [com.cosmotune.listening.AutoBackup]. */
+    val autoBackupDays: StateFlow<Int> = autoBackupFlow.asStateFlow()
+
+    /** Where automatic backups go: a folder path on the desktop, a document tree address on the phone; empty until chosen. */
+    val autoBackupFolder: StateFlow<String> = autoBackupFolderFlow.asStateFlow()
+
+    fun setAutoBackupDays(days: Int) {
+        store.putInt(KEY_AUTO_BACKUP_DAYS, days.coerceAtLeast(0))
+        autoBackupFlow.value = days.coerceAtLeast(0)
+    }
+
+    fun setAutoBackupFolder(folder: String) {
+        store.putString(KEY_AUTO_BACKUP_FOLDER, folder)
+        autoBackupFolderFlow.value = folder
+    }
+
+    /** When the last automatic backup was written (epoch ms), 0 for never. */
+    fun autoBackupLast(): Long = store.getString(KEY_AUTO_BACKUP_LAST, "").toLongOrNull() ?: 0L
+
+    fun setAutoBackupLast(ms: Long) = store.putString(KEY_AUTO_BACKUP_LAST, ms.toString())
+
     private val blockedArtistsFlow = MutableStateFlow(readLines(KEY_BLOCKED_ARTISTS).toSet())
     private val hideExplicitFlow = MutableStateFlow(store.getBoolean(KEY_HIDE_EXPLICIT, false))
 
@@ -252,6 +276,9 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_SMART_DOWNLOADS = "smart_downloads"
         const val KEY_HOME_HIDDEN = "home_hidden_sections"
         const val KEY_BLOCKED_ARTISTS = "blocked_artists"
+        const val KEY_AUTO_BACKUP_DAYS = "auto_backup_days"
+        const val KEY_AUTO_BACKUP_FOLDER = "auto_backup_folder"
+        const val KEY_AUTO_BACKUP_LAST = "auto_backup_last"
         const val KEY_HIDE_EXPLICIT = "hide_explicit"
         const val KEY_HOME_SEEN = "home_seen_shelves"
         const val HOME_PICK_UP = "@pick-up"

@@ -201,6 +201,7 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         com.cosmotune.music.download.PlaylistDownloadScheduler.init(this)
         // "Keep downloaded" playlists come down with their page closed: daily on Wi-Fi, and as soon as a switch is turned on.
         com.cosmotune.music.download.KeepDownloadedScheduler.init(this)
+        com.cosmotune.music.data.stats.AutoBackupScheduler.init(this)
         // The device's own listening record. Opened here rather than in
         // PlaybackService because the Replay page reads it from the UI side and
         // both live in this process — one owner, one directory.

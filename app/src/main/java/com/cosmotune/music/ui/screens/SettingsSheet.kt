@@ -107,6 +107,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -1834,6 +1835,32 @@ fun SettingsScreen(
                     title = exportDataTitle,
                     subtitle = exportStatus ?: stringResource(R.string.export_data_subtitle),
                     onClick = { exportPicker.launch(Backup.suggestedName()) },
+                )
+            }
+            // Backups on a schedule into a folder the listener grants once (AutoBackupScheduler).
+            row(com.cosmotune.ui.settings.AUTO_BACKUP_TITLE, "backup", "automatic", "daily", "weekly", summary = com.cosmotune.ui.settings.AUTO_BACKUP_LINE) {
+                val look = com.cosmotune.ui.settings.cosmoLookSettings(context)
+                val folder by look.autoBackupFolder.collectAsState()
+                val days by look.autoBackupDays.collectAsState()
+                val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+                    if (tree == null) return@rememberLauncherForActivityResult
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    }
+                    look.setAutoBackupFolder(tree.toString())
+                    // A first backup straight away, so the folder is seen to work.
+                    backupScope.launch {
+                        val now = System.currentTimeMillis()
+                        if (look.autoBackupDays.value > 0 && com.cosmotune.music.data.stats.AutoBackupScheduler.backUp(context, tree.toString(), now)) look.setAutoBackupLast(now)
+                    }
+                }
+                val last = remember(folder, days) { look.autoBackupLast() }.takeIf { it > 0 }?.let {
+                    java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it))
+                }
+                com.cosmotune.ui.settings.AutoBackupRows(
+                    folderLabel = folder.takeIf { it.isNotBlank() }?.let { com.cosmotune.music.data.stats.AutoBackupScheduler.folderLabel(it) },
+                    last = last,
+                    onChooseFolder = { treePicker.launch(null) },
                 )
             }
             val importDataTitle = stringResource(R.string.import_data)

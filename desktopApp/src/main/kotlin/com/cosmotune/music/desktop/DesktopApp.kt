@@ -3031,6 +3031,9 @@ fun CosmotuneDesktopApp() {
         if (now != before) localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() } + now
     }
 
+    // Automatic backups (Settings, Storage): looked at now and every few hours.
+    LaunchedEffect(Unit) { DesktopAutoBackup.keepUp() }
+
     // Re-scanned when the filter or the folder changes, never on first composition.
     LaunchedEffect(localMusicRevision) {
         if (localMusicRevision == 0) return@LaunchedEffect
@@ -6247,6 +6250,30 @@ private fun DesktopSettingsScreen(
             }
             DesktopSettingsSection.STORAGE -> {
                 SettingsGroup(DesktopStrings["storage", "Storage"]) {
+                    // The listening backup on a schedule into a folder (DesktopAutoBackup).
+                    if (settingsRowVisible(com.cosmotune.ui.settings.AUTO_BACKUP_TITLE, com.cosmotune.ui.settings.AUTO_BACKUP_LINE)) {
+                        val look = com.cosmotune.ui.settings.cosmoLookSettings()
+                        val folder by look.autoBackupFolder.collectAsState()
+                        val days by look.autoBackupDays.collectAsState()
+                        var lastMade by remember(folder, days) { mutableStateOf(look.autoBackupLast()) }
+                        val backupScope = rememberCoroutineScope()
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.AUTO_BACKUP_TITLE)) {
+                            com.cosmotune.ui.settings.AutoBackupRows(
+                                folderLabel = folder.takeIf { it.isNotBlank() },
+                                last = lastMade.takeIf { it > 0 }?.let { java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it)) },
+                                onChooseFolder = {
+                                    DesktopAutoBackup.chooseFolder(folder)?.let { chosen ->
+                                        look.setAutoBackupFolder(chosen.absolutePath)
+                                        // A first backup straight away, so the folder is seen to work.
+                                        backupScope.launch {
+                                            val now = System.currentTimeMillis()
+                                            if (look.autoBackupDays.value > 0 && DesktopAutoBackup.backUp(chosen, now)) { look.setAutoBackupLast(now); lastMade = now }
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
                     var limitMb by remember { mutableStateOf(DesktopMediaCache.limitMb()) }
                     if (settingsRowVisible(DesktopStrings["song_cache_limit", "Song cache limit"])) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 10.dp)) {
