@@ -6618,6 +6618,8 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun reportProgress() {
         scope.launch {
+            // Whether the last tick counted listening on a remote speaker; see the speaker branch below.
+            var remoteSampling = false
             while (isActive) {
                 // Re-read every tick rather than captured once: the session
                 // moves between two players, and a sampler pinned to the one
@@ -6654,6 +6656,24 @@ class PlaybackService : MediaLibraryService() {
                     // repeat: it returns immediately unless the track is
                     // pending and nothing is already looking.
                     lookForBetterCopy(player)
+                } else if (speakers.active) {
+                    // On a speaker (Cast, the watch) the phone's player is held paused and the receiver owns the clock, so the
+                    // branch above never ran and none of that listening reached Replay. The receiver's own playing is the tick
+                    // here, with the phone's current item (it follows the receiver) and the receiver's length. From upstream 1.10.
+                    val playingRemotely = speakers.isPlaying
+                    if (playingRemotely) {
+                        player?.currentMediaItem?.toSong()?.takeUnless { com.cosmotune.podio.PodioPlaybackPolicy.isPodio(it.videoId) }?.let {
+                            val length = speakers.durationMs.takeIf { d -> d != C.TIME_UNSET && d > 0 } ?: (player?.duration ?: 0L)
+                            ListeningRecorder.onSample(it, length)
+                        }
+                    } else if (remoteSampling) {
+                        // Paused on the speaker: the gap is closed as a local pause closes it.
+                        ListeningRecorder.onStopped()
+                    }
+                    remoteSampling = playingRemotely
+                } else if (remoteSampling) {
+                    remoteSampling = false
+                    ListeningRecorder.onStopped()
                 }
                 delay(PROGRESS_SAMPLE_MS)
             }
