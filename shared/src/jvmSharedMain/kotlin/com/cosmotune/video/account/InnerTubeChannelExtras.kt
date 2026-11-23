@@ -70,7 +70,8 @@ class InnerTubeChannelExtras internal constructor(private val web: YoutubeWeb) :
                 val endpoint = renderer.obj("endpoint") ?: continue
                 val url = endpoint.obj("commandMetadata").obj("webCommandMetadata").str("url")
                     ?: endpoint.obj("browseEndpoint").str("canonicalBaseUrl") ?: continue
-                val params = endpoint.obj("browseEndpoint").str("params") ?: continue
+                // the site writes the params URL-escaped ("...%3D"); the browse body takes them plain
+                val params = endpoint.obj("browseEndpoint").str("params")?.let { java.net.URLDecoder.decode(it, Charsets.UTF_8) } ?: continue
                 val last = url.substringBefore('?').trimEnd('/').substringAfterLast('/')
                 val kind = ExtraChannelTab.entries.firstOrNull { it.path == last || (it == ExtraChannelTab.POSTS && last == "community") } ?: continue
                 out[kind] = params

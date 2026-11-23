@@ -1,0 +1,578 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/courses",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "Egdjb3Vyc2Vz8gYFCgPCAQA%3D",
+        "canonicalBaseUrl": "/@freecodecamp"
+       }
+      },
+      "title": "Courses",
+      "selected": true,
+      "content": {
+       "richGridRenderer": {
+        "contents": [
+         {
+          "richItemRenderer": {
+           "content": {
+            "playlistRenderer": {
+             "playlistId": "PLWKjhJtqVAbn21gs5UnLhCQ82f923WCgM",
+             "title": {
+              "simpleText": "Back End Developer Learning Path"
+             },
+             "thumbnails": [
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/tN6oJu2DqCM/hqdefault.jpg?sqp=-oaymwEXCOADEI4CSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLAI1qwL3oYWOUiBLmq5Fp0YMdR6dw",
+                 "width": 480,
+                 "height": 270
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/nu_pCVPKzTk/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/qwAFL1597eM/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              }
+             ],
+             "videoCount": "17",
+             "navigationEndpoint": {
+              "commandMetadata": {
+               "webCommandMetadata": {
+                "url": "/watch?v=tN6oJu2DqCM&list=PLWKjhJtqVAbn21gs5UnLhCQ82f923WCgM",
+                "webPageType": "WEB_PAGE_TYPE_WATCH",
+                "rootVe": 3832
+               }
+              },
+              "watchEndpoint": {
+               "videoId": "tN6oJu2DqCM",
+               "playlistId": "PLWKjhJtqVAbn21gs5UnLhCQ82f923WCgM",
+               "params": "OAI%3D",
+               "loggingContext": {
+                "vssLoggingContext": {
+                 "serializedContextData": "GiJQTFdLamhKdHFWQWJuMjFnczVVbkxoQ1E4MmY5MjNXQ2dN"
+                }
+               },
+               "watchEndpointSupportedOnesieConfig": {
+                "html5PlaybackOnesieConfig": {
+                 "commonConfig": {
+                  "url": "https://rr3---sn-5jucgv5qc5oq-h55e7.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=b4dea826ed83a823&ip=REDACTED&initcwndbps=3123750&mt=1795419672&oweuc="
+                 }
+                }
+               }
+              }
+             },
+             "viewPlaylistText": {
+              "runs": [
+               {
+                "text": "View full course",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/playlist?list=PLWKjhJtqVAbn21gs5UnLhCQ82f923WCgM",
+                   "webPageType": "WEB_PAGE_TYPE_PLAYLIST",
+                   "rootVe": 5754,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "VLPLWKjhJtqVAbn21gs5UnLhCQ82f923WCgM"
+                 }
+                }
+               }
+              ]
+             },
+             "videos": [
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Back End Developer Roadmap"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=tN6oJu2DqCM&list=PLWKjhJtqVAbn21gs5UnLhCQ82f923WCgM",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "tN6oJu2DqCM",
+                  "playlistId": "PLWKjhJtqVAbn21gs5UnLhCQ82f923WCgM",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GiJQTFdLamhKdHFWQWJuMjFnczVVbkxoQ1E4MmY5MjNXQ2dN"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr3---sn-5jucgv5qc5oq-h55e7.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=b4dea826ed83a823&ip=REDACTED&initcwndbps=3123750&mt=1795419672&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "10 minutes, 30 seconds"
+                  }
+                 },
+                 "simpleText": "10:30"
+                },
+                "videoId": "tN6oJu2DqCM"
+               }
+              },
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Full Stack Web Development for Beginners (Full Course on HTML, CSS, JavaScript, Node.js, MongoDB)"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=nu_pCVPKzTk&list=PLWKjhJtqVAbn21gs5UnLhCQ82f923WCgM",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "nu_pCVPKzTk",
+                  "playlistId": "PLWKjhJtqVAbn21gs5UnLhCQ82f923WCgM",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GiJQTFdLamhKdHFWQWJuMjFnczVVbkxoQ1E4MmY5MjNXQ2dN"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr8---sn-5jucgv5qc5oq-h55e7.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=9eefe90953cacd39&ip=REDACTED&initcwndbps=3123750&mt=1795419672&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "7 hours, 29 minutes, 12 seconds"
+                  }
+                 },
+                 "simpleText": "7:29:12"
+                },
+                "videoId": "nu_pCVPKzTk"
+               }
+              }
+             ],
+             "videoCountText": {
+              "runs": [
+               {
+                "text": "17"
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "thumbnailText": {
+              "runs": [
+               {
+                "text": "17",
+                "bold": true
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "ownerBadges": [
+              {
+               "metadataBadgeRenderer": {
+                "icon": {
+                 "iconType": "CHECK_CIRCLE_THICK"
+                },
+                "style": "BADGE_STYLE_TYPE_VERIFIED",
+                "tooltip": "Verified",
+                "accessibilityData": {
+                 "label": "Verified"
+                }
+               }
+              }
+             ],
+             "thumbnailRenderer": {
+              "playlistVideoThumbnailRenderer": {
+               "thumbnail": {
+                "thumbnails": [
+                 {
+                  "url": "https://i.ytimg.com/vi/tN6oJu2DqCM/hqdefault.jpg?sqp=-oaymwEXCOADEI4CSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLAI1qwL3oYWOUiBLmq5Fp0YMdR6dw",
+                  "width": 480,
+                  "height": 270
+                 }
+                ],
+                "sampledThumbnailColor": {
+                 "red": 17,
+                 "green": 41,
+                 "blue": 114
+                },
+                "darkColorPalette": {
+                 "section2Color": 463411,
+                 "iconInactiveColor": 7765395,
+                 "iconDisabledColor": 4409689
+                },
+                "vibrantColorPalette": {
+                 "iconInactiveColor": 7042713
+                }
+               }
+              }
+             },
+             "thumbnailOverlays": [
+              {
+               "thumbnailOverlayBottomPanelRenderer": {
+                "text": {
+                 "simpleText": "17 lessons"
+                },
+                "icon": {
+                 "iconType": "COURSE"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayHoverTextRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Play all"
+                  }
+                 ]
+                },
+                "icon": {
+                 "iconType": "PLAY_ALL"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayNowPlayingRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Now playing"
+                  }
+                 ]
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         },
+         {
+          "richItemRenderer": {
+           "content": {
+            "playlistRenderer": {
+             "playlistId": "PLWKjhJtqVAbmMuZ3saqRIBimAKIMYkt0E",
+             "title": {
+              "simpleText": "Front End Developer Learning Path"
+             },
+             "thumbnails": [
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/9He4UBLyk8Y/hqdefault.jpg?sqp=-oaymwEXCOADEI4CSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLCmwbjtmMDfZ-e7K9NTp3nVjUQ5FQ",
+                 "width": 480,
+                 "height": 270
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/916GWv2Qs08/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/OXGznpKZ_sA/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              }
+             ],
+             "videoCount": "22",
+             "navigationEndpoint": {
+              "commandMetadata": {
+               "webCommandMetadata": {
+                "url": "/watch?v=9He4UBLyk8Y&list=PLWKjhJtqVAbmMuZ3saqRIBimAKIMYkt0E",
+                "webPageType": "WEB_PAGE_TYPE_WATCH",
+                "rootVe": 3832
+               }
+              },
+              "watchEndpoint": {
+               "videoId": "9He4UBLyk8Y",
+               "playlistId": "PLWKjhJtqVAbmMuZ3saqRIBimAKIMYkt0E",
+               "params": "OAI%3D",
+               "loggingContext": {
+                "vssLoggingContext": {
+                 "serializedContextData": "GiJQTFdLamhKdHFWQWJtTXVaM3NhcVJJQmltQUtJTVlrdDBF"
+                }
+               },
+               "watchEndpointSupportedOnesieConfig": {
+                "html5PlaybackOnesieConfig": {
+                 "commonConfig": {
+                  "url": "https://rr2---sn-5jucgv5qc5oq-h55es.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=f477b85012f293c6&ip=REDACTED&initcwndbps=3123750&mt=1795419672&oweuc="
+                 }
+                }
+               }
+              }
+             },
+             "viewPlaylistText": {
+              "runs": [
+               {
+                "text": "View full course",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/playlist?list=PLWKjhJtqVAbmMuZ3saqRIBimAKIMYkt0E",
+                   "webPageType": "WEB_PAGE_TYPE_PLAYLIST",
+                   "rootVe": 5754,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "VLPLWKjhJtqVAbmMuZ3saqRIBimAKIMYkt0E"
+                 }
+                }
+               }
+              ]
+             },
+             "videos": [
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Front End Developer Roadmap"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=9He4UBLyk8Y&list=PLWKjhJtqVAbmMuZ3saqRIBimAKIMYkt0E",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "9He4UBLyk8Y",
+                  "playlistId": "PLWKjhJtqVAbmMuZ3saqRIBimAKIMYkt0E",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GiJQTFdLamhKdHFWQWJtTXVaM3NhcVJJQmltQUtJTVlrdDBF"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr2---sn-5jucgv5qc5oq-h55es.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=f477b85012f293c6&ip=REDACTED&initcwndbps=3123750&mt=1795419672&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "12 minutes, 9 seconds"
+                  }
+                 },
+                 "simpleText": "12:09"
+                },
+                "videoId": "9He4UBLyk8Y"
+               }
+              },
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "HTML Tutorial - Website Crash Course for Beginners"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=916GWv2Qs08&list=PLWKjhJtqVAbmMuZ3saqRIBimAKIMYkt0E&pp=0gcJCRYF0aJEHMZM",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "916GWv2Qs08",
+                  "playlistId": "PLWKjhJtqVAbmMuZ3saqRIBimAKIMYkt0E",
+                  "playerParams": "0gcJCRYF0aJEHMZM",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GiJQTFdLamhKdHFWQWJtTXVaM3NhcVJJQmltQUtJTVlrdDBF"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr2---sn-5jucgv5qc5oq-h55r.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=f75e865afd90b34f&ip=REDACTED&initcwndbps=3123750&mt=1795419672&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "45 minutes, 20 seconds"
+                  }
+                 },
+                 "simpleText": "45:20"
+                },
+                "videoId": "916GWv2Qs08"
+               }
+              }
+             ],
+             "videoCountText": {
+              "runs": [
+               {
+                "text": "22"
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "thumbnailText": {
+              "runs": [
+               {
+                "text": "22",
+                "bold": true
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "ownerBadges": [
+              {
+               "metadataBadgeRenderer": {
+                "icon": {
+                 "iconType": "CHECK_CIRCLE_THICK"
+                },
+                "style": "BADGE_STYLE_TYPE_VERIFIED",
+                "tooltip": "Verified",
+                "accessibilityData": {
+                 "label": "Verified"
+                }
+               }
+              }
+             ],
+             "thumbnailRenderer": {
+              "playlistVideoThumbnailRenderer": {
+               "thumbnail": {
+                "thumbnails": [
+                 {
+                  "url": "https://i.ytimg.com/vi/9He4UBLyk8Y/hqdefault.jpg?sqp=-oaymwEXCOADEI4CSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLCmwbjtmMDfZ-e7K9NTp3nVjUQ5FQ",
+                  "width": 480,
+                  "height": 270
+                 }
+                ],
+                "sampledThumbnailColor": {
+                 "red": 17,
+                 "green": 41,
+                 "blue": 114
+                },
+                "darkColorPalette": {
+                 "section2Color": 463411,
+                 "iconInactiveColor": 7765395,
+                 "iconDisabledColor": 4409689
+                },
+                "vibrantColorPalette": {
+                 "iconInactiveColor": 7042713
+                }
+               }
+              }
+             },
+             "thumbnailOverlays": [
+              {
+               "thumbnailOverlayBottomPanelRenderer": {
+                "text": {
+                 "simpleText": "22 lessons"
+                },
+                "icon": {
+                 "iconType": "COURSE"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayHoverTextRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Play all"
+                  }
+                 ]
+                },
+                "icon": {
+                 "iconType": "PLAY_ALL"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayNowPlayingRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Now playing"
+                  }
+                 ]
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         }
+        ],
+        "targetId": "7271de19-0000-291c-ba6e-3c286d3e0a06",
+        "style": "RICH_GRID_STYLE_SLIM"
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

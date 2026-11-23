@@ -1,0 +1,208 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "title": "Home",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "EghmZWF0dXJlZPIGBAoCMgA%3D",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/featured",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "title": "Videos",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "EgZ2aWRlb3PyBgQKAjoA",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/videos",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "title": "Shorts",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "EgZzaG9ydHPyBgUKA5oBAA%3D%3D",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/shorts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "title": "Live",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "EgdzdHJlYW1z8gYECgJ6AA%3D%3D",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/streams",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "title": "Shows",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "EgVzaG93c_IGBAoCYgA%3D",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/shows",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "title": "Podcasts",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "Eghwb2RjYXN0c_IGBQoDugEA",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/podcasts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "title": "Courses",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "Egdjb3Vyc2Vz8gYFCgPCAQA%3D",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/courses",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "title": "Playlists",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "EglwbGF5bGlzdHPyBgoKCEIGCgIQaCIA",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/playlists",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "title": "Posts",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "EgVwb3N0c_IGBAoCSgA%3D",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/posts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    },
+    {
+     "tabRenderer": {
+      "title": "Store",
+      "endpoint": {
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "EgVzdG9yZfIGBAoCGgA%3D",
+        "canonicalBaseUrl": "/@freecodecamp"
+       },
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/store",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

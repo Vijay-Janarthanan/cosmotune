@@ -332,7 +332,9 @@ internal object YoutubeFeedParser {
                     mixCard(node, id)?.let { mixCards.add(MixCard(videos.size, it)) }
                 }
                 type.endsWith("_CHANNEL") -> item("lockup:$type") { channelLockup(node, id)?.let(channels::add) }
-                // Podcasts, albums, courses, products: nothing Video mode lists.
+                // A podcast is a playlist (a channel page's Podcasts tab); it never becomes one of Home's mix cards.
+                type.endsWith("_PODCAST") -> item("lockup:$type") { playlistLockup(node, id)?.let(playlists::add) }
+                // Albums, products: nothing Video mode lists.
                 else -> Unit
             }
         }

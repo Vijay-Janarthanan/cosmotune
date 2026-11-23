@@ -96,4 +96,33 @@ class InnerTubeLiveChatTest {
         assertEquals("TOKEN", body["continuation"]!!.jsonPrimitive.content)
         assertEquals("42000", body["currentPlayerState"]!!.jsonObject["playerOffsetMs"]!!.jsonPrimitive.content)
     }
+
+    // ---- Real answers (trimmed and scrubbed: names, pictures, ids and words replaced) -------------------------------------------
+
+    @Test fun aRealWatchPageNamesTheLiveChat() {
+        val start = assertNotNull(InnerTubeLiveChat.startOf(AccountFixtures.json("live_chat_watch.json")))
+        assertTrue(start.token.isNotBlank())
+        assertEquals(false, start.replay)
+        assertEquals(true, InnerTubeLiveChat.startOf(AccountFixtures.json("live_chat_watch_replay.json"))?.replay)
+    }
+
+    @Test fun aRealLivePageReadsItsMessagesEmojiAndRemovals() {
+        val batch = InnerTubeLiveChat.parse(AccountFixtures.json("live_chat_live.json"))
+        assertEquals(5, batch.messages.size, "three words, one standard emoji, one channel emoji; the welcome card is no message")
+        assertTrue(batch.messages.all { it.author.startsWith("Viewer") && it.authorPhotoUrl != null })
+        assertTrue(batch.messages.any { "\uD83D\uDE02" in it.text }, "a standard emoji is the character itself")
+        assertTrue(batch.messages.any { it.text.contains(":face-pink-tears:") }, "a channel's own emoji is its shortcut")
+        assertEquals(1, batch.deleted.size, "a message taken down by a moderator")
+        assertNotNull(batch.next)
+        assertEquals(10_000L, batch.nextDelayMs)
+    }
+
+    @Test fun aRealReplayPageCarriesOffsetsAndTheOwnersBadge() {
+        val batch = InnerTubeLiveChat.parse(AccountFixtures.json("live_chat_replay.json"))
+        assertTrue(batch.messages.isNotEmpty())
+        assertTrue(batch.messages.all { it.offsetMs != null })
+        assertEquals(batch.messages.map { it.offsetMs }, batch.messages.map { it.offsetMs }.sortedBy { it })
+        assertTrue(batch.messages.any { it.role == ChatRole.OWNER })
+        assertNotNull(batch.next, "the replay continuation, not the seek one")
+    }
 }

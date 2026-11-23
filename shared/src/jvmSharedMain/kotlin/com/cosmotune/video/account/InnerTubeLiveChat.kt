@@ -58,6 +58,7 @@ class InnerTubeLiveChat internal constructor(private val web: YoutubeWeb) : Live
                 }
                 if (node.obj("removeBannerForLiveChatCommand") != null) unpinned = true
                 node.obj("markChatItemAsDeletedAction")?.str("targetItemId")?.let { deleted += it }
+                node.obj("removeChatItemAction")?.str("targetItemId")?.let { deleted += it }
                 node.obj("replayChatItemAction")?.let { replay ->
                     val at = replay.str("videoOffsetTimeMsec")?.toLongOrNull()
                     replay.arr("actions")?.forEach { action(it, at) }

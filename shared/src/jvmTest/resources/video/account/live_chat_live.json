@@ -1,0 +1,350 @@
+{
+ "continuationContents": {
+  "liveChatContinuation": {
+   "continuations": [
+    {
+     "invalidationContinuationData": {
+      "invalidationId": {
+       "objectSource": 1056,
+       "objectId": "Y2hhdH45b2JzME1QZThVRQ==",
+       "topic": "chat~9obs0MPe8UE",
+       "subscribeToGcmTopics": true,
+       "protoCreationTimestampMs": "1795420015343"
+      },
+      "timeoutMs": 10000,
+      "continuation": "0ofMyAObAhpeQ2lrcUp3b1lWVU5aYkdnMGJFZzNOakpJZGtoME5tMXRhV1ZqZVZkUkVnczViMkp6TUUxUVpUaFZSUm9UNnFqZHVRRU5DZ3M1YjJKek1FMVFaVGhWUlNBQk1BQSUzRCiTg5LJzJ2YAzAAQAJKdQgAGAAgAEoIEAAYACAAMABQzfTv4cydmANYA3gAogEAqgEMEAAaACIAKgQIABAAsAEAwAEAyAHN9O_hzJ2YA-IBDAjv3o_YBhCr0NiMAegBAPgBAIgCAJACAJoCDAjv3o_YBhCr0NiMAdgCAOICAIgDALgDAVCGmbvJzJ2YA1i3g9KA8pyYA4IBBggEGAEwAIgBAKABtO3y4cydmAOyAQC6AQIICtAB7d6P2AY%3D"
+     }
+    }
+   ],
+   "actions": [
+    {
+     "addChatItemAction": {
+      "item": {
+       "liveChatTextMessageRenderer": {
+        "message": {
+         "runs": [
+          {
+           "text": "message 1 "
+          }
+         ]
+        },
+        "authorName": {
+         "simpleText": "Viewer 1"
+        },
+        "authorPhoto": {
+         "thumbnails": [
+          {
+           "url": "https://yt4.ggpht.com/photo=s32",
+           "width": 32,
+           "height": 32
+          },
+          {
+           "url": "https://yt4.ggpht.com/photo=s64",
+           "width": 64,
+           "height": 64
+          }
+         ]
+        },
+        "id": "ChwKGkNPcVo0ZS1qblpnREZiUFM1d01kd2hNaDB3",
+        "timestampUsec": "1795409038570515",
+        "authorExternalChannelId": "UCviewer"
+       }
+      }
+     }
+    },
+    {
+     "addChatItemAction": {
+      "item": {
+       "liveChatTextMessageRenderer": {
+        "message": {
+         "runs": [
+          {
+           "text": "message 2 "
+          }
+         ]
+        },
+        "authorName": {
+         "simpleText": "Viewer 1"
+        },
+        "authorPhoto": {
+         "thumbnails": [
+          {
+           "url": "https://yt4.ggpht.com/photo=s32",
+           "width": 32,
+           "height": 32
+          },
+          {
+           "url": "https://yt4.ggpht.com/photo=s64",
+           "width": 64,
+           "height": 64
+          }
+         ]
+        },
+        "id": "ChwKGkNLams0UENqblpnREZablB3Z1FkdHJnckd3",
+        "timestampUsec": "1795409040659000",
+        "authorExternalChannelId": "UCviewer"
+       }
+      }
+     }
+    },
+    {
+     "addChatItemAction": {
+      "item": {
+       "liveChatTextMessageRenderer": {
+        "message": {
+         "runs": [
+          {
+           "text": "message 3 "
+          }
+         ]
+        },
+        "authorName": {
+         "simpleText": "Viewer 1"
+        },
+        "authorPhoto": {
+         "thumbnails": [
+          {
+           "url": "https://yt4.ggpht.com/photo=s32",
+           "width": 32,
+           "height": 32
+          },
+          {
+           "url": "https://yt4.ggpht.com/photo=s64",
+           "width": 64,
+           "height": 64
+          }
+         ]
+        },
+        "id": "ChwKGkNLT0YzUFNqblpnREZaWHl3Z1FkWUVzSXB3",
+        "timestampUsec": "1795409048973464",
+        "authorExternalChannelId": "UCviewer"
+       }
+      }
+     }
+    },
+    {
+     "addChatItemAction": {
+      "item": {
+       "liveChatViewerEngagementMessageRenderer": {
+        "id": "CjEKL0NPTU1VTklUWV9HVUlERUxJTkVTX1ZFTTIwMjYvMTEvMjItMjM6NDY6NTUuMzQz",
+        "timestampUsec": "1795420015343265",
+        "icon": {
+         "iconType": "YOUTUBE_ROUND"
+        },
+        "message": {
+         "runs": [
+          {
+           "text": "message 4 "
+          }
+         ]
+        },
+        "actionButton": {
+         "buttonRenderer": {
+          "style": "STYLE_BLUE_TEXT",
+          "size": "SIZE_DEFAULT",
+          "isDisabled": false,
+          "text": {
+           "simpleText": "Learn more"
+          },
+          "accessibilityData": {
+           "accessibilityData": {
+            "label": "Welcome to live chat! Remember to guard your privacy and abide by our community guidelines. Learn more"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "removeChatItemAction": {
+      "targetItemId": "ChwKGkNQU0QzZlNrblpnREZYdzNkZ1lkSGkwc0V3"
+     }
+    },
+    {
+     "addChatItemAction": {
+      "item": {
+       "liveChatTextMessageRenderer": {
+        "message": {
+         "runs": [
+          {
+           "emoji": {
+            "emojiId": "😂",
+            "shortcuts": [
+             ":face_with_tears_of_joy:",
+             ":joy:"
+            ],
+            "searchTerms": [
+             "face",
+             "with",
+             "tears",
+             "of",
+             "joy"
+            ],
+            "image": {
+             "thumbnails": [
+              {
+               "url": "https://fonts.gstatic.com/s/e/notoemoji/15.1/1f602/72.png"
+              }
+             ],
+             "accessibility": {
+              "accessibilityData": {
+               "label": "😂"
+              }
+             }
+            }
+           }
+          },
+          {
+           "emoji": {
+            "emojiId": "😂",
+            "shortcuts": [
+             ":face_with_tears_of_joy:",
+             ":joy:"
+            ],
+            "searchTerms": [
+             "face",
+             "with",
+             "tears",
+             "of",
+             "joy"
+            ],
+            "image": {
+             "thumbnails": [
+              {
+               "url": "https://fonts.gstatic.com/s/e/notoemoji/15.1/1f602/72.png"
+              }
+             ],
+             "accessibility": {
+              "accessibilityData": {
+               "label": "😂"
+              }
+             }
+            }
+           }
+          }
+         ]
+        },
+        "authorName": {
+         "simpleText": "Viewer 2"
+        },
+        "authorPhoto": {
+         "thumbnails": [
+          {
+           "url": "https://yt4.ggpht.com/photo=s32",
+           "width": 32,
+           "height": 32
+          },
+          {
+           "url": "https://yt4.ggpht.com/photo=s64",
+           "width": 64,
+           "height": 64
+          }
+         ]
+        },
+        "id": "ChwKGkNKaVVqX182bkpnREZjN0V3Z1FkOGZRSk53",
+        "timestampUsec": "1795398064923009",
+        "authorExternalChannelId": "UCviewer"
+       }
+      }
+     }
+    },
+    {
+     "addChatItemAction": {
+      "item": {
+       "liveChatTextMessageRenderer": {
+        "message": {
+         "runs": [
+          {
+           "emoji": {
+            "emojiId": "UCkszU2WH9gy1mb0dV-11UJg/NvgfY9aeC_OFvOMPkrOAsAM",
+            "shortcuts": [
+             ":face-pink-tears:"
+            ],
+            "searchTerms": [
+             "face-pink-tears"
+            ],
+            "image": {
+             "thumbnails": [
+              {
+               "url": "https://yt3.ggpht.com/RL5QHCNcO_Mc98SxFEblXZt9FNoh3bIgsjm0Kj8kmeQJWMeTu7JX_NpICJ6KKwKT0oVHhAA=w24-h24-c-k-nd",
+               "width": 24,
+               "height": 24
+              },
+              {
+               "url": "https://yt3.ggpht.com/RL5QHCNcO_Mc98SxFEblXZt9FNoh3bIgsjm0Kj8kmeQJWMeTu7JX_NpICJ6KKwKT0oVHhAA=w48-h48-c-k-nd",
+               "width": 48,
+               "height": 48
+              }
+             ],
+             "accessibility": {
+              "accessibilityData": {
+               "label": "face-pink-tears"
+              }
+             }
+            },
+            "isCustomEmoji": true
+           }
+          },
+          {
+           "emoji": {
+            "emojiId": "UCkszU2WH9gy1mb0dV-11UJg/LsMfY8P6G-yckNAPjoWA8AI",
+            "shortcuts": [
+             ":face-blue-wide-eyes:"
+            ],
+            "searchTerms": [
+             "face-blue-wide-eyes"
+            ],
+            "image": {
+             "thumbnails": [
+              {
+               "url": "https://yt3.ggpht.com/2Ht4KImoWDlCddiDQVuzSJwpEb59nZJ576ckfaMh57oqz2pUkkgVTXV8osqUOgFHZdUISJM=w24-h24-c-k-nd",
+               "width": 24,
+               "height": 24
+              },
+              {
+               "url": "https://yt3.ggpht.com/2Ht4KImoWDlCddiDQVuzSJwpEb59nZJ576ckfaMh57oqz2pUkkgVTXV8osqUOgFHZdUISJM=w48-h48-c-k-nd",
+               "width": 48,
+               "height": 48
+              }
+             ],
+             "accessibility": {
+              "accessibilityData": {
+               "label": "face-blue-wide-eyes"
+              }
+             }
+            },
+            "isCustomEmoji": true
+           }
+          }
+         ]
+        },
+        "authorName": {
+         "simpleText": "Viewer 3"
+        },
+        "authorPhoto": {
+         "thumbnails": [
+          {
+           "url": "https://yt4.ggpht.com/photo=s32",
+           "width": 32,
+           "height": 32
+          },
+          {
+           "url": "https://yt4.ggpht.com/photo=s64",
+           "width": 64,
+           "height": 64
+          }
+         ]
+        },
+        "id": "ChwKGkNPZW81TEd4blpnREZaVGY1d01kR2ZRNjFR",
+        "timestampUsec": "1795412666693580",
+        "authorExternalChannelId": "UCviewer"
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}
