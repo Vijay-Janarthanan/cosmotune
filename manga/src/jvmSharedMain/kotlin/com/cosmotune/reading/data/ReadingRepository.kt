@@ -145,7 +145,9 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
                 sourceUrl = source?.links?.firstOrNull { it.kind == ReadingLinkKind.DETAILS }?.url ?: previous?.sourceUrl,
                 addedAtMs = previous?.addedAtMs ?: System.currentTimeMillis(),
                 originalFormat = convertKind?.let(ReadingConvert::label).orEmpty(), fileSha = fileSha, koreaderHash = koreaderHash,
-                serverSource = server?.first ?: previous?.serverSource.orEmpty(), serverLink = server?.second ?: previous?.serverLink.orEmpty())
+                serverSource = server?.first ?: previous?.serverSource.orEmpty(), serverLink = server?.second ?: previous?.serverLink.orEmpty(),
+                series = parsed?.series.orEmpty(), seriesIndex = parsed?.seriesIndex, subjects = parsed?.subjects.orEmpty(),
+                tags = previous?.tags.orEmpty())
             ReadingStore.move(temporary, target)
             store.update { it.copy(books = it.books.filterNot { old -> old.id == book.id } + book) }
             return book
@@ -231,6 +233,12 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     suspend fun markFinished(bookId: String, finished: Boolean = true) = store.update { old ->
         require(old.books.any { it.id == bookId })
         old.copy(finished = if (finished) old.finished + bookId else old.finished - bookId, finishedAt = old.finishedAt + (bookId to System.currentTimeMillis()))
+    }
+    /** Sets [bookId]'s own tags (each 1–40 characters). */
+    suspend fun setTags(bookId: String, tags: Set<String>) {
+        val clean = tags.map { it.trim() }.filter { it.isNotEmpty() }.onEach { require(it.length <= 40 && it.none(Char::isISOControl)) { "Keep a tag under 40 characters." } }.toSet()
+        require(clean.size <= 30) { "A book can have up to 30 tags." }
+        store.update { old -> old.copy(books = old.books.map { if (it.id == bookId) it.copy(tags = clean) else it }) }
     }
     suspend fun createCollection(name: String): ReadingCollection {
         val collection = ReadingCollection(UUID.randomUUID().toString(), title(name))

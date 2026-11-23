@@ -279,7 +279,8 @@ private fun BookCard(scope: ReadScope, book: ReadingBook, width: Dp? = null) {
     Box {
         ReadCoverCard(book.title, book.authors.firstOrNull(), book.coverPath?.let(::File), onClick = { scope.navigation.book = book }, width = width, key = book.id,
             progress = fraction, onContinue = if (fraction != null) ({ scope.open(book) }) else null)
-        val badge = if (book.id in state.finished) "Finished" else fraction?.let { "${(it * 100).toInt()} %" }
+        val missing = remember(book.filePath) { !File(book.filePath).isFile }
+        val badge = if (missing) "File missing" else if (book.id in state.finished) "Finished" else fraction?.let { "${(it * 100).toInt()} %" }
         if (badge != null) Text(badge, style = orbitFonts().label.copy(fontSize = 11.sp), color = orbitLook().ground, maxLines = 1,
             modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(ReadShape.sm).background(orbitLook().ink.copy(alpha = 0.82f)).padding(horizontal = 6.dp, vertical = 2.dp))
     }
@@ -291,12 +292,34 @@ internal fun PublicationCard(scope: ReadScope, publication: ReadingPublication, 
 }
 
 /** The order of Read's library: the latest read or added first, the title, or when it was added. */
-internal enum class BookOrder(val label: String) { RECENT("Last read"), TITLE("Title"), ADDED("Added") }
+internal enum class BookOrder(val label: String) { RECENT("Last read"), TITLE("Title"), AUTHOR("Author"), ADDED("Added"), PROGRESS("Progress") }
+
+/** How the library can be grouped: by author, series or subject, with a heading over each group. */
+internal enum class BookGroup(val label: String) { NONE("No groups"), AUTHOR("By author"), SERIES("By series"), SUBJECT("By subject") }
+
+/** [this] in [group]'s groups (each a heading and its books, the headings in order, "Other" last), or one group without a heading. */
+internal fun List<ReadingBook>.grouped(group: BookGroup): List<Pair<String?, List<ReadingBook>>> = when (group) {
+    BookGroup.NONE -> listOf(null to this)
+    else -> {
+        val keyOf: (ReadingBook) -> List<String> = when (group) {
+            BookGroup.AUTHOR -> { book -> listOf(book.authors.firstOrNull()?.trim().orEmpty()) }
+            BookGroup.SERIES -> { book -> listOf(book.series.trim()) }
+            else -> { book -> book.subjects.ifEmpty { listOf("") } }
+        }
+        val groups = LinkedHashMap<String, MutableList<ReadingBook>>()
+        forEach { book -> keyOf(book).forEach { groups.getOrPut(it) { ArrayList() } += book } }
+        groups.entries.sortedWith(compareBy({ it.key.isEmpty() }, { it.key.lowercase() })).map { (key, books) ->
+            key.ifEmpty { "Other" } to if (group == BookGroup.SERIES && key.isNotEmpty()) books.sortedBy { it.seriesIndex ?: Double.MAX_VALUE } else books
+        }
+    }
+}
 
 internal fun List<ReadingBook>.ordered(order: BookOrder, state: ReadingState): List<ReadingBook> = when (order) {
     BookOrder.RECENT -> this
     BookOrder.TITLE -> sortedBy { it.title.lowercase() }
+    BookOrder.AUTHOR -> sortedWith(compareBy({ it.authors.firstOrNull()?.substringAfterLast(' ')?.lowercase() ?: "\uffff" }, { it.title.lowercase() }))
     BookOrder.ADDED -> sortedByDescending { it.addedAtMs }
+    BookOrder.PROGRESS -> sortedByDescending { if (it.id in state.finished) 2.0 else state.progress[it.id]?.locator?.progression ?: -1.0 }
 }
 
 /**
@@ -311,7 +334,10 @@ private fun BookLibrary(scope: ReadScope) {
     var shelf by rememberSaveable { mutableStateOf(BookShelf.ALL) }
     var order by rememberSaveable { mutableStateOf(BookOrder.RECENT) }
     var rows by rememberSaveable { mutableStateOf(false) }
-    val books = state.shelf(shelf, "").ordered(order, state)
+    var group by rememberSaveable { mutableStateOf(BookGroup.NONE) }
+    var tag by rememberSaveable { mutableStateOf<String?>(null) }
+    val tags = state.books.flatMap { it.tags }.distinct().sortedBy { it.lowercase() }
+    val books = state.shelf(shelf, "").filter { tag == null || tag in it.tags }.ordered(order, state)
     val saved = if (shelf == BookShelf.SAVED) state.saved else emptyList()
     val reading = state.books.filter { it.id in state.progress && it.id !in state.finished }.sortedByDescending { state.progress[it.id]?.updatedAtMs ?: 0L }
     val hero = reading.firstOrNull()
@@ -348,7 +374,12 @@ private fun BookLibrary(scope: ReadScope) {
                     ReadChip(BookShelf.SAVED.label + " ${state.saved.size}", shelf == BookShelf.SAVED, { shelf = BookShelf.SAVED }, Modifier.testTag("books:shelf:${BookShelf.SAVED.label}"))
                     ReadPill(order.label, icon = CosmoIcons.Sort, onClick = { order = BookOrder.entries[(order.ordinal + 1) % BookOrder.entries.size] },
                         modifier = Modifier.testTag("books:order"))
+                    ReadPill(group.label, icon = CosmoIcons.Library, onClick = { group = BookGroup.entries[(group.ordinal + 1) % BookGroup.entries.size] },
+                        modifier = Modifier.testTag("books:group"))
                     ReadIconButton(if (rows) CosmoIcons.Grid else CosmoIcons.List, if (rows) "Show as a grid" else "Show as a list", { rows = !rows }, Modifier.testTag("books:layout"))
+                }
+                if (tags.isNotEmpty()) ReadChipRow(Modifier.padding(bottom = 4.dp)) {
+                    tags.forEach { name -> ReadChip(name, tag == name, { tag = if (tag == name) null else name }, Modifier.testTag("books:tag:$name")) }
                 }
             }
         }
@@ -373,7 +404,12 @@ private fun BookLibrary(scope: ReadScope) {
                     actionLabel = if (state.books.isEmpty()) "Import books" else null, onAction = scope.importBooks,
                 )
             }
-            items(books, key = { it.id }) { book -> if (rows) BookRow(scope, book) else BookCard(scope, book) }
+            books.grouped(group).forEach { (heading, members) ->
+                if (heading != null) item(key = "group:$heading", span = { GridItemSpan(maxLineSpan) }) {
+                    ReadSection(heading, Modifier.readBleed(), subtitle = members.size.toString())
+                }
+                items(members, key = { "${heading.orEmpty()}:${it.id}" }) { book -> if (rows) BookRow(scope, book) else BookCard(scope, book) }
+            }
         }
     }
 }
@@ -423,7 +459,8 @@ private fun BookTiles(state: ReadingState, modifier: Modifier, onBookmarks: () -
 @Composable
 private fun BookRow(scope: ReadScope, book: ReadingBook) {
     val state by scope.repository.state.collectAsUiState()
-    ReadCoverRow(book.title, state.bookLine(book), book.coverPath?.let(::File), onClick = { scope.navigation.book = book }, key = book.id,
+    val missing = remember(book.filePath) { !File(book.filePath).isFile }
+    ReadCoverRow(book.title, if (missing) "File missing · import it again" else state.bookLine(book), book.coverPath?.let(::File), onClick = { scope.navigation.book = book }, key = book.id,
         modifier = Modifier.testTag("books:row:${book.id}"))
 }
 
@@ -524,6 +561,8 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
     val fraction = state.fraction(book)
     val finished = book.id in state.finished
     var more by remember { mutableStateOf(false) }
+    var tagging by remember { mutableStateOf(false) }
+    if (tagging) BookTagsSheet(book, state.books.flatMap { it.tags }.distinct(), onSave = { scope.action { scope.repository.setTags(book.id, it) } }, onDismiss = { tagging = false })
     val undo = LocalOrbitUndo.current
     // Remove takes the book off the library at once, with "Removed · Undo"; its files are deleted only once Undo has run out.
     val remove: () -> Unit = {
@@ -559,11 +598,16 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
                             com.cosmotune.ui.orbit.OrbitMenu(more, { more = false }, listOfNotNull(
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Export notes as Markdown", icon = CosmoIcons.Download) { exportNotes(true) }.takeIf { hasNotes },
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Export notes as a web page", icon = CosmoIcons.Download) { exportNotes(false) }.takeIf { hasNotes },
+                                com.cosmotune.ui.orbit.OrbitMenuItem("Tags", detail = book.tags.joinToString(", ").ifBlank { null }, icon = CosmoIcons.Pin) { tagging = true },
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Remove from this device", icon = CosmoIcons.Close) { remove() },
                             ), orbitFonts(), look, header = book.title)
                         }
                     },
                 )
+            }
+            if (!File(book.filePath).isFile) item(key = "missing") {
+                ReadInlineBanner("This book's file is missing from this device. Import the same file again to read it; its place and notes are kept.",
+                    Modifier.padding(horizontal = ReadMargin, vertical = 8.dp).testTag("books:missing"), actionLabel = "Import", onAction = scope.importBooks)
             }
             if (book.description.isNotBlank()) item(key = "about") {
                 var open by rememberSaveable(book.id) { mutableStateOf(false) }
@@ -600,6 +644,9 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
 /** A book's details as its page lists them: the format, the language, when it was added and where it came from. */
 internal fun bookFacts(book: ReadingBook, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Pair<String, String>> = listOfNotNull(
     "Format" to (book.originalFormat.ifBlank { book.format.name }),
+    book.series.takeIf { it.isNotBlank() }?.let { "Series" to (it + (book.seriesIndex?.let { n -> " · " + (if (n % 1.0 == 0.0) n.toInt().toString() else n.toString()) } ?: "")) },
+    book.subjects.takeIf { it.isNotEmpty() }?.let { "Subjects" to it.take(4).joinToString(", ") },
+    book.tags.takeIf { it.isNotEmpty() }?.let { "Tags" to it.sorted().joinToString(", ") },
     book.language.takeIf { it.isNotBlank() }?.let { "Language" to it },
     "Added" to java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH).format(java.time.Instant.ofEpochMilli(book.addedAtMs).atZone(zone)),
     "Source" to (book.sourceUrl ?: "On this device"),
@@ -651,3 +698,22 @@ private fun BookSearchPage(scope: ReadScope) {
  */
 internal fun readTrending(pages: PageCache, repository: ReadingRepository): CachedLoad<com.cosmotune.reading.data.ReadingSearchPage> =
     pages.entry("read:trending", SLOW_FRESH_MS, CacheCodec.json(com.cosmotune.reading.data.ReadingSearchPage.serializer())) { repository.trending(0) }
+
+/** A book's own tags: the tags already used as chips to toggle, and a field for a new one. */
+@Composable
+private fun BookTagsSheet(book: ReadingBook, known: List<String>, onSave: (Set<String>) -> Unit, onDismiss: () -> Unit) {
+    var chosen by remember(book.id) { mutableStateOf(book.tags) }
+    var typed by remember { mutableStateOf("") }
+    com.cosmotune.ui.kit.KitSheet(onDismiss = { onSave(chosen); onDismiss() }) {
+        ReadSheetHeader("Tags", onDone = { onSave(chosen + typed.trim().takeIf { it.isNotEmpty() }.let { setOfNotNull(it) }); onDismiss() })
+        val all = (known + chosen).distinct().sortedBy { it.lowercase() }
+        if (all.isNotEmpty()) ReadChipRow(Modifier.padding(vertical = 4.dp)) {
+            all.forEach { name -> ReadChip(name, name in chosen, { chosen = if (name in chosen) chosen - name else chosen + name }) }
+        }
+        Box(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+            com.cosmotune.ui.orbit.OrbitInputField(typed, { typed = it.take(40) }, "A new tag, such as To lend or Book club", modifier = Modifier.fillMaxWidth().testTag("books:tag-field"))
+        }
+        if (typed.isNotBlank()) ReadChipRow { ReadChip("Add “${typed.trim()}”", false, { chosen = chosen + typed.trim(); typed = "" }, icon = CosmoIcons.Plus) }
+        Spacer(Modifier.height(16.dp))
+    }
+}

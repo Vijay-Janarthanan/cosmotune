@@ -13,7 +13,8 @@ import org.jsoup.parser.Parser
 internal object ReadingEpub {
     data class Package(val title: String, val authors: List<String>, val language: String, val description: String,
         val root: File, val spine: List<ReadingEpubSection>, val navigation: List<ReadingNavigation>,
-        val resources: Map<String, ReadingResource>, val cover: File?)
+        val resources: Map<String, ReadingResource>, val cover: File?, val series: String = "", val seriesIndex: Double? = null,
+        val subjects: List<String> = emptyList())
 
     suspend fun open(archive: File, destination: File): Package {
         val staging = File(destination.parentFile, destination.name + ".staging-" + java.util.UUID.randomUUID()).apply { mkdirs() }
@@ -110,8 +111,15 @@ internal object ReadingEpub {
             if (destination.exists()) deleteOwned(destination)
             ReadingStore.move(staging, destination)
             val relocated = resources.mapValues { (_, resource) -> resource.copy(file = File(destination, resource.href)) }
+            // Series: EPUB 3's belongs-to-collection (with its group-position), else calibre's own series metadata.
+            val metas = metadata?.children()?.filter { it.local() == "meta" }.orEmpty()
+            val collection = metas.firstOrNull { it.attr("property") == "belongs-to-collection" }
+            val series = collection?.text()?.trim().takeUnless { it.isNullOrBlank() } ?: metas.firstOrNull { it.attr("name") == "calibre:series" }?.attr("content")?.trim().orEmpty()
+            val seriesIndex = (collection?.attr("id")?.takeIf { it.isNotBlank() }?.let { id -> metas.firstOrNull { it.attr("refines") == "#$id" && it.attr("property") == "group-position" }?.text() }
+                ?: metas.firstOrNull { it.attr("name") == "calibre:series_index" }?.attr("content"))?.trim()?.toDoubleOrNull()
             return Package(title, texts("creator"), texts("language").firstOrNull().orEmpty(), texts("description").firstOrNull().orEmpty(),
-                destination, spine.map { it.copy(file = File(destination, it.href)) }, navigation, relocated, coverPath?.let { File(destination, it) })
+                destination, spine.map { it.copy(file = File(destination, it.href)) }, navigation, relocated, coverPath?.let { File(destination, it) },
+                series.take(200), seriesIndex, texts("subject").map { it.trim().take(80) }.filter { it.isNotBlank() }.distinct().take(20))
         } finally { if (staging.exists()) deleteOwned(staging) }
     }
 

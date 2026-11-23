@@ -15,7 +15,9 @@ import kotlinx.serialization.Serializable
     /** The SHA-256 of the owned file when it differs from [id] (a converted book keeps its original file's identity). */
     val fileSha: String = "",
     /** KOReader's identity of the imported file (for KOReader sync), and the library server and download address it came from. */
-    val koreaderHash: String = "", val serverSource: String = "", val serverLink: String = "")
+    val koreaderHash: String = "", val serverSource: String = "", val serverLink: String = "",
+    /** The series the book belongs to (and its number in it), its subjects, and the reader's own tags. */
+    val series: String = "", val seriesIndex: Double? = null, val subjects: List<String> = emptyList(), val tags: Set<String> = emptySet())
 @Serializable data class ReadingLocator(val resourceHref: String? = null, val progression: Double = 0.0,
     val page: Int = 0, val scrollOffset: Double = 0.0)
 @Serializable data class ReadingProgress(val bookId: String, val locator: ReadingLocator, val updatedAtMs: Long = System.currentTimeMillis())
