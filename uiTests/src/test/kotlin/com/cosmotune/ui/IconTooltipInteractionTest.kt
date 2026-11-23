@@ -21,7 +21,7 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 
-/** Force the deferred tooltip body to compose using the application's desktop Material version. */
+/** The Orbit tooltip of an icon button: a long press shows the name and does not click; a click still clicks. */
 @OptIn(ExperimentalTestApi::class)
 class IconTooltipInteractionTest {
     @get:Rule val compose = createComposeRule()
@@ -47,7 +47,8 @@ class IconTooltipInteractionTest {
     @Test fun longPressRendersTooltipWithPackagedMaterialAbi() {
         show()
         compose.onNodeWithTag("back-button").performTouchInput { longClick() }
-        compose.onNodeWithText("Back").assertIsDisplayed()
+        // The Orbit pill says nothing to a screen reader (the button keeps its own label), so it is found in the unmerged tree.
+        compose.onNodeWithText("Back", useUnmergedTree = true).assertIsDisplayed()
         assertEquals(0, clicks)
     }
 
