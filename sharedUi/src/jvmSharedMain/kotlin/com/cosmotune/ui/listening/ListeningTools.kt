@@ -98,9 +98,10 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
     // While Cosmotune is open (this workspace stays composed when closed), check stale artists about daily.
     val autoReleases = state?.preferences?.autoCheckReleases == true
     LaunchedEffect(store, autoReleases) {
+        if (store != null) latestHost.onDailyReleaseChecks(autoReleases)
         if (store == null || !autoReleases) return@LaunchedEffect
         while (true) {
-            refreshDueReleases(store, latestHost.releases)
+            refreshDueReleases(store, latestHost.releases, onFound = latestHost.onNewReleases)
             kotlinx.coroutines.delay(60 * 60 * 1000L)
         }
     }
@@ -358,11 +359,11 @@ private fun ColumnScope.ReleasesPage(state: ListeningState, host: ListeningTools
             }
         }
         item {
-            ToggleRow("Check daily while Cosmotune is open", state.preferences.autoCheckReleases) { enabled ->
+            ToggleRow(host.dailyReleaseCheckLabel, state.preferences.autoCheckReleases) { enabled ->
                 run { withContext(Dispatchers.IO) { store.update { it.copy(preferences = it.preferences.copy(autoCheckReleases = enabled)) } }; null }
             }
             ToolButton("Check for releases", enabled = !busy && state.artists.isNotEmpty(), tag = "listening:releases:check", onClick = { run {
-                val failures = refreshDueReleases(store, host.releases, force = true)
+                val failures = refreshDueReleases(store, host.releases, force = true, onFound = host.onNewReleases)
                 if (failures > 0) "$failures artist checks failed. Saved releases were kept; retry when connected." else "Release checks complete"
             } })
         }
@@ -516,15 +517,13 @@ private fun EmptyHint(title: String, detail: String, action: () -> Unit, close: 
 private fun stamp(millis: Long): String = DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(millis))
 
 /** Checks due (or, with [force], all) followed artists; returns how many checks failed. Saved releases are never dropped. */
-internal suspend fun refreshDueReleases(store: ListeningStore, lookup: suspend (WatchedArtist) -> List<ReleaseNotice>, force: Boolean = false): Int {
-    val artists = store.state.value.artists.let { if (force) it else dueForReleaseCheck(it, System.currentTimeMillis()) }
-    var failures = 0
-    for (artist in artists) {
-        try {
-            val releases = lookup(artist)
-            withContext(Dispatchers.IO) { store.acceptReleases(artist.id, releases) }
-        } catch (_: kotlinx.coroutines.TimeoutCancellationException) { failures++ }
-        catch (e: CancellationException) { throw e } catch (_: Exception) { failures++ }
-    }
-    return failures
+internal suspend fun refreshDueReleases(
+    store: ListeningStore,
+    lookup: suspend (WatchedArtist) -> List<ReleaseNotice>,
+    force: Boolean = false,
+    onFound: (List<ReleaseNotice>) -> Unit = {},
+): Int {
+    val outcome = com.cosmotune.listening.ReleaseChecks.run(store, lookup, force)
+    if (outcome.found.isNotEmpty()) onFound(outcome.found)
+    return outcome.failures
 }

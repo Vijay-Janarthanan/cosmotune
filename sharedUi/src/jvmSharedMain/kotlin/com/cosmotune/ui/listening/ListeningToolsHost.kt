@@ -63,6 +63,12 @@ data class ListeningToolsHost(
     val onLocalFileChanged: (String) -> Unit = {},
     /** Release lookup for followed artists; shared YouTube Music catalogue by default. */
     val releases: suspend (com.cosmotune.listening.WatchedArtist) -> List<com.cosmotune.listening.ReleaseNotice> = com.cosmotune.listening.ListeningNetwork::releases,
+    /** Tells the listener about releases a check just found (a notification); nothing by default. */
+    val onNewReleases: (List<com.cosmotune.listening.ReleaseNotice>) -> Unit = {},
+    /** The daily check was turned on or off (and its state at start), for a host that also checks in the background. */
+    val onDailyReleaseChecks: (Boolean) -> Unit = {},
+    /** The daily check's switch, in this host's words. */
+    val dailyReleaseCheckLabel: String = "Check daily while Cosmotune is open and tell me what is new",
     /** Reads a linked playlist's current source rows; only `youtube` is linked from this workspace today. */
     val fetchPlaylist: suspend (String, String) -> com.cosmotune.listening.RemotePlaylist = { source, id ->
         require(source == "youtube") { "This playlist source is not available." }
