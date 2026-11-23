@@ -5,6 +5,7 @@ import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -152,6 +153,7 @@ internal fun CommentItem(
                 CommentText(comment, expanded, onCut = { cut = it })
             }
             ReadMore(cut, expanded, onToggleExpanded)
+            if (comment.imageUrls.isNotEmpty()) CommentPictures(comment.imageUrls)
             val writes = LocalCommentInteractions.current?.takeIf { comment.writes != null || !it.canWrite }
             if (writes != null) {
                 CommentRateRow(comment, writes)
@@ -162,6 +164,28 @@ internal fun CommentItem(
         }
     }
 }
+
+/** The pictures attached to a comment, 12 dp under its text: a row that scrolls sideways when there are several. */
+@Composable
+private fun CommentPictures(urls: List<String>) {
+    Spacer(Modifier.height(12.dp))
+    Row(
+        Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (url in urls) {
+            coil3.compose.AsyncImage(
+                model = url,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(COMMENT_PICTURE_DP.dp).clip(RoundedCornerShape(16.dp)),
+            )
+        }
+    }
+    Spacer(Modifier.height(4.dp))
+}
+
+private const val COMMENT_PICTURE_DP = 160
 
 /** The name, the Creator mark and the age on one line; a long name is cut, the mark and the age stay. */
 @Composable

@@ -199,4 +199,15 @@ class InnerTubeCommentsTest {
         assertIs<AccountFailure.NotSignedIn>(account.rateComment("A").exceptionOrNull())
         assertTrue(web.calls.isEmpty())
     }
+
+    @Test fun aPictureAttachedToACommentIsKept() {
+        val raw = requireNotNull(javaClass.getResourceAsStream("/video/account/comments_page.json")).use { it.readBytes().decodeToString() }
+        val withPicture = raw.replaceFirst(
+            "\"commentId\":\"c1\"",
+            "\"commentId\":\"c1\",\"imageAttachment\":{\"image\":{\"sources\":[{\"url\":\"//yt3.ggpht.com/p=s200\",\"width\":200},{\"url\":\"https://yt3.ggpht.com/p=s800\",\"width\":800}]}}",
+        )
+        val parsed = InnerTubeComments.parsePage(Json.parseToJsonElement(withPicture).jsonObject).page.items
+        assertEquals(listOf("https://yt3.ggpht.com/p=s800"), parsed.first { it.id == "c1" }.imageUrls)
+        assertEquals(emptyList(), parsed.first { it.id == "c2" }.imageUrls, "the author's picture is not an attachment")
+    }
 }

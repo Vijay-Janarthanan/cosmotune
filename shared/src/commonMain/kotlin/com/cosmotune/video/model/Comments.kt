@@ -22,6 +22,8 @@ data class Comment(
     val rating: CommentRating = CommentRating.NONE,
     /** What it takes to rate and answer it; null where the source gives none (signed out, or not the site's own endpoint). */
     val writes: CommentWriteTokens? = null,
+    /** The pictures attached to it (the largest size of each). */
+    val imageUrls: List<String> = emptyList(),
 )
 
 /** The listener's rating of a comment. */
