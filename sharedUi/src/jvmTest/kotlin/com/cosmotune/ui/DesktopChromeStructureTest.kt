@@ -219,7 +219,7 @@ class DesktopChromeStructureTest {
         val text = app.replace(Regex("\\s+"), " ")
         // P4-20: exactly what floats over the page (the wide bar's footprint, the compact window's phone chrome), no longer 168 dp for both
         assertTrue(
-            "bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp," in text,
+            "bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp - underBar," in text,
             "the bar's footprint in a wide window with a song, the phone chrome's height in a compact one, nothing for a wide one without (P4-22)",
         )
     }

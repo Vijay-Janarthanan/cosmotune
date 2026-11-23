@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import androidx.compose.ui.draw.clipToBounds
 import kotlinx.coroutines.flow.debounce
 import androidx.compose.foundation.lazy.LazyListState
 import com.cosmotune.ui.theme.CosmoRadii
@@ -5448,14 +5449,16 @@ private fun DesktopFrame(
                                         .weight(1f)
                                         .fillMaxHeight(),
                                 ) {
-                                    Box(Modifier.fillMaxSize().hazeSource(haze)) {
+                                    // The page ends where the floating bar ends: nothing of it shows in the strip under the bar.
+                                    val underBar = if (!compact && LocalNowPlaying.current != null) com.cosmotune.design.ShellMetrics.DESKTOP_BAR_MARGIN_DP.dp else 0.dp
+                                    Box(Modifier.fillMaxSize().padding(bottom = underBar).clipToBounds().hazeSource(haze)) {
                                         (page ?: content)(
                                             PaddingValues(
                                                 start = 0.dp,
                                                 end = 0.dp,
                                                 // Room for the bar that floats over this, so the
                                                 // last row can still be scrolled clear of it.
-                                                bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp,
+                                                bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp - underBar,
                                             ),
                                         )
                                     }

@@ -58,7 +58,7 @@ class EmulatorFindingsContractTest {
     @Test fun theDesktopFramePadsTheContentForTheBarByTheSharedRuleAndOnlyWithASong() {
         val frame = SourceContract.code(SourceContract.functionBody(SourceContract.read(desktopApp), "DesktopFrame")).replace(Regex("\\s+"), " ")
         assertTrue(
-            "bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp," in frame,
+            "bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp - underBar," in frame,
             "the page pads by the pure rule, with whether a song is selected",
         )
     }

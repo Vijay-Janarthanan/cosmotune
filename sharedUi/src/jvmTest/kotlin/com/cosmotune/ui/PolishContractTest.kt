@@ -118,7 +118,7 @@ class PolishContractTest {
     @Test fun thePagePadsForExactlyTheFloatingChrome() {
         val text = frame
         assertTrue(
-            text.contains("bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp,"),
+            text.contains("bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp - underBar,"),
             "the wide page pads 108 dp for the bar while a song is selected, the compact one 154 dp (80 without a song) for the capsules",
         )
         assertFalse(text.contains("168.dp"), "no slack: 168 dp was the phone's chrome plus 14")
