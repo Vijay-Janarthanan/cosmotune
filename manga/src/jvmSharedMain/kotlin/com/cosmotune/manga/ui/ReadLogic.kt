@@ -11,6 +11,7 @@ import com.cosmotune.manga.data.MangaTapZones
 import com.cosmotune.manga.data.MangaQueued
 import com.cosmotune.manga.data.MangaQueueState
 import com.cosmotune.manga.data.listedChapters
+import com.cosmotune.manga.data.unlinkedSourceName
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -372,5 +373,12 @@ internal fun mangaHoldSelect(selection: Set<String>, order: List<String>, anchor
     val from = order.indexOf(anchor); val to = order.indexOf(held)
     if (from < 0 || to < 0) return selection + held
     return selection + order.subList(minOf(from, to), maxOf(from, to) + 1)
+}
+
+/** "MangaDex · EN": a series' source and language for its card's line; a comic imported from a file says Imported. */
+internal fun mangaSourceLine(book: MangaBook, state: com.cosmotune.manga.data.MangaLibraryState): String {
+    val source = if (book.sourceId == "local") "Imported" else state.sources.find { it.id == book.sourceId }?.name ?: book.unlinkedSourceName() ?: book.sourceId.substringAfter(':')
+    val language = book.language.takeIf { it.isNotBlank() && it != "multi" }?.uppercase()
+    return listOfNotNull(source, language).joinToString(" · ")
 }
 

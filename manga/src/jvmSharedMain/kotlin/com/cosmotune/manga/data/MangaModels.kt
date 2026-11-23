@@ -179,6 +179,8 @@ data class MangaLibraryState(
     val cbzFolder: String? = null,
     /** Page storage is emptied each time Manga starts (Mihon's clear chapter cache on launch); downloads stay. */
     val clearCacheOnStart: Boolean = false,
+    /** Library cards name their source and language in the line under the cover (Komikku's source and language badges). */
+    val libraryCardSource: Boolean = false,
     /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
     val readLog: Map<String, Long> = emptyMap(),
     /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */

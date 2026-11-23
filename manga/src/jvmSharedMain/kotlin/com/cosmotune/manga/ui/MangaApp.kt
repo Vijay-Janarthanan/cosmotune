@@ -453,7 +453,7 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
                 }
             }
         }
-        items(books, key = { it.id }) { book -> MangaBookCard(scope, book, null, inLibrary = true) }
+        items(books, key = { it.id }) { book -> MangaBookCard(scope, book, if (state.libraryCardSource) mangaSourceLine(book, state) else null, inLibrary = true) }
     }
     if (dupes) MangaDuplicatesSheet(scope) { dupes = false }
     if (stats) MangaStatsSheet(scope) { stats = false }
@@ -490,6 +490,8 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
                 genreChips.forEach { genre -> ReadChip(genre, genre in genres, { genres = if (genre in genres) genres - genre else genres + genre }, Modifier.testTag("manga:genre:$genre")) }
             }
         }
+        com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Source and language on cards"), state.libraryCardSource, { on -> scope.action { repository.store.update { it.copy(libraryCardSource = on) } } },
+            Modifier.padding(horizontal = 20.dp, vertical = 4.dp).testTag("manga:card-source"), detail = mangaText("In the line under each cover"))
         com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Incognito"), state.incognito, { on -> scope.action { repository.store.update { it.copy(incognito = on) } } },
             Modifier.padding(horizontal = 20.dp, vertical = 4.dp), detail = mangaText("Reading leaves no history, place or read marks"))
         Spacer(Modifier.height(16.dp))

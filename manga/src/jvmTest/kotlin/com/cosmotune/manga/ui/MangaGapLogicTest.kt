@@ -117,3 +117,10 @@ class MangaRangeSelectTest {
     @Test fun holdingAChosenOneLetsItGo() = assertEquals(setOf("c2"), mangaHoldSelect(setOf("c2", "c3"), order, "c3", "c3"))
 }
 
+class MangaSourceLineTest {
+    @Test fun aCardNamesItsSourceAndLanguage() {
+        assertEquals("MANGADEX · EN", mangaSourceLine(MangaBook("kotatsu:MANGADEX:1", "kotatsu:MANGADEX", "A", language = "en"), MangaLibraryState()))
+        assertEquals("Imported", mangaSourceLine(MangaBook("local:1", "local", "A"), MangaLibraryState()))
+    }
+}
+
