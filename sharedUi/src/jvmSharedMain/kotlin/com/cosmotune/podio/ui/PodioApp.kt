@@ -1,5 +1,6 @@
 package com.cosmotune.podio.ui
 
+import com.cosmotune.ui.theme.cosmoAmbientGround
 import com.cosmotune.music.playback.rememberLivePlayheadOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -228,7 +229,9 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     val palette = LocalCosmoColors.current.palette
     val look = orbitLook()
     val fonts = orbitFonts()
-    Box(Modifier.fillMaxSize().background(Color(palette.backgroundBottom)).testTag("podio:root")) {
+    // The look's ambient ground, as Music, Watch, Read and Manga stand on: a flat ground of its own made the desktop's page black
+    // under a top bar and sidebar that wear the cover's colour.
+    Box(Modifier.fillMaxSize().cosmoAmbientGround().testTag("podio:root")) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val compact = showNavigation && maxWidth < 600.dp
         SideEffect { compactLayout = compact }
