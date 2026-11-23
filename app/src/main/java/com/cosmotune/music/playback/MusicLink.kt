@@ -108,6 +108,11 @@ object MusicLink {
         _pending.value = null
     }
 
+    /** A request from inside the app, served the same way: a YouTube link pasted into Search. */
+    fun offer(request: LinkRequest) {
+        _pending.value = request
+    }
+
     /** A song file by its type, or by its name when the opening app gave no type; a video or anything else is not Music's. */
     internal fun isAudioFile(type: String?, name: String?): Boolean =
         type?.lowercase()?.startsWith("audio/") ?: ((name ?: "").substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS)

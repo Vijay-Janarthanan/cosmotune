@@ -3518,7 +3518,14 @@ private fun CosmotuneApp(
                             history = searchHistory,
                             suggestions = searchSuggestions,
                             typeaheadResults = viewModel.typeaheadResults.collectAsStateWithLifecycle().value,
-                            onSubmit = viewModel::submitSearch,
+                            // A pasted YouTube or YouTube Music link plays the song or opens the page, like a shared one.
+                            onSubmit = {
+                                when (val link = com.cosmotune.music.data.YouTubeLinks.parse(query)) {
+                                    is com.cosmotune.music.data.YouTubeLink.Song -> MusicLink.offer(LinkRequest.Track(link.videoId))
+                                    is com.cosmotune.music.data.YouTubeLink.Page -> MusicLink.offer(LinkRequest.Page(link.browseId))
+                                    null -> viewModel.submitSearch()
+                                }
+                            },
                             // Suggestions land in search history via searchFor â†’ recordSearch.
                             // History items (onHistoryClick) navigate/play without re-logging.
                             onSuggestionClick = viewModel::searchFor,

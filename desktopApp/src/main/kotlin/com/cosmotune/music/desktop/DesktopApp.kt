@@ -2436,6 +2436,27 @@ fun CosmotuneDesktopApp() {
 
     fun search() {
         if (query.isBlank() || searchLoading) return
+        // A pasted YouTube or YouTube Music link plays the song or opens the page instead of searching for the address.
+        if (!searchAddons) when (val link = com.cosmotune.music.data.YouTubeLinks.parse(query)) {
+            is com.cosmotune.music.data.YouTubeLink.Song -> {
+                searchTyping = false
+                searchSuggestions = emptyList()
+                scope.launch {
+                    DesktopSearchClient.trackLinks(link.videoId).fold(
+                        onSuccess = { playSong(it, source = DesktopQueueSource(DesktopStrings["search", "Search"], PlaybackSourceType.SHARED_LINK)) },
+                        onFailure = { searchError = "Couldn't open that link" },
+                    )
+                }
+                return
+            }
+            is com.cosmotune.music.data.YouTubeLink.Page -> {
+                searchTyping = false
+                searchSuggestions = emptyList()
+                if (link.isArtist) openArtist(link.browseId, "") else openCollection(link.browseId)
+                return
+            }
+            null -> Unit
+        }
         overlays.settingsPage = null
         destination = DesktopDestination.SEARCH
         searchTyping = false
