@@ -1,6 +1,7 @@
 package com.cosmotune.reading.ui
 
 import com.cosmotune.reading.data.*
+import java.io.File
 import java.net.URI
 import java.net.URLDecoder
 import org.jsoup.Jsoup
@@ -18,6 +19,7 @@ internal class ReadingEpubContent(val document: ReadingDocument.Epub, val origin
         if (!url.startsWith(origin)) return null
         val raw = url.removePrefix(origin).substringBefore('?')
         val path = URLDecoder.decode(raw.substringBefore('#').replace("+", "%2B"), "UTF-8")
+        if (path.startsWith(ReadingFonts.PREFIX)) return if (ReadingFonts.file(path.removePrefix(ReadingFonts.PREFIX)) != null) path else null
         if (path !in document.resources) null else path + raw.substringAfter('#', "").let { if (it.isEmpty()) "" else "#$it" }
     }.getOrNull()
     fun url(href: String): String = origin + href.substringBefore('#').split('/').joinToString("/") {
@@ -33,6 +35,9 @@ internal class ReadingEpubContent(val document: ReadingDocument.Epub, val origin
         url(path + (resolved.rawFragment?.let { "#$it" } ?: ""))
     }.getOrNull()
     fun resource(href: String): Pair<String, ByteArray>? {
+        if (href.startsWith(ReadingFonts.PREFIX)) return ReadingFonts.file(href.removePrefix(ReadingFonts.PREFIX))?.let { font ->
+            (if (font.extension == "otf") "font/otf" else "font/${font.extension}") to font.readBytes()
+        }
         val resource = document.resources[href.substringBefore('#')] ?: return null
         val type = resource.mediaType.lowercase().substringBefore(';')
         if (type !in resourceTypes || !resource.file.isFile || resource.file.length() > 32L * 1024 * 1024) return null
@@ -96,28 +101,117 @@ internal class ReadingEpubContent(val document: ReadingDocument.Epub, val origin
 
 internal object ReadingEpubScripts {
     private fun quote(value: String) = Json.encodeToString(value)
-    fun preferences(value: ReadingPreferences, dark: Boolean): String {
+    /** The page and text colours of [value]'s theme ([dark] chooses for System). */
+    fun colours(value: ReadingPreferences, dark: Boolean): Pair<String, String> {
         val theme = if (value.theme == ReadingTheme.SYSTEM) { if (dark) ReadingTheme.DARK else ReadingTheme.LIGHT } else value.theme
-        val bg = when (theme) { ReadingTheme.DARK -> "#202124"; ReadingTheme.SEPIA -> "#f3ead7"; else -> "#ffffff" }
-        val fg = when (theme) { ReadingTheme.DARK -> "#e7e4de"; ReadingTheme.SEPIA -> "#382e22"; else -> "#202124" }
-        val family = when (value.fontFamily) {
-            "publisher" -> ""
-            "sans-serif", "monospace" -> "font-family:${value.fontFamily}!important;"
-            else -> "font-family:serif!important;"
+        return when (theme) {
+            ReadingTheme.DARK -> "#202124" to "#e7e4de"; ReadingTheme.SEPIA -> "#f3ead7" to "#382e22"; ReadingTheme.GREY -> "#3b3c3f" to "#e4e1da"
+            ReadingTheme.BLACK -> "#000000" to "#cfcac2"
+            ReadingTheme.CUSTOM -> (value.pageColor.takeIf { it.matches(HEX) } ?: "#fdf6e3") to (value.textColor.takeIf { it.matches(HEX) } ?: "#2b2b2b")
+            else -> "#ffffff" to "#202124"
         }
-        val css = "html{background:$bg!important;color:$fg!important;}body{background:$bg!important;color:$fg!important;${family}font-size:${20 * value.fontScale.coerceIn(.6f, 2.5f)}px!important;line-height:${value.lineHeight.coerceIn(1f, 2.5f)}!important;padding:${value.marginDp.coerceIn(8, 80)}px!important;}img,svg{max-width:100%;height:auto}a{color:inherit}mark.cosmotune-match{background:#ffd85a!important;color:#211a00!important}"
-        return "(function(){var e=document.getElementById('cosmotune-reader-style');if(e)e.textContent=${quote(css)};})()"
+    }
+    private val HEX = Regex("#[0-9a-fA-F]{6}")
+    private val UNSAFE_CSS = listOf("url(", "@import", "expression", "behavior", "</", "javascript:")
+
+    /** The reader's look laid over the chapter: colours, font, size, spacing, margins, typography, columns and the reader's own rules. */
+    fun preferences(value: ReadingPreferences, dark: Boolean, origin: String = ""): String {
+        val (bg, fg) = colours(value, dark)
+        val text = "body p,body div,body span,body li,body blockquote,body td,body h1,body h2,body h3,body h4"
+        val face = value.fontFamily.removePrefix("font:").takeIf { value.fontFamily.startsWith("font:") && ReadingFonts.file(it) != null }
+        val fontFace = face?.let { "@font-face{font-family:'CosmoReaderFont';src:url('" + origin + ReadingFonts.PREFIX + it + "')}" }.orEmpty()
+        val familyName = when {
+            face != null -> "'CosmoReaderFont',serif"
+            value.fontFamily == "publisher" -> null
+            value.fontFamily in setOf("sans-serif", "monospace") -> value.fontFamily
+            else -> "serif"
+        }
+        val family = familyName?.let { "font-family:$it!important;" }.orEmpty()
+        val margin = value.marginDp.coerceIn(8, 80)
+        val columns = value.columns == 2 && !value.scrollMode
+        val extra = buildString {
+            if (familyName != null) append("$text{font-family:inherit!important}")
+            if (value.justify) append("body p,body li{text-align:justify!important}")
+            if (value.hyphenate) append("body{-webkit-hyphens:auto!important;hyphens:auto!important}")
+            if (value.paragraphSpacing >= 0f) append("body p{margin-top:0!important;margin-bottom:${value.paragraphSpacing.coerceIn(0f, 3f)}em!important}")
+            if (value.paragraphIndent) append("body p{text-indent:1.5em!important}")
+            if (columns) append("html{height:100%!important;overflow-y:hidden!important}body{max-width:none!important;margin:0!important;box-sizing:border-box!important;height:100vh!important;-webkit-column-count:2;column-count:2;-webkit-column-gap:${margin * 2}px;column-gap:${margin * 2}px;column-fill:auto}")
+            if (value.customCss.isNotBlank() && UNSAFE_CSS.none { value.customCss.contains(it, true) }) append(value.customCss)
+        }
+        val css = "html{background:$bg!important;color:$fg!important;}body{background:$bg!important;color:$fg!important;${family}font-size:${20 * value.fontScale.coerceIn(.6f, 2.5f)}px!important;line-height:${value.lineHeight.coerceIn(1f, 2.5f)}!important;padding:${value.marginDp.coerceIn(8, 80)}px!important;}img,svg{max-width:100%;height:auto}a{color:inherit}mark.cosmotune-match{background:#ffd85a!important;color:#211a00!important}$HIGHLIGHT_CSS"
+        val mark = if (columns) "document.documentElement.setAttribute('data-cosmo-columns','2');" else "document.documentElement.removeAttribute('data-cosmo-columns');"
+        return "(function(){var e=document.getElementById('cosmotune-reader-style');if(e)e.textContent=${quote(fontFace + css + extra)};$mark})()"
+    }
+
+    /** A screen on or back ([forward]): a page of two columns sideways, else nine tenths of the screen down. */
+    fun page(forward: Boolean): String {
+        val sign = if (forward) "" else "-"
+        return "(function(){if(document.documentElement.getAttribute('data-cosmo-columns'))window.scrollBy(${sign}window.innerWidth,0);else window.scrollBy(0,${sign}window.innerHeight*0.88);return '';})()"
     }
     fun restore(locator: ReadingLocator): String {
         val fragment = locator.resourceHref?.substringAfter('#', "").orEmpty()
         return if (fragment.isNotBlank()) "(function(){var e=document.getElementById(${quote(fragment)});if(e)e.scrollIntoView();})()"
-        else "window.scrollTo(0,Math.max(0,document.documentElement.scrollHeight-window.innerHeight)*${locator.progression.coerceIn(0.0, 1.0)})"
+        else "(function(){var d=document.documentElement,p=${locator.progression.coerceIn(0.0, 1.0)};if(d.getAttribute('data-cosmo-columns')){var w=Math.max(0,d.scrollWidth-window.innerWidth)*p;window.scrollTo(Math.round(w/window.innerWidth)*window.innerWidth,0);}else window.scrollTo(0,Math.max(0,d.scrollHeight-window.innerHeight)*p);})()"
     }
-    val position = "JSON.stringify({progression:(window.scrollY/Math.max(1,document.documentElement.scrollHeight-window.innerHeight)),scrollOffset:window.scrollY})"
+    val position = "JSON.stringify((function(){var d=document.documentElement;return d.getAttribute('data-cosmo-columns')?{progression:window.scrollX/Math.max(1,d.scrollWidth-window.innerWidth),scrollOffset:window.scrollX}:{progression:window.scrollY/Math.max(1,d.scrollHeight-window.innerHeight),scrollOffset:window.scrollY};})())"
     fun search(query: String): String = """(function(){
         var old=document.querySelectorAll('mark.cosmotune-match');for(var i=0;i<old.length;i++){var p=old[i].parentNode;p.replaceChild(document.createTextNode(old[i].textContent),old[i]);p.normalize();}
         var q=${quote(query)}.toLocaleLowerCase();if(!q||!document.body)return 0;
-        var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false),nodes=[],n;while((n=walker.nextNode())){if(n.parentNode&&['STYLE','SCRIPT','MARK'].indexOf(n.parentNode.tagName)<0)nodes.push(n);}
+        var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false),nodes=[],n;while((n=walker.nextNode())){if(n.parentNode&&['STYLE','SCRIPT'].indexOf(n.parentNode.tagName)<0&&!(n.parentNode.tagName==='MARK'&&n.parentNode.className==='cosmotune-match'))nodes.push(n);}
         var count=0,first=null;for(var j=0;j<nodes.length;j++){n=nodes[j];var t=n.nodeValue,lower=t.toLocaleLowerCase(),index=lower.indexOf(q);if(index<0)continue;var f=document.createDocumentFragment(),start=0;while(index>=0&&count<2000){f.appendChild(document.createTextNode(t.substring(start,index)));var m=document.createElement('mark');m.className='cosmotune-match';m.textContent=t.substring(index,index+q.length);f.appendChild(m);if(!first)first=m;count++;start=index+q.length;index=lower.indexOf(q,start);}f.appendChild(document.createTextNode(t.substring(start)));n.parentNode.replaceChild(f,n);}if(first)first.scrollIntoView();return count;
         })()""".trimIndent()
+
+    /** The chapter's text nodes in reading order (not styles or scripts): the ground every offset below counts in. */
+    private const val NODES = "function cosmoNodes(){var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false),a=[],n;while((n=w.nextNode())){var p=n.parentNode;if(p&&p.tagName!=='STYLE'&&p.tagName!=='SCRIPT')a.push(n);}return a;}"
+
+    /**
+     * The words selected on the page as {text,start,end,progression}, offsets into the chapter's text, or "" with none; also
+     * {tapped} when a highlight was tapped since the last call (a click listener the first call puts on the page).
+     */
+    val selection = """(function(){$NODES
+        if(!window.__cosmoTap){window.__cosmoTap=1;document.addEventListener('click',function(e){var m=e.target&&e.target.closest?e.target.closest('mark.cosmotune-hl'):null;if(m)window.__cosmoTapped=m.getAttribute('data-id');},true);}
+        var tapped=window.__cosmoTapped||null;window.__cosmoTapped=null;
+        var s=window.getSelection();if(!s||s.rangeCount<1||s.isCollapsed||!s.toString().trim())return tapped?JSON.stringify({tapped:tapped}):'';
+        var r=s.getRangeAt(0),nodes=cosmoNodes(),off=0,start=-1,end=-1;
+        for(var i=0;i<nodes.length;i++){var n=nodes[i],len=n.nodeValue.length;if(r.intersectsNode(n)){if(start<0)start=off+(n===r.startContainer?r.startOffset:0);end=off+(n===r.endContainer?r.endOffset:len);}off+=len;}
+        if(start<0||end<=start)return '';
+        var rect=r.getBoundingClientRect(),y=window.scrollY+rect.top;
+        return JSON.stringify({text:s.toString().substring(0,4000),start:start,end:end,progression:Math.min(1,Math.max(0,y/Math.max(1,document.documentElement.scrollHeight-window.innerHeight)))});
+        })()""".trimIndent()
+
+    const val clearSelection = "(function(){var s=window.getSelection();if(s)s.removeAllRanges();return '';})()"
+
+    /** Lays [marks] (id, start, end, style) over the chapter, replacing the marks laid before. */
+    fun highlights(marks: List<ReadingHighlight>): String =
+        lay(marks.joinToString(",", "[", "]") { "{i:${quote(it.id)},s:${it.start},e:${it.end},c:${quote(it.style.name.lowercase())}}" }, "cosmotune-hl", false)
+
+    /** Marks the sentence being read aloud ([start] until [end]) and keeps it on the screen; a negative [start] takes the mark away. */
+    fun speaking(start: Int, end: Int): String = lay(if (start < 0) "[]" else "[{i:'tts',s:$start,e:$end,c:'now'}]", "cosmotune-tts", true)
+
+    private fun lay(list: String, kind: String, scroll: Boolean): String = """(function(list){$NODES
+        var old=document.querySelectorAll('mark.$kind');for(var i=0;i<old.length;i++){var m=old[i],p=m.parentNode;while(m.firstChild)p.insertBefore(m.firstChild,m);p.removeChild(m);p.normalize();}
+        var count=0,first=null;for(var j=0;j<list.length;j++){var h=list[j],nodes=cosmoNodes(),off=0;for(var k=0;k<nodes.length;k++){var n=nodes[k],len=n.nodeValue.length,s=Math.max(h.s,off),e=Math.min(h.e,off+len);
+        if(s<e){var mid=n;if(s>off)mid=n.splitText(s-off);if(e-s<mid.nodeValue.length)mid.splitText(e-s);var mark=document.createElement('mark');mark.className='$kind c-'+h.c;mark.setAttribute('data-id',h.i);mid.parentNode.replaceChild(mark,mid);mark.appendChild(mid);if(!first)first=mark;count++;}
+        off+=len;if(off>=h.e)break;}}
+        if(${if (scroll) "true" else "false"}&&first){var r=first.getBoundingClientRect();if(r.top<0||r.bottom>window.innerHeight)first.scrollIntoView({block:'center'});}
+        return String(count);})($list)""".trimIndent()
+
+    /**
+     * The chapter's sentences as {first, list: [[start, end, text]…]}, offsets into its text, each kept inside its paragraph;
+     * [first] is the first one on the screen now.
+     */
+    val sentences = """(function(){$NODES
+        var nodes=cosmoNodes(),blocks=[],off=0,cur=null;
+        function block(n){var e=n.parentNode;while(e&&e!==document.body){var d=window.getComputedStyle(e).display;if(d!=='inline'&&d!=='inline-block'&&d!=='contents')return e;e=e.parentNode;}return document.body;}
+        for(var i=0;i<nodes.length;i++){var n=nodes[i],b=block(n),len=n.nodeValue.length;if(!cur||cur.b!==b){cur={b:b,s:off,t:''};blocks.push(cur);}cur.t+=n.nodeValue;off+=len;}
+        var out=[],first=-1;
+        for(var j=0;j<blocks.length;j++){var bl=blocks[j],re=/[^.!?…。！？]+(?:[.!?…。！？]+["'”’)\]]*|$)/g,m,bottom=bl.b.getBoundingClientRect().bottom;
+        while((m=re.exec(bl.t))!==null){if(!m[0]){re.lastIndex++;if(re.lastIndex>bl.t.length)break;continue;}var t=m[0],lead=t.length-t.replace(/^\s+/,'').length,body=t.replace(/\s+$/,'');
+        if(body.length>lead){if(first<0&&bottom>0)first=out.length;out.push([bl.s+m.index+lead,bl.s+m.index+body.length,body.substring(lead)]);}}}
+        return JSON.stringify({first:Math.max(0,first),list:out});})()""".trimIndent()
+
+    /** Scrolls the highlight [id] to the middle of the page. */
+    fun reveal(id: String) = "(function(){var m=document.querySelector('mark[data-id=\"'+${quote(id)}+'\"]');if(m)m.scrollIntoView({block:'center'});return m?'1':'';})()"
+
+    private const val HIGHLIGHT_CSS = "mark.cosmotune-hl{color:inherit!important;background:rgba(255,204,64,.42)!important;border-radius:2px}mark.cosmotune-hl.c-green{background:rgba(110,200,120,.40)!important}mark.cosmotune-hl.c-blue{background:rgba(100,160,240,.40)!important}mark.cosmotune-hl.c-pink{background:rgba(240,120,180,.40)!important}mark.cosmotune-hl.c-underline{background:none!important;text-decoration:underline!important;text-decoration-color:#e0533d!important;text-decoration-thickness:2px!important;text-underline-offset:3px}mark.cosmotune-tts{color:inherit!important;background:rgba(120,170,255,.38)!important;border-radius:2px}"
 }

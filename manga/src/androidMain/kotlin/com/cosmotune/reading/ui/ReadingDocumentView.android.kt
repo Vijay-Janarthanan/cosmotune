@@ -31,17 +31,22 @@ internal actual val readingCenterTap: Boolean = true
 
 @Composable actual fun ReadingDocumentView(document: ReadingDocument, locator: ReadingLocator,
     preferences: ReadingPreferences, searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit,
-    onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit) {
+    onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit, control: ReadingPageControl?) {
     when (document) {
         is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier, onCenterTap)
-        is ReadingDocument.Epub -> AndroidReadingEpub(document, locator, preferences, searchQuery, onLocatorChanged, onError, modifier, onCenterTap)
+        is ReadingDocument.Epub -> AndroidReadingEpub(document, locator, preferences, searchQuery, onLocatorChanged, onError, modifier, onCenterTap, control)
     }
 }
+
+/** What evaluateJavascript hands back (a JSON value) as the string the script gave, or null. */
+private fun scriptResult(raw: String?): String? = runCatching {
+    when (val value = Json.parseToJsonElement(raw ?: "null")) { is JsonNull -> null; is JsonPrimitive -> value.content; else -> value.toString() }
+}.getOrNull()
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable private fun AndroidReadingEpub(document: ReadingDocument.Epub, locator: ReadingLocator,
     preferences: ReadingPreferences, searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit,
-    onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit) {
+    onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit, control: ReadingPageControl?) {
     val latestTap by rememberUpdatedState(onCenterTap)
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
@@ -99,8 +104,9 @@ internal actual val readingCenterTap: Boolean = true
                     loadedHref = content.href(url)?.substringBefore('#')
                     loaded = loadedHref != null
                     if (!loaded) return
-                    view.evaluateJavascript(ReadingEpubScripts.preferences(latestPrefs, latestDark), null)
+                    view.evaluateJavascript(ReadingEpubScripts.preferences(latestPrefs, latestDark, content.origin), null)
                     view.evaluateJavascript(ReadingEpubScripts.restore(requested), null)
+                    control?.loaded(loadedHref)
                     view.postDelayed({
                         if (loaded) {
                             view.evaluateJavascript(ReadingEpubScripts.restore(requested), null)
@@ -114,7 +120,13 @@ internal actual val readingCenterTap: Boolean = true
             }
         }
     }
-    DisposableEffect(web) { onDispose { web.stopLoading(); web.loadUrl("about:blank"); web.removeAllViews(); web.destroy() } }
+    DisposableEffect(web) { onDispose { control?.evaluator = null; web.stopLoading(); web.loadUrl("about:blank"); web.removeAllViews(); web.destroy() } }
+    DisposableEffect(web, control) {
+        control?.evaluator = { script -> if (!loaded) null else kotlinx.coroutines.suspendCancellableCoroutine { done ->
+            web.evaluateJavascript(script) { raw -> if (done.isActive) done.resumeWith(Result.success(scriptResult(raw))) }
+        } }
+        onDispose { control?.evaluator = null }
+    }
     LaunchedEffect(web, locator) {
         if (locator == lastEmitted) return@LaunchedEffect
         requested = locator
@@ -126,7 +138,7 @@ internal actual val readingCenterTap: Boolean = true
         } else if (loaded) web.evaluateJavascript(ReadingEpubScripts.restore(locator), null)
     }
     LaunchedEffect(web, preferences, dark) { if (loaded) {
-        web.evaluateJavascript(ReadingEpubScripts.preferences(preferences, dark), null)
+        web.evaluateJavascript(ReadingEpubScripts.preferences(preferences, dark, content.origin), null)
         web.evaluateJavascript(ReadingEpubScripts.restore(lastEmitted ?: requested), null)
     } }
     LaunchedEffect(web, searchQuery) { if (loaded) web.evaluateJavascript(ReadingEpubScripts.search(searchQuery)) { matches = it.toIntOrNull() ?: 0 } }
@@ -149,12 +161,18 @@ internal actual val readingCenterTap: Boolean = true
     Column(modifier) {
         if (searchQuery.isNotBlank()) Text("$matches matches in this section", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium)
         if (!preferences.scrollMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            ReadTextButton("Previous screen", { web.evaluateJavascript("window.scrollBy(0,-window.innerHeight*0.88)", null) })
-            ReadTextButton("Next screen", { web.evaluateJavascript("window.scrollBy(0,window.innerHeight*0.88)", null) })
+            ReadTextButton("Previous screen", { web.evaluateJavascript(ReadingEpubScripts.page(false), null) })
+            ReadTextButton("Next screen", { web.evaluateJavascript(ReadingEpubScripts.page(true), null) })
         }
         AndroidView(factory = { web }, modifier = Modifier.fillMaxSize())
     }
 }
+
+/** The kinds of file Read imports; Kindle and some other books carry no type on Android, so any file can be picked and is checked on import. */
+private val READING_IMPORT_TYPES = arrayOf("application/epub+zip", "application/pdf", "application/x-mobipocket-ebook", "application/vnd.amazon.ebook",
+    "application/x-fictionbook+xml", "text/plain", "text/html", "text/markdown", "application/rtf", "text/rtf", "multipart/related", "message/rfc822",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.comicbook+zip", "application/x-cbz", "application/zip",
+    "application/octet-stream")
 
 internal actual fun openReadingPdf(file: File): ReadingPdfEngine = AndroidReadingPdf(file)
 internal actual fun supportsReadingPdfSearch(): Boolean = android.os.Build.VERSION.SDK_INT >= 35
@@ -181,7 +199,20 @@ private class AndroidReadingPdf(file: File) : ReadingPdfEngine {
     @Synchronized override fun close() { renderer.close(); descriptor.close() }
 }
 
-@Composable actual fun rememberReadingImport(onPicked: (String, () -> InputStream) -> Unit): () -> Unit {
+@Composable actual fun rememberReadingSave(onError: (String) -> Unit): (String, String, ByteArray) -> Unit {
+    val context = LocalContext.current
+    val latestError by rememberUpdatedState(onError)
+    var pending by remember { mutableStateOf<ByteArray?>(null) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val bytes = pending
+        pending = null
+        if (uri != null && bytes != null) runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("no stream") }
+            .onFailure { latestError("The file could not be saved there.") }
+    }
+    return remember(picker) { { name, _, bytes -> pending = bytes; picker.launch(name) } }
+}
+
+@Composable actual fun rememberReadingImport(kind: ReadingPick, onPicked: (String, () -> InputStream) -> Unit): () -> Unit {
     val context = LocalContext.current
     val latest by rememberUpdatedState(onPicked)
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -192,5 +223,9 @@ private class AndroidReadingPdf(file: File) : ReadingPdfEngine {
             latest(name) { requireNotNull(context.contentResolver.openInputStream(uri)) { "Cannot open this document" } }
         }
     }
-    return remember(picker) { { picker.launch(arrayOf("application/epub+zip", "application/pdf")) } }
+    return remember(picker, kind) { { picker.launch(when (kind) {
+        ReadingPick.DICTIONARY -> arrayOf("application/zip", "application/gzip", "application/x-gzip", "application/octet-stream")
+        ReadingPick.FONT -> arrayOf("font/ttf", "font/otf", "font/woff", "font/woff2", "application/x-font-ttf", "application/x-font-otf", "application/font-woff", "application/octet-stream")
+        ReadingPick.BOOK -> READING_IMPORT_TYPES
+    }) } }
 }

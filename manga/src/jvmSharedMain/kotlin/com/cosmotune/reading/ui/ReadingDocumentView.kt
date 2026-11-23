@@ -35,12 +35,38 @@ import kotlinx.coroutines.withContext
     modifier: Modifier = Modifier,
     /** A tap on the middle third of the page (the reader's tools), where the platform's page can tell; see [readingCenterTap]. */
     onCenterTap: () -> Unit = {},
+    /** Scripts the reader runs against the open chapter (selection, highlights, reading aloud); EPUB only. */
+    control: ReadingPageControl? = null,
 )
+
+/**
+ * What the reader asks of a book's page besides showing it. The platform page sets [evaluator] while it can run the app's own
+ * scripts (never the book's) and counts [loads] each time a chapter finishes loading, so highlights can be laid on again.
+ */
+class ReadingPageControl {
+    internal var evaluator: (suspend (String) -> String?)? = null
+    var loads by mutableIntStateOf(0)
+        internal set
+    var href by mutableStateOf<String?>(null)
+        internal set
+    /** Runs [script] (an expression giving a string) on the open chapter; null when the page cannot run it now. */
+    suspend fun run(script: String): String? = try { evaluator?.invoke(script) } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+    internal fun loaded(href: String?) { this.href = href; loads++ }
+}
 
 /** Whether a tap on the middle of the page reaches [ReadingDocumentView]'s onCenterTap; where it does not, the tools keep their button. */
 internal expect val readingCenterTap: Boolean
 
-@Composable expect fun rememberReadingImport(onPicked: (String, () -> InputStream) -> Unit): () -> Unit
+/** What a picker of Read's asks for: a book, a StarDict dictionary pack, or a font. */
+enum class ReadingPick(val title: String, val extensions: Set<String>) {
+    BOOK("Import a book", setOf("epub", "pdf")), DICTIONARY("Add a dictionary", setOf("zip", "gz", "tgz")), FONT("Add a font", setOf("ttf", "otf", "woff", "woff2"))
+}
+
+/** A file picker for [kind]. */
+@Composable expect fun rememberReadingImport(kind: ReadingPick = ReadingPick.BOOK, onPicked: (String, () -> InputStream) -> Unit): () -> Unit
+
+/** Asks where to keep a file (a book's notes) and writes it there: (suggested name, type, bytes). [onError] hears a failed write. */
+@Composable expect fun rememberReadingSave(onError: (String) -> Unit): (String, String, ByteArray) -> Unit
 
 /** Native engines own their PDF and render one page at a time, with a fixed raster budget. */
 internal interface ReadingPdfEngine : AutoCloseable {
