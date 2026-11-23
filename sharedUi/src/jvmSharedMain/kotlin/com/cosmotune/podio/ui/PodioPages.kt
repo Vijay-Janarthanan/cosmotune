@@ -723,6 +723,7 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                 val uri = androidx.compose.ui.platform.LocalUriHandler.current
                 OrbitChipRow(0.dp) { episode.people.forEach { person -> PersonChip(person, fonts, look) { url -> PodioCatalogue.httpUrl(url)?.let { runCatching { uri.openUri(it) } } } } }
             }
+            episode.comments?.let { thread -> EpisodeComments(thread, fonts, look) }
             val marks = PodioBookmarks.of(env.saved, item.id)
             if (marks.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OrbitLabel("Bookmarks · ${marks.size}", fonts, look.dim)

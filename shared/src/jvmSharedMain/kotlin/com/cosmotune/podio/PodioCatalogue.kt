@@ -47,7 +47,9 @@ import kotlin.coroutines.resumeWithException
     /** Its season and number in the show (podcast:season / podcast:episode, or the iTunes tags), when the feed gives them. */
     val season: Int? = null, val number: Int? = null,
     /** The hosts and guests the feed names for this episode. */
-    val people: List<PodcastPerson> = emptyList())
+    val people: List<PodcastPerson> = emptyList(),
+    /** Where the episode is talked about (Podcasting 2.0 "podcast:socialInteract"): a fediverse post whose replies are its comments. */
+    val comments: String? = null)
 data class PodcastFeed(val show: PodcastShow, val episodes: List<PodcastEpisode>,
     /** Publisher-provided RSS/Atom archive link, rather than a guessed page number. */
     val nextPage: String? = null, val visitedPages: List<String> = emptyList())
@@ -504,7 +506,9 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                     },
                     season = entry.field("season").toIntOrNull()?.takeIf { it in 1..10_000 },
                     number = entry.field("episode").toIntOrNull()?.takeIf { it in 1..100_000 },
-                    people = peopleOf(entry, ::resolve))
+                    people = peopleOf(entry, ::resolve),
+                    comments = entry.children().filter { it.local() == "socialInteract" && it.getAttribute("protocol").equals("activitypub", true) }
+                        .firstNotNullOfOrNull { resolve(it.getAttribute("uri")).takeIf(String::isNotBlank) })
             }.distinctBy { it.id }.toList()
             val next = channel.children().firstOrNull { it.local() == "link" && it.getAttribute("rel").equals("next", true) }
                 ?.getAttribute("href")?.takeIf(String::isNotBlank)?.let(::resolve)?.takeIf { it.isNotBlank() && it != url }
