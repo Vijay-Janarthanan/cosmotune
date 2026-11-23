@@ -324,6 +324,8 @@ fun CosmoNowPlaying(
     val inlineLyrics by com.cosmotune.settings.Extras.settings.inlineLyrics.collectAsStateWithLifecycle()
     var playerOptionsOpen by remember { mutableStateOf(false) }
     if (playerOptionsOpen) PlayerOptions(song.videoId, PlayerPlatform.host.bluetoothReconnectSupported, { playerOptionsOpen = false })
+    var mixViewOpen by remember { mutableStateOf(false) }
+    if (mixViewOpen) MixViewDialog(song, queue.getOrNull(queueIndex + 1)?.takeIf { it.videoId != song.videoId }) { mixViewOpen = false }
     var marksOpen by remember { mutableStateOf(false) }
     val abLoop by com.cosmotune.settings.Extras.settings.abLoop.collectAsStateWithLifecycle()
     val looping = abLoop?.let { it.songId == song.videoId && it.endMs != null } == true
@@ -398,6 +400,9 @@ fun CosmoNowPlaying(
             if (coverLoop) add(OrbitMenuItem(if (videoHidden) "Animated cover" else "Still cover", if (videoHidden) "Play the cover's loop in the record" else "Show the cover without its loop", CosmoIcons.Canvas) { videoHidden = !videoHidden })
             add(OrbitMenuItem("Visuals", "Artwork, pulse or waveform, full screen", CosmoIcons.Waveform) { visualsOpen = true })
             add(OrbitMenuItem("Audio details", "The signal path, from source to output", CosmoIcons.Equaliser) { sheets.details = true })
+            if (com.cosmotune.settings.SongPlaybackMemory.isMusic(song.videoId)) {
+                add(OrbitMenuItem("Mix view", "Tempo, key and how Automix blends this song", CosmoIcons.Waveform) { mixViewOpen = true })
+            }
             add(OrbitMenuItem("Lyrics source", "Choose, search for or time the lyrics", CosmoIcons.Lyrics) { sheets.providers = true })
             if (commentsSheet != null) {
                 add(OrbitMenuItem("Comments", "What people say about this song on YouTube", CosmoIcons.Comments) { commentsOpen = true })

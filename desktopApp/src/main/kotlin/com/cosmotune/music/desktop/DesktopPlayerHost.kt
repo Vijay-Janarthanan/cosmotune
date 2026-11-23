@@ -52,6 +52,7 @@ internal object DesktopPlayerHost : PlayerHost {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override val settings: DesktopPlayerSettings = DesktopPlayerSettings
+    override fun analysisDirectory(): java.io.File = DesktopAnalysisRuntime.analysisHome()
 
     override fun cachedCanvas(song: Song): CanvasArtwork? = DesktopCanvasClient.cached(song)?.toShared()
 
