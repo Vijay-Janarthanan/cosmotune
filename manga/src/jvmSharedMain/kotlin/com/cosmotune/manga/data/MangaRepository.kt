@@ -275,7 +275,8 @@ class MangaRepository(val store: MangaStore,
     private suspend fun performUpdate(onProgress: (MangaUpdateReport) -> Unit, now: Long = System.currentTimeMillis()): MangaUpdateReport {
         store.update { it.copy(lastUpdateAttemptMs = now) }
         val report = withTimeout(8 * 60_000L) { scanForUpdates(onProgress) }
-        store.update { it.copy(lastUpdateCompletedMs = now, lastUpdateNewChapters = report.newChapters, lastUpdateFailures = report.failures.size) }
+        store.update { it.copy(lastUpdateCompletedMs = now, lastUpdateNewChapters = report.newChapters, lastUpdateFailures = report.failures.size,
+            updateFailures = report.failures.mapValues { (_, reason) -> reason.take(200) }.entries.take(500).associate { it.key to it.value }) }
         return report
     }
 

@@ -23,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,7 +71,16 @@ internal fun MangaUpdatesPage(scope: MangaScope) {
     val check = scope.updates
     val list = rememberLazyListState()
     val online = state.books.any { it.sourceId != "local" }
-    val days = mangaUpdateDays(state)
+    // A collection chip narrows Updates to its series (Mihon's category filter); By series groups them (Komikku).
+    var collection by rememberSaveable { mutableStateOf("") }
+    var bySeries by rememberSaveable { mutableStateOf(false) }
+    if (collection.isNotBlank() && state.collections.none { it.id == collection }) collection = ""
+    val shown = if (collection.isBlank()) state else state.copy(books = state.collectionBooks(collection))
+    val days = mangaUpdateDays(shown)
+    val series = if (bySeries) mangaUpdatesBySeries(shown) else emptyList()
+    val upcoming = remember(shown.books) { mangaUpcoming(shown) }
+    val failed = shown.books.filter { it.id in state.updateFailures }
+    var failedOpen by rememberSaveable { mutableStateOf(false) }
     val count = days.sumOf { it.entries.size }
     Column(Modifier.fillMaxSize()) {
         PullToRefreshBox(isRefreshing = check.running, onRefresh = { if (online) check.start(scope) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -98,13 +108,47 @@ internal fun MangaUpdatesPage(scope: MangaScope) {
                         }
                     }
                 }
+                item(key = "view") {
+                    ReadChipRow(Modifier.padding(top = 4.dp, bottom = 4.dp).testTag("manga:updates:view")) {
+                        ReadChip(mangaText("By day"), !bySeries, { bySeries = false })
+                        ReadChip(mangaText("By series"), bySeries, { bySeries = true })
+                        if (state.collections.isNotEmpty()) {
+                            ReadChip(mangaText("All series"), collection.isBlank(), { collection = "" })
+                            state.collections.forEach { item -> ReadChip(item.name, collection == item.id, { collection = item.id }) }
+                        }
+                    }
+                }
+                if (failed.isNotEmpty() && !check.running) item(key = "failed") {
+                    Column(Modifier.fillMaxWidth().testTag("manga:updates:failed")) {
+                        Row(Modifier.fillMaxWidth().padding(end = ReadMargin - 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            ReadOverline(mangaText("Not updated") + " · ${failed.size}", Modifier.weight(1f))
+                            ReadTextButton(mangaText(if (failedOpen) "Hide" else "Show"), { failedOpen = !failedOpen }, Modifier.padding(top = 16.dp))
+                        }
+                        if (failedOpen) failed.forEach { book ->
+                            val cover = rememberMangaCover(scope.repository, book)
+                            ReadCoverRow(book.title, state.updateFailures[book.id].orEmpty(), cover, key = book.id, modifier = Modifier.padding(horizontal = ReadMargin),
+                                onClick = { scope.openBook(book) })
+                        }
+                    }
+                }
                 // Where new chapters will land while the check runs: rows shaped like them, not status text.
                 if (check.running) item(key = "placeholders") { ReadSkeletonRows(3, Modifier.testTag("manga:updates:placeholders")) }
                 if (days.isEmpty() && !check.running) item(key = "empty") {
                     if (online) ReadEmpty(mangaText("No new chapters"), mangaText("Pull down, or use Check for updates, to look for new chapters of your series."))
                     else ReadEmpty(mangaText("Nothing to check yet"), mangaText("Updates appear for the series you add to your library from online sources."))
                 }
-                days.forEach { day ->
+                if (bySeries) series.forEach { (book, entries) ->
+                    item(key = "series:${book.id}") {
+                        Row(Modifier.fillMaxWidth().padding(end = ReadMargin - 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            ReadOverline(book.title + " · ${entries.size} " + mangaText("new"), Modifier.weight(1f))
+                            ReadTextButton(mangaText("Mark all read"), {
+                                scope.action { entries.forEach { entry -> scope.repository.store.markRead(entry.chapter, true) } }
+                            }, Modifier.padding(top = 16.dp))
+                        }
+                    }
+                    items(entries, key = { "update:${it.chapter.id}" }) { entry -> MangaUpdateRow(scope, entry) }
+                }
+                if (!bySeries) days.forEach { day ->
                     item(key = "day:${day.label}") {
                         Row(Modifier.fillMaxWidth().padding(end = ReadMargin - 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             ReadOverline(mangaText(day.label) + " · ${day.entries.size} " + mangaText("new"), Modifier.weight(1f))
@@ -114,6 +158,14 @@ internal fun MangaUpdatesPage(scope: MangaScope) {
                         }
                     }
                     items(day.entries, key = { "update:${it.chapter.id}" }) { entry -> MangaUpdateRow(scope, entry) }
+                }
+                if (upcoming.isNotEmpty()) {
+                    item(key = "upcoming") { ReadOverline(mangaText("Upcoming"), Modifier.padding(top = 8.dp)) }
+                    items(upcoming, key = { "upcoming:${it.first.id}" }) { (book, at) ->
+                        val cover = rememberMangaCover(scope.repository, book)
+                        ReadCoverRow(book.title, expectedLabel(at), cover, key = book.id, modifier = Modifier.padding(horizontal = ReadMargin).testTag("manga:upcoming:${book.id}"),
+                            onClick = { scope.openBook(book) })
+                    }
                 }
             }
         }

@@ -128,6 +128,42 @@ internal fun mangaUpdateDays(state: MangaLibraryState, nowMs: Long = System.curr
     }.map { (label, entries) -> MangaUpdateDay(label, entries) }
 }
 
+/** The Updates tab's series view (Komikku's grouped updates): each series with its new chapters, the newest upload first. */
+internal fun mangaUpdatesBySeries(state: MangaLibraryState): List<Pair<MangaBook, List<MangaUpdateEntry>>> =
+    mangaUpdates(state).groupBy { it.book.id }.values.map { it.first().book to it }
+        .sortedByDescending { (_, entries) -> entries.maxOf { it.chapter.uploadDate } }
+
+/**
+ * When the next chapter of [book] can be expected (Mihon's release estimate): the last upload plus the middle gap between its
+ * last uploads. Null for a finished series, or one with fewer than three dated chapters or no steady rhythm (gaps over 60 days).
+ */
+internal fun mangaNextRelease(book: MangaBook): Long? {
+    if (book.parserData?.state == "FINISHED") return null
+    val dates = book.chapters.map { it.uploadDate }.filter { it > 0 }.distinct().sorted().takeLast(8)
+    if (dates.size < 3) return null
+    val gaps = dates.zipWithNext { a, b -> b - a }.sorted()
+    val middle = gaps[gaps.size / 2]
+    if (middle <= 0 || middle > 60L * 86_400_000L) return null
+    return dates.last() + middle
+}
+
+/** The coming chapters for Updates' Upcoming list: series with an estimate within [daysAhead] days of [nowMs], soonest first. */
+internal fun mangaUpcoming(state: MangaLibraryState, nowMs: Long = System.currentTimeMillis(), daysAhead: Int = 30): List<Pair<MangaBook, Long>> =
+    state.books.filter { it.sourceId != "local" }.mapNotNull { book -> mangaNextRelease(book)?.let { book to it } }
+        .filter { (_, at) -> at in (nowMs - 7L * 86_400_000L)..(nowMs + daysAhead * 86_400_000L) }.sortedBy { it.second }
+
+/** "Expected today", "Expected in 3 days", "Expected 2 days ago" (late): the line under an upcoming series. */
+internal fun expectedLabel(atMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+    val days = Math.round((atMs - nowMs) / 86_400_000.0).toInt()
+    return when {
+        days == 0 -> "Expected today"
+        days == 1 -> "Expected tomorrow"
+        days > 1 -> "Expected in $days days"
+        days == -1 -> "Expected yesterday"
+        else -> "Expected ${-days} days ago"
+    }
+}
+
 /** "just now", "12 min ago", "3 h ago", "2 days ago": how long ago [thenMs] was, for "Library last updated …". */
 internal fun agoLabel(thenMs: Long, nowMs: Long = System.currentTimeMillis()): String {
     val minutes = ((nowMs - thenMs).coerceAtLeast(0L) / 60_000L)

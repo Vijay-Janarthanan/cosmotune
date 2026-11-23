@@ -158,6 +158,8 @@ data class MangaLibraryState(
     val readerVolumeKeys: Boolean = false,
     /** The collection a series joins when it is added to the library ("" for none). */
     val defaultCollection: String = "",
+    /** The series the last library update could not check, with the reason (Komikku's update errors). */
+    val updateFailures: Map<String, String> = emptyMap(),
     /** Incognito: reading saves no place, no history and no read marks, and nothing is sent to reading lists. */
     val incognito: Boolean = false,
     /** Library updates skip series that are finished and fully read. */

@@ -55,6 +55,7 @@ fun MangaLibraryState.migrated(from: MangaBook, to: MangaBook): MangaLibraryStat
         collections = collections.map { if (from.id in it.bookIds) it.copy(bookIds = it.bookIds - from.id + to.id) else it },
         tracks = tracks[from.id]?.let { tracks - from.id + (to.id to it) } ?: tracks,
         trackFailures = trackFailures - from.id,
+        updateFailures = updateFailures - from.id,
         activeBookId = if (activeBookId == from.id) to.id else activeBookId,
         activeChapterId = if (activeBookId == from.id) place?.chapterId else activeChapterId,
     )

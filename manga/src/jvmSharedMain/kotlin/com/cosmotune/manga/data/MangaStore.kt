@@ -85,7 +85,7 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
 
     suspend fun remove(bookId: String) = update { old ->
         val chapterIds = old.books.find { it.id == bookId }?.chapters.orEmpty().map { it.id }.toSet()
-        old.copy(books = old.books.filterNot { it.id == bookId }, progress = old.progress - bookId, tracks = old.tracks - bookId, syncedRead = old.syncedRead - bookId, trackFailures = old.trackFailures - bookId,
+        old.copy(books = old.books.filterNot { it.id == bookId }, progress = old.progress - bookId, updateFailures = old.updateFailures - bookId, tracks = old.tracks - bookId, syncedRead = old.syncedRead - bookId, trackFailures = old.trackFailures - bookId,
             collections = old.collections.map { it.copy(bookIds = it.bookIds - bookId) },
             downloads = old.downloads.filterKeys { it !in chapterIds }, readChapters = old.readChapters - chapterIds,
             newChapters = old.newChapters - chapterIds,
