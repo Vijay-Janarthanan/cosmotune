@@ -11,6 +11,18 @@ import java.io.InputStream
 @Composable internal expect fun MangaBackHandler(enabled: Boolean, onBack: () -> Unit)
 /** Keeps the screen on while [enabled] (a reader is open); nothing on the desktop. */
 @Composable internal expect fun ReaderKeepScreenOn(enabled: Boolean)
+
+/** True where Manga can ask for the device's own screen lock (phones and tablets with one set up). */
+@Composable internal expect fun mangaLockAvailable(): Boolean
+
+/**
+ * Shows [content] once the device's screen lock was passed (Mihon's app lock); until then a plain page with Unlock. The lock is
+ * asked again after Manga has been away for five minutes. Where there is no screen lock, [content] shows at once.
+ */
+@Composable internal expect fun MangaLockGate(enabled: Boolean, content: @Composable () -> Unit)
+
+/** Keeps the window out of screenshots, recordings and the recent-apps preview while [enabled] (Mihon's secure screen). */
+@Composable internal expect fun MangaSecureScreen(enabled: Boolean)
 /** The way to hold the screen in its current orientation while reading, or null where a window has none (the desktop). */
 @Composable internal expect fun rememberReaderRotation(): ReaderRotation?
 

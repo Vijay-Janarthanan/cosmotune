@@ -70,3 +70,8 @@ import com.cosmotune.manga.data.MangaImageImport
         result.fold(onSuccess = { if (it != null) latest.value(Result.success(it)) }, onFailure = { latest.value(Result.failure(it)) })
     }; Unit } }
 }
+
+// The desktop has no screen lock to ask for, and its windows cannot be kept out of screenshots.
+@Composable internal actual fun mangaLockAvailable(): Boolean = false
+@Composable internal actual fun MangaLockGate(enabled: Boolean, content: @Composable () -> Unit) = content()
+@Composable internal actual fun MangaSecureScreen(enabled: Boolean) = Unit

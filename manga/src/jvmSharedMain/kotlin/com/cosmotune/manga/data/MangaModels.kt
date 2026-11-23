@@ -156,6 +156,10 @@ data class MangaLibraryState(
     /** Two pages side by side in the paged modes when the window is wider than tall; [readerCoverAlone] keeps the first page alone. */
     val readerSpread: Boolean = false,
     val readerCoverAlone: Boolean = true,
+    /** Manga asks for the device's screen lock (PIN, pattern or fingerprint) when it opens, where the device has one. */
+    val lockManga: Boolean = false,
+    /** Manga's screens are kept out of screenshots, screen recording and the recent-apps preview. */
+    val secureScreen: Boolean = false,
     /** E-ink screens (Kotatsu's E-Ink settings): pages turn at once with no sliding, in high contrast, with a black flash between them when [readerEInkFlash]. */
     val readerEInk: Boolean = false,
     val readerEInkFlash: Boolean = false,

@@ -82,8 +82,12 @@ fun MangaApp(
     } else {
         // The app's repository keeps its catalogue pages for the process and on the disk; one handed in (a test's) keeps its own.
         val pages = remember(ready, repository) { if (repository == null) PageCache.shared else PageCache.of(ready, persistent = false) }
-        androidx.compose.runtime.CompositionLocalProvider(LocalMangaPages provides pages) {
-            MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
+        val locks by ready.store.state.collectAsState()
+        MangaSecureScreen(locks.secureScreen)
+        MangaLockGate(locks.lockManga) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalMangaPages provides pages) {
+                MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
+            }
         }
     }
 }
@@ -534,5 +538,15 @@ internal fun MangaDiscoverShelf(scope: MangaScope, source: MangaSourceConfig) {
             catalogue.loading -> ReadSkeletonGrid(rows = 1)
             catalogue.error != null -> ReadInlineBanner(requireNotNull(catalogue.error), actionLabel = mangaText("Open source"), onAction = { scope.navigation.source = source.id })
         }
+    }
+}
+
+/** What Manga shows while its lock waits: the mode's name and Unlock. */
+@Composable
+internal fun MangaLockedPage(onUnlock: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(24.dp).testTag("manga:locked"), verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        androidx.compose.material3.Text(mangaText("Manga is locked"), style = ReadType.titleLarge(), color = orbitLook().ink)
+        ReadButton(mangaText("Unlock"), onUnlock, modifier = Modifier.testTag("manga:unlock"))
     }
 }

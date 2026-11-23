@@ -17,6 +17,8 @@ import android.provider.DocumentsContract
 import androidx.compose.runtime.rememberCoroutineScope
 import com.cosmotune.manga.data.MangaFolderImport
 import com.cosmotune.manga.data.MangaImageImport
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -103,4 +105,37 @@ private tailrec fun android.content.Context.findActivity(): android.app.Activity
         }
     }
     return remember(launcher) { { launcher.launch(null) } }
+}
+
+@Composable internal actual fun mangaLockAvailable(): Boolean {
+    val context = LocalContext.current
+    return androidx.compose.runtime.remember(context) {
+        (context.getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager)?.isDeviceSecure == true
+    }
+}
+
+/** When Manga last passed the lock, for the five-minute grace; per process, so a restart asks again. */
+private object MangaLockClock { @Volatile var unlockedAtMs = 0L }
+
+@Suppress("DEPRECATION")
+@Composable internal actual fun MangaLockGate(enabled: Boolean, content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val keyguard = context.getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+    val needed = enabled && keyguard?.isDeviceSecure == true
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(!needed || System.currentTimeMillis() - MangaLockClock.unlockedAtMs < 5 * 60_000L) }
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) { MangaLockClock.unlockedAtMs = System.currentTimeMillis(); open = true }
+    }
+    fun unlock() { keyguard?.createConfirmDeviceCredentialIntent("Manga", "Unlock to open Manga")?.let { runCatching { ask.launch(it) } } ?: run { open = true } }
+    androidx.compose.runtime.LaunchedEffect(needed) { if (!needed) open = true else if (!open) unlock() }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { if (open) MangaLockClock.unlockedAtMs = System.currentTimeMillis() } }
+    if (open) content() else MangaLockedPage(::unlock)
+}
+
+@Composable internal actual fun MangaSecureScreen(enabled: Boolean) {
+    val activity = LocalContext.current.findActivity() ?: return
+    androidx.compose.runtime.DisposableEffect(activity, enabled) {
+        if (enabled) activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { if (enabled) activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) }
+    }
 }

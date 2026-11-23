@@ -73,6 +73,12 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
                 ReadChip(mangaText("Fit width"), state.readerFit == MangaReaderFit.WIDTH, { action { repository.store.update { it.copy(readerFit = MangaReaderFit.WIDTH) } } })
             }
             MangaReaderImageOptions(state) { block -> action { repository.store.update(block) } }
+            if (mangaLockAvailable()) {
+                OrbitSwitchRow(mangaText("Lock Manga"), state.lockManga, { on -> action { repository.store.update { it.copy(lockManga = on) } } }, plain = true,
+                    detail = mangaText("Asks for your screen lock when Manga opens"))
+                OrbitSwitchRow(mangaText("Hide from screenshots"), state.secureScreen, { on -> action { repository.store.update { it.copy(secureScreen = on) } } }, plain = true,
+                    detail = mangaText("Also hides Manga in recent apps"))
+            }
             OrbitSwitchRow(mangaText("Keep screen on while reading"), state.readerKeepScreenOn, { on -> action { repository.store.update { it.copy(readerKeepScreenOn = on) } } }, plain = true)
             OrbitSwitchRow(mangaText("Page number at the foot"), state.readerPageNumber, { on -> action { repository.store.update { it.copy(readerPageNumber = on) } } }, plain = true,
                 detail = mangaText("While the reader's card is hidden"))
