@@ -1,5 +1,6 @@
 package com.cosmotune.ui.nowplaying
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
@@ -95,7 +96,8 @@ private fun MediaOverCard(
     Layout(
         content = {
             Box { media(Modifier.fillMaxSize()) }
-            Box { card(Modifier.fillMaxWidth()) }
+            // On a tablet held upright the card keeps a phone's measure, centred, instead of stretching its few controls across.
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) { card(Modifier.widthIn(max = CARD_MAX_WIDTH).fillMaxWidth()) }
             Box { chips(Modifier.fillMaxWidth().padding(bottom = 18.dp)) }
             if (bleed) Box(Modifier.testTag("nowplaying:soft-edges").cosmoPlayerGroundEdges(top = SOFT_TOP, bottom = SOFT_BOTTOM))
         },
@@ -190,3 +192,6 @@ internal fun PhoneChips(
 private val PHONE_SIDE = 14.dp
 private val PHONE_GAP = 18.dp
 private val PHONE_CHIPS_GAP = 14.dp
+
+/** The widest the phone layout's card grows (a tablet held upright). */
+private val CARD_MAX_WIDTH = 600.dp
