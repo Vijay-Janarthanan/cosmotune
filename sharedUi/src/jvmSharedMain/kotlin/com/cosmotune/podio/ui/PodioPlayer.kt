@@ -95,10 +95,12 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
     val fonts = orbitFonts()
     val look = orbitLook()
     var open by remember { mutableStateOf(false) }
-    val active = timer.afterEpisode || timer.minutes != null
+    val count by com.cosmotune.podio.PodioSleepCount.left.collectAsState()
+    val active = timer.afterEpisode || timer.minutes != null || count > 0
     // The time left while one counts ("23:41"), from the host's timer; the length set where there is no host timer to read.
     val left = com.cosmotune.ui.sleep.rememberSleepTimer()?.remainingMs
     val text = when {
+        count > 0 -> "$count episodes"
         timer.afterEpisode -> "After episode"
         left != null -> com.cosmotune.ui.sleep.sleepCountdown(left)
         timer.minutes != null -> "${timer.minutes} min"
@@ -110,9 +112,16 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
         val extend = com.cosmotune.ui.sleep.SleepTimerUi.control?.takeIf { left != null }
         val items = listOfNotNull(extend?.let { control ->
             OrbitMenuItem("Extend", "Add ${com.cosmotune.ui.sleep.SleepTimerControl.EXTEND_MINUTES} minutes", keepOpen = true) { control.extend() }
-        }) + listOf(15, 30, 45, 60).map { minutes -> OrbitMenuItem("$minutes minutes", selected = timer.minutes == minutes && !timer.afterEpisode) { onTimer(minutes) } } +
-            listOfNotNull(timer.onAfterEpisode?.takeIf { episode }?.let { after -> OrbitMenuItem("End of episode", selected = timer.afterEpisode) { after() } }) +
-            OrbitMenuItem("Turn off timer", enabled = active) { onTimer(null) }
+        }) + listOf(15, 30, 45, 60).map { minutes -> OrbitMenuItem("$minutes minutes", selected = timer.minutes == minutes && !timer.afterEpisode) {
+                com.cosmotune.podio.PodioSleepCount.cancel(); onTimer(minutes) } } +
+            listOfNotNull(timer.onAfterEpisode?.takeIf { episode }?.let { after -> OrbitMenuItem("End of episode", selected = timer.afterEpisode && count == 0) {
+                com.cosmotune.podio.PodioSleepCount.cancel(); after() } }) +
+            // After two or three episodes: the queue plays on until the last of them ends.
+            listOf(2, 3).mapNotNull { episodes -> timer.onAfterEpisode?.takeIf { episode }?.let { after ->
+                OrbitMenuItem("After $episodes episodes", selected = count == episodes, testTag = "podio:sleep:episodes:$episodes") {
+                    onTimer(null); com.cosmotune.podio.PodioSleepCount.start(episodes, after) }
+            } } +
+            OrbitMenuItem("Turn off timer", enabled = active) { com.cosmotune.podio.PodioSleepCount.cancel(); onTimer(null) }
         OrbitMenu(open, { open = false }, items, fonts, look, header = left?.let { "Sleep timer · ${com.cosmotune.ui.sleep.sleepCountdown(it)} left" } ?: "Sleep timer", width = 220.dp)
     }
 }

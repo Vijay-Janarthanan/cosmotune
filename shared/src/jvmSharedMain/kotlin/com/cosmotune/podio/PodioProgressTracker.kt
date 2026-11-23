@@ -22,6 +22,8 @@ class PodioProgressTracker(private val library: PodioLibrary,
         }
         if (old != null && old.id != next?.id) { persist(old); flushHeard(old.id) }
         if (next != null && next.id != old?.id) runCatching { queue?.started(next.id) }
+        // One episode after another: the sleep timer by episodes counts it.
+        if (next != null && old != null && next.id != old.id) PodioSleepCount.episodeChanged()
         // A decoder reset while the same episode is loading must not replace its saved position.
         if (loading && id == old?.id) return
         previous = next
