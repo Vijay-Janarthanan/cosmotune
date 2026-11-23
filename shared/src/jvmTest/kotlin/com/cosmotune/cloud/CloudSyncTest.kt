@@ -7,6 +7,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** A Firestore that lives in memory: the same preconditions and the same server-stamped `syncedAt`, so the sync can be tested without a network. */
@@ -137,11 +138,38 @@ class CloudSyncTest {
         assertTrue(id2 in a.ids("likes"), "the other device's entry reached this device")
     }
 
-    @Test fun deletesOlderThanThirtyDaysAreForgotten() {
+    @Test fun deletesOlderThanNinetyDaysAreForgotten() {
         val old = entry("gone", 1000, deleted = true)
         val merged = CloudSync.merge(mapOf("gone" to old), mapOf("gone" to old), nowMs = 1000 + CloudSync.TOMBSTONE_MS + 1)
         assertTrue(merged.entries.isEmpty())
         assertTrue(merged.remoteOutOfDate, "the cloud copy still holds the forgotten delete, so it is rewritten")
+    }
+
+    private val day = 24L * 60 * 60 * 1000
+
+    @Test fun deletesAreKeptNinetyDaysSoADeviceBackFromALongTripStillHearsOfThem() {
+        val gone = entry("gone", 1000, deleted = true)
+        val kept = CloudSync.merge(mapOf("gone" to gone), mapOf("gone" to gone), nowMs = 1000 + 89 * day)
+        assertTrue(kept.entries.getValue("gone").deleted)
+        val dropped = CloudSync.merge(mapOf("gone" to gone), mapOf("gone" to gone), nowMs = 1000 + 91 * day)
+        assertTrue(dropped.entries.isEmpty())
+    }
+
+    @Test fun addingSomethingBackBeatsAnOlderDeleteOnEveryDevice() {
+        val removed = entry("film", 1000, deleted = true)
+        val readded = entry("film", 5000, n = 2)
+        assertFalse(CloudSync.merge(mapOf("film" to readded), mapOf("film" to removed), 6000).entries.getValue("film").deleted)
+        val other = CloudSync.merge(mapOf("film" to removed), mapOf("film" to readded), 6000)
+        assertFalse(other.entries.getValue("film").deleted)
+        assertEquals(listOf(readded), other.fromRemote)
+    }
+
+    @Test fun aDeleteBeatsAnOlderCopyKeptOnAnotherDevice() {
+        val stale = entry("film", 1000, n = 1)
+        val removed = entry("film", 5000, deleted = true)
+        val merged = CloudSync.merge(mapOf("film" to stale), mapOf("film" to removed), 6000)
+        assertTrue(merged.entries.getValue("film").deleted)
+        assertEquals(listOf(removed), merged.fromRemote)
     }
 
     @Test fun aTieIsSettledTheSameOnEveryDevice() {
