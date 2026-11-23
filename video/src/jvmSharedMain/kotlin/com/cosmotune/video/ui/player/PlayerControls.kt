@@ -660,6 +660,19 @@ private val KEY_NAMES: Map<Key, String> = mapOf(
     Key.NumPad5 to "5", Key.NumPad6 to "6", Key.NumPad7 to "7", Key.NumPad8 to "8", Key.NumPad9 to "9",
 )
 
+/** The remote's free button [event] is, or null. */
+internal fun remoteButtonOf(event: KeyEvent): com.cosmotune.video.player.RemoteButton? = when (event.key) {
+    Key.ChannelUp -> com.cosmotune.video.player.RemoteButton.CHANNEL_UP
+    Key.ChannelDown -> com.cosmotune.video.player.RemoteButton.CHANNEL_DOWN
+    Key.ProgramRed -> com.cosmotune.video.player.RemoteButton.RED
+    Key.ProgramGreen -> com.cosmotune.video.player.RemoteButton.GREEN
+    Key.ProgramYellow -> com.cosmotune.video.player.RemoteButton.YELLOW
+    Key.ProgramBlue -> com.cosmotune.video.player.RemoteButton.BLUE
+    Key.MediaFastForward -> com.cosmotune.video.player.RemoteButton.FAST_FORWARD
+    Key.MediaRewind -> com.cosmotune.video.player.RemoteButton.REWIND
+    else -> null
+}
+
 /** The name of [event]'s key for [com.cosmotune.video.player.PlayerKeyMap.action], or null for a key the player has no use for. */
 fun playerKeyName(event: KeyEvent): String? = KEY_NAMES[event.key]
 

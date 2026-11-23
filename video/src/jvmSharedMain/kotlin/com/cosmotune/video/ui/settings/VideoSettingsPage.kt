@@ -127,6 +127,27 @@ import com.cosmotune.video.resources.video_home_use_account
 import com.cosmotune.video.resources.video_set_resume_short
 import com.cosmotune.video.resources.video_set_seconds
 import com.cosmotune.video.resources.video_set_speed
+import com.cosmotune.video.resources.video_set_remote
+import com.cosmotune.video.resources.video_set_remote_note
+import com.cosmotune.video.resources.video_remote_channel_up
+import com.cosmotune.video.resources.video_remote_channel_down
+import com.cosmotune.video.resources.video_remote_red
+import com.cosmotune.video.resources.video_remote_green
+import com.cosmotune.video.resources.video_remote_yellow
+import com.cosmotune.video.resources.video_remote_blue
+import com.cosmotune.video.resources.video_remote_ff
+import com.cosmotune.video.resources.video_remote_rewind
+import com.cosmotune.video.resources.video_remote_nothing
+import com.cosmotune.video.resources.video_remote_play_pause
+import com.cosmotune.video.resources.video_remote_skip_forward
+import com.cosmotune.video.resources.video_remote_skip_back
+import com.cosmotune.video.resources.video_remote_next_chapter
+import com.cosmotune.video.resources.video_remote_previous_chapter
+import com.cosmotune.video.resources.video_remote_faster
+import com.cosmotune.video.resources.video_remote_slower
+import com.cosmotune.video.resources.video_remote_captions
+import com.cosmotune.video.resources.video_remote_next_video
+import com.cosmotune.video.resources.video_remote_previous_video
 import com.cosmotune.video.resources.video_set_family
 import com.cosmotune.video.resources.video_set_family_note
 import com.cosmotune.video.resources.video_set_focus
@@ -175,7 +196,7 @@ import androidx.compose.runtime.setValue
 internal typealias SettingsUpdate = ((VideoSettings) -> VideoSettings) -> Unit
 
 /** The choices that open a [ChoiceSheet] (a category of SponsorBlock opens its own, see [CategoryChoiceSheet]). */
-private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP, SWIPE_EDGE }
+private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP, SWIPE_EDGE, REMOTE }
 
 /** What the page asks about before it clears something. */
 private enum class Confirm { CLEAR_HISTORY, CLEAR_SEARCHES }
@@ -334,6 +355,12 @@ private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pi
             SwitchRow(VideoIcons.Speed, stringResource(Res.string.video_set_swipe_speed), settings.swipeSpeed, subtitle = stringResource(Res.string.video_set_swipe_speed_note)) { value ->
                 update { it.copy(swipeSpeed = value) }
             }
+            CosmoSettingsRow(
+                icon = CosmoIcons.Devices,
+                title = stringResource(Res.string.video_set_remote),
+                subtitle = stringResource(Res.string.video_set_remote_note),
+                onClick = { open(SettingsChoice.REMOTE) },
+            )
         }
         // Picture in picture is the phone's: the desktop (and a phone without it) is not asked.
         if (pipSupported) {
@@ -391,6 +418,64 @@ private fun CaptionSettings(settings: VideoSettings, update: SettingsUpdate, loc
         )
     }
 }
+
+/** The remote's buttons with what each does; a pick opens the list of what it can do. */
+@Composable
+private fun RemoteButtonsSheets(settings: VideoSettings, update: SettingsUpdate, onDismiss: () -> Unit) {
+    var button by remember { mutableStateOf<com.cosmotune.video.player.RemoteButton?>(null) }
+    var picking by remember { mutableStateOf(true) }
+    val current = button
+    if (picking) {
+        ChoiceSheet(
+            title = stringResource(Res.string.video_set_remote),
+            options = com.cosmotune.video.player.RemoteButton.entries.map { b ->
+                ChoiceOption(b, remoteButtonLabel(b) + " · " + remoteActionLabel(com.cosmotune.video.player.RemoteButtons.actionOf(settings.remoteButtons, b)))
+            },
+            selected = current,
+            onSelect = { button = it },
+            onDismiss = { picking = false; if (button == null) onDismiss() },
+        )
+    } else if (current != null) {
+        ChoiceSheet(
+            title = remoteButtonLabel(current),
+            options = com.cosmotune.video.player.RemoteAction.entries.map { ChoiceOption(it, remoteActionLabel(it)) },
+            selected = com.cosmotune.video.player.RemoteButtons.actionOf(settings.remoteButtons, current),
+            onSelect = { action -> update { it.copy(remoteButtons = com.cosmotune.video.player.RemoteButtons.with(it.remoteButtons, current, action)) } },
+            onDismiss = { button = null; picking = true },
+        )
+    }
+}
+
+@Composable
+private fun remoteButtonLabel(button: com.cosmotune.video.player.RemoteButton): String = stringResource(
+    when (button) {
+        com.cosmotune.video.player.RemoteButton.CHANNEL_UP -> Res.string.video_remote_channel_up
+        com.cosmotune.video.player.RemoteButton.CHANNEL_DOWN -> Res.string.video_remote_channel_down
+        com.cosmotune.video.player.RemoteButton.RED -> Res.string.video_remote_red
+        com.cosmotune.video.player.RemoteButton.GREEN -> Res.string.video_remote_green
+        com.cosmotune.video.player.RemoteButton.YELLOW -> Res.string.video_remote_yellow
+        com.cosmotune.video.player.RemoteButton.BLUE -> Res.string.video_remote_blue
+        com.cosmotune.video.player.RemoteButton.FAST_FORWARD -> Res.string.video_remote_ff
+        com.cosmotune.video.player.RemoteButton.REWIND -> Res.string.video_remote_rewind
+    },
+)
+
+@Composable
+private fun remoteActionLabel(action: com.cosmotune.video.player.RemoteAction): String = stringResource(
+    when (action) {
+        com.cosmotune.video.player.RemoteAction.NONE -> Res.string.video_remote_nothing
+        com.cosmotune.video.player.RemoteAction.PLAY_PAUSE -> Res.string.video_remote_play_pause
+        com.cosmotune.video.player.RemoteAction.SKIP_FORWARD -> Res.string.video_remote_skip_forward
+        com.cosmotune.video.player.RemoteAction.SKIP_BACK -> Res.string.video_remote_skip_back
+        com.cosmotune.video.player.RemoteAction.NEXT_CHAPTER -> Res.string.video_remote_next_chapter
+        com.cosmotune.video.player.RemoteAction.PREVIOUS_CHAPTER -> Res.string.video_remote_previous_chapter
+        com.cosmotune.video.player.RemoteAction.SPEED_UP -> Res.string.video_remote_faster
+        com.cosmotune.video.player.RemoteAction.SPEED_DOWN -> Res.string.video_remote_slower
+        com.cosmotune.video.player.RemoteAction.CAPTIONS -> Res.string.video_remote_captions
+        com.cosmotune.video.player.RemoteAction.NEXT_VIDEO -> Res.string.video_remote_next_video
+        com.cosmotune.video.player.RemoteAction.PREVIOUS_VIDEO -> Res.string.video_remote_previous_video
+    },
+)
 
 /** A caption colour's name. */
 @Composable
@@ -612,6 +697,7 @@ private fun SettingsChoiceSheet(choice: SettingsChoice, settings: VideoSettings,
             onSelect = { value -> update { it.copy(defaultSpeed = value) } },
             onDismiss = onDismiss,
         )
+        SettingsChoice.REMOTE -> RemoteButtonsSheets(settings, update, onDismiss)
         SettingsChoice.SWIPE_EDGE -> ChoiceSheet(
             title = stringResource(Res.string.video_set_swipe_edge),
             options = VideoSettings.SWIPE_EDGE_CHOICES.map { ChoiceOption(it, stringResource(Res.string.video_set_swipe_edge_value, it)) },

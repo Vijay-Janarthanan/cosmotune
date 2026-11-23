@@ -518,8 +518,14 @@ private fun onPlayerKey(
     onInput: () -> Unit,
 ): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
-    val name = playerKeyName(event) ?: return false
-    val action = PlayerKeyMap.action(name, event.isShiftPressed, event.isCtrlPressed || event.isMetaPressed) ?: return false
+    val remote = remoteButtonOf(event)
+    val action = if (remote != null) {
+        com.cosmotune.video.player.RemoteButtons.keyAction(com.cosmotune.video.player.RemoteButtons.actionOf(settings.remoteButtons, remote), settings.doubleTapSeconds)
+            ?: return false
+    } else {
+        val name = playerKeyName(event) ?: return false
+        PlayerKeyMap.action(name, event.isShiftPressed, event.isCtrlPressed || event.isMetaPressed) ?: return false
+    }
     val done = performPlayerKey(
         action = action,
         playback = playback,

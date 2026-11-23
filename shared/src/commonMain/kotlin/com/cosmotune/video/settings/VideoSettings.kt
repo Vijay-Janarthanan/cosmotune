@@ -50,6 +50,8 @@ data class VideoSettings(
     val hideUpNext: Boolean = false,
     /** The watch page leaves out the live chat. */
     val hideLiveChat: Boolean = false,
+    /** What the remote's free buttons do (button name to action name; see RemoteButtons). */
+    val remoteButtons: Map<String, String> = emptyMap(),
     val sponsorBlock: Boolean = true,
     val segmentBehaviours: Map<SegmentCategory, SegmentBehaviour> = SegmentCategory.defaults(),
     val segmentsOnBar: Boolean = true,
