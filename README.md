@@ -28,10 +28,10 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/phone-music-home-dark.webp">
   <source media="(prefers-color-scheme: light)" srcset="docs/images/phone-music-home-light.webp">
-  <img alt="Music's Home on a phone in the Orbit design: a Live pill at the top, a Good morning greeting, the playing song's round cover with its progress drawn as an orbit round the disc, mix chips and a Start a room card" src="docs/images/phone-music-home-light.webp" width="300">
+  <img alt="Music's Home on a phone in the Orbit design: the Spotlight line at the top, a Late night greeting, a chart card with its round cover, mix chips, and the playing song at the foot with its progress drawn as an orbit round the disc" src="docs/images/phone-music-home-light.webp" width="300">
 </picture>
 
-<sub>The pictures on this page are screenshots of Cosmotune 1.0.17 on a phone, a desktop, a TV and a watch. The songs, videos, channels and logos in them belong to their owners.</sub>
+<sub>The pictures on this page are screenshots of Cosmotune on a phone, a desktop, a TV and a watch. The songs, videos, channels and logos in them belong to their owners.</sub>
 
 </div>
 
@@ -47,16 +47,16 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
 
 <table>
   <tr>
-    <td align="center" width="25%"><img alt="Now Playing on a phone: the song's music video shown whole in a rounded frame, and below it the song card with the title, the seek bar, the controls and a round pause button, then Lyrics, Up next and Related" src="docs/images/phone-now-playing-video-dark.webp" width="180"><br><sub>The music video, shown whole</sub></td>
+    <td align="center" width="25%"><img alt="Now Playing on a phone: the song's music video shown whole in a rounded frame, and below it the song card with the title, the seek bar, the controls and a round pause button, then Lyrics, Up next, Related and Best part" src="docs/images/phone-now-playing-video-dark.webp" width="180"><br><sub>The music video, shown whole</sub></td>
     <td align="center" width="25%"><img alt="Synced lyrics on a phone, the current line lit in the cover's colour, with the lyrics source, translate buttons and the song card below" src="docs/images/phone-now-playing-lyrics-dark.webp" width="180"><br><sub>Lyrics that follow the song</sub></td>
-    <td align="center" width="25%"><img alt="Watch's Live TV page on a phone: 14,176 free channels, country and language chips, and a programme guide with each channel's current and next programme" src="docs/images/phone-watch-live-tv-guide-dark.webp" width="180"><br><sub>Watch: live TV with a guide</sub></td>
-    <td align="center" width="25%"><img alt="The Live now sheet on a phone: a live show on DD News with a play button, the same show on DD National with Watch, and coming-up football matches with Remind buttons" src="docs/images/phone-live-now-sheet-dark.webp" width="180"><br><sub>Live now: what's on and what's next</sub></td>
+    <td align="center" width="25%"><img alt="Watch's Live TV page on a phone: 15,687 free channels, country, language and category filters, and a programme guide with each film channel's current and next programme" src="docs/images/phone-watch-live-tv-guide-dark.webp" width="180"><br><sub>Watch: live TV with a guide</sub></td>
+    <td align="center" width="25%"><img alt="The Spotlight sheet on a phone: Top, World, country and Football tabs, live football scores with the minute, a live Test match with runs and overs, and the world's top story with the outlets that carry it" src="docs/images/phone-live-now-sheet-dark.webp" width="180"><br><sub>Spotlight: live scores and the news</sub></td>
   </tr>
   <tr>
-    <td align="center"><img alt="Video mode's Home on a phone: category chips, an Up next for you card with a film review and its channel, Watch later and Watch buttons, then More for you" src="docs/images/phone-video-home-dark.webp" width="180"><br><sub>Video mode, no account needed</sub></td>
-    <td align="center"><img alt="Podio's Radio page on a phone: 2,883 stations worldwide, Globe, region and language filters, a featured station card and round station logos" src="docs/images/phone-podio-dark.webp" width="180"><br><sub>Podio: radio from anywhere</sub></td>
-    <td align="center"><img alt="Read's Library on a phone: Library, Browse and Bookmarks tabs, books trending on Open Library, and a search over your own books" src="docs/images/phone-read-dark.webp" width="180"><br><sub>Read: books and manga</sub></td>
-    <td align="center"><img alt="The profile drawer on a phone: a Sign in card, the modes Music, Video, Watch, Podio, Read and Manga, then Your listening, Replay, Listen together, Downloads, Equalizer and Settings" src="docs/images/phone-profile-drawer-dark.webp" width="180"><br><sub>Every mode from one drawer</sub></td>
+    <td align="center"><img alt="Video mode's Home on a phone: category chips, Continue watching with a music video and how far you got, then an Up next for you card" src="docs/images/phone-video-home-dark.webp" width="180"><br><sub>Video mode, no account needed</sub></td>
+    <td align="center"><img alt="Podio's Radio page on a phone: 2,997 stations worldwide, Globe, region and language filters and round station logos" src="docs/images/phone-podio-dark.webp" width="180"><br><sub>Podio: radio from anywhere</sub></td>
+    <td align="center"><img alt="Read's Browse page on a phone: Trending, Public domain, New Classics and Archive catalogues, and new public-domain books from Standard Ebooks" src="docs/images/phone-read-dark.webp" width="180"><br><sub>Read: books and manga</sub></td>
+    <td align="center"><img alt="The profile drawer on a phone: a Sign in card, a Light, Dark and System theme switch, the modes Music, Video, Watch, Podio, Read and Manga, then Your listening, Replay, Listen together, Downloads, Equalizer and Settings" src="docs/images/phone-profile-drawer-dark.webp" width="180"><br><sub>Every mode from one drawer</sub></td>
   </tr>
 </table>
 
@@ -64,12 +64,12 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
 
 <table>
   <tr>
-    <td align="center" width="50%"><img alt="Music's Home on the desktop: a sidebar with the mode switcher and search, a Good morning greeting, a featured song card with its round cover, a Start a room card, mix chips and a list of song matches" src="docs/images/desktop-music-home-dark.webp" width="420"><br><sub>Music on the desktop</sub></td>
-    <td align="center" width="50%"><img alt="Now Playing on the desktop: the music video shown whole on the left above the song card with its controls, volume and audio details, and the Up next list on the right with drag handles" src="docs/images/desktop-now-playing-video-dark.webp" width="420"><br><sub>Now Playing with the video and Up next</sub></td>
+    <td align="center" width="50%"><img alt="Music's Home on the desktop: a sidebar with the mode switcher and search, a Late night greeting, a chart card with its round cover, mix chips, India's trending charts, a Listen together card and the playing song at the foot" src="docs/images/desktop-music-home-dark.webp" width="420"><br><sub>Music on the desktop</sub></td>
+    <td align="center" width="50%"><img alt="Now Playing on the desktop: the music video shown whole on the left above the song card with its controls, a waveform seek line and the audio quality, and the Up next list on the right with drag handles" src="docs/images/desktop-now-playing-video-dark.webp" width="420"><br><sub>Now Playing with the video and Up next</sub></td>
   </tr>
   <tr>
-    <td align="center"><img alt="Watch's Home on the desktop: a sidebar with Home, Films, Series, Live TV, Search, My list, Downloads and Plugins, a featured free archive film, a Live now row of Tamil news channels and free classic films" src="docs/images/desktop-watch-home-dark.webp" width="420"><br><sub>Watch on the desktop</sub></td>
-    <td align="center"><img alt="A live channel playing in Watch on the desktop: DD Mizoram from the iptv-org free channels, with Audio, Subtitles and Watch together" src="docs/images/desktop-watch-live-dark.webp" width="420"><br><sub>A DD channel, live</sub></td>
+    <td align="center"><img alt="Watch's Home on the desktop: a sidebar with Search, Home, Films, Series, Live TV, My list, Downloads, Plugins and Watch settings, a featured free film from YouTube, a Live now row of Indian news channels and free classic films" src="docs/images/desktop-watch-home-dark.webp" width="420"><br><sub>Watch on the desktop</sub></td>
+    <td align="center"><img alt="A live channel playing in Watch on the desktop: DD National from the iptv-org free channels, with Audio, Subtitles and Watch together" src="docs/images/desktop-watch-live-dark.webp" width="420"><br><sub>A DD channel, live</sub></td>
   </tr>
 </table>
 
@@ -77,12 +77,12 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
 
 <table>
   <tr>
-    <td align="center" width="50%"><img alt="Home on Android TV: a row of tabs with Home focused, a large card for the paused video with its round cover and play button, and round chart covers below" src="docs/images/tv-home.webp" width="420"><br><sub>Home on the TV</sub></td>
-    <td align="center" width="50%"><img alt="Watch on Android TV: the Tonight page with a featured free film from YouTube, its poster, My list, a dimmed Watch together and a focused play button" src="docs/images/tv-watch.webp" width="420"><br><sub>Watch on the TV</sub></td>
+    <td align="center" width="50%"><img alt="Home on Android TV: a row of tabs with Home focused, a large card for the paused radio station with its round logo and play button, and round chart covers below" src="docs/images/tv-home.webp" width="420"><br><sub>Home on the TV</sub></td>
+    <td align="center" width="50%"><img alt="Watch on Android TV: Continue watching, then a focused featured free film from YouTube with its poster, My list, a dimmed Together and the play button" src="docs/images/tv-watch.webp" width="420"><br><sub>Watch on the TV</sub></td>
   </tr>
   <tr>
-    <td align="center"><img alt="Live TV on Android TV: 14,090 free channels, country and language chips, and a programme guide with a star to save each channel" src="docs/images/tv-live-tv.webp" width="420"><br><sub>Live TV with a guide</sub></td>
-    <td align="center"><img alt="Radio on Android TV: Radio, Podcasts and Saved tabs, a station search and a grid of round station logos with one focused" src="docs/images/tv-radio.webp" width="420"><br><sub>Podio radio on the TV</sub></td>
+    <td align="center"><img alt="Live TV on Android TV: 15,687 free channels, language and category chips with Films chosen, and a programme guide with a star to save each channel" src="docs/images/tv-live-tv.webp" width="420"><br><sub>Live TV with a guide</sub></td>
+    <td align="center"><img alt="Radio on Android TV: a station search and a grid of round station logos with one focused" src="docs/images/tv-radio.webp" width="420"><br><sub>Podio radio on the TV</sub></td>
   </tr>
 </table>
 
@@ -90,8 +90,8 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
 
 <table>
   <tr>
-    <td align="center" width="50%"><img alt="The Cosmotune watch app's Podio menu on a round Wear OS screen: Saved radio from the phone's favourites, and Popular radio from Radio Browser" src="docs/images/wear-podio.webp" width="200"><br><sub>Podio on the watch</sub></td>
-    <td align="center" width="50%"><img alt="The Cosmotune watch app on a round Wear OS screen when the phone is out of reach: Phone not connected, with Try again and Saved Podio" src="docs/images/wear-not-connected.webp" width="200"><br><sub>Saved Podio lists stay readable without the phone</sub></td>
+    <td align="center" width="50%"><img alt="The Cosmotune watch app's Podio menu on a round Wear OS screen: Listen on this watch, for public radio and podcasts with no phone needed, and Saved radio from the phone's favourites" src="docs/images/wear-podio.webp" width="200"><br><sub>Podio on the watch</sub></td>
+    <td align="center" width="50%"><img alt="The Cosmotune watch app on a round Wear OS screen when the phone is out of reach: Phone not connected, with Try again and Open Podio" src="docs/images/wear-not-connected.webp" width="200"><br><sub>Podio still plays without the phone</sub></td>
   </tr>
 </table>
 
@@ -135,10 +135,10 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
       <p>The sleep timer shows as a pill with the time left in Now Playing, beside pills for the other features in use. It pauses on
       time with the screen off, and pauses casting, rooms, Video and Watch too.</p>
     </td>
-    <td width="36%" align="center"><img alt="Now Playing in the light theme on a phone: the music video shown whole above the song card, and a sleep timer pill with a moon and 14:44 left beside Lyrics, Up next and Related" src="docs/images/phone-now-playing-sleep-timer-light.webp" width="230"></td>
+    <td width="36%" align="center"><img alt="Now Playing in the light theme on a phone: the music video shown whole above the song card, and a sleep timer pill with a moon and 7:45 left beside Lyrics, Up next and Related" src="docs/images/phone-now-playing-sleep-timer-light.webp" width="230"></td>
   </tr>
   <tr>
-    <td align="center"><img alt="Video mode's Home in the light theme on a phone: category chips, an Up next for you card with a news report, its channel, Watch later and Watch buttons, and the dock at the foot" src="docs/images/phone-video-home-light.webp" width="230"></td>
+    <td align="center"><img alt="Video mode's Home in the light theme on a phone: category chips, an Up next for you card with a gaming video, its channel, Play, Watch later and Save buttons, then More for you and the dock at the foot" src="docs/images/phone-video-home-light.webp" width="230"></td>
     <td>
       <h3>Video mode</h3>
       <p>A full video app in the same install, with no account and no cookies: search, channels, subscriptions with a feed of their
@@ -171,10 +171,10 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
       sources.</p>
       <p>Film and series details come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
     </td>
-    <td align="center"><img alt="Watch's Live TV page in the light theme on a phone: Home, Films, Series, Live TV and Search tabs, 14,176 free channels, country and language chips, and the programme guide" src="docs/images/phone-watch-live-tv-guide-light.webp" width="230"></td>
+    <td align="center"><img alt="Watch's Live TV page in the light theme on a phone: 15,687 free channels, country, language and category filters, the programme guide, and Home, Live TV, My list and Downloads in the dock" src="docs/images/phone-watch-live-tv-guide-light.webp" width="230"></td>
   </tr>
   <tr>
-    <td align="center"><img alt="The Live now sheet in the light theme on a phone: two live and seven coming up, filters for Cricket, Football and Shows, a live show on DD News and DD National, and football matches with Remind buttons" src="docs/images/phone-live-now-sheet-light.webp" width="230"></td>
+    <td align="center"><img alt="The Spotlight sheet in the light theme on a phone: six live, Top, World, country and Football tabs, live football scores and a live Test match, then the world's top story" src="docs/images/phone-live-now-sheet-light.webp" width="230"></td>
     <td>
       <h3>Spotlight</h3>
       <p>One line at the top of every mode shows what matters most right now: a live match you follow with its minute and latest
