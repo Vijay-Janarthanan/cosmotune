@@ -127,6 +127,8 @@ internal object DesktopCloud {
     private fun artistSnapshot(): Map<String, JsonObject> =
         SyncArtists.snapshot(ListeningStore(desktopListeningFile()).state.value.artists).also { lastSeenArtists = it }
 
+    private val podioLibrary by lazy { com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile()) }
+
     private val source by lazy {
         object : JournalSyncSource(SnapshotJournal(directory?.let { File(it, "journal.json") })) {
             override suspend fun snapshot(kind: String): Map<String, JsonObject> = withContext(Dispatchers.IO) {
@@ -139,6 +141,8 @@ internal object DesktopCloud {
                     // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
                     com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
                     com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
+                    // Podio's follows, saved stations and where episodes were left.
+                    com.cosmotune.podio.SyncPodio.KIND -> com.cosmotune.podio.SyncPodio.snapshot(podioLibrary.state.value)
                     else -> emptyMap()
                 }
             }
@@ -166,6 +170,7 @@ internal object DesktopCloud {
                             com.cosmotune.desktop.DesktopWatch.store.update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
                         com.cosmotune.watch.SyncWatchLibrary.KIND ->
                             com.cosmotune.desktop.DesktopWatch.store.update { com.cosmotune.watch.SyncWatchLibrary.apply(it, upserts, deletes) }
+                        com.cosmotune.podio.SyncPodio.KIND -> podioLibrary.update { com.cosmotune.podio.SyncPodio.apply(it, upserts, deletes) }
                     }
                 }
             }
@@ -205,7 +210,7 @@ internal object DesktopCloud {
             CosmotuneFirebase.config, Http.client, sessionStore, source, marks,
             listOf(
                 SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND,
-                SyncPlaylistCovers.KIND,
+                SyncPlaylistCovers.KIND, com.cosmotune.podio.SyncPodio.KIND,
             ),
             scope,
             log = { DesktopTrackLog.log(it) },
@@ -257,6 +262,14 @@ internal object DesktopCloud {
             }
         }
         scope.launch { com.cosmotune.watch.WatchSyncSignals.changes.collect { autoSync.changed() } }
+        scope.launch {
+            var previous: Map<String, JsonObject>? = null
+            podioLibrary.state.collect { saved ->
+                val current = com.cosmotune.podio.SyncPodio.changeSignal(saved)
+                if (previous != null && previous != current) autoSync.changed()
+                previous = current
+            }
+        }
         // A cover picked (or put back to the automatic one) on this computer; the sync's own write of another device's is not one.
         if (directory != null) scope.launch {
             val covers = coverStore()

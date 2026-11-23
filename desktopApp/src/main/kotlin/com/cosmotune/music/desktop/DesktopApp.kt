@@ -6557,7 +6557,7 @@ private fun DesktopSettingsScreen(
                         SettingsRow(
                             Icons.Rounded.Sync,
                             "Turn on cloud sync",
-                            "Playlists, likes and followed artists on all your devices, no sign-in needed",
+                            "Playlists, likes, followed artists and podcasts on all your devices, no sign-in needed",
                             DesktopCloud::turnOn,
                         )
                     }

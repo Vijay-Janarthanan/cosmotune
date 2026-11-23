@@ -1249,7 +1249,7 @@
     <string name="cloud_sign_in_failed">Could not sign in with Google</string>
     <string name="cloud_sync_off">Cloud sync is off. Your library stays on this device.</string>
     <string name="cloud_turn_on">Turn on cloud sync</string>
-    <string name="cloud_turn_on_subtitle">Playlists, likes and followed artists on all your devices, no sign-in needed</string>
+    <string name="cloud_turn_on_subtitle">Playlists, likes, followed artists and podcasts on all your devices, no sign-in needed</string>
     <!-- Rooms (Listen together on Firebase) -->
     <string name="room_err_not_found">No room with that code</string>
     <string name="room_err_full">This room is full</string>

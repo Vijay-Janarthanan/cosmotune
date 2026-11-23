@@ -108,6 +108,8 @@ fun PodioSettingsSection(storage: File, modifier: Modifier = Modifier,
         OrbitLabel("Subscriptions", fonts, look.dim, Modifier.padding(top = 8.dp))
         Text(if (hasShows) "OPML keeps your follows; bring them to another podcast app or back." else "Bring your shows from another podcast app.",
             style = fonts.body.copy(fontSize = 13.sp), color = look.dim)
+        Text("With Sync on, your shows, saved stations and where you left each episode follow you to your other devices.",
+            style = fonts.body.copy(fontSize = 13.sp), color = look.dim)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OrbitSelectChip("Import OPML", false, fonts, look, {
                 val pick = onImportOpmlFile
