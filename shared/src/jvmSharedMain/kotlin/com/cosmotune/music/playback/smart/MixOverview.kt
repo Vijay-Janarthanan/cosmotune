@@ -4,7 +4,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * The mix view (BitChord's Automix overview): what Automix measured in a song and how it means to go into the next one, in words a
+ * The mix view (an Automix overview): what Automix measured in a song and how it means to go into the next one, in words a
  * listener reads. Times are seconds into the song; [fractions] place them on the song's length for the drawing.
  */
 data class MixOverview(

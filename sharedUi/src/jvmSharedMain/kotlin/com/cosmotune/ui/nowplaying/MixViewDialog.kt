@@ -23,7 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * The mix view (BitChord's Automix overview, from the player menu): the song's tempo and key as Automix measured them, its loudness
+ * The mix view (an Automix overview, from the player menu): the song's tempo and key as Automix measured them, its loudness
  * along the song, where Automix brings it in and takes it out, and how the next song compares. Only songs Automix has analysed
  * (ones it has played) have one.
  */
