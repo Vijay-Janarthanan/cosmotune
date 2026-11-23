@@ -827,8 +827,7 @@ fun CosmotuneDesktopApp() {
         persistence.saveString("queue_index", liveQueue.index.toString())
     }
 
-    /** Opens whatever the queue is currently pointing at. */
-    fun playCurrent(startPlaying: Boolean = true, startAtMs: Long = 0) {
+    fun playCurrentNow(startPlaying: Boolean, startAtMs: Long) {
         val song = liveQueue.current ?: return
         com.cosmotune.podio.PodioPlaybackPolicy.speedOnTransition(playbackEngine.state.value.song?.videoId, song.videoId, playbackSpeed)
             ?.let(playbackEngine::setPlaybackSpeed)
@@ -839,6 +838,26 @@ fun CosmotuneDesktopApp() {
         playbackEngine.load(song, startPlaying, startAtMs)
         partySyncHolder[0]?.onLocalIntent(song.videoId)
         scope.launch { DesktopScrobbling.updateNowPlaying(song) }
+    }
+
+    /** Opens whatever the queue is currently pointing at. */
+    fun playCurrent(startPlaying: Boolean = true, startAtMs: Long = 0) {
+        val song = liveQueue.current ?: return
+        // Prefer the song to its video (Settings): the music video gives way to the catalogue's recording, when one matches.
+        if (song.isVideo && startAtMs == 0L && !DesktopListenTogether.state.value.inParty && persistence.boolean(KEY_PREFER_MUSIC_ONLY, false)) {
+            val at = liveQueue.index
+            scope.launch {
+                val audio = withContext(Dispatchers.IO) { runCatching { YtMusicRepository.resolveAudio(song) }.getOrNull() }
+                    ?.takeIf { it.videoId != song.videoId && !it.isVideo }
+                if (liveQueue.index != at || liveQueue.current?.videoId != song.videoId) return@launch
+                if (audio != null) liveQueue = liveQueue.copy(songs = liveQueue.songs.toMutableList().also {
+                    it[at] = audio.copy(queueEntryId = song.queueEntryId, queueTier = song.queueTier)
+                })
+                playCurrentNow(startPlaying, startAtMs)
+            }
+            return
+        }
+        playCurrentNow(startPlaying, startAtMs)
     }
 
     fun partyTrackChangeBlocked(): Boolean {
@@ -5626,6 +5645,7 @@ private fun DesktopFrame(
 /** What the mesh is averaged from — coarse by design. */
 /** Whether AutoPlay may offer a song this session has already played or suggested. */
 internal const val KEY_DONT_REPEAT_SUGGESTIONS = "dont_repeat_suggestions"
+internal const val KEY_PREFER_MUSIC_ONLY = "prefer_music_only"
 
 internal const val KEY_LIBRARY_SORT = "library_sort"
 
@@ -6103,6 +6123,13 @@ private fun DesktopSettingsScreen(
                         onLoudnessNormalizationChange,
                     )
                     val eqOn by DesktopEqualizerSettings.enabled.collectAsState()
+                    // As the phone's: a music video in the queue plays as its song, when the catalogue has the same recording.
+                    var preferSong by remember { mutableStateOf(DesktopPersistence().boolean(KEY_PREFER_MUSIC_ONLY, false)) }
+                    SettingsToggle(
+                        "Prefer the song to its video",
+                        "A music video plays as the song from the album when there is one, with the album's sound and cover",
+                        preferSong,
+                    ) { preferSong = it; DesktopPersistence().saveBoolean(KEY_PREFER_MUSIC_ONLY, it) }
                     SettingsToggle(
                         DesktopStrings["skip_silence", "Skip silence"],
                         DesktopStrings["d_shorten_long_gaps_rather_than_playing_them_out", "Shorten long gaps rather than playing them out"],
