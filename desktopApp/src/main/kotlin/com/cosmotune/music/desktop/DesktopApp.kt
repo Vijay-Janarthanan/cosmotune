@@ -4022,12 +4022,12 @@ fun CosmotuneDesktopApp() {
             LocalNowPlaying provides selectedSong,
             com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,
             com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),
+            com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },
+            com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),
             // Up next marks the liked and downloaded songs.
             com.cosmotune.ui.orbit.LocalQueueMarks provides remember(likedIds, downloads) {
                 com.cosmotune.ui.orbit.QueueMarks(liked = likedIds, downloaded = downloads.mapTo(HashSet()) { it.videoId })
             },
-            com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },
-            com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),
         ) {
             libraryActionTarget?.let { item ->
                 val pins by DesktopAppUiHost.pinnedPlaylists.collectAsState()
