@@ -112,3 +112,12 @@ fun CosmotuneTheme(
 @Composable
 fun SystemBarIcons(dark: Boolean) = SystemBarGlyphs(dark)
 
+/**
+ * The glyphs the theme asks for, or null while a surface that paints its own ground under the bars is open and sets them itself:
+ * the player (CosmoNowPlaying) and a Replay story (its card's colour). Everything else, Replay's page among it, stands on the
+ * theme's ground: dark glyphs in the light theme, light ones in the dark theme. Two callers setting the same window flag would take
+ * turns, whichever recomposed last winning.
+ */
+fun themeSystemBarGlyphs(darkTheme: Boolean, playerOpen: Boolean, storyOpen: Boolean): Boolean? =
+    if (playerOpen || storyOpen) null else !darkTheme
+

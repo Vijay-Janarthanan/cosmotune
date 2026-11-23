@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.cosmotune.music.R
 import com.cosmotune.music.data.stats.ReplaySummary
+import com.cosmotune.music.ui.theme.SystemBarGlyphsOn
 import com.cosmotune.ui.replay.OrbitReplayRow
 import com.cosmotune.ui.replay.OrbitStoryCard
 import com.cosmotune.ui.replay.OrbitStoryChrome
@@ -168,6 +169,8 @@ fun ReplayStories(
     val page = pages.getOrElse(current) { ReplayStoryPage.INTRO }
     val colors = orbitStoryColors(summary.storyArtwork(page), page.name)
     val ground by animateColorAsState(colors.fill, tween(320), label = "storyGround")
+    // The card's colour runs under both bars, light or dark depending on the cover: the glyphs follow it.
+    SystemBarGlyphsOn(ground)
 
     // The system bars are kept outside the frame rather than padded for inside
     // it: the card is a fixed canvas and its own margins are part of the

@@ -259,6 +259,7 @@ import com.cosmotune.music.ui.theme.rememberArtworkPalette
 import com.cosmotune.music.data.canvas.AppleArtistArtRepository
 import com.cosmotune.music.data.canvas.keyColors
 import com.cosmotune.music.ui.theme.SystemBarIcons
+import com.cosmotune.music.ui.theme.themeSystemBarGlyphs
 import com.cosmotune.music.ui.utils.rememberIosOverscrollFactory
 import com.cosmotune.music.ui.performance.resolvePerformanceRefreshRate
 import dev.chrisbanes.haze.HazeState
@@ -649,10 +650,10 @@ private fun CosmotuneApp(
     // following radio items carry radioName in their MediaItem extras.
     var activeRadioSeed by remember { mutableStateOf<Pair<String, String>?>(null) }
 
-    // The modal player owns light status glyphs and its own contrast scrim.
-    // Every other surface follows the theme; Replay's page and stories remain
-    // dark artwork either way.
-    SystemBarIcons(dark = !darkTheme && !showNowPlaying && !showReplay && replayStory == null)
+    // The player and a Replay story set the glyphs for the ground they paint.
+    // Every other surface, Replay's page among them, follows the theme.
+    themeSystemBarGlyphs(darkTheme, playerOpen = showNowPlaying, storyOpen = replayStory != null)
+        ?.let { SystemBarIcons(dark = it) }
 
     val homeState by viewModel.home.collectAsStateWithLifecycle()
     val homeLoadingMore by viewModel.homeLoadingMore.collectAsStateWithLifecycle()
