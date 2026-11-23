@@ -32,6 +32,17 @@ object CanvasStreamChoice {
         return target.takeIf { sourceHeight < target * ENOUGH }
     }
 
+    /**
+     * The stream height a phone asks for, before anything plays: a music video across a portrait phone, or full screen
+     * sideways, is drawn as tall as the screen's short side ([shortSidePx]), so the shortest standard height that covers it,
+     * never above [capHeight] (the quality setting). An unknown screen keeps the setting.
+     */
+    fun forScreen(shortSidePx: Int, capHeight: Int): Int {
+        if (shortSidePx <= 0) return capHeight
+        val wanted = HEIGHTS.firstOrNull { it >= shortSidePx * ENOUGH } ?: HEIGHTS.last()
+        return minOf(wanted, capHeight)
+    }
+
     /** A stream within this share of the wanted height is as good as it: 1072p is 1080p, a 676p widescreen copy is 720p. */
     private const val ENOUGH = 0.9
 }

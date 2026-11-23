@@ -125,7 +125,7 @@ object CanvasRepository {
         val spotifyFirst = AppSettings.prioritizeSpotifyCanvas.value
 
         val openCanvasActive = AppSettings.openCanvasEnabled.value
-        val openCanvasRes = AppSettings.openCanvasResolution.value
+        val openCanvasRes = AppSettings.openCanvasRequestLabel()
         val key = cacheKey(com.cosmotune.canvas.canvasSongKey(song.videoId, openCanvasActive, openCanvasRes), spotifyFirst)
 
         val seconds = song.durationMillis() / 1_000L
@@ -212,7 +212,7 @@ object CanvasRepository {
             title = song.title,
             artist = artist,
             trackVideoId = song.videoId,
-            resolutionLabel = AppSettings.openCanvasResolution.value,
+            resolutionLabel = AppSettings.openCanvasRequestLabel(),
             durationSec = song.durationMillis() / 1_000L,
             album = song.albumName,
         )
@@ -228,7 +228,7 @@ object CanvasRepository {
     fun cached(song: Song): CanvasArtwork? {
         val key = cacheKey(
             base = com.cosmotune.canvas.canvasSongKey(song.videoId,
-                AppSettings.openCanvasEnabled.value, AppSettings.openCanvasResolution.value),
+                AppSettings.openCanvasEnabled.value, AppSettings.openCanvasRequestLabel()),
             spotifyFirst = AppSettings.prioritizeSpotifyCanvas.value,
         )
         return synchronized(cache) { cache[key]?.takeIf { it.fresh }?.artwork?.takeIf { it.matches("", "", song.albumName) } }

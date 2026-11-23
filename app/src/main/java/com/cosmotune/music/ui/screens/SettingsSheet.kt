@@ -1441,7 +1441,7 @@ fun SettingsScreen(
                     }
                     val openCanvasResTitle = "OpenCanvas Video Resolution"
                     val resOptions = listOf("360p", "480p", "720p", "1080p")
-                    val selectedResIndex = resOptions.indexOf(openCanvasResolution).let { if (it >= 0) it else 1 }
+                    val selectedResIndex = resOptions.indexOf(openCanvasResolution).let { if (it >= 0) it else resOptions.lastIndex }
                     row(openCanvasResTitle, "opencanvas", "resolution", "quality", "360p", "480p", "720p", "1080p", divided = false) {
                         Column(
                             modifier = Modifier
@@ -1459,8 +1459,8 @@ fun SettingsScreen(
                                 text = when (openCanvasResolution) {
                                     "360p" -> "360p — Ultra-smooth playback & lowest battery/data usage"
                                     "720p" -> "720p — High Definition; sharp on large displays"
-                                    "1080p" -> "1080p — Full HD clarity; highest quality"
-                                    else -> "480p — Standard mobile canvas quality (Recommended)"
+                                    "480p" -> "480p — Standard quality; less data"
+                                    else -> "1080p — Full HD, or as sharp as your screen shows (Recommended)"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,

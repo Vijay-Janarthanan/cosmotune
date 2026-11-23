@@ -24,6 +24,15 @@ class CanvasStreamChoiceTest {
         assertNull(CanvasStreamChoice.upgradeHeight(1920, 1080, 640, 360, capHeight = 360))
     }
 
+    @Test fun aPhoneAsksForTheHeightItsScreenShows() {
+        // A music video across a portrait phone, or full screen sideways, is drawn as tall as the screen's short side.
+        assertEquals(1080, CanvasStreamChoice.forScreen(shortSidePx = 1080, capHeight = 1080), "a 1080 px wide phone gets Full HD")
+        assertEquals(1080, CanvasStreamChoice.forScreen(shortSidePx = 1440, capHeight = 1080), "a sharper screen: the tallest there is")
+        assertEquals(720, CanvasStreamChoice.forScreen(shortSidePx = 720, capHeight = 1080), "a 720 px phone fetches no more than it shows")
+        assertEquals(480, CanvasStreamChoice.forScreen(shortSidePx = 1080, capHeight = 480), "the quality setting caps it")
+        assertEquals(1080, CanvasStreamChoice.forScreen(shortSidePx = 0, capHeight = 1080), "an unknown screen keeps the setting")
+    }
+
     @Test fun aStreamAsTallAsTheBoxNeedsStays() {
         assertNull(CanvasStreamChoice.upgradeHeight(804, 454, 1280, 720, capHeight = 1080), "720p for a 454 px tall box")
         assertNull(CanvasStreamChoice.upgradeHeight(1920, 1080, 1440, 1072, capHeight = 1080), "1072p is Full HD")

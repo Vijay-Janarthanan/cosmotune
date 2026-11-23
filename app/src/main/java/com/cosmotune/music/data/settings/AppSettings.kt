@@ -474,8 +474,24 @@ object AppSettings {
     /** Streams & reframes YouTube music videos vertically into dynamic Canvas (OpenCanvas by Vijay). */
     val openCanvasEnabled = MutableStateFlow(true)
 
-    /** Resolution for OpenCanvas video streams: "360p", "480p", "720p", "1080p". */
-    val openCanvasResolution = MutableStateFlow("480p")
+    /**
+     * The highest resolution for OpenCanvas video streams: "360p", "480p", "720p", "1080p". A fresh install allows Full HD, as on
+     * the desktop; what is asked for is only what the screen shows ([openCanvasRequestLabel]). The music video never runs on a
+     * metered connection unless "canvas over cellular" is on.
+     */
+    val openCanvasResolution = MutableStateFlow(OPENCANVAS_DEFAULT_RESOLUTION)
+
+    /**
+     * The stream height the phone asks for: what this screen shows (its short side, see CanvasStreamChoice.forScreen), never
+     * above [openCanvasResolution]. A 480p copy under a 1080 px wide screen looked soft.
+     */
+    fun openCanvasRequestLabel(): String {
+        val cap = com.opencanvas.core.models.OpenCanvasResolution.fromLabel(openCanvasResolution.value).maxHeight
+        // No screen to measure (a JVM test): 0 keeps the setting.
+        val shortSide = runCatching { android.content.res.Resources.getSystem().displayMetrics.let { minOf(it.widthPixels, it.heightPixels) } }
+            .getOrDefault(0)
+        return "${com.opencanvas.core.sync.CanvasStreamChoice.forScreen(shortSide, cap)}p"
+    }
 
 
     /**
@@ -916,7 +932,7 @@ object AppSettings {
         }
         animatedCanvas.value = prefs.getBoolean(KEY_ANIMATED_CANVAS, true)
         openCanvasEnabled.value = prefs.getBoolean(KEY_OPENCANVAS_ENABLED, true)
-        openCanvasResolution.value = prefs.getString(KEY_OPENCANVAS_RESOLUTION, "480p") ?: "480p"
+        openCanvasResolution.value = prefs.getString(KEY_OPENCANVAS_RESOLUTION, OPENCANVAS_DEFAULT_RESOLUTION) ?: OPENCANVAS_DEFAULT_RESOLUTION
         canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, false)
 
         spotifyCanvasAutoHide.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
@@ -2139,6 +2155,7 @@ object AppSettings {
     private const val KEY_ANIMATED_CANVAS = "animated_canvas"
     private const val KEY_OPENCANVAS_ENABLED = "opencanvas_enabled"
     private const val KEY_OPENCANVAS_RESOLUTION = "opencanvas_resolution"
+    private const val OPENCANVAS_DEFAULT_RESOLUTION = "1080p"
     private const val KEY_CANVAS_OVER_CELLULAR = "canvas_over_cellular"
 
     private const val KEY_SPOTIFY_CANVAS_AUTO_HIDE = "spotify_canvas_auto_hide"
