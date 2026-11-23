@@ -171,6 +171,13 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         // service alone: Video and Watch play on a service of their own.
         com.cosmotune.music.playback.SleepTimerWatcher.start(this)
         com.cosmotune.ui.sleep.SleepTimerUi.control = com.cosmotune.music.playback.AndroidSleepTimerControl
+        // The music player's Comments: Video mode's sheet, over its own graph (built the first time it is opened).
+        val app = this
+        com.cosmotune.ui.nowplaying.MusicComments.sheet = { videoId, onDismiss ->
+            androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.video.graph.LocalVideoGraph provides com.cosmotune.video.graph.androidVideoGraph(app)) {
+                com.cosmotune.video.ui.comments.CommentsSheet(videoId, onDismiss)
+            }
+        }
         // Before anything resolves a track: an addon with `checkValidLossless`
         // is gated on this, and the gate reads "no" until it has looked.
         com.cosmotune.music.playback.audio.LosslessOutput.init(this)

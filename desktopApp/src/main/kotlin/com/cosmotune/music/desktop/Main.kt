@@ -115,6 +115,14 @@ private fun runDesktop() {
     // The player is the phone's, from the shared UI module; this is what it reads underneath.
     PlayerPlatform.install(DesktopPlayerHost)
     com.cosmotune.ui.sleep.SleepTimerUi.control = DesktopSleepTimerControl
+    // The music player's Comments: Video mode's sheet, over its own graph (built the first time it is opened).
+    com.cosmotune.ui.nowplaying.MusicComments.sheet = { videoId, onDismiss ->
+        com.cosmotune.video.graph.desktopVideoGraph(build = true)?.let { graph ->
+            androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.video.graph.LocalVideoGraph provides graph) {
+                com.cosmotune.video.ui.comments.CommentsSheet(videoId, onDismiss)
+            }
+        }
+    }
     com.cosmotune.music.ui.AppUi.install(DesktopAppUiHost)
     // The data layer both apps share logs through here, and keeps translated
     // lyrics beside the rest of the desktop's cache.

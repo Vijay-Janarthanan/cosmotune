@@ -366,6 +366,10 @@ fun CosmoNowPlaying(
     }
     val sleepTimer = rememberSleepTimer()
     var sleepMenuOpen by remember { mutableStateOf(false) }
+    // The song's YouTube comments, in Video mode's own sheet (see MusicComments).
+    var commentsOpen by remember(song.videoId) { mutableStateOf(false) }
+    val commentsSheet = MusicComments.sheet?.takeIf { MusicComments.applies(song.videoId) }
+    if (commentsOpen && commentsSheet != null) commentsSheet(song.videoId) { commentsOpen = false }
     val sleepMenu: @Composable () -> Unit = { SleepTimerMenu(sleepMenuOpen, { sleepMenuOpen = false }, orbitType, orbitInk) }
     // The rarer actions, in the top row's "more" (the phone adds shuffle and repeat, which its card has no room for).
     val moreItems: (Boolean) -> List<OrbitMenuItem> = { phone ->
@@ -389,6 +393,9 @@ fun CosmoNowPlaying(
             add(OrbitMenuItem("Visuals", "Artwork, pulse or waveform, full screen", CosmoIcons.Waveform) { visualsOpen = true })
             add(OrbitMenuItem("Audio details", "The signal path, from source to output", CosmoIcons.Equaliser) { sheets.details = true })
             add(OrbitMenuItem("Lyrics source", "Choose, search for or time the lyrics", CosmoIcons.Lyrics) { sheets.providers = true })
+            if (commentsSheet != null) {
+                add(OrbitMenuItem("Comments", "What people say about this song on YouTube", CosmoIcons.Comments) { commentsOpen = true })
+            }
         }
     }
     val sourceLabel = nowPlayingSource(song, playedBy)
