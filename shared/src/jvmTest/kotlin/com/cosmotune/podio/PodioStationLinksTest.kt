@@ -14,6 +14,21 @@ class PodioStationLinksTest {
         assertFalse(PodioStationLinks.isPlaylist("https://radio.example/live.mp3", "audio/mpeg"))
     }
 
+    @Test fun linksFromOutsideWaitForPodio() {
+        assertTrue(PodioLinks.accepts("https://radio.example/listen.pls?sid=1"))
+        assertTrue(PodioLinks.accepts("C:\\Users\\me\\Downloads\\Station.M3U"))
+        assertFalse(PodioLinks.accepts("https://radio.example/live.mp3"))
+        assertTrue(PodioLinks.offerPlaylist("[playlist]\nFile1=https://a.example/live\nTitle1=Radio A\n"))
+        assertEquals(PodioLinks.Pending("Radio A", "https://a.example/live"), PodioLinks.pending.value)
+        val file = java.nio.file.Files.createTempFile("Station", ".m3u").toFile().apply { writeText("#EXTM3U\nhttps://b.example/live\n") }
+        assertTrue(PodioLinks.offerDesktop(file.absolutePath))
+        assertEquals("https://b.example/live", PodioLinks.pending.value?.address)
+        assertEquals(file.nameWithoutExtension, PodioLinks.pending.value?.name)
+        PodioLinks.handled()
+        assertNull(PodioLinks.pending.value)
+        assertFalse(PodioLinks.offerPlaylist("not a playlist"))
+    }
+
     @Test fun aStationAddedByHandKeepsOneEntryAndCanBeEdited() {
         val station = assertNotNull(PodioStationLinks.station(" ", "https://www.myradio.example/live"))
         assertEquals("myradio.example", station.name)

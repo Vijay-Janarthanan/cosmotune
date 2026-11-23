@@ -55,4 +55,54 @@ object PodioStationLinks {
     }
 
     private fun hostName(url: String): String = runCatching { java.net.URI(url).host.removePrefix("www.") }.getOrNull().orEmpty().ifBlank { "My station" }
+
+    /** The name a station's playlist file carries: PLS "Title1=", the first M3U "#EXTINF:-1,Name", else empty. */
+    fun nameIn(playlist: String): String = playlist.lineSequence().map(String::trim).firstNotNullOfOrNull { line ->
+        Regex("(?i)^title1=(.+)$").find(line)?.groupValues?.get(1) ?: Regex("(?i)^#EXTINF:[^,]*,(.+)$").find(line)?.groupValues?.get(1)
+    }?.trim()?.take(120).orEmpty()
+}
+
+/**
+ * A station link that reached the app from outside (a tapped M3U or PLS link in the browser, a playlist file opened from the file
+ * manager or the desktop, a stream address shared to Cosmotune): it waits in [pending] while Podio opens its Add a station dialog.
+ */
+object PodioLinks {
+    data class Pending(val name: String, val address: String)
+
+    private val _pending = kotlinx.coroutines.flow.MutableStateFlow<Pending?>(null)
+    val pending: kotlinx.coroutines.flow.StateFlow<Pending?> = _pending
+
+    /** Whether [link] is a station playlist address or file this app takes: an M3U or PLS by its name. */
+    fun accepts(link: String): Boolean {
+        val path = link.trim().substringBefore('?').substringBefore('#').lowercase()
+        return path.endsWith(".pls") || path.endsWith(".m3u")
+    }
+
+    /** A station's address (a stream or a playlist URL) to add; false when it is not a web address. */
+    fun offer(address: String, name: String = ""): Boolean {
+        val url = PodioCatalogue.httpUrl(address) ?: return false
+        _pending.value = Pending(name.trim().take(120), url)
+        return true
+    }
+
+    /** A playlist file's text: its first stream (and the name it gives) to add; false when it names none. */
+    fun offerPlaylist(text: String, base: String = "https://localhost/", fallbackName: String = ""): Boolean {
+        val stream = PodioStationLinks.streams(text, base).firstOrNull() ?: return false
+        return offer(stream, PodioStationLinks.nameIn(text).ifBlank { fallbackName })
+    }
+
+    /**
+     * A link the desktop was opened with: a web playlist or stream address, or a playlist file on the disk (a path or a file: URI),
+     * which is read here. Returns whether it was a station link.
+     */
+    fun offerDesktop(link: String): Boolean {
+        if (!accepts(link)) return false
+        if (link.startsWith("http://", true) || link.startsWith("https://", true)) return offer(link)
+        val file = runCatching { if (link.startsWith("file:", true)) java.io.File(java.net.URI(link)) else java.io.File(link) }.getOrNull() ?: return false
+        if (!file.isFile || file.length() > 256 * 1024) return false
+        return offerPlaylist(file.readText(), fallbackName = file.nameWithoutExtension)
+    }
+
+    /** Podio took the link (its dialog is open). */
+    fun handled() { _pending.value = null }
 }

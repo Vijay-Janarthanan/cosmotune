@@ -3615,6 +3615,12 @@ fun CosmotuneDesktopApp() {
         SideEffect { DesktopRoomVideo.look = cosmoShell?.settings }
         // A Watch install link that reached the app opens Watch, where its sheet waits.
         com.cosmotune.desktop.FollowWatchLinks(cosmoShell?.settings)
+        // A station playlist the app was opened with makes Podio the mode, where Add a station opens filled in.
+        val stationLink by com.cosmotune.podio.PodioLinks.pending.collectAsState()
+        LaunchedEffect(stationLink != null, cosmoShell?.settings) {
+            val settings = cosmoShell?.settings
+            if (stationLink != null && settings != null && com.cosmotune.design.AppModes.available(AppMode.PODIO) && settings.mode.value != AppMode.PODIO) settings.setMode(AppMode.PODIO)
+        }
         // The room for every page and mode: one launcher for the window ("Play in room", the room icon).
         val roomLauncher = rememberDesktopRoomLauncher(open = ::openRoom, askToJoin = ::openRoom)
         LaunchedEffect(roomJoined) {

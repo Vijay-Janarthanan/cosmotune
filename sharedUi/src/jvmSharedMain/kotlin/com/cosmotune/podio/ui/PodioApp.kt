@@ -197,6 +197,15 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         delay(3_000)
         m.applyRetention(downloadedEpisodes, playback.id)
     }
+    // A station link opened from outside (a browser, the file manager, the desktop) opens Add a station, filled in.
+    val outside by PodioLinks.pending.collectAsUiState()
+    LaunchedEffect(outside) {
+        val link = outside ?: return@LaunchedEffect
+        chooseSection(PodioSection.RADIO)
+        m.stationDialogError = null
+        m.stationDialog = RadioStation("", link.name, link.address)
+        PodioLinks.handled()
+    }
     LaunchedEffect(m.notice) { if (m.notice != null) { delay(5_000); m.notice = null } }
     fun openQueue() { m.playerSheet = false; m.queueOpen = true }
     val playingStation = if (live) (m.radio + saved.stations + listOfNotNull(m.selected)).firstOrNull { it.item().id == playback.id } else null

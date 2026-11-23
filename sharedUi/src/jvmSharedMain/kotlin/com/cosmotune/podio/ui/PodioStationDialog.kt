@@ -17,8 +17,10 @@ import com.cosmotune.ui.orbit.*
 @Composable internal fun StationDialog(m: PodioModel, editing: RadioStation?, onDismiss: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    var name by remember(editing?.id) { mutableStateOf(editing?.name.orEmpty()) }
-    var address by remember(editing?.id) { mutableStateOf(editing?.url.orEmpty()) }
+    // A link from outside (a tapped playlist) arrives as the dialog's starting name and address.
+    val start = editing ?: m.stationDialog
+    var name by remember(editing?.id) { mutableStateOf(start?.name.orEmpty()) }
+    var address by remember(editing?.id) { mutableStateOf(start?.url.orEmpty()) }
     var picture by remember(editing?.id) { mutableStateOf(editing?.artwork.orEmpty()) }
     com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = onDismiss, title = if (editing == null) "Add a station" else "Edit station",

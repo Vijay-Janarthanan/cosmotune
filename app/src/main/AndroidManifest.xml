@@ -222,6 +222,32 @@
                 <data android:mimeType="video/*" />
             </intent-filter>
 
+            <!--
+              A radio station's playlist (M3U, PLS): tapped in the browser or opened from the file manager, Cosmotune offers it to
+              Podio's Add a station ([com.cosmotune.podio.PodioIntentLink]). By type for files and downloads, by name for web links.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="audio/x-mpegurl" />
+                <data android:mimeType="audio/mpegurl" />
+                <data android:mimeType="audio/x-scpls" />
+                <data android:mimeType="application/pls+xml" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.pls" />
+                <data android:pathPattern=".*\\.m3u" />
+                <data android:pathPattern=".*\\.PLS" />
+                <data android:pathPattern=".*\\.M3U" />
+            </intent-filter>
+
             <!-- Public Listen Together invites. autoVerify makes a tap open
                  Cosmotune directly once the domain publishes its assetlinks
                  association for the production signing certificate. -->
