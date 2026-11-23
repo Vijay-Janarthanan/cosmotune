@@ -60,6 +60,22 @@ class ListSignInTest {
         assertNull(ListSignIn.claim(watchLink), "a return is taken once")
     }
 
+    @Test fun aClientIdSavedInWatchServesMangaWithoutWatchOpening() = runTest {
+        // What the apps do at start: only Watch's store is read, no Watch repository or anime tracking is made.
+        val dir = kotlin.io.path.createTempDirectory("list-sign-in").toFile()
+        try {
+            val store = com.cosmotune.watch.store.WatchStore(java.io.File(dir, "watch.json"), com.cosmotune.watch.store.UnsealedWatchFiles)
+            store.update { it.copy(settings = it.settings + (ListSignIn.savedClientIdKey(AnimeTracker.MYANIMELIST) to "abcdef0123")) }
+            var opened = 0
+            ListSignIn.useSavedClientIds { opened++; store }
+            assertEquals(0, opened, "the store is opened only when an id is asked for")
+            assertEquals("abcdef0123", ListSignIn.clientId(AnimeTracker.MYANIMELIST))
+            assertNull(ListSignIn.clientId(AnimeTracker.ANILIST))
+            assertTrue(ListSignIn.start(AnimeTracker.MYANIMELIST, ListSignIn.Asker.MANGA)!!.contains("client_id=abcdef0123"))
+            assertEquals(1, opened)
+        } finally { dir.deleteRecursively() }
+    }
+
     @Test fun aniListsTokenWithoutAStateAnswersTheLatestAniListSignIn() {
         ids = mapOf(AnimeTracker.ANILIST to "12345")
         ListSignIn.start(AnimeTracker.ANILIST, ListSignIn.Asker.WATCH)

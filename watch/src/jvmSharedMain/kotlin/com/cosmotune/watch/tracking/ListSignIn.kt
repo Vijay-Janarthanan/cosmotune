@@ -47,8 +47,20 @@ object ListSignIn {
 
     private val bundled = mapOf(AnimeTracker.ANILIST to BundledTrackerClients.ANILIST, AnimeTracker.MYANIMELIST to BundledTrackerClients.MYANIMELIST)
 
-    /** The client ids the viewer saved in Watch settings on this device (Watch sets this when it opens). */
+    /** The client ids the viewer saved in Watch settings on this device ([useSavedClientIds] sets this at app start). */
     @Volatile var savedClientId: (AnimeTracker) -> String? = { null }
+
+    /** Where Watch settings keep the client id saved on this device for [service]. */
+    fun savedClientIdKey(service: AnimeTracker): String = "anime.client.${service.name}"
+
+    /**
+     * Reads the client ids saved in Watch settings from Watch's [store] (opened only when an id is first asked for). The phone, TV
+     * and desktop call this at start, so a client id typed in Watch serves Manga's sign-in without Watch being opened first.
+     */
+    fun useSavedClientIds(store: () -> com.cosmotune.watch.store.WatchStore) {
+        val opened by lazy(store)
+        savedClientId = { service -> opened.state.value.settings[savedClientIdKey(service)] }
+    }
 
     /** The client id a sign-in to [service] uses, or null when there is none. */
     fun clientId(service: AnimeTracker): String? =

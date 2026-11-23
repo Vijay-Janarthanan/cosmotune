@@ -47,6 +47,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         com.cosmotune.diagnostics.CrashNotes.configure(filesDir)
         com.cosmotune.podio.PodioFeedLogins.install(java.io.File(filesDir, "podio/library.json"))
+        // A client id typed in Watch settings serves Manga's AniList and MyAnimeList sign-in too, before Watch is opened.
+        com.cosmotune.watch.tracking.ListSignIn.useSavedClientIds { com.cosmotune.music.watch.AndroidWatch.store(this) }
         val uncaught = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, failure ->
             runCatching { com.cosmotune.diagnostics.CrashNotes.record(failure) }

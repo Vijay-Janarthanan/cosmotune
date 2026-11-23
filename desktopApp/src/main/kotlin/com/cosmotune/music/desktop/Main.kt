@@ -63,6 +63,8 @@ private fun offerDesktopLink(link: String) {
 fun main(args: Array<String>) {
     if (args.contentEquals(arrayOf("--provider-auth-browser"))) { ProviderVerificationBrowserMain.run(); return }
     com.cosmotune.podio.PodioFeedLogins.install(com.cosmotune.podio.PodioLibrary.desktopFile())
+    // A client id typed in Watch settings serves Manga's AniList and MyAnimeList sign-in too, before Watch is opened.
+    com.cosmotune.watch.tracking.ListSignIn.useSavedClientIds { com.cosmotune.desktop.DesktopWatch.store }
     // A Watch add-on link the system opened Cosmotune with (stremio://..., cosmotune://watch/...): its Install sheet waits.
     val openLink = args.firstOrNull {
         com.cosmotune.watch.InstallLinks.isInstallLink(it) || com.cosmotune.watch.InstallLinks.isPackLink(it) ||

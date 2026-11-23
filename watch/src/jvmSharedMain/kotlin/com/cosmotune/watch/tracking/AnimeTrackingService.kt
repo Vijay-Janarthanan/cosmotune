@@ -61,7 +61,7 @@ class AnimeTrackingService(
     private val mutable = MutableStateFlow(AnimeTracker.entries.map { AnimeTrackingStatus(it) })
     override val statuses: StateFlow<List<AnimeTrackingStatus>> = mutable
 
-    private fun clientKey(service: AnimeTracker) = "anime.client.${service.name}"
+    private fun clientKey(service: AnimeTracker) = ListSignIn.savedClientIdKey(service)
     private fun sessionKey(service: AnimeTracker, profile: String) = "anime.$profile.${service.name}"
     private fun clientId(service: AnimeTracker) = ListSignIn.clientId(service)
     private fun session(service: AnimeTracker, profile: String = store.state.value.activeProfile): ListSignIn.Session? =
@@ -82,7 +82,7 @@ class AnimeTrackingService(
         mutable.update { list -> list.map { if (it.service == service) it.copy(message = message, busy = busy) else it } }
 
     init {
-        ListSignIn.savedClientId = { service -> store.state.value.settings[clientKey(service)] }
+        ListSignIn.useSavedClientIds { store }
         scope.launch { store.state.map { it.activeProfile }.distinctUntilChanged().collect { publish() } }
     }
 
