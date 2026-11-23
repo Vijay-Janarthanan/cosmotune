@@ -131,7 +131,7 @@ class PodioReadMangaContractTest {
         val desktop = code("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt")
         assertTrue(desktop.contains("com.cosmotune.podio.ui.PodioSettingsSection(") && desktop.contains("com.cosmotune.manga.ui.MangaSettingsSection()"), "the desktop's too")
         val hub = body("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/settings/SettingsHub.kt", "SettingsHub")
-        assertTrue(hub.contains("SettingsText.GROUP_MODES") && hub.contains("SettingsText.GROUP_GENERAL") && hub.contains("current = current"), "Modes above General, this mode tagged")
+        assertTrue(hub.contains("SettingsText.GROUP_MODES") && hub.contains("SettingsText.GROUP_GENERAL") && hub.contains("current = shownCurrent"), "Modes above General, this mode tagged")
         val sources = body("$manga/MangaSources.kt", "MangaSources")
         assertFalse(sources.contains("Connect Komga library") || sources.contains("Check parser updates") || sources.contains("MangaLibraryTools("), "the Sources tab is the catalogue only")
         assertTrue(code("$manga/MangaSettings.kt").contains("Connect Komga library"), "Komga lives in Settings › Manga")

@@ -2972,6 +2972,8 @@ private fun CosmotuneApp(
                     } else if (key == "settings") {
                         SettingsScreen(
                             openedFrom = returnToMode,
+                            // The Watch row leaves for Watch's own settings: no trip back to the mode Settings came from.
+                            onClose = { returnToMode = null; modeDestination = null; settingsSubScreen = null; showSettings = false },
                             windowWidth = windowWidth,
                             onPlayProviderSongs = { songs, index -> playFrom(songs, index, QueueSource("Provider", PlaybackSourceType.BROWSE)) },
                             signedIn = signedIn,

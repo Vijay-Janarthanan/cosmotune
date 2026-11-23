@@ -4739,6 +4739,7 @@ fun CosmotuneDesktopApp() {
                                     },
                                     onOpenIntegrations = { overlays.settingsPage = DesktopSettingsPage.INTEGRATIONS },
                                     onOpenLicenses = { overlays.settingsPage = DesktopSettingsPage.LICENSES },
+                                    onCloseSettings = { overlays.settingsPage = null },
                                 )
                                 DesktopSettingsPage.EQUALIZER -> DesktopEqualizerDialog(onDismiss = ::goBack)
                                 DesktopSettingsPage.AUDIO_OUTPUT -> DesktopAudioOutputDialog(onDismiss = ::goBack)
@@ -5815,6 +5816,8 @@ private fun DesktopSettingsScreen(
     onTestSource: (DesktopSourceConfig) -> Unit,
     onOpenIntegrations: () -> Unit,
     onOpenLicenses: () -> Unit,
+    /** Closes Settings (the settings home's Watch row leaves for Watch's own settings page). */
+    onCloseSettings: () -> Unit = {},
 ) {
     val settingsInset = 16.dp
     val settingsScope = rememberCoroutineScope()
@@ -6914,8 +6917,12 @@ private fun DesktopSettingsScreen(
                                         .verticalScroll(rememberScrollState())
                                         .padding(bottom = 28.dp + LocalDesktopBottomInset.current),
                                 ) {
+                                    val shellSettings = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings
+                                    val shellMode = shellSettings?.mode?.collectAsState()?.value
                                     com.cosmotune.ui.settings.SettingsHub(entries = hubEntries, onOpen = openCategory, accountCard = { settingsAccountCard(false) },
-                                        current = com.cosmotune.ui.settings.settingsCategoryOf(com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value))
+                                        current = com.cosmotune.ui.settings.settingsCategoryOf(shellMode),
+                                        onOpenWatch = com.cosmotune.ui.settings.watchSettingsOpener(shellSettings, onCloseSettings),
+                                        watchCurrent = shellMode == com.cosmotune.design.AppMode.WATCH)
                                 }
                             }
                             else -> CompositionLocalProvider(
