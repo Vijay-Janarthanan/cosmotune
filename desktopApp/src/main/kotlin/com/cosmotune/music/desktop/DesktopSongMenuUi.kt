@@ -337,6 +337,12 @@ internal fun DesktopSongMenu(
         ) { pickingSleepTimer = true }
         if (!isOffline) {
             DesktopMenuRow(Icons.Rounded.Share, DesktopStrings["share", "Share"], onClick = onShare)
+        } else {
+            // A file on this computer: copied as a file, ready to paste into a chat, a mail or a folder.
+            DesktopMenuRow(Icons.Rounded.Share, "Copy the file") {
+                DesktopFileShare.copy(song)
+                onDismiss()
+            }
         }
         DesktopMenuRow(Icons.Rounded.Info, "Song info") {
             com.cosmotune.ui.sheets.SongInfo.open(song)

@@ -405,6 +405,17 @@ fun SongActionsSheet(
             onShare?.let {
                 ActionRow(Icons.Rounded.Share, stringResource(R.string.share), accent = palette.accent, onClick = it)
             }
+        } else {
+            // A song kept on the phone has no link to share: its file goes instead.
+            val shareContext = androidx.compose.ui.platform.LocalContext.current
+            val shareScope = rememberCoroutineScope()
+            ActionRow(Icons.Rounded.Share, "Share the file", accent = palette.accent, onClick = {
+                shareScope.launch {
+                    if (!com.cosmotune.music.share.LocalFileShare.share(shareContext, song)) {
+                        android.widget.Toast.makeText(shareContext, "This file can't be read right now", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            })
         }
         onSongInfo?.let { ActionRow(Icons.Rounded.Info, "Song info", accent = palette.accent, onClick = it) }
         if (song.videoId.isNotBlank()) {
