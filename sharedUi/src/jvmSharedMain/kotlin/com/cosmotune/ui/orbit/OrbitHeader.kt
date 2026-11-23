@@ -128,7 +128,9 @@ fun OrbitPageHeader(
                     // Clear of the bite where the card has no actions row under the words (the pick-up card), and of the corner button.
                     val end = when {
                         corner != null -> 36.dp
-                        size == OrbitHeaderSize.PICK_UP -> size.play + size.ring - 6.dp
+                        // Search's top result has no actions row either: its words stop clear of the bite too ("monthly audience"
+                        // ran into it on a phone).
+                        (size == OrbitHeaderSize.PICK_UP || size == OrbitHeaderSize.RESULT) && onPlay != null -> size.play + size.ring - 6.dp
                         else -> 0.dp
                     }
                     Column(Modifier.weight(1f).padding(end = end)) {
