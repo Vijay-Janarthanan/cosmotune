@@ -6226,6 +6226,9 @@ private fun DesktopSettingsScreen(
                     if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART, com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART_LINE)) {
                         com.cosmotune.ui.settings.BestPartRow()
                     }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM, com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM_LINE)) {
+                        com.cosmotune.ui.settings.WaveformSeekRow()
+                    }
                     if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON, com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON_LINE)) {
                         com.cosmotune.ui.settings.ScreenOnRow()
                     }

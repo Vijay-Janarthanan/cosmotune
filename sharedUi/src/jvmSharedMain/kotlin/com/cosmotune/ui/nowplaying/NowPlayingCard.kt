@@ -324,7 +324,7 @@ internal fun NowPlayingSongCard(
                     }
                 }
                 Column(Modifier.align(Alignment.BottomStart).padding(end = 64.dp)) {
-                    OrbitProgressLine(t::progress, ink, onSeek = t::seek)
+                    SongSeekLine(t, ink, fonts)
                     CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
                 }
             }
@@ -354,7 +354,7 @@ internal fun NowPlayingSongCard(
                     }
                     if (showLine) {
                         Spacer(Modifier.height(16.dp))
-                        OrbitProgressLine(t::progress, ink, onSeek = t::seek)
+                        SongSeekLine(t, ink, fonts)
                         CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
                     }
                     Spacer(Modifier.height(16.dp))
@@ -409,7 +409,7 @@ internal fun NowPlayingPhoneCard(
             lyricLine(ink)
         }
         Spacer(Modifier.height(16.dp))
-        OrbitProgressLine(t::progress, ink, onSeek = t::seek)
+        SongSeekLine(t, ink, fonts)
         CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth().testTag("nowplaying:transport"), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {

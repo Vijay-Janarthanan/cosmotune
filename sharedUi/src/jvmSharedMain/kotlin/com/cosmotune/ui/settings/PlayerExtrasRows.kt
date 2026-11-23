@@ -32,6 +32,8 @@ object PlayerExtrasText {
     const val SCREEN_ON_LINE = "The lyrics and videos always keep it on. Choose to keep it on while the player is open, or whenever music plays."
     const val BEST_PART = "Best part button"
     const val BEST_PART_LINE = "A button on the player that skips to the part of the song people replay most, or else to the chorus in its lyrics."
+    const val WAVEFORM = "Waveform seek line"
+    const val WAVEFORM_LINE = "The seek line shows how loud the song gets once you have heard it, with dots where listeners left a comment about a moment."
 }
 
 /** YouTube Premium's higher Opus rung for a signed-in account ([ExtrasSettings.premiumAudio]); off until turned on. */
@@ -53,6 +55,13 @@ fun SleepFadeOutRow(settings: ExtrasSettings = Extras.settings) {
 fun BestPartRow(settings: ExtrasSettings = Extras.settings) {
     val on by settings.bestPart.collectAsState()
     ExtrasSwitchRow(Icons.Rounded.Whatshot, PlayerExtrasText.BEST_PART, PlayerExtrasText.BEST_PART_LINE, on, settings::setBestPart)
+}
+
+/** The waveform seek line with timed comments ([ExtrasSettings.waveformSeek]); on until turned off. */
+@Composable
+fun WaveformSeekRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.waveformSeek.collectAsState()
+    ExtrasSwitchRow(com.cosmotune.ui.components.CosmoIcons.Waveform, PlayerExtrasText.WAVEFORM, PlayerExtrasText.WAVEFORM_LINE, on, settings::setWaveformSeek)
 }
 
 /** When the screen stays on ([ExtrasSettings.screenOn]): a short pill in the row's own column, the full choices in its menu. */

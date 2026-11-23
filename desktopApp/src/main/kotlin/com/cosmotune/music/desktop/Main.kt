@@ -81,6 +81,8 @@ fun main(args: Array<String>) {
             failure.stackTrace.take(30).joinToString("\n") { "    at $it" })
     }
     com.cosmotune.diagnostics.CrashNotes.configure(com.cosmotune.desktop.DesktopWatch.dataDir.parentFile)
+    // The player's waveform seek line keeps each song's shape (72 bytes) for its next play.
+    com.cosmotune.music.data.audio.SongWaveforms.install(java.io.File(com.cosmotune.desktop.DesktopWatch.dataDir.parentFile, "waveforms"))
     val shutdown = Thread({ instance.close() }, "cosmotune-instance-cleanup")
     Runtime.getRuntime().addShutdownHook(shutdown)
     try {
