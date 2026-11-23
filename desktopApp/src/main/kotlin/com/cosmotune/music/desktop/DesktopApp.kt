@@ -1491,8 +1491,9 @@ fun CosmotuneDesktopApp() {
         }
     }
 
-    fun advanceQueue() {
-        if (DesktopListenTogether.state.value.controlsLocked) return
+    /** Moves the queue on to the next song; false when there was nothing to move on to. */
+    fun advanceQueue(): Boolean {
+        if (DesktopListenTogether.state.value.controlsLocked) return false
         when {
             liveQueue.hasNext -> {
                 liveQueue = liveQueue.next()
@@ -1504,7 +1505,9 @@ fun CosmotuneDesktopApp() {
             }
             DesktopAutoplay.enabled(DesktopListenTogether.state.value, autoplay) ->
                 loadAutoplaySongs(playFirst = true)
+            else -> return false
         }
+        return true
     }
 
     fun playNext() {
@@ -1701,6 +1704,8 @@ fun CosmotuneDesktopApp() {
                     partySyncHolder[0]?.onLocalIntent()
                 }
             },
+            // A song nobody can play moves the queue on, even under repeat-one; a room moves by its shared clock.
+            onUnavailable = { !DesktopListenTogether.inRoom && advanceQueue() },
         )
     }
     val partySync = remember(playbackEngine) {

@@ -303,6 +303,45 @@ object SourceResolver {
     }
 
     /**
+     * Another copy of [target] when YouTube says its own upload is gone (a removed or blocked upload, see
+     * [com.cosmotune.music.data.innertube.RemovedUpload]), or null when there is none: the first enabled source,
+     * YouTube Music's songs included, to hold it by [StandInMatcher]'s rules; else another YouTube upload of the song.
+     * The desktop does the same in `DesktopSourceRegistry.standIn`, and also remembers the copy that played.
+     */
+    suspend fun standInFor(target: TrackMatcher.Target): SourceStream? {
+        if (target.title.isBlank() || target.isVideo) return null
+        val active = SourceRegistry.activeForPlayback()
+        val request = requestForNow()
+        TrackLog.d(TAG, "'${target.title}' is gone from YouTube; looking for another copy of it on ${active.joinToString { it.displayName }}")
+        bestAcross(active, target, request, timeoutMs = STAND_IN_TIMEOUT_MS, standIn = true)?.let { (source, stream) ->
+            TrackLog.d(TAG, "'${target.title}' stands in from ${source.displayName} at ${stream.format.summary}")
+            return stream
+        }
+        val youtube = active.firstOrNull { it.kind == SourceKind.YOUTUBE } ?: return null
+        return standInUpload(target, youtube, request) { query ->
+            com.cosmotune.music.data.YtMusicRepository.search(query, com.cosmotune.music.data.model.SearchFilter.VIDEOS)
+                .getOrNull().orEmpty().mapNotNull { (it as? com.cosmotune.music.data.model.SearchResult.Track)?.song }
+        }
+    }
+
+    /** Another YouTube upload of [target], searched with [search]; split out so a test can hand in the results. */
+    internal suspend fun standInUpload(
+        target: TrackMatcher.Target,
+        youtube: MusicSource,
+        request: StreamRequest,
+        search: suspend (String) -> List<com.cosmotune.music.data.model.Song>,
+    ): SourceStream? {
+        for (query in StandInMatcher.uploadQueries(target)) {
+            for (upload in StandInMatcher.rankedUploads(search(query), target).take(STAND_IN_UPLOADS)) {
+                val stream = attempt(youtube) { youtube.stream(upload.videoId, request) } ?: continue
+                TrackLog.d(TAG, "'${target.title}' has no catalogue copy; playing another YouTube upload of it: '${upload.title}' by '${upload.artist}' (${upload.durationText})")
+                return stream
+            }
+        }
+        return null
+    }
+
+    /**
      * The copy of [target] held by a source quick enough to ask about *before*
      * the track is played — or null when no such source is enabled, or none of
      * them has it.
@@ -821,6 +860,8 @@ object SourceResolver {
         strictLength: Boolean = false,
         requireSharedArtist: Boolean = false,
         timeoutMs: Long = 0,
+        /** Match by [StandInMatcher]'s rules: the song's own upload is gone; see [standInFor]. */
+        standIn: Boolean = false,
         accept: (MusicSource, SourceStream) -> Boolean = { _, _ -> true },
     ): Pair<MusicSource, SourceStream>? = coroutineScope {
         val running: MutableList<Deferred<Pair<MusicSource, SourceStream?>>> = sources
@@ -833,6 +874,7 @@ object SourceResolver {
                         waitForAll,
                         strictLength,
                         requireSharedArtist,
+                        standIn,
                     )
                 }
             }
@@ -895,11 +937,12 @@ object SourceResolver {
     private suspend fun matchAndStream(
         source: MusicSource, target: TrackMatcher.Target, request: StreamRequest,
         waitForAll: Boolean = false, strictLength: Boolean = false, requireSharedArtist: Boolean = false,
+        standIn: Boolean = false,
     ): SourceStream? {
         val ticket = AudioSourceComparisons.start(target, source.configId, source.displayName)
         try {
             var hadMatches = false
-            val result = matchAndStreamUnreported(source, target, request, waitForAll, strictLength, requireSharedArtist, ticket) { hadMatches = true }
+            val result = matchAndStreamUnreported(source, target, request, waitForAll, strictLength, requireSharedArtist, ticket, standIn) { hadMatches = true }
             AudioSourceComparisons.finish(ticket, if (result != null) AudioSourceComparisons.Status.AVAILABLE
                 else if (hadMatches) AudioSourceComparisons.Status.UNAVAILABLE else AudioSourceComparisons.Status.NO_MATCH,
                 listOfNotNull(result?.format))
@@ -919,6 +962,7 @@ object SourceResolver {
         strictLength: Boolean = false,
         requireSharedArtist: Boolean = false,
         ticket: AudioSourceComparisons.Ticket,
+        standIn: Boolean = false,
         onMatched: () -> Unit,
     ): SourceStream? {
         val isJioSaavn = source.kind == SourceKind.JIOSAAVN
@@ -936,6 +980,14 @@ object SourceResolver {
                     request = request,
                 )
             } ?: return null
+            if (standIn) {
+                // The rules below are for standing in while YouTube still has the song; StandInMatcher carries its
+                // own length, credit and ambiguity checks for when it does not.
+                val copies = StandInMatcher.rankedCatalogue(candidates, target)
+                if (copies.isEmpty()) continue
+                onMatched()
+                return streamBest(source, copies, target, request, ticket)
+            }
             var matches = if (isJioSaavn) JioSaavnMatcher.ranked(candidates, target) else TrackMatcher.ranked(candidates, target)
             if (source is PackageMusicSource) {
                 matches = matches.filter { TrackMatcher.withinSeconds(it, target, UPGRADE_DRIFT_SEC) &&
@@ -1183,6 +1235,10 @@ object SourceResolver {
      * patience walking a whole result list.
      */
     private const val STREAM_ATTEMPTS = 3
+
+    /** How long the stand-in search may take across every source, and how many other uploads are opened. */
+    private const val STAND_IN_TIMEOUT_MS = 20_000L
+    private const val STAND_IN_UPLOADS = 3
 
     /**
      * How far a replacement's runtime may sit from the playing track's before

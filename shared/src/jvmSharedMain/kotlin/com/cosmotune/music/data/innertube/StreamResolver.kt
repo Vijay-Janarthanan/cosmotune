@@ -994,8 +994,9 @@ object StreamResolver {
         // ExoPlayer and the coroutine machinery both wrap freely, and the
         // classification has to survive being wrapped or it never fires: the
         // failure that reaches [resolveUncached] arrives as whatever the last
-        // layer chose to throw it as.
-        else -> e.cause?.takeIf { it !== e }?.let(::permanentReason)
+        // layer chose to throw it as. A removed upload arrives as the plain
+        // base type; see [RemovedUpload].
+        else -> RemovedUpload.reason(e) ?: e.cause?.takeIf { it !== e }?.let(::permanentReason)
     }
 
     /** How many times the watch page is worth asking for before giving up. */

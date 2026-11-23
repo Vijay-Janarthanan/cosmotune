@@ -5718,6 +5718,21 @@ class PlaybackService : MediaLibraryService() {
      * break in the audio, in exchange for the listener hearing something now
      * rather than waiting in silence for the good copy.
      */
+    /**
+     * YouTube's own answer for [videoId], or, when that answer is a verdict (the upload removed or blocked) and nothing
+     * outranking YouTube held the song, another copy of the same song ([SourceResolver.standInFor]). With none, the
+     * verdict goes up as before and [recoverFrom] skips the track.
+     */
+    private suspend fun youTubeOrStandIn(videoId: String, target: TrackMatcher.Target, own: Result<String>): Resolved {
+        own.getOrNull()?.let { return Resolved.YouTube(it) }
+        val failure = own.exceptionOrNull() ?: IllegalStateException("No stream")
+        if (com.cosmotune.music.playback.recovery.UnavailableSkips.isUnavailable(failure)) {
+            SourceResolver.standInFor(target.copy(videoId = videoId))?.let { return Resolved.Module(it) }
+            TrackLog.w("Cosmotune", "no other copy of '${target.title}' was found to stand in for it", about = videoId)
+        }
+        throw failure
+    }
+
     private suspend fun resolveWithModulePriority(
         videoId: String,
         target: TrackMatcher.Target,
@@ -5736,7 +5751,7 @@ class PlaybackService : MediaLibraryService() {
         if (AppSettings.playbackStartPolicy.value == com.cosmotune.audio.PlaybackStartPolicy.BEST_QUALITY_FIRST) {
             val chosen = SourceResolver.bestForStart(target.copy(videoId = videoId))
             if (chosen != null) return Resolved.Module(chosen)
-            return Resolved.YouTube(StreamResolver.resolve(videoId))
+            return youTubeOrStandIn(videoId, target, runCatching { StreamResolver.resolve(videoId) })
         }
         NerdStats.onLosslessRaceStart(videoId)
         // Both legs are parented to the service's scope rather than to the
@@ -5847,7 +5862,9 @@ class PlaybackService : MediaLibraryService() {
             return Resolved.Module(quick)
         }
 
-        val url = fallback.await().getOrThrow()
+        val own = fallback.await()
+        if (own.isFailure) return youTubeOrStandIn(videoId, target, own)
+        val url = own.getOrThrow()
         // Marked pending only here, with the fallback's own bitrate in hand:
         // that figure is the answer to "better than what?" the second look
         // measures candidates against, and it isn't known until the client

@@ -143,13 +143,16 @@ internal object DesktopJioSaavn {
     suspend fun match(song: Song): Song? = matches(song).firstOrNull()
 
     /** Every copy this catalogue holds of [song], most confident first. */
-    suspend fun matches(song: Song): List<Song> {
+    suspend fun matches(
+        song: Song,
+        rank: (List<Song>, TrackMatcher.Target) -> List<Song> = JioSaavnMatcher::ranked,
+    ): List<Song> {
         if (song.title.isBlank() || song.isVideo) return emptyList()
         val target = RecordingMetadata.enrich(TrackMatcher.targetOf(song))
         for (query in JioSaavnMatcher.queries(target)) {
             val candidates = search(query, 25).getOrDefault(emptyList())
                 .mapNotNull { (it as? SearchResult.Track)?.song }
-            JioSaavnMatcher.ranked(candidates, target).ifEmpty { null }?.let { return it }
+            rank(candidates, target).ifEmpty { null }?.let { return it }
         }
         return emptyList()
     }

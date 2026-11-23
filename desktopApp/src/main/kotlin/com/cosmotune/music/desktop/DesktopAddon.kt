@@ -739,12 +739,16 @@ internal object DesktopAddonSource {
         matches(config, song).firstOrNull()
 
     /** Every copy this addon holds of [song], most confident first. */
-    suspend fun matches(config: DesktopSourceConfig, song: Song): List<Song> {
+    suspend fun matches(
+        config: DesktopSourceConfig,
+        song: Song,
+        rank: (List<Song>, Song) -> List<Song> = DesktopTrackMatcher::ranked,
+    ): List<Song> {
         if (song.title.isBlank() || song.isVideo) return emptyList()
         for (query in DesktopTrackMatcher.queries(song)) {
             val candidates = search(config, query, 25).getOrDefault(emptyList())
                 .mapNotNull { (it as? SearchResult.Track)?.song }
-            DesktopTrackMatcher.ranked(candidates, song).ifEmpty { null }?.let { return it }
+            rank(candidates, song).ifEmpty { null }?.let { return it }
         }
         return emptyList()
     }
