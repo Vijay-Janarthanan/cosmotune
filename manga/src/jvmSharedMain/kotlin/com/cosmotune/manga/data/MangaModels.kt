@@ -164,6 +164,8 @@ data class MangaLibraryState(
     val lockPin: String? = null,
     /** The listener's own WebDAV folder the library syncs with ([MangaWebDavSync]), or null. */
     val webDav: MangaWebDav? = null,
+    /** Page images blanked out in the reader, by their content ([MangaHiddenImages]). */
+    val hiddenImages: Map<String, MangaHiddenImage> = emptyMap(),
     /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
     val readLog: Map<String, Long> = emptyMap(),
     /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */

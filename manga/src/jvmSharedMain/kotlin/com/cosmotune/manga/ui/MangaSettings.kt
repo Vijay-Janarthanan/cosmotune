@@ -97,6 +97,7 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             error?.let { Text(it, style = ReadType.body(), color = Color(palette.danger)) }
+            MangaHiddenImagesSettings(state) { block -> action { repository.store.update(block) } }
             ReadOverline(mangaText("Storage"), inset = 0.dp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${state.cacheLimitBytes / (1024 * 1024)} MB page storage", style = ReadType.rowTitle(), color = Color(palette.textPrimary), modifier = Modifier.weight(1f).padding(end = 12.dp))
@@ -260,5 +261,30 @@ internal fun mangaAgo(atMs: Long, nowMs: Long = System.currentTimeMillis()): Str
         minutes < 48 * 60 -> "${minutes / 60} h ago"
         else -> "${minutes / (24 * 60)} days ago"
     }
+}
+
+/** The images blanked out in the reader, newest first, each with Show; Show all clears them. */
+@Composable
+private fun MangaHiddenImagesSettings(state: MangaLibraryState, update: ((MangaLibraryState) -> MangaLibraryState) -> Unit) {
+    val look = orbitLook()
+    var all by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().testTag("manga:hidden-images"), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(mangaText("Hidden images"), style = ReadType.rowTitle(), color = look.ink)
+            Text(if (state.hiddenImages.isEmpty()) mangaText("None. Hold a page in the reader and choose Hide this image.")
+                else "${state.hiddenImages.size} " + mangaText(if (state.hiddenImages.size == 1) "image stays blank in the reader" else "images stay blank in the reader"),
+                style = ReadType.meta(), color = look.dim)
+        }
+        if (state.hiddenImages.isNotEmpty()) ReadTextButton(mangaText("Show all"), { update { it.copy(hiddenImages = emptyMap()) } })
+    }
+    val listed = state.hiddenImages.entries.sortedByDescending { it.value.hiddenAtMs }
+    (if (all) listed else listed.take(5)).forEach { (mark, image) ->
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(mangaText("From") + " ${image.series} · " + mangaAgo(image.hiddenAtMs), style = ReadType.meta(), color = look.dim, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 12.dp))
+            ReadTextButton(mangaText("Show"), { update { MangaHiddenImages.show(it, mark) } })
+        }
+    }
+    if (!all && listed.size > 5) ReadTextButton(mangaText("See all") + " ${listed.size}", { all = true })
 }
 

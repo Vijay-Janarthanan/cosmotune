@@ -1,5 +1,9 @@
 package com.cosmotune.manga.ui
 
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.asAndroidColorFilter
 import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -142,3 +146,36 @@ private object MangaLockClock { @Volatile var unlockedAtMs = 0L }
         onDispose { if (enabled) activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) }
     }
 }
+
+internal actual val mangaPlaysAnimation: Boolean get() = android.os.Build.VERSION.SDK_INT >= 28
+
+/** The platform's ImageDecoder plays the page (API 28 and later), drawn through Compose so the reader's zoom and taps still apply. */
+@Composable internal actual fun MangaAnimatedPage(file: java.io.File, fillWidth: Boolean, filter: androidx.compose.ui.graphics.ColorFilter?, modifier: androidx.compose.ui.Modifier) {
+    if (android.os.Build.VERSION.SDK_INT < 28) return
+    val drawable = androidx.compose.runtime.produceState<android.graphics.drawable.Drawable?>(null, file) {
+        value = withContext(Dispatchers.IO) { runCatching { android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(file)) }.getOrNull() }
+    }.value ?: return
+    var tick by androidx.compose.runtime.remember(drawable) { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.DisposableEffect(drawable) {
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        drawable.callback = object : android.graphics.drawable.Drawable.Callback {
+            override fun invalidateDrawable(who: android.graphics.drawable.Drawable) { tick++ }
+            override fun scheduleDrawable(who: android.graphics.drawable.Drawable, what: Runnable, at: Long) { handler.postAtTime(what, at) }
+            override fun unscheduleDrawable(who: android.graphics.drawable.Drawable, what: Runnable) { handler.removeCallbacks(what) }
+        }
+        (drawable as? android.graphics.drawable.AnimatedImageDrawable)?.start()
+        onDispose { (drawable as? android.graphics.drawable.AnimatedImageDrawable)?.stop(); drawable.callback = null }
+    }
+    drawable.colorFilter = filter?.asAndroidColorFilter()
+    val width = drawable.intrinsicWidth.coerceAtLeast(1).toFloat()
+    val height = drawable.intrinsicHeight.coerceAtLeast(1).toFloat()
+    androidx.compose.foundation.Canvas(if (fillWidth) modifier.aspectRatio(width / height) else modifier) {
+        if (tick < 0) return@Canvas // read so each new frame draws again
+        val scale = minOf(size.width / width, size.height / height)
+        val left = (size.width - width * scale) / 2f
+        val top = (size.height - height * scale) / 2f
+        drawable.setBounds(left.toInt(), top.toInt(), (left + width * scale).toInt(), (top + height * scale).toInt())
+        drawIntoCanvas { drawable.draw(it.nativeCanvas) }
+    }
+}
+

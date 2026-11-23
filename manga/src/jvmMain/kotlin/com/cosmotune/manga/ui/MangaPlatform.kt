@@ -1,5 +1,7 @@
 package com.cosmotune.manga.ui
 
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -120,3 +122,46 @@ private val AwtWindowLocal: androidx.compose.runtime.CompositionLocal<java.awt.W
         onDispose { if (enabled) MangaDesktopLock.hideFromCapture(window, false) }
     }
 }
+
+internal actual val mangaPlaysAnimation: Boolean = true
+
+/** Skia's codec decodes every frame once (up to 240 frames and 256 MB), then the frames turn at their own pace. */
+@Composable internal actual fun MangaAnimatedPage(file: File, fillWidth: Boolean, filter: androidx.compose.ui.graphics.ColorFilter?, modifier: androidx.compose.ui.Modifier) {
+    val frames = androidx.compose.runtime.produceState<List<Pair<androidx.compose.ui.graphics.ImageBitmap, Int>>?>(null, file) {
+        value = withContext(Dispatchers.IO) { runCatching { desktopFrames(file) }.getOrNull() }
+    }.value?.takeIf { it.isNotEmpty() } ?: return
+    var index by androidx.compose.runtime.remember(frames) { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(frames) {
+        if (frames.size > 1) while (true) { kotlinx.coroutines.delay(frames[index].second.coerceAtLeast(20).toLong()); index = (index + 1) % frames.size }
+    }
+    val image = frames[index].first
+    val width = image.width.toFloat()
+    val height = image.height.toFloat()
+    androidx.compose.foundation.Canvas(if (fillWidth) modifier.aspectRatio(width / height) else modifier) {
+        val scale = minOf(size.width / width, size.height / height)
+        val shown = androidx.compose.ui.unit.IntSize((width * scale).toInt().coerceAtLeast(1), (height * scale).toInt().coerceAtLeast(1))
+        drawImage(image, dstOffset = androidx.compose.ui.unit.IntOffset(((size.width - shown.width) / 2f).toInt(), ((size.height - shown.height) / 2f).toInt()),
+            dstSize = shown, colorFilter = filter)
+    }
+}
+
+private fun desktopFrames(file: File): List<Pair<androidx.compose.ui.graphics.ImageBitmap, Int>> {
+    val codec = org.jetbrains.skia.Codec.makeFromData(org.jetbrains.skia.Data.makeFromBytes(file.readBytes()))
+    val info = org.jetbrains.skia.ImageInfo.makeN32Premul(codec.width, codec.height)
+    val frameBytes = codec.width.toLong() * codec.height * 4
+    val count = minOf(codec.frameCount, 240, (256L * 1024 * 1024 / frameBytes.coerceAtLeast(1)).toInt()).coerceAtLeast(1)
+    val details = codec.framesInfo
+    val bitmaps = ArrayList<org.jetbrains.skia.Bitmap>()
+    for (frame in 0 until count) {
+        val bitmap = org.jetbrains.skia.Bitmap().apply { allocPixels(info) }
+        val required = details.getOrNull(frame)?.requiredFrame ?: -1
+        if (required in bitmaps.indices) {
+            bitmap.installPixels(info, bitmaps[required].readPixels(info, info.minRowBytes, 0, 0), info.minRowBytes)
+            codec.readPixels(bitmap, frame, required)
+        } else codec.readPixels(bitmap, frame)
+        bitmap.setImmutable()
+        bitmaps += bitmap
+    }
+    return bitmaps.mapIndexed { frame, bitmap -> bitmap.asComposeImageBitmap() to (details.getOrNull(frame)?.duration ?: 100) }
+}
+

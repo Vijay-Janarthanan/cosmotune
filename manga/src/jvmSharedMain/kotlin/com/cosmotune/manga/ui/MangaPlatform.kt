@@ -39,3 +39,10 @@ import java.io.InputStream
 internal class ReaderRotation(val locked: Boolean, val toggle: () -> Unit)
 @Composable internal expect fun MangaExtensionControls(repository: MangaRepository, onError: (String) -> Unit)
 @Composable internal expect fun rememberMangaVerificationLauncher(onResult: (com.cosmotune.manga.data.MangaVerificationRequest, Result<com.cosmotune.manga.data.MangaBrowserProof>) -> Unit): (com.cosmotune.manga.data.MangaVerificationRequest) -> Unit
+
+/** True where moving pages (animated GIF, WebP, PNG) can play; elsewhere they show their first frame. */
+internal expect val mangaPlaysAnimation: Boolean
+
+/** Plays a moving page scaled like a still one: the full width at its own height when [fillWidth], otherwise fitted. */
+@Composable internal expect fun MangaAnimatedPage(file: java.io.File, fillWidth: Boolean, filter: androidx.compose.ui.graphics.ColorFilter?, modifier: androidx.compose.ui.Modifier)
+
