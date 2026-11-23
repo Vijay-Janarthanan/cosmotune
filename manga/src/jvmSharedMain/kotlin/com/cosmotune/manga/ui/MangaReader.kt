@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -319,17 +320,21 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     fun go(target: Int) {
         restorePending = false
         val safe = target.coerceIn(pages.indices)
-        scope.launch { if (mode == MangaReaderMode.WEBTOON) scroll.animateScrollToItem(safe) else pager.animateScrollToPage(spreadOf(safe)) }
+        scope.launch {
+            if (mode == MangaReaderMode.WEBTOON) { if (library.readerEInk) scroll.scrollToItem(safe) else scroll.animateScrollToItem(safe) }
+            else if (library.readerEInk) pager.scrollToPage(spreadOf(safe)) else pager.animateScrollToPage(spreadOf(safe))
+        }
     }
     /** One page (or spread) on, [by] +1, or back, -1, in the paged modes. */
     fun step(by: Int) {
         restorePending = false
         val target = (pager.settledPage + by).coerceIn(spreads.indices)
-        scope.launch { pager.animateScrollToPage(target) }
+        scope.launch { if (library.readerEInk) pager.scrollToPage(target) else pager.animateScrollToPage(target) }
     }
     fun scrollScreen(direction: Int) {
         restorePending = false
-        scope.launch { scroll.animateScrollBy(direction * (scroll.layoutInfo.viewportSize.height * .85f).coerceAtLeast(100f)) }
+        val distance = direction * (scroll.layoutInfo.viewportSize.height * .85f).coerceAtLeast(100f)
+        scope.launch { if (library.readerEInk) scroll.scrollBy(distance) else scroll.animateScrollBy(distance) }
     }
     val finished = if (mode == MangaReaderMode.WEBTOON) webtoonFinished else lastShown
     fun advance() {
@@ -369,7 +374,7 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
             else -> false
         }
     }.focusable().onSizeChanged { wide = it.width > it.height }) {
-        val filter = readerFilter(library.readerFilter)
+        val filter = if (library.readerEInk && library.readerFilter == MangaReaderFilter.NONE) readerEInkFilter else readerFilter(library.readerFilter)
         if (mode == MangaReaderMode.WEBTOON) LazyColumn(state = scroll, modifier = Modifier.fillMaxSize().testTag("manga:webtoon")) {
             itemsIndexed(pages, key = { _, item -> item.id }) { index, item ->
                 MangaImage(repository, item, chapter.sourceId, webtoon = true, fitWidth = true, zoom[item.id] ?: 1f, { zoom[item.id] = it }, onTap,
@@ -396,6 +401,12 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
         }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    // On an e-ink screen a short black flash between pages clears the ghost of the last one.
+    var flash by remember { mutableStateOf(false) }
+    LaunchedEffect(pager.settledPage, scroll.firstVisibleItemIndex) {
+        if (library.readerEInk && library.readerEInkFlash) { flash = true; kotlinx.coroutines.delay(120); flash = false }
+    }
+    if (flash) Box(Modifier.fillMaxSize().background(Color.Black).testTag("manga:reader:flash"))
     held?.let { file -> MangaPageActions(repository, chapter, book, file, page) { held = null; runCatching { focus.requestFocus() } } }
     // Brightness is a dimming over the pages (the system's own stays as it is); it never takes a tap.
     if (library.readerBrightness < 1f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = (1f - library.readerBrightness).coerceIn(0f, 0.7f))))
@@ -446,6 +457,10 @@ internal fun readerLabel(chapter: MangaChapter, page: Int, pages: Int): String {
 
 /** Pages fetched ahead of the reader: a small window, so a slow source never downloads a whole chapter just by being opened. */
 private const val PREFETCH_PAGES = 2
+
+/** E-ink pages: grey with the contrast raised, so text and screentone stay crisp on a slow screen. */
+private val readerEInkFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix(floatArrayOf(
+    0.42f, 0.83f, 0.15f, 0f, -90f, 0.42f, 0.83f, 0.15f, 0f, -90f, 0.42f, 0.83f, 0.15f, 0f, -90f, 0f, 0f, 0f, 1f, 0f)))
 
 /** The ground around the pages. */
 internal fun readerGround(background: MangaReaderBackground): Color = when (background) {

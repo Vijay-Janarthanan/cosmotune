@@ -52,6 +52,10 @@ internal fun MangaReaderImageOptions(state: MangaLibraryState, modifier: Modifie
             }
         }
         if (state.readerTapZones != MangaTapZones.OFF) OrbitSwitchRow(mangaText("Swap back and next"), state.readerTapInvert, { on -> change { it.copy(readerTapInvert = on) } }, plain = true)
+        OrbitSwitchRow(mangaText("E-ink screen"), state.readerEInk, { on -> change { it.copy(readerEInk = on) } }, plain = true,
+            detail = mangaText("Pages turn at once, in high contrast"))
+        if (state.readerEInk) OrbitSwitchRow(mangaText("Flash between pages"), state.readerEInkFlash, { on -> change { it.copy(readerEInkFlash = on) } }, plain = true,
+            detail = mangaText("Clears the last page's ghost"))
         OrbitSwitchRow(mangaText("Skip read chapters"), state.skipReadChapters, { on -> change { it.copy(skipReadChapters = on) } }, plain = true,
             detail = mangaText("Next chapter goes past the ones you have read"))
         OrbitSwitchRow(mangaText("Volume keys turn pages"), state.readerVolumeKeys, { on -> change { it.copy(readerVolumeKeys = on) } }, plain = true)

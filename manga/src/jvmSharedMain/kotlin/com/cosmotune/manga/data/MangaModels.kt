@@ -156,6 +156,9 @@ data class MangaLibraryState(
     /** Two pages side by side in the paged modes when the window is wider than tall; [readerCoverAlone] keeps the first page alone. */
     val readerSpread: Boolean = false,
     val readerCoverAlone: Boolean = true,
+    /** E-ink screens (Kotatsu's E-Ink settings): pages turn at once with no sliding, in high contrast, with a black flash between them when [readerEInkFlash]. */
+    val readerEInk: Boolean = false,
+    val readerEInkFlash: Boolean = false,
     /** A wide (double) page shows as two pages, one half after the other. */
     val readerSplitWide: Boolean = false,
     /** A colour filter over the pages: none, grey, inverted or sepia. */
