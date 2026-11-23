@@ -92,7 +92,7 @@ class PolishContractTest {
     @Test fun theFrameDrawsTheAmbientGroundBelowTheTitleBarWhateverTheMaterial() {
         val text = frame
         assertTrue("backdrop: @Composable () -> Unit" in SourceContract.parameters(SourceContract.read("${desktop}DesktopApp.kt"), "DesktopFrame"), "the frame takes the look's ground as its backdrop")
-        val ground = "if (glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }"
+        val ground = "if (glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(); com.cosmotune.ui.orbit.OrbitFrameWash(frameWash.value) }"
         assertEquals(1, Regex(Regex.escape(ground)).findAll(text).count(), "the ground of the look is drawn once with a material, as a source for the bar's blur")
         assertTrue(
             text.indexOf("DesktopTitleBar()") < text.indexOf(ground) && text.indexOf(ground) < text.indexOf("BoxWithConstraints("),
@@ -108,7 +108,7 @@ class PolishContractTest {
 
     @Test fun withoutAMaterialTheGroundIsTheWindowsOwn() {
         val text = frame
-        assertTrue(text.contains("if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }"), "without a material the ground lies under the title bar too")
+        assertTrue(text.contains("if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(); com.cosmotune.ui.orbit.OrbitFrameWash(frameWash.value) }"), "without a material the ground lies under the title bar too")
         assertTrue(text.contains(".then(if (glass) Modifier else Modifier.background(containerColor))"), "the window colour without a material is untouched")
         assertTrue(text.indexOf("if (!glass) Box(") < text.indexOf("DesktopTitleBar()"), "and it is drawn before the title bar")
     }

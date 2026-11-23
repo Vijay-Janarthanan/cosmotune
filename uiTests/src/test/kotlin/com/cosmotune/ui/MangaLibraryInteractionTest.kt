@@ -89,8 +89,8 @@ class MangaLibraryInteractionTest {
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNode(hasNavTab("Library")).performClick()
-        // A library cover counts its unread chapters in its corner.
-        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("2 unread").fetchSemanticsNodes().isNotEmpty() }
+        // A library cover counts its unread chapters in the line under it.
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("2 unread", substring = true).fetchSemanticsNodes().isNotEmpty() }
         // Updates checks the library: its refresh action, or a pull.
         compose.onNode(hasNavTab("Updates")).performClick()
         compose.onNodeWithContentDescription("Check for updates").performClick()
@@ -99,7 +99,7 @@ class MangaLibraryInteractionTest {
         compose.onNode(hasNavTab("Updates") and hasContentDescription("Updates, 1 new")).assertExists()
         compose.onNode(hasNavTab("Library")).performClick()
         compose.onNodeWithText("1 SERIES · 3 UNREAD", substring = true).assertExists()
-        compose.onNodeWithContentDescription("3 unread").assertExists()
+        compose.onNodeWithText("3 unread", substring = true).assertExists()
         assertEquals(setOf("net:c3"), MangaStore(store.root).state.value.newChapters, "the mark survives a restart")
         // The new chapter's row comes first on the page; the series' cover is the last of its name.
         compose.onAllNodesWithText("Network series").onLast().performClick()
