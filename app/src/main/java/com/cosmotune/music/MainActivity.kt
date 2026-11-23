@@ -2668,6 +2668,23 @@ private fun CosmotuneApp(
         // one child it always had and changes nothing.
         // One tab handler, whichever bar is drawing it.
         val onTabSelected: (Int) -> Unit = { index ->
+            // The tab already chosen, on its own page with nothing over it: back to the top of it (Search's tap stays Search's).
+            val reselect = index != TAB_SEARCH && com.cosmotune.ui.shell.isTabReselect(
+                index, selectedTab,
+                atRoot = detail == null && selectedMoodGenre == null && !showSettings && settingsSubScreen == null && !showHistory &&
+                    libraryShowAll == null && !showReplay && !showSources && !showEqualizer && !showListenTogether &&
+                    !showAccountScrobbling && !showSpotify && !showDiscord,
+            )
+            if (reselect) {
+                val page = when (index) {
+                    TAB_HOME -> homeListState
+                    TAB_RELEASES -> releasesListState
+                    TAB_EXPLORE -> exploreListState
+                    TAB_LIBRARY -> libraryListState
+                    else -> null
+                }
+                page?.let { scope.launch { com.cosmotune.ui.shell.scrollToTopGently(it) } }
+            }
             viewModel.clearDetail()
             viewModel.closeMoodGenre()
             showSettings = false

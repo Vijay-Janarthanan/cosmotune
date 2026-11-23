@@ -2491,6 +2491,19 @@ fun CosmotuneDesktopApp() {
     }
 
     fun selectDestination(next: DesktopDestination) {
+        // The page already open, with nothing over it: a tap on its tab goes back to its top (upstream 1.10).
+        val atRoot = !overlays.roomView && openedArtist == null && openedCollection == null && !overlays.replay &&
+            overlays.settingsPage == null && selectedMoodGenre == null && libraryShowAll == null
+        if (next != DesktopDestination.SEARCH && com.cosmotune.ui.shell.isTabReselect(next.ordinal, destination.ordinal, atRoot)) {
+            val page = when (next) {
+                DesktopDestination.LISTEN_NOW -> homeListState
+                DesktopDestination.EXPLORE -> exploreListState
+                DesktopDestination.LIBRARY -> libraryListState
+                DesktopDestination.RELEASES -> releasesListState
+                else -> null
+            }
+            page?.let { state -> scope.launch { com.cosmotune.ui.shell.scrollToTopGently(state) } }
+        }
         overlays.roomView = false
         if (next == DesktopDestination.LIBRARY && libraryStale) {
             libraryStale = false
