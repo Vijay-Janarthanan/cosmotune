@@ -6004,6 +6004,17 @@ private fun DesktopSettingsScreen(
                         com.cosmotune.ui.settings.ForgetLyricsOffsetsRow()
                     }
                 }
+                SettingsGroup(com.cosmotune.ui.settings.PlayerExtrasText.GROUP) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART, com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART_LINE)) {
+                        com.cosmotune.ui.settings.BestPartRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE, com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE_LINE)) {
+                        com.cosmotune.ui.settings.SleepFadeOutRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM, com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM_LINE)) {
+                        com.cosmotune.ui.settings.PremiumAudioRow()
+                    }
+                }
                 SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_NETWORK) {
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.OFFLINE, com.cosmotune.ui.settings.SoundExtrasText.OFFLINE_LINE)) {
                         com.cosmotune.ui.settings.OfflineModeRow()
