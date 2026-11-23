@@ -180,7 +180,7 @@ fun PhoneListeningTools(
             val answer = CompletableDeferred<Uri?>().also { pending = it }
             picker.launch(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
-                type = when { name.endsWith(".m3u8", true) -> "application/vnd.apple.mpegurl"; name.endsWith(".txt") -> "text/plain"; else -> "application/json" }
+                type = when { name.endsWith(".m3u8", true) -> "application/vnd.apple.mpegurl"; name.endsWith(".txt") -> "text/plain"; name.endsWith(".csv", true) -> "text/csv"; else -> "application/json" }
                 putExtra(Intent.EXTRA_TITLE, name)
             })
             val uri = answer.await()

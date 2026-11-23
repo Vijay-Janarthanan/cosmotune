@@ -490,6 +490,8 @@ private fun ColumnScope.BackupPage(host: ListeningToolsHost, store: ListeningSto
                 if (host.exportFile("cosmotune-library.m3u8", export.text)) "Playlist saved: ${export.included} local tracks, ${export.skipped} skipped" else null
             } })
             ToolNote("The playlist refers to the current file locations. Copy the music and adjust paths when moving it to another device. Keep a listening backup for source metadata and sessions.")
+            Spacer(Modifier.height(12.dp))
+            PlaylistCsvTools(host, busy, run)
         }
     }
 }
