@@ -1074,6 +1074,13 @@ private fun CosmotuneApp(
         MainViewModel.Feed.LIBRARY -> libraryPull
         null -> null
     }
+    // Settings and a mood's page lead with their own big heading: the bar's title waits until it has scrolled away instead of
+    // repeating it right above it. Each page starts from its top.
+    val headingScroll = remember { com.cosmotune.ui.chrome.HeadingScroll() }
+    val headingPast = with(androidx.compose.ui.platform.LocalDensity.current) { 56.dp.toPx() }
+    LaunchedEffect(showSettings, settingsSubScreen, selectedMoodGenre, selectedTab) { headingScroll.reset() }
+    // Read through derivedStateOf, so a scroll recomposes the shell only when the answer flips.
+    val headingGone by remember(headingPast) { derivedStateOf { headingScroll.past(headingPast) } }
     val scrolled by remember(currentListState) {
         derivedStateOf {
             currentListState.firstVisibleItemIndex > 0 ||
@@ -2745,7 +2752,7 @@ private fun CosmotuneApp(
             // While the player covers the window, the page under it is out of the accessibility tree: a screen reader would otherwise
             // walk the hidden page behind the player.
             val pageCovered = showNowPlaying && playerSong != null
-            Box(Modifier.weight(1f).fillMaxHeight().then(if (pageCovered) Modifier.clearAndSetSemantics {} else Modifier)) {
+            Box(Modifier.weight(1f).fillMaxHeight().nestedScroll(headingScroll.connection).then(if (pageCovered) Modifier.clearAndSetSemantics {} else Modifier)) {
                 // Another device's song for Home's top card (see elsewhereOffer above).
                 androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.home.LocalElsewhere provides elsewhereOffer) {
                 AnimatedContent(
@@ -3811,17 +3818,21 @@ private fun CosmotuneApp(
                     // Search has no large in-list header to hand the title back to â€”
                     // the field takes that space â€” so its bar title is always up.
                     scrolled = when {
-                        showSettings || showAccountScrobbling || showSources || showListenTogether ||
+                        showAccountScrobbling || showSources || showListenTogether ||
                             showEqualizer ||
                             showDiscord || showHistory ||
                             (libraryShowAll != null && detail == null) ||
-                            (detail != null && detailActiveShelf != null) ||
-                            selectedMoodGenre != null -> true
+                            (detail != null && detailActiveShelf != null) -> true
+                        // Their big heading owns the title until it has gone under the bar.
+                        showSettings -> headingGone
+                        detail == null && !showReplay && selectedMoodGenre != null -> headingGone
                         // The page leads with its own large "Replay", so the bar
                         // stays out of the way until that has been scrolled off.
                         showReplay -> replayScrolled
                         detail != null -> detailScrolled
-                        else -> scrolled || selectedTab == TAB_SEARCH
+                        // Search's own heading stands over its field and never scrolls away, so the bar does not repeat it.
+                        selectedTab == TAB_SEARCH -> false
+                        else -> scrolled
                     },
                     refreshing = currentFeed != null && currentFeed in refreshing,
                     pullFraction = { currentPull?.distanceFraction ?: 0f },
