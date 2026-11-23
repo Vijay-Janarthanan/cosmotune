@@ -21,6 +21,7 @@ internal fun PlayerOptions(songId: String, bluetoothSupported: Boolean, onDismis
     val tuning=overrides[songId]
     val inline by settings.inlineLyrics.collectAsState()
     val alignment by settings.lyricAlignment.collectAsState()
+    val romanisedOnly by settings.romanisedOnly.collectAsState()
     val reconnect by settings.bluetoothResume.collectAsState()
     val mute by settings.pauseOnMute.collectAsState()
     val current=tuning ?: SongPlaybackTuning()
@@ -38,6 +39,7 @@ internal fun PlayerOptions(songId: String, bluetoothSupported: Boolean, onDismis
             }
         }
         PlayerOptionSwitch("Player lyrics","Show timed lyrics beside the artwork when there is room. The Lyrics panel remains available.",inline,settings::setInlineLyrics)
+        PlayerOptionSwitch("Romanised lyrics only","With Romanise on, show each line in Latin letters alone instead of under the original script.",romanisedOnly,settings::setRomanisedOnly)
         CosmoSettingsRow(icon=CosmoIcons.Lyrics,title="Orbit Read alignment",subtitle="Auto follows each line's writing direction. Duet voices keep their own lanes.")
         FlowRow(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             LyricTextAlignment.entries.forEach { option -> CosmoSettingsChip(if(option==LyricTextAlignment.AUTO) "Auto" else "Center",option==alignment,{settings.setLyricAlignment(option)}) }

@@ -31,6 +31,17 @@ class ExtrasSettings(private val store: KeyValueStore) {
         val next=SongPlaybackMemory.with(songPlaybackFlow.value,id,tuning)
         songPlaybackFlow.value=next; store.putString(KEY_SONG_PLAYBACK,SongPlaybackMemory.encode(next))
     }
+    private val playlistAddToStartFlow = MutableStateFlow(store.getBoolean(KEY_PLAYLIST_ADD_TO_START, false))
+
+    /** Songs added to a playlist go to its start instead of its end. */
+    val playlistAddToStart: StateFlow<Boolean> = playlistAddToStartFlow.asStateFlow()
+    fun setPlaylistAddToStart(value: Boolean) { playlistAddToStartFlow.value = value; store.putBoolean(KEY_PLAYLIST_ADD_TO_START, value) }
+
+    private val romanisedOnlyFlow = MutableStateFlow(store.getBoolean(KEY_ROMANISED_ONLY, false))
+
+    /** While romanisation is shown, lines are drawn in the romanised spelling alone, without the original script above it. */
+    val romanisedOnly: StateFlow<Boolean> = romanisedOnlyFlow.asStateFlow()
+    fun setRomanisedOnly(value: Boolean) { romanisedOnlyFlow.value = value; store.putBoolean(KEY_ROMANISED_ONLY, value) }
     fun setInlineLyrics(value: Boolean) { inlineLyricsFlow.value=value; store.putBoolean(KEY_INLINE_LYRICS,value) }
     fun setLyricAlignment(value: LyricTextAlignment) { lyricAlignmentFlow.value=value; store.putString(KEY_LYRIC_ALIGNMENT,value.name) }
     fun setBluetoothResume(value: Boolean) { bluetoothResumeFlow.value=value; store.putBoolean(KEY_BLUETOOTH_RESUME,value) }
@@ -232,6 +243,8 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_SLEEP_FADE_OUT = "extras_sleep_fade_out"
         const val KEY_BEST_PART = "extras_best_part"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
+        const val KEY_ROMANISED_ONLY = "extras_romanised_only"
+        const val KEY_PLAYLIST_ADD_TO_START = "extras_playlist_add_to_start"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"
         const val KEY_PAUSE_ON_MUTE="extras_pause_on_mute"

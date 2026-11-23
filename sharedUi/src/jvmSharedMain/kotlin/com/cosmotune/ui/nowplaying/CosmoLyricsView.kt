@@ -37,6 +37,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -900,7 +901,13 @@ internal fun CosmoLyricsPanel(
     /** False where the board keeps Orbit Read alone (the desktop's side panel): no Style chip, and the list whatever the choice. */
     offerStyles: Boolean = true,
 ) {
-    val lines = lyrics.orEmpty()
+    // "Romanised lyrics only" (Player options): the romanised spelling takes each line's place instead of hanging under it.
+    val romanisedOnly by com.cosmotune.settings.Extras.settings.romanisedOnly.collectAsState()
+    val swapped = if (romanisedOnly && translation.showingRomanization) {
+        remember(lyrics, translation.subLines) { com.cosmotune.music.data.lyrics.RomanisedLines.replace(lyrics.orEmpty(), translation.subLines) }
+    } else null
+    val lines = swapped ?: lyrics.orEmpty()
+    val subLines = if (swapped != null) null else translation.subLines
     // A pick belongs to the open lyrics: when they close with one under way, it is dropped.
     val latestShare by rememberUpdatedState(share)
     DisposableEffect(Unit) { onDispose { latestShare?.cancel() } }
@@ -917,7 +924,7 @@ internal fun CosmoLyricsPanel(
             if (shownStyle == LyricStyle.ORBIT_READ) {
                 CosmoLyricsView(
                     lines = lines,
-                    subLines = translation.subLines,
+                    subLines = subLines,
                     trackKey = trackKey,
                     playhead = playhead,
                     isPlaying = isPlaying,
@@ -935,7 +942,7 @@ internal fun CosmoLyricsPanel(
                     val clock = rememberCosmoLyricClock(trackKey, playhead, isPlaying)
                     val selection = share?.selection ?: LyricSelection.None
                     CosmoLyricStage(
-                        style = shownStyle, lines = lines, subLines = translation.subLines, clock = clock, isPlaying = isPlaying,
+                        style = shownStyle, lines = lines, subLines = subLines, clock = clock, isPlaying = isPlaying,
                         onSeek = onSeekToLine, song = song, modifier = Modifier.fillMaxSize().padding(top = topPadding),
                         onPick = if (selection.canPick) selection.onPick else null,
                     )
