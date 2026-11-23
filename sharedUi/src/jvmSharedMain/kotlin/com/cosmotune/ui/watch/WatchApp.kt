@@ -1,5 +1,6 @@
 package com.cosmotune.ui.watch
 
+import com.cosmotune.ui.theme.cosmoTopGround
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -403,19 +404,17 @@ private fun WatchProfileButton(fonts: OrbitFonts, look: OrbitLook) {
 }
 
 /**
- * The band behind the status bar: the page's ground, solid over the bar itself so nothing scrolled under it shows through, then
- * fading out over 14 dp below it.
+ * The band behind the status bar: the app's own ground there ([com.cosmotune.ui.theme.cosmoTopGround], as the other modes' bars stand
+ * on), solid over the bar itself so nothing scrolled under it shows through, then fading out over 14 dp below it. A flat band of
+ * the theme's ground read as a black strip over the cover-tinted page.
  */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 private fun WatchStatusBand(look: OrbitLook, modifier: Modifier = Modifier) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val bar = androidx.compose.foundation.layout.WindowInsets.statusBars.getTop(density)
     if (bar <= 0) return
-    val fade = with(density) { 14.dp.toPx() }
-    Box(
-        modifier.fillMaxWidth().height(with(density) { (bar + fade).toDp() })
-            .background(Brush.verticalGradient(0f to look.ground, bar / (bar + fade) to look.ground, 1f to look.ground.copy(alpha = 0f))),
-    )
+    Box(modifier.fillMaxWidth().height(with(density) { bar.toDp() }).then(Modifier.cosmoTopGround(shown = { 1f })))
 }
 
 /** The head of a page opened over a tab: the shared [com.cosmotune.ui.orbit.OrbitBackHeader], the round back button and the mono kind. */

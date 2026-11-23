@@ -108,7 +108,7 @@ class WatchPagesContractTest {
 
     @Test fun theStatusBarBandIsSolidOverTheBar() {
         val app = read(dir + "WatchApp.kt")
-        assertTrue("Brush.verticalGradient(0f to look.ground, bar / (bar + fade) to look.ground, 1f to look.ground.copy(alpha = 0f))" in app, "solid over the bar, fading only below it")
+        assertTrue("height(with(density) { bar.toDp() }).then(Modifier.cosmoTopGround(shown = { 1f }))" in app, "solid over the bar in the app's own ground, fading only below it")
         assertFalse("OrbitStatusBarScrim(" in app, "not the see-through scrim")
     }
 
