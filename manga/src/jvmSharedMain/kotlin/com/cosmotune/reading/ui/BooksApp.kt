@@ -335,6 +335,10 @@ private fun BookLibrary(scope: ReadScope) {
     var order by rememberSaveable { mutableStateOf(BookOrder.RECENT) }
     var rows by rememberSaveable { mutableStateOf(false) }
     var group by rememberSaveable { mutableStateOf(BookGroup.NONE) }
+    var clipping by remember { mutableStateOf<String?>(null) }
+    clipping?.let { kind -> BookClipSheet(kind == "page", onSave = { first, second ->
+        scope.action { val book = if (kind == "page") scope.repository.importWebPage(first) else scope.repository.importText(first, second); scope.open(book) }
+    }, onDismiss = { clipping = null }) }
     var tag by rememberSaveable { mutableStateOf<String?>(null) }
     val tags = state.books.flatMap { it.tags }.distinct().sortedBy { it.lowercase() }
     val books = state.shelf(shelf, "").filter { tag == null || tag in it.tags }.ordered(order, state)
@@ -354,6 +358,8 @@ private fun BookLibrary(scope: ReadScope) {
                         com.cosmotune.ui.orbit.OrbitMenuItem("Import a book file", detail = "EPUB, PDF, Kindle, FB2, Word, text or CBZ", icon = CosmoIcons.Plus) { scope.importBooks() },
                         com.cosmotune.ui.orbit.OrbitMenuItem("Add a folder of books", detail = "New books in it are added each time Read opens", icon = CosmoIcons.Library) { scope.addFolder() },
                         com.cosmotune.ui.orbit.OrbitMenuItem("Check folders for new books", icon = CosmoIcons.Repeat) { scope.scanFolders() }.takeIf { state.folders.isNotEmpty() },
+                        com.cosmotune.ui.orbit.OrbitMenuItem("Save a web page", detail = "An article's text and pictures, to read later", icon = CosmoIcons.Explore) { clipping = "page" },
+                        com.cosmotune.ui.orbit.OrbitMenuItem("Paste text", detail = "Text you copied becomes a book", icon = CosmoIcons.List) { clipping = "text" },
                     ), orbitFonts(), orbitLook(), header = "Add books")
                 }
                 ReadRootActions(scope)
@@ -598,6 +604,13 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
                             com.cosmotune.ui.orbit.OrbitMenu(more, { more = false }, listOfNotNull(
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Export notes as Markdown", icon = CosmoIcons.Download) { exportNotes(true) }.takeIf { hasNotes },
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Export notes as a web page", icon = CosmoIcons.Download) { exportNotes(false) }.takeIf { hasNotes },
+                                com.cosmotune.ui.orbit.OrbitMenuItem("Make a text copy", detail = "A reflowing copy of this PDF's text", icon = CosmoIcons.List) {
+                                    scope.action {
+                                        val text = kotlinx.coroutines.withContext(Dispatchers.IO) { readingPdfText(File(book.filePath)) }
+                                            ?: error("Reading a PDF's text needs Android 15 or later.")
+                                        scope.open(scope.repository.importPdfText(book.id, text))
+                                    }
+                                }.takeIf { book.format == ReadingFormat.PDF },
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Tags", detail = book.tags.joinToString(", ").ifBlank { null }, icon = CosmoIcons.Pin) { tagging = true },
                                 com.cosmotune.ui.orbit.OrbitMenuItem("Remove from this device", icon = CosmoIcons.Close) { remove() },
                             ), orbitFonts(), look, header = book.title)
@@ -715,5 +728,35 @@ private fun BookTagsSheet(book: ReadingBook, known: List<String>, onSave: (Set<S
         }
         if (typed.isNotBlank()) ReadChipRow { ReadChip("Add “${typed.trim()}”", false, { chosen = chosen + typed.trim(); typed = "" }, icon = CosmoIcons.Plus) }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** Saving a web page (its address) or pasted text (a title and the text) as a book. */
+@Composable
+private fun BookClipSheet(page: Boolean, onSave: (String, String) -> Unit, onDismiss: () -> Unit) {
+    var first by remember { mutableStateOf("") }
+    var second by remember { mutableStateOf("") }
+    val look = orbitLook()
+    com.cosmotune.ui.kit.KitSheet(onDismiss = onDismiss) {
+        ReadSheetHeader(if (page) "Save a web page" else "Paste text", onDone = onDismiss, doneLabel = "Close")
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+            Text(if (page) "Page address" else "Title", style = ReadType.caption(), color = look.dim)
+            Spacer(Modifier.height(8.dp))
+            com.cosmotune.ui.orbit.OrbitInputField(first, { first = it.take(2_000) }, if (page) "https://…" else "Pasted text", modifier = Modifier.fillMaxWidth().testTag("books:clip:first"))
+            if (!page) {
+                Spacer(Modifier.height(12.dp))
+                Text("Text", style = ReadType.caption(), color = look.dim)
+                Spacer(Modifier.height(8.dp))
+                com.cosmotune.ui.orbit.OrbitInputField(second, { second = it.take(5_000_000) }, "Paste here", modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp).testTag("books:clip:text"),
+                    singleLine = false, minLines = 6)
+            } else {
+                Spacer(Modifier.height(8.dp))
+                Text("Only the page's article is kept (its text and pictures), with a link back to it.", style = ReadType.caption(), color = look.dim)
+            }
+            Spacer(Modifier.height(16.dp))
+            ReadButton(if (page) "Save as a book" else "Make a book", { onSave(first, second); onDismiss() },
+                enabled = if (page) first.isNotBlank() else second.isNotBlank(), modifier = Modifier.testTag("books:clip:save"))
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }

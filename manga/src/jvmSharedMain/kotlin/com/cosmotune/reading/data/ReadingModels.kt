@@ -88,7 +88,9 @@ import kotlinx.serialization.Serializable
     /** Scrolling by itself (screen pixels a second), e-ink mode, the page turn's slide, side taps that turn the page (and the other way round),
      *  volume keys that turn it, and a swipe down the left edge for brightness. */
     val autoScrollSpeed: Int = 40, val eInk: Boolean = false, val slideTurn: Boolean = true, val tapZones: Boolean = true, val invertZones: Boolean = false,
-    val volumeKeys: Boolean = false, val brightnessSwipe: Boolean = true)
+    val volumeKeys: Boolean = false, val brightnessSwipe: Boolean = true,
+    /** PDF pages: light on dark (inverted), white margins trimmed, and their contrast (1 is as printed). */
+    val pdfDark: Boolean = false, val pdfCrop: Boolean = false, val pdfContrast: Float = 1f)
 @Serializable data class ReadingOpdsSource(val id: String, val name: String, val url: String,
     val username: String = "", val password: String = "", val allowInsecureHttp: Boolean = false)
 @Serializable data class ReadingCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())

@@ -326,6 +326,32 @@ internal object ReadingConvert {
         zip.getInputStream(entry).use { it.readBytes() }
     }
 
+    /** A PDF page's text as paragraphs: lines joined, words broken at a line's end mended, blank lines and short lines ending paragraphs. */
+    fun reflowLines(page: String): List<String> {
+        val lines = page.replace("\r", "").split('\n').map { it.trim() }
+        val paragraphs = ArrayList<String>()
+        val current = StringBuilder()
+        fun flush() { if (current.isNotBlank()) paragraphs += current.toString().trim(); current.clear() }
+        val width = lines.filter { it.isNotEmpty() }.map { it.length }.sorted().let { if (it.isEmpty()) 0 else it[it.size * 3 / 4] }
+        lines.forEach { line ->
+            if (line.isEmpty()) { flush(); return@forEach }
+            if (current.endsWith("-") && line.first().isLowerCase()) current.setLength(current.length - 1) else if (current.isNotEmpty()) current.append(' ')
+            current.append(line)
+            if (line.length < width * 0.6 && line.last() in ".!?:\"”") flush()
+        }
+        flush()
+        return paragraphs
+    }
+
+    /** A web page's article: its <article> or <main>, else the block holding most of its paragraphs; menus, headers and footers left out. */
+    fun mainContent(page: Document): Element {
+        page.select("script, style, noscript, iframe, form, nav, header, footer, aside, [role=navigation], [aria-hidden=true], .ad, .ads, .advert, .share, .social, .comments").remove()
+        page.selectFirst("article")?.let { return it }
+        page.selectFirst("main, [role=main]")?.let { return it }
+        val best = page.select("div, section").maxByOrNull { block -> block.children().filter { it.normalName() == "p" }.sumOf { it.text().length } }
+        return best?.takeIf { it.text().length > 200 } ?: page.body()
+    }
+
     // ---- Chapters -------------------------------------------------------------------------------------------------------------
 
     /** [body] cut into chapters at its top headings (h1, else h2), looking through wrappers that hold the whole text. */

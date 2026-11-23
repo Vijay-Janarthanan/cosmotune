@@ -533,8 +533,17 @@ internal fun ReadingAppearanceChoices(preferences: ReadingPreferences, reflowabl
                 }
             }
         } else {
-            Text("PDFs keep the publisher's layout. Use the page and zoom controls of the document.", style = ReadType.body(), color = Color(palette.textSecondary),
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            Text("PDFs keep the publisher's layout. Use the page and zoom controls of the document; a text copy (the book's More menu) reflows it.",
+                style = ReadType.body(), color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            ReadSheetSection("Pages") {
+                com.cosmotune.ui.orbit.OrbitSwitchRow("Light text on dark", preferences.pdfDark, { onChange(preferences.copy(pdfDark = it)) }, Modifier.padding(vertical = 2.dp),
+                    switchModifier = Modifier.testTag("books:pdf-dark"))
+                com.cosmotune.ui.orbit.OrbitSwitchRow("Trim white margins", preferences.pdfCrop, { onChange(preferences.copy(pdfCrop = it)) }, Modifier.padding(vertical = 2.dp),
+                    switchModifier = Modifier.testTag("books:pdf-crop"))
+            }
+            ReadSheetSection("Contrast · ${(preferences.pdfContrast * 100).toInt()}%") {
+                ReadSlider(preferences.pdfContrast, { onChange(preferences.copy(pdfContrast = it)) }, 0.6f..1.8f, 11, "Contrast", Modifier.testTag("books:pdf-contrast"))
+            }
         }
         if (reflowable) ReadSheetSection("Foot line") {
             ReadChipRow(inset = 0.dp) {

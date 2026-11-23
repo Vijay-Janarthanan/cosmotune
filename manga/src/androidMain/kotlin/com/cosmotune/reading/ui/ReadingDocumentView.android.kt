@@ -33,7 +33,7 @@ internal actual val readingCenterTap: Boolean = true
     preferences: ReadingPreferences, searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit,
     onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit, control: ReadingPageControl?) {
     when (document) {
-        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier, onCenterTap)
+        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier, onCenterTap, preferences)
         is ReadingDocument.Epub -> AndroidReadingEpub(document, locator, preferences, searchQuery, onLocatorChanged, onError, modifier, onCenterTap, control)
     }
 }
@@ -212,6 +212,16 @@ private val volumeKeys = setOf(android.view.KeyEvent.KEYCODE_VOLUME_DOWN, androi
 
 internal actual fun openReadingPdf(file: File): ReadingPdfEngine = AndroidReadingPdf(file)
 internal actual fun supportsReadingPdfSearch(): Boolean = android.os.Build.VERSION.SDK_INT >= 35
+/** The text of each page of [file] (Android 15 and later read a PDF's text; earlier versions cannot). */
+internal actual fun readingPdfText(file: File): List<String>? {
+    if (android.os.Build.VERSION.SDK_INT < 35) return null
+    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+        val renderer = PdfRenderer(descriptor)
+        try { return (0 until renderer.pageCount).map { index -> renderer.openPage(index).use { page -> page.textContents.joinToString("\n") { it.text } } } }
+        finally { renderer.close() }
+    }
+}
+
 private class AndroidReadingPdf(file: File) : ReadingPdfEngine {
     private val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
     private val renderer = try { PdfRenderer(descriptor) } catch (e: Exception) { descriptor.close(); throw e }

@@ -38,7 +38,7 @@ internal actual val readingCenterTap: Boolean = false
     preferences: ReadingPreferences, searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit,
     onError: (String) -> Unit, modifier: Modifier, onCenterTap: () -> Unit, control: ReadingPageControl?) {
     when (document) {
-        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier, onCenterTap)
+        is ReadingDocument.Pdf -> ReadingPdfView(document, locator, searchQuery, onLocatorChanged, onError, modifier, onCenterTap, preferences)
         is ReadingDocument.Epub -> DesktopReadingEpub(document, locator, preferences, searchQuery, onLocatorChanged, onError, modifier, control)
     }
 }
@@ -176,6 +176,12 @@ private class DesktopEpubController(document: ReadingDocument.Epub, private val 
 
 internal actual fun openReadingPdf(file: File): ReadingPdfEngine = DesktopReadingPdf(file)
 internal actual fun supportsReadingPdfSearch(): Boolean = true
+/** The text of each page of [file], read by PDFBox. */
+internal actual fun readingPdfText(file: File): List<String>? = Loader.loadPDF(file, org.apache.pdfbox.io.IOUtils.createTempFileOnlyStreamCache()).use { pdf ->
+    val stripper = PDFTextStripper()
+    (1..pdf.numberOfPages).map { page -> stripper.startPage = page; stripper.endPage = page; stripper.getText(pdf) }
+}
+
 internal class DesktopReadingPdf(file: File) : ReadingPdfEngine {
     private val pdf: PDDocument = Loader.loadPDF(file, org.apache.pdfbox.io.IOUtils.createTempFileOnlyStreamCache())
     private val renderer = PDFRenderer(pdf).apply { isSubsamplingAllowed = true }

@@ -86,11 +86,39 @@ internal interface ReadingPdfEngine : AutoCloseable {
 }
 internal expect fun openReadingPdf(file: File): ReadingPdfEngine
 internal expect fun supportsReadingPdfSearch(): Boolean
+/** Each page's text, for a text copy of a PDF; null where the device cannot read PDF text. */
+internal expect fun readingPdfText(file: File): List<String>?
+
+/** The part of [image] inside its white margins (a small border kept), or null when there is nothing to trim. */
+internal fun pdfContentBounds(image: ImageBitmap): androidx.compose.ui.unit.IntRect? {
+    val width = image.width; val height = image.height
+    if (width < 32 || height < 32) return null
+    val pixels = IntArray(width * height)
+    image.readPixels(pixels)
+    fun ink(x: Int, y: Int): Boolean { val p = pixels[y * width + x]; return ((p shr 16) and 0xFF) + ((p shr 8) and 0xFF) + (p and 0xFF) < 690 }
+    val step = maxOf(1, minOf(width, height) / 400)
+    var left = width; var right = -1; var top = height; var bottom = -1
+    var y = 0
+    while (y < height) { var x = 0; while (x < width) { if (ink(x, y)) { if (x < left) left = x; if (x > right) right = x; if (y < top) top = y; if (y > bottom) bottom = y }; x += step }; y += step }
+    if (right < 0) return null
+    val pad = minOf(width, height) / 50
+    val rect = androidx.compose.ui.unit.IntRect((left - pad).coerceAtLeast(0), (top - pad).coerceAtLeast(0), (right + pad).coerceAtMost(width), (bottom + pad).coerceAtMost(height))
+    return rect.takeIf { it.width < width * 0.97f || it.height < height * 0.97f }
+}
+
+/** Light on dark (inverted) and the contrast, as one colour filter for a PDF page; null when the page stays as printed. */
+internal fun pdfFilter(dark: Boolean, contrast: Float): androidx.compose.ui.graphics.ColorFilter? {
+    if (!dark && contrast == 1f) return null
+    val c = contrast.coerceIn(0.5f, 2f); val sign = if (dark) -1f else 1f
+    val shift = if (dark) 255f * (1 - (1 - c) / 2f) else 255f * (1 - c) / 2f
+    return androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix(floatArrayOf(
+        sign * c, 0f, 0f, 0f, shift, 0f, sign * c, 0f, 0f, shift, 0f, 0f, sign * c, 0f, shift, 0f, 0f, 0f, 1f, 0f)))
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun ReadingPdfView(document: ReadingDocument.Pdf, locator: ReadingLocator,
     searchQuery: String, onLocatorChanged: (ReadingLocator) -> Unit, onError: (String) -> Unit,
-    modifier: Modifier, onCenterTap: () -> Unit = {}) {
+    modifier: Modifier, onCenterTap: () -> Unit = {}, preferences: ReadingPreferences = ReadingPreferences()) {
     var engine by remember(document.file) { mutableStateOf<ReadingPdfEngine?>(null) }
     var failure by remember(document.file) { mutableStateOf<String?>(null) }
     var zoom by remember(document.file) { mutableStateOf(1f) }
@@ -167,10 +195,17 @@ internal expect fun supportsReadingPdfSearch(): Boolean
             when {
                 failure != null -> Text(failure!!, Modifier.padding(24.dp))
                 image != null -> Box(Modifier.fillMaxSize().verticalScroll(vertical).horizontalScroll(horizontal), contentAlignment = Alignment.TopCenter) {
-                    Image(image!!, "Page ${page + 1} of ${document.book.title}",
-                        Modifier.width(viewportWidth * zoom).aspectRatio(image!!.width.toFloat() / image!!.height)
+                    val shown = image!!
+                    val crop = remember(shown, preferences.pdfCrop) { if (preferences.pdfCrop) pdfContentBounds(shown) else null }
+                    val painter = remember(shown, crop) {
+                        if (crop == null) androidx.compose.ui.graphics.painter.BitmapPainter(shown)
+                        else androidx.compose.ui.graphics.painter.BitmapPainter(shown, androidx.compose.ui.unit.IntOffset(crop.left, crop.top), androidx.compose.ui.unit.IntSize(crop.width, crop.height))
+                    }
+                    val ratio = if (crop != null) crop.width.toFloat() / crop.height else shown.width.toFloat() / shown.height
+                    Image(painter, "Page ${page + 1} of ${document.book.title}",
+                        Modifier.width(viewportWidth * zoom).aspectRatio(ratio)
                             .pointerInput(Unit) { detectTapGestures { at -> if (at.x > size.width / 3f && at.x < size.width * 2f / 3f) onCenterTap() } },
-                        contentScale = ContentScale.FillBounds)
+                        contentScale = ContentScale.FillBounds, colorFilter = pdfFilter(preferences.pdfDark, preferences.pdfContrast))
                 }
                 else -> CircularProgressIndicator(Modifier.align(Alignment.Center))
             }

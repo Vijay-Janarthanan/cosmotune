@@ -16,6 +16,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import okhttp3.Credentials
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -252,6 +253,58 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
             old.copy(profiles = if (remove) others else others + ReadingProfile(clean, preferences))
         }
     }
+    /** A PDF as a reflowing book from its pages' [text] (ten pages a chapter), added beside the PDF. */
+    suspend fun importPdfText(bookId: String, text: List<String>): ReadingBook {
+        val book = state.value.books.find { it.id == bookId } ?: error("This book is no longer in the library.")
+        require(text.any { it.isNotBlank() }) { "This PDF has no text to copy (it may be scanned pictures)." }
+        val markdown = buildString {
+            text.chunked(10).forEachIndexed { part, pages ->
+                append("## Pages ${part * 10 + 1}–${part * 10 + pages.size}\n\n")
+                pages.forEach { page -> ReadingConvert.reflowLines(page).forEach { append(it.replace("#", "\\#")).append("\n\n") } }
+            }
+        }
+        val copy = importFile("${book.title} (text).md") { markdown.toByteArray().inputStream() }
+        store.update { old -> old.copy(books = old.books.map { if (it.id == copy.id) it.copy(title = "${book.title} (text)", authors = book.authors, originalFormat = "PDF text") else it }) }
+        return state.value.books.first { it.id == copy.id }
+    }
+
+    /** Saves the article at [address] (its main text and pictures) as a book. */
+    suspend fun importWebPage(address: String): ReadingBook = withContext(Dispatchers.IO) {
+        val url = runCatching { address.trim().toHttpUrl() }.getOrNull() ?: throw IllegalArgumentException("Enter the page's full address, starting with https://")
+        require(url.isHttps) { "Only https:// pages can be saved." }
+        val http = client.newBuilder().callTimeout(30, TimeUnit.SECONDS).build()
+        val html = http.newCall(Request.Builder().url(url).header("User-Agent", "Mozilla/5.0 (Cosmotune Read)").build()).awaitReading { response ->
+            check(response.isSuccessful) { "The page answered ${response.code}." }
+            require(response.body.contentType()?.subtype?.contains("html") != false) { "That address is not a web page." }
+            response.catalogueText(10 * 1024 * 1024)
+        }
+        val page = org.jsoup.Jsoup.parse(html, url.toString())
+        val title = page.selectFirst("meta[property=og:title]")?.attr("content")?.takeIf { it.isNotBlank() } ?: page.title().ifBlank { url.host }
+        val author = page.selectFirst("meta[name=author]")?.attr("content").orEmpty()
+        val article = ReadingConvert.mainContent(page)
+        var fetched = 0L
+        article.select("img").take(40).forEach { image ->
+            val source = image.absUrl("src").toHttpUrlOrNull()
+            val bytes = if (source == null || !source.isHttps || fetched > 20L * 1024 * 1024) null else runCatching {
+                http.newCall(Request.Builder().url(source).build()).execute().use { response ->
+                    if (!response.isSuccessful || response.body.contentLength() > 4 * 1024 * 1024) null else response.body.bytes().takeIf { it.size <= 4 * 1024 * 1024 }
+                }
+            }.getOrNull()
+            val type = bytes?.let(ReadingConvert::imageType)
+            if (bytes == null || type == null) image.remove() else { fetched += bytes.size; image.attr("src", "data:$type;base64," + java.util.Base64.getEncoder().encodeToString(bytes)) }
+        }
+        val document = "<html><head><title>${ReadingConvert.escape(title)}</title><meta name=\"author\" content=\"${ReadingConvert.escape(author)}\"></head><body><h1>${ReadingConvert.escape(title)}</h1>${article.html()}</body></html>"
+        val book = importFile(title.take(100).replace(Regex("[\\\\/:*?\"<>|]"), " ") + ".html") { document.toByteArray().inputStream() }
+        store.update { old -> old.copy(books = old.books.map { if (it.id == book.id) it.copy(sourceUrl = url.toString(), originalFormat = "Web page") else it }) }
+        state.value.books.first { it.id == book.id }
+    }
+
+    /** [text] the reader pasted, as a book called [title]. */
+    suspend fun importText(title: String, text: String): ReadingBook {
+        require(text.isNotBlank()) { "Paste some text first." }
+        return importFile(title(title.ifBlank { "Pasted text" }).replace(Regex("[\\\\/:*?\"<>|]"), " ") + ".txt") { text.toByteArray().inputStream() }
+    }
+
     suspend fun createCollection(name: String): ReadingCollection {
         val collection = ReadingCollection(UUID.randomUUID().toString(), title(name))
         store.update { old -> require(old.collections.size < 128); old.copy(collections = old.collections + collection) }
