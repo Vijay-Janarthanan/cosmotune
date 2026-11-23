@@ -1,5 +1,32 @@
 package com.cosmotune.manga.data
 
+/**
+ * The series in the library that look like the same one twice (Mihon's duplicate check): the same title, ignoring case and
+ * punctuation, or one's title among the other's alternate titles. Each group has two or more series, longest read first.
+ */
+fun mangaDuplicates(state: MangaLibraryState): List<List<MangaBook>> {
+    fun key(title: String) = title.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "")
+    val groups = LinkedHashMap<String, MutableList<MangaBook>>()
+    state.books.forEach { book ->
+        val keys = (listOf(book.title) + book.parserData?.alternateTitles.orEmpty()).map(::key).filter { it.length >= 2 }
+        val existing = keys.firstOrNull { it in groups } ?: keys.firstOrNull() ?: return@forEach
+        groups.getOrPut(existing) { ArrayList() } += book
+    }
+    return groups.values.filter { it.size > 1 }.map { list -> list.sortedByDescending { book -> book.chapters.count { it.id in state.readChapters } } }
+}
+
+/** Merges [others] into [keep] (Komikku's merge): each one's read chapters, place, collections and links move to [keep], then it goes. */
+fun MangaLibraryState.merged(keep: MangaBook, others: List<MangaBook>): MangaLibraryState =
+    others.filter { it.id != keep.id }.fold(this) { state, other ->
+        val current = state.books.find { it.id == keep.id } ?: keep
+        val readBefore = state.readChapters
+        state.migrated(other, current).let { next ->
+            // The kept series' own read marks and place stay; the other's add to them.
+            next.copy(readChapters = next.readChapters + readBefore.intersect(current.chapters.map { it.id }.toSet()),
+                progress = state.progress[keep.id]?.let { next.progress + (keep.id to it) } ?: next.progress)
+        }
+    }
+
 /** A series found on another source for a move: how well its title matches, 0 to 1. */
 data class MangaMigrationMatch(val book: MangaBook, val score: Double)
 

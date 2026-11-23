@@ -4,6 +4,8 @@ package com.cosmotune.manga.ui
 import com.cosmotune.ui.orbit.LocalOrbitUndo
 import com.cosmotune.ui.orbit.OrbitUndoState
 import com.cosmotune.ui.orbit.removeAfterUndo
+import com.cosmotune.ui.orbit.showThen
+import androidx.compose.foundation.layout.heightIn
 import com.cosmotune.cache.PageCache
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -371,6 +373,7 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
     var sort by rememberSaveable { mutableStateOf("recent") }
     var filters by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var options by remember { mutableStateOf(false) }
+    var dupes by remember { mutableStateOf(false) }
     val pick = rememberMangaImport { name, open ->
         scope.action { onBusy(true); try { repository.store.save(repository.store.archives.import(name, open)) } finally { onBusy(false) } }
     }
@@ -418,11 +421,14 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
         }
         items(books, key = { it.id }) { book -> MangaBookCard(scope, book, null, inLibrary = true) }
     }
+    if (dupes) MangaDuplicatesSheet(scope) { dupes = false }
     if (options) KitSheet(onDismiss = { options = false }, title = mangaText("Library")) {
         ReadSheetRow(mangaText("Import comic"), CosmoIcons.Plus, { options = false; pick() }, enabled = !busy)
         ReadSheetRow(mangaText("Image folder"), Icons.Rounded.Folder, { options = false; pickFolder() }, enabled = !busy)
         ReadSheetRow(mangaText("Downloads"), CosmoIcons.Downloaded, { options = false; scope.navigation.page = MangaPages.DOWNLOADS }, Modifier.testTag("manga:downloads"))
         ReadSheetRow(mangaText("Manage sources"), CosmoIcons.Settings, { options = false; scope.navigation.select(MangaTabs.SOURCES) })
+        val duplicates = remember(state.books) { mangaDuplicates(state) }
+        if (duplicates.isNotEmpty()) ReadSheetRow(mangaText("Duplicates") + " · ${duplicates.size}", CosmoIcons.List, { options = false; dupes = true }, Modifier.testTag("manga:duplicates"))
         ReadSheetSection(mangaText("Sort by")) {
             ReadChipRow(inset = 0.dp) {
                 listOf("recent", "title", "added", "unread", "latest", "chapters").forEach { value -> ReadChip(mangaText(sortLabel(value)), sort == value, { sort = value }) }
@@ -438,6 +444,43 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
         }
         com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Incognito"), state.incognito, { on -> scope.action { repository.store.update { it.copy(incognito = on) } } },
             Modifier.padding(horizontal = 20.dp, vertical = 4.dp), detail = mangaText("Reading leaves no history, place or read marks"))
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/**
+ * The library's duplicates: each group of series that look the same, with Keep on each one. Keeping one merges the others into it
+ * (read chapters, place, collections and reading-list links) and removes them; Undo puts the library back.
+ */
+@Composable
+private fun MangaDuplicatesSheet(scope: MangaScope, onDismiss: () -> Unit) {
+    val state by scope.repository.store.state.collectAsState()
+    val groups = mangaDuplicates(state)
+    val undo = LocalOrbitUndo.current
+    val words = mangaText("Series merged")
+    KitSheet(onDismiss = onDismiss) {
+        ReadSheetHeader(mangaText("Duplicates"), onDone = onDismiss)
+        androidx.compose.material3.Text(mangaText("These look like the same series twice. Keep one: the others' read chapters, place and collections move to it."),
+            style = ReadType.meta(), color = orbitLook().dim, modifier = Modifier.padding(horizontal = 20.dp))
+        if (groups.isEmpty()) ReadEmpty(mangaText("No duplicates"), mangaText("Every series in your library is there once."))
+        androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
+            groups.forEachIndexed { index, group ->
+                item(key = "group:$index") { ReadOverline(group.first().title) }
+                items(group, key = { "dupe:${it.id}" }) { book ->
+                    val cover = rememberMangaCover(scope.repository, book)
+                    val source = state.sources.find { it.id == book.sourceId }?.name ?: if (book.sourceId == "local") "On this device" else book.unlinkedSourceName() ?: book.sourceId
+                    val read = book.chapters.count { it.id in state.readChapters }
+                    ReadCoverRow(book.title, "$source · $read read", cover, key = book.id, modifier = Modifier.padding(horizontal = ReadMargin).testTag("manga:dupe:${book.id}"),
+                        onClick = { onDismiss(); scope.openBook(book) }) {
+                        ReadTextButton(mangaText("Keep"), { scope.action {
+                            val before = scope.repository.store.state.value
+                            scope.repository.store.update { it.merged(book, group) }
+                            undo.showThen(words) { scope.repository.store.update { before } }
+                        } }, Modifier.testTag("manga:dupe:keep:${book.id}"))
+                    }
+                }
+            }
+        }
         Spacer(Modifier.height(16.dp))
     }
 }
