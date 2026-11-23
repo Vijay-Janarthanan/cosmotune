@@ -63,7 +63,7 @@ object SoundExtrasText {
     const val MAX_VOLUME = "Maximum volume"
     const val MAX_VOLUME_LINE = "The loudest Cosmotune plays, whatever the volume is set to. For hearing safety."
     const val SOUND_EFFECTS = "Sound effects"
-    const val SOUND_EFFECTS_LINE = "Put one effect on everything that plays: 8D, echo, room or hall reverb, chorus, vocal remover or night mode."
+    const val SOUND_EFFECTS_LINE = "Put one effect on everything that plays: 8D, 3D room, echo, room or hall reverb, chorus, vocal remover or night mode."
     const val EFFECT_STRENGTH = "Effect strength"
     const val VOLUME_BOOST = "Volume boost"
     const val VOLUME_BOOST_LINE = "Plays quiet songs louder than full volume. A limiter keeps it from crackling; turn it down if it sounds squashed."

@@ -829,7 +829,7 @@ fun SettingsScreen(
             row(com.cosmotune.ui.settings.SoundExtrasText.SURROUND, "5.1", "7.1", "binaural", "surround", summary = com.cosmotune.ui.settings.SoundExtrasText.SURROUND_LINE) {
                 com.cosmotune.ui.settings.BinauralSurroundRow()
             }
-            row(com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS, "8D", "echo", "reverb", "chorus", "karaoke", "vocal remover", "night mode", "compressor", summary = com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS_LINE) {
+            row(com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS, "8D", "3D room", "spatial", "echo", "reverb", "chorus", "karaoke", "vocal remover", "night mode", "compressor", summary = com.cosmotune.ui.settings.SoundExtrasText.SOUND_EFFECTS_LINE) {
                 com.cosmotune.ui.settings.SoundEffectsRows()
             }
             row(com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME, "volume cap", "hearing", "limit", summary = com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME_LINE) {

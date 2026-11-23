@@ -57,6 +57,28 @@ class SoundEffectsDspTest {
     }
 
     @Test
+    fun room3dKeepsTheVoiceInFrontAndSpreadsWhatIsPanned() {
+        val centred = tone(1f, hz = 1_000f)
+        SoundEffectsDsp(rate).process(centred, centred.size, SoundEffect.ROOM_3D, 1f)
+        val l = energy(centred, rate / 2, rate, 0)
+        val r = energy(centred, rate / 2, rate, 1)
+        assertTrue(abs(l - r) < 0.25 * maxOf(l, r), "a centred voice should stay centred: $l vs $r")
+        val panned = tone(1f, hz = 1_000f, left = 0.5f, right = 0f)
+        SoundEffectsDsp(rate).process(panned, panned.size, SoundEffect.ROOM_3D, 1f)
+        val near = energy(panned, rate / 2, rate, 0)
+        val far = energy(panned, rate / 2, rate, 1)
+        assertTrue(far > 0.0 && far < near, "a left sound should reach the right ear, but softer: $near vs $far")
+    }
+
+    @Test
+    fun room3dLeavesTheRoomSoundingAfterTheSongStops() {
+        val out = FloatArray(rate * 2)
+        for (i in 0 until 4_800 * 2) out[i] = if ((i / 2) % 100 < 50) 0.5f else -0.5f
+        SoundEffectsDsp(rate).process(out, out.size, SoundEffect.ROOM_3D, 1f)
+        assertTrue(energy(out, 4_800 + rate / 50, rate / 4, 0) > 1e-5)
+    }
+
+    @Test
     fun echoBringsASoundBackLater() {
         val frames = rate
         val out = FloatArray(frames * 2)

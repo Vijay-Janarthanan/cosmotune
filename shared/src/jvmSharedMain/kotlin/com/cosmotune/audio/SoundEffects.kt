@@ -18,6 +18,7 @@ import kotlin.math.sin
 enum class SoundEffect(val label: String, val detail: String) {
     NONE("None", "Songs play as they are"),
     EIGHT_D("8D", "The song circles slowly around your head. Best on headphones"),
+    ROOM_3D("3D room", "The voice stays in front, the bass in the middle and the instruments spread around you in a room. Best on headphones"),
     ECHO("Echo", "Each sound comes back softly a moment later, from side to side"),
     ROOM("Room", "As if played in a small room"),
     HALL("Concert hall", "The long, open sound of a large hall"),
@@ -51,6 +52,7 @@ class SoundEffectsDsp(private val sampleRate: Int) {
     private var chorus: Chorus? = null
     private var vocals: VocalRemover? = null
     private var night: Compressor? = null
+    private var room3d: Room3D? = null
 
     /**
      * Renders [count] interleaved stereo samples with [effect] mixed in at [strength] (0..1), then raises the level by
@@ -108,6 +110,7 @@ class SoundEffectsDsp(private val sampleRate: Int) {
             }
             SoundEffect.CHORUS -> (chorus ?: Chorus(sampleRate).also { chorus = it }).let { it.process(l, r); fxLeft = it.left; fxRight = it.right }
             SoundEffect.VOCAL_REMOVER -> (vocals ?: VocalRemover(sampleRate).also { vocals = it }).let { it.process(l, r); fxLeft = it.left; fxRight = it.right }
+            SoundEffect.ROOM_3D -> (room3d ?: Room3D(sampleRate).also { room3d = it }).let { it.process(l, r); fxLeft = it.left; fxRight = it.right }
             SoundEffect.NIGHT -> (night ?: Compressor(sampleRate).also { night = it }).let { it.process(l, r); fxLeft = it.left; fxRight = it.right }
         }
         return true
@@ -126,6 +129,7 @@ class SoundEffectsDsp(private val sampleRate: Int) {
         chorus = null
         vocals = null
         night = null
+        room3d = null
     }
 
     companion object {
@@ -221,9 +225,17 @@ private class Reverb(sampleRate: Int, hall: Boolean) {
         for (c in combsR) outR += c.process(input, feedback, damp)
         for (a in passL) outL = a.process(outL)
         for (a in passR) outR = a.process(outR)
-        left = l * 0.6f + outL * WET
-        right = r * 0.6f + outR * WET
+        tailLeft = outL * WET
+        tailRight = outR * WET
+        left = l * 0.6f + tailLeft
+        right = r * 0.6f + tailRight
     }
+
+    /** The reverb alone, without the dry sound, for effects that place their own dry parts. */
+    var tailLeft = 0f
+        private set
+    var tailRight = 0f
+        private set
 
     private class Comb(size: Int) {
         private val buf = FloatArray(size.coerceAtLeast(1))
@@ -255,6 +267,72 @@ private class Reverb(sampleRate: Int, hall: Boolean) {
         const val SPREAD = 23
         const val GAIN = 0.015f
         const val WET = 1.6f
+    }
+}
+
+/**
+ * A room around the listener without a separation model: the mix is split by where and how low each part sits. What is
+ * sung in the middle stays in front, the centred bass stays in the middle, and what is panned (most instruments) moves
+ * out to each side and a little behind, reaching the far ear later and duller as a head would hear it. A few early
+ * reflections off the walls and a short room tail put it all in one space.
+ */
+private class Room3D(private val sampleRate: Int) {
+    var left = 0f
+    var right = 0f
+    private val bassCoef = onePole(sampleRate, 160f)
+    private var bassFirst = 0f
+    private var bass = 0f
+    private val shadowCoef = onePole(sampleRate, 1_800f)
+    private var shadowL = 0f
+    private var shadowR = 0f
+    private val earDelay = (sampleRate * EAR_SECONDS).toInt().coerceAtLeast(1)
+    private val earL = FloatArray(earDelay)
+    private val earR = FloatArray(earDelay)
+    private var earAt = 0
+    private val wallSize = (sampleRate * 0.045f).toInt() + 1
+    private val wall = FloatArray(wallSize)
+    private var wallAt = 0
+    private val taps = TAPS_MS.map { (it * sampleRate / 1000f).toInt().coerceIn(1, wallSize - 1) }
+    private val wallCoef = onePole(sampleRate, 4_000f)
+    private var wallLow = 0f
+    private val tail = Reverb(sampleRate, hall = false)
+
+    fun process(l: Float, r: Float) {
+        val m = (l + r) * 0.5f
+        val s = (l - r) * 0.5f
+        bassFirst += (m - bassFirst) * bassCoef
+        bass += (bassFirst - bass) * bassCoef
+        val voice = m - bass
+        // The panned parts as a left and a right source; each also reaches the far ear later and through the head.
+        val farFromLeft = earL[earAt]
+        val farFromRight = earR[earAt]
+        earL[earAt] = s
+        earR[earAt] = -s
+        earAt = (earAt + 1) % earDelay
+        shadowL += (farFromRight - shadowL) * shadowCoef
+        shadowR += (farFromLeft - shadowR) * shadowCoef
+        val sidesL = s * SIDE_GAIN + shadowL * FAR_GAIN
+        val sidesR = -s * SIDE_GAIN + shadowR * FAR_GAIN
+        // Early reflections from the walls, heard by both ears; the tail below gives the room its width.
+        wallLow += (m - wallLow) * wallCoef
+        wall[wallAt] = wallLow
+        var refl = 0f
+        for (k in taps.indices) refl += wall[(wallAt - taps[k] + wallSize) % wallSize] * TAP_GAINS[k]
+        wallAt = (wallAt + 1) % wallSize
+        tail.process(l, r)
+        left = (bass + voice + sidesL + refl + tail.tailLeft * TAIL_GAIN) * OUT_GAIN
+        right = (bass + voice + sidesR + refl + tail.tailRight * TAIL_GAIN) * OUT_GAIN
+    }
+
+    companion object {
+        /** About how much later a sound from the side reaches the far ear. */
+        const val EAR_SECONDS = 0.00055f
+        const val SIDE_GAIN = 1.25f
+        const val FAR_GAIN = 0.55f
+        val TAPS_MS = floatArrayOf(7f, 11f, 17f, 23f, 31f, 41f)
+        val TAP_GAINS = floatArrayOf(0.2f, 0.18f, 0.15f, 0.12f, 0.1f, 0.08f)
+        const val TAIL_GAIN = 0.25f
+        const val OUT_GAIN = 0.8f
     }
 }
 
