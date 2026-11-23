@@ -13,7 +13,8 @@ class AnimeTrackingTest {
         assertTrue(verifier.all { it.isLetterOrDigit() || it in "-._~" })
         val url = Auth.authorizeUrl(AnimeTracker.MYANIMELIST, "abc123", "st4te", verifier)
         assertTrue(url.startsWith("https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id=abc123&state=st4te"), url)
-        assertTrue("code_challenge=$verifier&code_challenge_method=plain" in url, url)
+        assertTrue("code_challenge=${java.net.URLEncoder.encode(verifier, "UTF-8")}&code_challenge_method=plain" in url, url)
+        assertEquals(verifier, java.net.URLDecoder.decode(url.substringAfter("code_challenge=").substringBefore('&'), "UTF-8"))
         assertTrue("redirect_uri=cosmotune%3A%2F%2Fwatch%2Ftracker%2Fmyanimelist" in url, url)
     }
 
