@@ -2828,9 +2828,9 @@ fun CosmotuneDesktopApp() {
         }
         val musicOn = { playback.isPlaying }
         DesktopTrayMenu.bind(
-            onPlayPause = { if (com.cosmotune.video.host.DesktopVideoTray.active(musicOn())) com.cosmotune.video.host.DesktopVideoTray.playPause() else if (selectedSong != null) togglePlayPauseFromUser() },
-            onNext = { if (com.cosmotune.video.host.DesktopVideoTray.active(musicOn())) com.cosmotune.video.host.DesktopVideoTray.next() else playNext() },
-            onPrevious = { if (com.cosmotune.video.host.DesktopVideoTray.active(musicOn())) com.cosmotune.video.host.DesktopVideoTray.previous() else playPrevious() },
+            onPlayPause = { if (DesktopTrayVideo.active(musicOn())) DesktopTrayVideo.playPause() else if (selectedSong != null) togglePlayPauseFromUser() },
+            onNext = { if (DesktopTrayVideo.active(musicOn())) DesktopTrayVideo.next() else playNext() },
+            onPrevious = { if (DesktopTrayVideo.active(musicOn())) DesktopTrayVideo.previous() else playPrevious() },
             onOpenPlayer = {
                 DesktopWindowVisibility.show()
                 overlays.nowPlaying = true
@@ -2843,7 +2843,7 @@ fun CosmotuneDesktopApp() {
         )
     }
     // A video on in Video (while Music is not playing) takes the tray and the mini player: its title, its state, its controls.
-    val videoNow by com.cosmotune.video.host.rememberDesktopVideoNow(playback.isPlaying)
+    val videoNow by rememberDesktopTrayVideo(playback.isPlaying)
     val trayVideo = videoNow?.let { it.title to it.playing }
     LaunchedEffect(selectedSong, playback.isPlaying, trayVideo) {
         val title = trayVideo?.let { (t, _) -> listOf(t, videoNow?.channel.orEmpty()).filter { it.isNotBlank() }.joinToString(" — ") }
@@ -2855,11 +2855,11 @@ fun CosmotuneDesktopApp() {
     LaunchedEffect(Unit) {
         DesktopMiniPlayer.actions = DesktopMiniPlayer.Actions(
             playPause = {
-                if (com.cosmotune.video.host.DesktopVideoTray.active(playback.isPlaying)) com.cosmotune.video.host.DesktopVideoTray.playPause()
+                if (DesktopTrayVideo.active(playback.isPlaying)) DesktopTrayVideo.playPause()
                 else if (selectedSong != null) togglePlayPauseFromUser()
             },
-            next = { if (com.cosmotune.video.host.DesktopVideoTray.active(playback.isPlaying)) com.cosmotune.video.host.DesktopVideoTray.next() else playNext() },
-            previous = { if (com.cosmotune.video.host.DesktopVideoTray.active(playback.isPlaying)) com.cosmotune.video.host.DesktopVideoTray.previous() else playPrevious() },
+            next = { if (DesktopTrayVideo.active(playback.isPlaying)) DesktopTrayVideo.next() else playNext() },
+            previous = { if (DesktopTrayVideo.active(playback.isPlaying)) DesktopTrayVideo.previous() else playPrevious() },
             openMain = { DesktopWindowVisibility.show(); DesktopMiniPlayer.close() },
         )
     }
