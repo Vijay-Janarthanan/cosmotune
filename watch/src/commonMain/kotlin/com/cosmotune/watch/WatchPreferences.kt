@@ -16,6 +16,8 @@ data class WatchPreferences(val density: WatchDensity = WatchDensity.BALANCED, v
     val sound: com.cosmotune.video.player.AudioMix = com.cosmotune.video.player.AudioMix.NORMAL,
     /** How many episodes of a season download at once (1 to 3). */
     val parallelDownloads: Int = 1,
+    /** Days a title stays in Continue watching after it was last played; 0 keeps everything. */
+    val continueDays: Int = 0,
     /** Decode the picture in software only, for a device whose hardware decoder shows a broken picture. */
     val softwareDecoding: Boolean = false,
     /** On computers: send Dolby and DTS sound as it is to an amplifier. */
@@ -31,4 +33,16 @@ data class WatchSoundChoice(val mix: com.cosmotune.video.player.AudioMix, val la
         )
         fun of(mix: com.cosmotune.video.player.AudioMix) = all.first { it.mix == mix }
     }
+}
+
+/** How long a title stays in Continue watching (Jellyfin's "Next up" cut-off): left longer ago than that, it drops off the row. */
+object WatchContinueCutoff {
+    val choices = listOf(0, 30, 90, 365)
+
+    fun label(days: Int): String = when (days) {
+        0 -> "Everything"; 30 -> "Last 30 days"; 90 -> "Last 3 months"; 365 -> "Last year"; else -> "Last $days days"
+    }
+
+    fun keep(items: List<com.cosmotune.watch.model.WatchProgress>, nowMs: Long, days: Int): List<com.cosmotune.watch.model.WatchProgress> =
+        if (days <= 0) items else items.filter { nowMs - it.updatedAtMs <= days * 86_400_000L }
 }

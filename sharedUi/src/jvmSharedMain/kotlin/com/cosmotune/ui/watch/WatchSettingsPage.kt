@@ -44,7 +44,7 @@ import com.cosmotune.watch.model.WatchProfile
 import kotlinx.coroutines.launch
 
 /** Which of the settings' small dialogs is open. */
-private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, RESTORE, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID, AT_ONCE }
+private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, RESTORE, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID, AT_ONCE, CONTINUE }
 
 /**
  * Watch settings on the same rows Video's settings use ([CosmoSettingsGroup], [CosmoSettingsRow]): Sources and add-ons first
@@ -131,6 +131,8 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     trailing = {
                         OrbitSwitch(preferences.passthrough, { on -> scope.launch { repository.setPreferences(preferences.copy(passthrough = on)) } }, look, "Surround to your amplifier")
                     })
+                CosmoSettingsRow(CosmoIcons.Clock, "Continue watching keeps", subtitle = com.cosmotune.watch.WatchContinueCutoff.label(preferences.continueDays),
+                    onClick = { dialog = WatchSettingsDialog.CONTINUE })
                 CosmoSettingsRow(Icons.Rounded.SkipNext, "Skip intros, recaps and credits", subtitle = "A button shows when the times are known",
                     trailing = {
                         OrbitSwitch(preferences.animeSkips, { on -> scope.launch { repository.setPreferences(preferences.copy(animeSkips = on)) } }, look,
@@ -257,6 +259,15 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     onClick = { scope.launch { repository.clearCache(); cleared = true } })
                 Text("The cache keeps catalogues, guides and add-on answers so pages open quickly; the oldest go first. Streaming a torrent keeps at most 96 MB in memory and nothing on disk; downloads stay until you remove them.",
                     style = fonts.body, color = look.dim)
+            }
+        }
+        WatchSettingsDialog.CONTINUE -> WatchDialog("Continue watching", "Keep titles from", onDismiss = { dialog = null }) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Titles you last played longer ago than this leave the row. Where you were is kept.", style = fonts.body, color = look.dim)
+                com.cosmotune.watch.WatchContinueCutoff.choices.forEach { days ->
+                    OrbitSelectChip(com.cosmotune.watch.WatchContinueCutoff.label(days), preferences.continueDays == days, fonts, look,
+                        onClick = { scope.launch { repository.setPreferences(repository.preferences.value.copy(continueDays = days)) }; dialog = null }, haptic = false)
+                }
             }
         }
         WatchSettingsDialog.AT_ONCE -> WatchDialog("Downloads", "Episodes at once", onDismiss = { dialog = null }) {

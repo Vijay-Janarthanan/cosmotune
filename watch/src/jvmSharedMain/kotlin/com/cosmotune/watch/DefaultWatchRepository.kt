@@ -1207,7 +1207,7 @@ class DefaultWatchRepository(
     private fun continueOf(state: WatchState): List<ContinueItem> {
         // One card per series: its latest episode.
         val latest = state.progress.values.sortedByDescending { it.updatedAtMs }.distinctBy { it.key.seriesKey ?: it.key }
-        return latest.filter { !it.completed && it.positionMs > 30_000 && it.summary != null }.take(30).map { p ->
+        return WatchContinueCutoff.keep(latest, config.now(), preferencesOf(state).continueDays).filter { !it.completed && it.positionMs > 30_000 && it.summary != null }.take(30).map { p ->
             val ep = p.key.seriesKey?.let { s -> Episode(p.key, s, p.key.season ?: 1, p.key.episode ?: 1, p.episodeName ?: "Episode ${p.key.episode}") }
             ContinueItem(p, p.summary!!, ep)
         }
