@@ -1,0 +1,754 @@
+{
+ "leagues": [
+  {
+   "id": "700",
+   "name": "English Premier League",
+   "abbreviation": "Premier League",
+   "slug": "eng.1"
+  }
+ ],
+ "events": [
+  {
+   "id": "401879234",
+   "date": "2026-11-22T14:00Z",
+   "name": "Brighton & Hove Albion at Hull City",
+   "shortName": "BHA @ HUL",
+   "season": {
+    "year": 2026,
+    "type": 14308,
+    "slug": "2026-27-english-premier-league"
+   },
+   "competitions": [
+    {
+     "id": "401879234",
+     "date": "2026-11-22T14:00Z",
+     "startDate": "2026-11-22T14:00Z",
+     "attendance": 24461,
+     "timeValid": true,
+     "recent": false,
+     "status": {
+      "clock": 5400.0,
+      "displayClock": "90'+6'",
+      "period": 2,
+      "type": {
+       "id": "28",
+       "name": "STATUS_FULL_TIME",
+       "state": "post",
+       "completed": true,
+       "description": "Full Time",
+       "detail": "FT",
+       "shortDetail": "FT"
+      }
+     },
+     "venue": {
+      "id": "3670",
+      "fullName": "The MKM Stadium",
+      "address": {
+       "city": "Hull",
+       "country": "England"
+      }
+     },
+     "format": {
+      "regulation": {
+       "periods": 2
+      }
+     },
+     "altGameNote": "English Premier League",
+     "notes": [],
+     "broadcast": "",
+     "competitors": [
+      {
+       "id": "306",
+       "type": "team",
+       "order": 0,
+       "homeAway": "home",
+       "winner": true,
+       "form": "DLDDL",
+       "score": "2",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "3-5-3",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "306",
+        "abbreviation": "HUL",
+        "displayName": "Hull City",
+        "shortDisplayName": "Hull",
+        "name": "Hull City",
+        "location": "Hull City",
+        "color": "f28800",
+        "alternateColor": "ffffff",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/306.png"
+       }
+      },
+      {
+       "id": "331",
+       "type": "team",
+       "order": 1,
+       "homeAway": "away",
+       "winner": false,
+       "form": "DWWWL",
+       "score": "0",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "7-1-3",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "331",
+        "abbreviation": "BHA",
+        "displayName": "Brighton & Hove Albion",
+        "shortDisplayName": "Brighton",
+        "name": "Brighton & Hove Albion",
+        "location": "Brighton & Hove Albion",
+        "color": "0606fa",
+        "alternateColor": "005F60",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/331.png"
+       }
+      }
+     ],
+     "details": [
+      {
+       "type": {
+        "id": "94",
+        "text": "Yellow Card"
+       },
+       "clock": {
+        "value": 2020.0,
+        "displayValue": "34'"
+       },
+       "team": {
+        "id": "331"
+       },
+       "scoreValue": 0,
+       "scoringPlay": false,
+       "redCard": false,
+       "yellowCard": true,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "364962",
+         "displayName": "Luka Vuskovic",
+         "shortName": "L. Vuskovic",
+         "fullName": "Luka Vuskovic",
+         "jersey": "44",
+         "team": {
+          "id": "331"
+         },
+         "position": "CD-R"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "94",
+        "text": "Yellow Card"
+       },
+       "clock": {
+        "value": 2205.0,
+        "displayValue": "37'"
+       },
+       "team": {
+        "id": "306"
+       },
+       "scoreValue": 0,
+       "scoringPlay": false,
+       "redCard": false,
+       "yellowCard": true,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "356212",
+         "displayName": "Nobel Mendy",
+         "shortName": "N. Mendy",
+         "fullName": "Nobel Mendy",
+         "jersey": "32",
+         "team": {
+          "id": "306"
+         },
+         "position": "CD-L"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "94",
+        "text": "Yellow Card"
+       },
+       "clock": {
+        "value": 3487.0,
+        "displayValue": "59'"
+       },
+       "team": {
+        "id": "306"
+       },
+       "scoreValue": 0,
+       "scoringPlay": false,
+       "redCard": false,
+       "yellowCard": true,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "303338",
+         "displayName": "Lucas Gourna-Douath",
+         "shortName": "L. Gourna-Douath",
+         "fullName": "Lucas Gourna-Douath",
+         "jersey": "29",
+         "team": {
+          "id": "306"
+         },
+         "position": "SUB"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "94",
+        "text": "Yellow Card"
+       },
+       "clock": {
+        "value": 3733.0,
+        "displayValue": "63'"
+       },
+       "team": {
+        "id": "331"
+       },
+       "scoreValue": 0,
+       "scoringPlay": false,
+       "redCard": false,
+       "yellowCard": true,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "274285",
+         "displayName": "Costinha",
+         "shortName": "Costinha",
+         "fullName": "Costinha",
+         "jersey": "20",
+         "team": {
+          "id": "331"
+         },
+         "position": "RB"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "94",
+        "text": "Yellow Card"
+       },
+       "clock": {
+        "value": 4845.0,
+        "displayValue": "81'"
+       },
+       "team": {
+        "id": "331"
+       },
+       "scoreValue": 0,
+       "scoringPlay": false,
+       "redCard": false,
+       "yellowCard": true,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "387489",
+         "displayName": "Chema Andrés",
+         "shortName": "C. Andrés",
+         "fullName": "Chema Andrés",
+         "jersey": "14",
+         "team": {
+          "id": "331"
+         },
+         "position": "LM"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "93",
+        "text": "Red Card"
+       },
+       "clock": {
+        "value": 5328.0,
+        "displayValue": "89'"
+       },
+       "team": {
+        "id": "331"
+       },
+       "scoreValue": 0,
+       "scoringPlay": false,
+       "redCard": true,
+       "yellowCard": false,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "274285",
+         "displayName": "Costinha",
+         "shortName": "Costinha",
+         "fullName": "Costinha",
+         "jersey": "20",
+         "team": {
+          "id": "331"
+         },
+         "position": "RB"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "70",
+        "text": "Goal"
+       },
+       "clock": {
+        "value": 5400.0,
+        "displayValue": "90'+2'"
+       },
+       "team": {
+        "id": "306"
+       },
+       "scoreValue": 1,
+       "scoringPlay": true,
+       "redCard": false,
+       "yellowCard": false,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "193010",
+         "displayName": "Oliver McBurnie",
+         "shortName": "O. McBurnie",
+         "fullName": "Oliver McBurnie",
+         "jersey": "9",
+         "team": {
+          "id": "306"
+         },
+         "position": "F"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "70",
+        "text": "Goal"
+       },
+       "clock": {
+        "value": 5400.0,
+        "displayValue": "90'+5'"
+       },
+       "team": {
+        "id": "306"
+       },
+       "scoreValue": 1,
+       "scoringPlay": true,
+       "redCard": false,
+       "yellowCard": false,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "193010",
+         "displayName": "Oliver McBurnie",
+         "shortName": "O. McBurnie",
+         "fullName": "Oliver McBurnie",
+         "jersey": "9",
+         "team": {
+          "id": "306"
+         },
+         "position": "F"
+        }
+       ]
+      }
+     ],
+     "headlines": [
+      {
+       "description": "Hull pounced at the death as Oli McBurnie struck twice in added time to snatch a 2-0 victory against high-flying Brighton at the MKM Stadium.",
+       "type": "Recap",
+       "shortLinkText": "Hull break Brighton hearts late on as Oli McBurnie scores double to sink the Seagulls"
+      }
+     ],
+     "wasSuspended": false,
+     "playByPlayAvailable": true,
+     "playByPlayAthletes": true
+    }
+   ],
+   "status": {
+    "clock": 5400.0,
+    "displayClock": "90'+6'",
+    "period": 2,
+    "type": {
+     "id": "28",
+     "name": "STATUS_FULL_TIME",
+     "state": "post",
+     "completed": true,
+     "description": "Full Time",
+     "detail": "FT",
+     "shortDetail": "FT"
+    }
+   },
+   "venue": {
+    "displayName": "The MKM Stadium"
+   }
+  },
+  {
+   "id": "401878755",
+   "date": "2026-11-22T16:30Z",
+   "name": "Manchester United at Liverpool",
+   "shortName": "MAN @ LIV",
+   "season": {
+    "year": 2026,
+    "type": 14308,
+    "slug": "2026-27-english-premier-league"
+   },
+   "competitions": [
+    {
+     "id": "401878755",
+     "date": "2026-11-22T16:30Z",
+     "startDate": "2026-11-22T16:30Z",
+     "attendance": 0,
+     "timeValid": true,
+     "recent": false,
+     "status": {
+      "clock": 5400.0,
+      "displayClock": "90'+3'",
+      "period": 2,
+      "type": {
+       "id": "28",
+       "name": "STATUS_FULL_TIME",
+       "state": "post",
+       "completed": true,
+       "description": "Full Time",
+       "detail": "FT",
+       "shortDetail": "FT"
+      }
+     },
+     "venue": {
+      "id": "192",
+      "fullName": "Anfield",
+      "address": {
+       "city": "Liverpool",
+       "country": "England"
+      }
+     },
+     "format": {
+      "regulation": {
+       "periods": 2
+      }
+     },
+     "altGameNote": "English Premier League",
+     "notes": [],
+     "broadcast": "",
+     "competitors": [
+      {
+       "id": "364",
+       "type": "team",
+       "order": 0,
+       "homeAway": "home",
+       "winner": true,
+       "form": "WWLLW",
+       "score": "4",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "6-3-2",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "364",
+        "abbreviation": "LIV",
+        "displayName": "Liverpool",
+        "shortDisplayName": "Liverpool",
+        "name": "Liverpool",
+        "location": "Liverpool",
+        "color": "d11317",
+        "alternateColor": "FFFFFF",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png"
+       }
+      },
+      {
+       "id": "360",
+       "type": "team",
+       "order": 1,
+       "homeAway": "away",
+       "winner": false,
+       "form": "LDWLL",
+       "score": "0",
+       "records": [
+        {
+         "name": "All Splits",
+         "type": "total",
+         "summary": "1-5-5",
+         "abbreviation": "Total"
+        }
+       ],
+       "team": {
+        "id": "360",
+        "abbreviation": "MAN",
+        "displayName": "Manchester United",
+        "shortDisplayName": "Man Utd",
+        "name": "Manchester United",
+        "location": "Manchester United",
+        "color": "da020e",
+        "alternateColor": "4169E1",
+        "isActive": true,
+        "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png"
+       }
+      }
+     ],
+     "details": [
+      {
+       "type": {
+        "id": "93",
+        "text": "Red Card"
+       },
+       "clock": {
+        "value": 443.0,
+        "displayValue": "8'"
+       },
+       "team": {
+        "id": "360"
+       },
+       "scoreValue": 0,
+       "scoringPlay": false,
+       "redCard": true,
+       "yellowCard": false,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "340206",
+         "displayName": "Leny Yoro",
+         "shortName": "L. Yoro",
+         "fullName": "Leny Yoro",
+         "jersey": "15",
+         "team": {
+          "id": "360"
+         },
+         "position": "CD-R"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "138",
+        "text": "Goal - Free-kick"
+       },
+       "clock": {
+        "value": 594.0,
+        "displayValue": "10'"
+       },
+       "team": {
+        "id": "364"
+       },
+       "scoreValue": 1,
+       "scoringPlay": true,
+       "redCard": false,
+       "yellowCard": false,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "257206",
+         "displayName": "Dominik Szoboszlai",
+         "shortName": "D. Szoboszlai",
+         "fullName": "Dominik Szoboszlai",
+         "jersey": "8",
+         "team": {
+          "id": "364"
+         },
+         "position": "RM"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "70",
+        "text": "Goal"
+       },
+       "clock": {
+        "value": 760.0,
+        "displayValue": "13'"
+       },
+       "team": {
+        "id": "364"
+       },
+       "scoreValue": 1,
+       "scoringPlay": true,
+       "redCard": false,
+       "yellowCard": false,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "303748",
+         "displayName": "Florian Wirtz",
+         "shortName": "F. Wirtz",
+         "fullName": "Florian Wirtz",
+         "jersey": "7",
+         "team": {
+          "id": "364"
+         },
+         "position": "AM"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "94",
+        "text": "Yellow Card"
+       },
+       "clock": {
+        "value": 3672.0,
+        "displayValue": "62'"
+       },
+       "team": {
+        "id": "364"
+       },
+       "scoreValue": 0,
+       "scoringPlay": false,
+       "redCard": false,
+       "yellowCard": true,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "328238",
+         "displayName": "Bradley Barcola",
+         "shortName": "B. Barcola",
+         "fullName": "Bradley Barcola",
+         "jersey": "29",
+         "team": {
+          "id": "364"
+         },
+         "position": "AM-R"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "70",
+        "text": "Goal"
+       },
+       "clock": {
+        "value": 3911.0,
+        "displayValue": "66'"
+       },
+       "team": {
+        "id": "364"
+       },
+       "scoreValue": 1,
+       "scoringPlay": true,
+       "redCard": false,
+       "yellowCard": false,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "379588",
+         "displayName": "Rio Ngumoha",
+         "shortName": "R. Ngumoha",
+         "fullName": "Rio Ngumoha",
+         "jersey": "73",
+         "team": {
+          "id": "364"
+         },
+         "position": "AM-L"
+        }
+       ]
+      },
+      {
+       "type": {
+        "id": "70",
+        "text": "Goal"
+       },
+       "clock": {
+        "value": 4906.0,
+        "displayValue": "82'"
+       },
+       "team": {
+        "id": "364"
+       },
+       "scoreValue": 1,
+       "scoringPlay": true,
+       "redCard": false,
+       "yellowCard": false,
+       "penaltyKick": false,
+       "ownGoal": false,
+       "shootout": false,
+       "athletesInvolved": [
+        {
+         "id": "397545",
+         "displayName": "Víctor Muñoz",
+         "shortName": "V. Muñoz",
+         "fullName": "Víctor Muñoz",
+         "jersey": "23",
+         "team": {
+          "id": "364"
+         },
+         "position": "SUB"
+        }
+       ]
+      }
+     ],
+     "headlines": [
+      {
+       "description": "Mauricio Pochettino's Manchester United reign got off to a miserable start as Liverpool punished Leny Yoro's red card with a pair of early goals on their way to a comprehensive 4-0 win against their relegation-threatened rivals.",
+       "type": "Recap",
+       "shortLinkText": "Liverpool trounce 10-man United in Pochettino's first game in charge"
+      }
+     ],
+     "wasSuspended": false,
+     "playByPlayAvailable": true,
+     "playByPlayAthletes": true
+    }
+   ],
+   "status": {
+    "clock": 5400.0,
+    "displayClock": "90'+3'",
+    "period": 2,
+    "type": {
+     "id": "28",
+     "name": "STATUS_FULL_TIME",
+     "state": "post",
+     "completed": true,
+     "description": "Full Time",
+     "detail": "FT",
+     "shortDetail": "FT"
+    }
+   },
+   "venue": {
+    "displayName": "Anfield"
+   }
+  }
+ ]
+}

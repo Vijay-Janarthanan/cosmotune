@@ -1,0 +1,2127 @@
+{
+ "header": {
+  "id": "401878755",
+  "season": {
+   "year": 2026,
+   "current": true,
+   "type": 14308,
+   "name": "2026-27 English Premier League"
+  },
+  "timeValid": true,
+  "competitions": [
+   {
+    "id": "401878755",
+    "date": "2026-11-22T16:30Z",
+    "neutralSite": false,
+    "conferenceCompetition": false,
+    "boxscoreAvailable": true,
+    "commentaryAvailable": true,
+    "liveAvailable": false,
+    "onWatchESPN": false,
+    "recent": false,
+    "wallclockAvailable": true,
+    "boxscoreSource": "full",
+    "playByPlaySource": "full",
+    "competitors": [
+     {
+      "id": "364",
+      "order": 0,
+      "homeAway": "home",
+      "winner": true,
+      "team": {
+       "id": "364",
+       "location": "Liverpool",
+       "name": "Liverpool",
+       "nickname": "Reds",
+       "abbreviation": "LIV",
+       "displayName": "Liverpool",
+       "shortDisplayName": "Liverpool",
+       "color": "d11317",
+       "alternateColor": "FFFFFF",
+       "groups": {
+        "name": "2026-27 English Premier League"
+       },
+       "form": "WWLLW"
+      },
+      "score": "4",
+      "linescores": [
+       {
+        "displayValue": "2"
+       },
+       {
+        "displayValue": "2"
+       }
+      ],
+      "record": [
+       {
+        "type": "total",
+        "summary": "6-3-2",
+        "displayValue": "6-3-2"
+       },
+       {
+        "type": "points",
+        "summary": "21",
+        "displayValue": "21"
+       }
+      ],
+      "possession": false
+     },
+     {
+      "id": "360",
+      "order": 1,
+      "homeAway": "away",
+      "winner": false,
+      "team": {
+       "id": "360",
+       "location": "Manchester United",
+       "name": "Manchester United",
+       "nickname": "Red Devils",
+       "abbreviation": "MAN",
+       "displayName": "Manchester United",
+       "shortDisplayName": "Man Utd",
+       "color": "da020e",
+       "alternateColor": "4169E1",
+       "groups": {
+        "name": "2026-27 English Premier League"
+       },
+       "form": "LDWLL"
+      },
+      "score": "0",
+      "linescores": [
+       {
+        "displayValue": "0"
+       },
+       {
+        "displayValue": "0"
+       }
+      ],
+      "record": [
+       {
+        "type": "total",
+        "summary": "1-5-5",
+        "displayValue": "1-5-5"
+       },
+       {
+        "type": "points",
+        "summary": "8",
+        "displayValue": "8"
+       }
+      ],
+      "possession": false
+     }
+    ],
+    "notes": [],
+    "status": {
+     "type": {
+      "id": "28",
+      "name": "STATUS_FULL_TIME",
+      "state": "post",
+      "completed": true,
+      "description": "Full Time",
+      "detail": "FT",
+      "shortDetail": "FT"
+     }
+    },
+    "details": [
+     {
+      "clock": {
+       "value": 443.0,
+       "displayValue": "8'"
+      },
+      "scoringPlay": false,
+      "team": {
+       "id": "360",
+       "location": "Manchester United",
+       "name": "Manchester United",
+       "nickname": "Red Devils",
+       "abbreviation": "MAN",
+       "displayName": "Manchester United"
+      },
+      "participants": [
+       {
+        "athlete": {
+         "id": "340206",
+         "displayName": "Leny Yoro",
+         "shortName": "L. Yoro"
+        }
+       }
+      ],
+      "addedClock": {
+       "value": 0.0,
+       "displayValue": ""
+      },
+      "redCard": true,
+      "penaltyKick": false,
+      "ownGoal": false
+     },
+     {
+      "clock": {
+       "value": 594.0,
+       "displayValue": "10'"
+      },
+      "scoringPlay": true,
+      "team": {
+       "id": "364",
+       "location": "Liverpool",
+       "name": "Liverpool",
+       "nickname": "Reds",
+       "abbreviation": "LIV",
+       "displayName": "Liverpool"
+      },
+      "participants": [
+       {
+        "athlete": {
+         "id": "257206",
+         "displayName": "Dominik Szoboszlai",
+         "shortName": "D. Szoboszlai"
+        }
+       }
+      ],
+      "addedClock": {
+       "value": 0.0,
+       "displayValue": ""
+      },
+      "redCard": false,
+      "penaltyKick": false,
+      "ownGoal": false
+     },
+     {
+      "clock": {
+       "value": 760.0,
+       "displayValue": "13'"
+      },
+      "scoringPlay": true,
+      "team": {
+       "id": "364",
+       "location": "Liverpool",
+       "name": "Liverpool",
+       "nickname": "Reds",
+       "abbreviation": "LIV",
+       "displayName": "Liverpool"
+      },
+      "participants": [
+       {
+        "athlete": {
+         "id": "303748",
+         "displayName": "Florian Wirtz",
+         "shortName": "F. Wirtz"
+        }
+       },
+       {
+        "athlete": {
+         "id": "379588",
+         "displayName": "Rio Ngumoha",
+         "shortName": "R. Ngumoha"
+        }
+       }
+      ],
+      "addedClock": {
+       "value": 0.0,
+       "displayValue": ""
+      },
+      "redCard": false,
+      "penaltyKick": false,
+      "ownGoal": false
+     },
+     {
+      "clock": {
+       "value": 3911.0,
+       "displayValue": "66'"
+      },
+      "scoringPlay": true,
+      "team": {
+       "id": "364",
+       "location": "Liverpool",
+       "name": "Liverpool",
+       "nickname": "Reds",
+       "abbreviation": "LIV",
+       "displayName": "Liverpool"
+      },
+      "participants": [
+       {
+        "athlete": {
+         "id": "379588",
+         "displayName": "Rio Ngumoha",
+         "shortName": "R. Ngumoha"
+        }
+       },
+       {
+        "athlete": {
+         "id": "328238",
+         "displayName": "Bradley Barcola",
+         "shortName": "B. Barcola"
+        }
+       }
+      ],
+      "addedClock": {
+       "value": 0.0,
+       "displayValue": ""
+      },
+      "redCard": false,
+      "penaltyKick": false,
+      "ownGoal": false
+     },
+     {
+      "clock": {
+       "value": 4906.0,
+       "displayValue": "82'"
+      },
+      "scoringPlay": true,
+      "team": {
+       "id": "364",
+       "location": "Liverpool",
+       "name": "Liverpool",
+       "nickname": "Reds",
+       "abbreviation": "LIV",
+       "displayName": "Liverpool"
+      },
+      "participants": [
+       {
+        "athlete": {
+         "id": "397545",
+         "displayName": "Víctor Muñoz",
+         "shortName": "V. Muñoz"
+        }
+       },
+       {
+        "athlete": {
+         "id": "303748",
+         "displayName": "Florian Wirtz",
+         "shortName": "F. Wirtz"
+        }
+       }
+      ],
+      "addedClock": {
+       "value": 0.0,
+       "displayValue": ""
+      },
+      "redCard": false,
+      "penaltyKick": false,
+      "ownGoal": false
+     }
+    ],
+    "groups": {
+     "id": "1",
+     "name": "English Premiership 2001-2002",
+     "abbreviation": "2001-2002"
+    },
+    "isFinal": false,
+    "isThirdPlace": false,
+    "altGameNote": "Premier League",
+    "boxscoreMinutes": false,
+    "shotMapAvailable": true
+   }
+  ],
+  "league": {
+   "id": "700",
+   "name": "English Premier League",
+   "abbreviation": "Premier League",
+   "shortName": "Premier League",
+   "midsizeName": "ENG.1",
+   "slug": "eng.1",
+   "isTournament": false,
+   "logos": [
+    {
+     "href": "https://a.espncdn.com/i/leaguelogos/soccer/500/23.png",
+     "rel": [
+      "full",
+      "default"
+     ]
+    },
+    {
+     "href": "https://a.espncdn.com/i/leaguelogos/soccer/500-dark/23.png",
+     "rel": [
+      "full",
+      "dark"
+     ]
+    }
+   ]
+  },
+  "linksv4": [
+   {
+    "rel": [
+     "summary",
+     "desktop",
+     "event"
+    ],
+    "href": "https://www.espn.com/soccer/match/_/gameId/401878755/manchester-united-liverpool",
+    "text": "Gamecast",
+    "shortText": "Summary",
+    "isExternal": false,
+    "isPremium": false
+   },
+   {
+    "rel": [
+     "recap",
+     "desktop",
+     "event"
+    ],
+    "href": "https://www.espn.com/soccer/report/_/gameId/401878755",
+    "text": "Recap",
+    "shortText": "Recap",
+    "isExternal": false,
+    "isPremium": false
+   },
+   {
+    "rel": [
+     "teamstats",
+     "desktop",
+     "event"
+    ],
+    "href": "https://www.espn.com/soccer/team-stats/_/gameId/401878755",
+    "text": "Team Stats",
+    "shortText": "Team Stats",
+    "isExternal": false,
+    "isPremium": false
+   },
+   {
+    "rel": [
+     "playerstats",
+     "desktop",
+     "event"
+    ],
+    "href": "https://www.espn.com/soccer/player-stats/_/gameId/401878755",
+    "text": "Player Stats",
+    "shortText": "Player Stats",
+    "isExternal": false,
+    "isPremium": false
+   },
+   {
+    "rel": [
+     "commentary",
+     "desktop",
+     "event"
+    ],
+    "href": "https://www.espn.com/soccer/commentary/_/gameId/401878755",
+    "text": "Commentary",
+    "shortText": "Commentary",
+    "isExternal": false,
+    "isPremium": false
+   },
+   {
+    "rel": [
+     "videos",
+     "desktop",
+     "event"
+    ],
+    "href": "https://www.espn.com/soccer/video/_/gameId/401878755",
+    "text": "Videos",
+    "shortText": "Videos",
+    "isExternal": false,
+    "isPremium": false
+   }
+  ]
+ },
+ "keyEvents": [
+  {
+   "id": "55554933",
+   "type": {
+    "id": "80",
+    "text": "Kickoff",
+    "type": "kickoff"
+   },
+   "period": {
+    "number": 1
+   },
+   "clock": {
+    "value": 0.0,
+    "displayValue": ""
+   },
+   "scoringPlay": false,
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T16:30:08Z",
+   "shootout": false
+  },
+  {
+   "id": "55555671",
+   "type": {
+    "id": "129",
+    "text": "Start Delay",
+    "type": "start-delay"
+   },
+   "period": {
+    "number": 1
+   },
+   "clock": {
+    "value": 439.0,
+    "displayValue": "8'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T16:37:28Z",
+   "shootout": false
+  },
+  {
+   "id": "55555542",
+   "type": {
+    "id": "93",
+    "text": "Red Card",
+    "type": "red-card"
+   },
+   "text": "Leny Yoro (Manchester United) is shown the red card.",
+   "shortText": "Leny Yoro Red Card",
+   "period": {
+    "number": 1
+   },
+   "clock": {
+    "value": 443.0,
+    "displayValue": "8'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "360",
+    "displayName": "Manchester United"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Leny Yoro"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T16:37:31Z",
+   "shootout": false
+  },
+  {
+   "id": "55555672",
+   "type": {
+    "id": "130",
+    "text": "End Delay",
+    "type": "end-delay"
+   },
+   "period": {
+    "number": 1
+   },
+   "clock": {
+    "value": 528.0,
+    "displayValue": "9'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T16:38:57Z",
+   "shootout": false
+  },
+  {
+   "id": "55555679",
+   "type": {
+    "id": "138",
+    "text": "Goal - Free-kick",
+    "type": "goal---free-kick"
+   },
+   "text": "Goal! Liverpool 1, Manchester United 0. Dominik Szoboszlai (Liverpool) from a free kick with a right footed shot to the bottom left corner.",
+   "shortText": "Dominik Szoboszlai Goal - Free-k",
+   "period": {
+    "number": 1
+   },
+   "clock": {
+    "value": 594.0,
+    "displayValue": "10'"
+   },
+   "scoringPlay": true,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Dominik Szoboszlai"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T16:40:02Z",
+   "shootout": false,
+   "goalPositionY": 53.8,
+   "fieldPositionX": 81.7,
+   "fieldPositionY": 47.1,
+   "fieldPosition2X": 100.0,
+   "fieldPosition2Y": 53.8
+  },
+  {
+   "id": "55555852",
+   "type": {
+    "id": "70",
+    "text": "Goal",
+    "type": "goal"
+   },
+   "text": "Goal! Liverpool 2, Manchester United 0. Florian Wirtz (Liverpool) left footed shot from very close range to the high centre of the goal. Assisted by Rio Ngumoha.",
+   "shortText": "Florian Wirtz Goal",
+   "period": {
+    "number": 1
+   },
+   "clock": {
+    "value": 760.0,
+    "displayValue": "13'"
+   },
+   "scoringPlay": true,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Florian Wirtz"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Rio Ngumoha"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T16:42:48Z",
+   "shootout": false,
+   "goalPositionY": 50.0,
+   "fieldPositionX": 94.6,
+   "fieldPositionY": 50.9,
+   "fieldPosition2X": 100.0,
+   "fieldPosition2Y": 50.0
+  },
+  {
+   "id": "55556513",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Manchester United. Harry Maguire replaces Bryan Mbeumo.",
+   "shortText": "Harry Maguire Substitution",
+   "period": {
+    "number": 1
+   },
+   "clock": {
+    "value": 1296.0,
+    "displayValue": "22'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "360",
+    "displayName": "Manchester United"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Harry Maguire"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Bryan Mbeumo"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T16:51:44Z",
+   "shootout": false
+  },
+  {
+   "id": "55558883",
+   "type": {
+    "id": "81",
+    "text": "Halftime",
+    "type": "halftime"
+   },
+   "text": "First Half ends, Liverpool 2, Manchester United 0.",
+   "period": {
+    "number": 1
+   },
+   "clock": {
+    "value": 2700.0,
+    "displayValue": "45'+5'"
+   },
+   "scoringPlay": false,
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T17:19:14Z",
+   "shootout": false
+  },
+  {
+   "id": "55559660",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Manchester United. Joshua Zirkzee replaces Matheus Cunha.",
+   "shortText": "Joshua Zirkzee Substitution",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 2700.0,
+    "displayValue": "45'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "360",
+    "displayName": "Manchester United"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Joshua Zirkzee"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Matheus Cunha"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T17:34:06Z",
+   "shootout": false
+  },
+  {
+   "id": "55559695",
+   "type": {
+    "id": "82",
+    "text": "Start 2nd Half",
+    "type": "start-2nd-half"
+   },
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 2700.0,
+    "displayValue": "45'"
+   },
+   "scoringPlay": false,
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T17:34:34Z",
+   "shootout": false
+  },
+  {
+   "id": "55560965",
+   "type": {
+    "id": "94",
+    "text": "Yellow Card",
+    "type": "yellow-card"
+   },
+   "text": "Bradley Barcola (Liverpool) is shown the yellow card for a bad foul.",
+   "shortText": "Bradley Barcola Yellow Card",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 3672.0,
+    "displayValue": "62'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Bradley Barcola"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T17:50:46Z",
+   "shootout": false
+  },
+  {
+   "id": "55561169",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Manchester United. Mason Mount replaces Youri Tielemans.",
+   "shortText": "Mason Mount Substitution",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 3873.0,
+    "displayValue": "65'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "360",
+    "displayName": "Manchester United"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Mason Mount"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Youri Tielemans"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T17:54:07Z",
+   "shootout": false
+  },
+  {
+   "id": "55561170",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Manchester United. Noussair Mazraoui replaces Patrick Dorgu.",
+   "shortText": "Noussair Mazraoui Substitution",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 3879.0,
+    "displayValue": "65'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "360",
+    "displayName": "Manchester United"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Noussair Mazraoui"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Patrick Dorgu"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T17:54:13Z",
+   "shootout": false
+  },
+  {
+   "id": "55561168",
+   "type": {
+    "id": "70",
+    "text": "Goal",
+    "type": "goal"
+   },
+   "text": "Goal! Liverpool 3, Manchester United 0. Rio Ngumoha (Liverpool) right footed shot from the centre of the box to the centre of the goal. Assisted by Bradley Barcola following a fast break.",
+   "shortText": "Rio Ngumoha Goal",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 3911.0,
+    "displayValue": "66'"
+   },
+   "scoringPlay": true,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Rio Ngumoha"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Bradley Barcola"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T17:54:45Z",
+   "shootout": false,
+   "goalPositionY": 49.0,
+   "fieldPositionX": 91.9,
+   "fieldPositionY": 53.8,
+   "fieldPosition2X": 100.0,
+   "fieldPosition2Y": 49.0
+  },
+  {
+   "id": "55561609",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Liverpool. Trey Nyoni replaces Alexis Mac Allister.",
+   "shortText": "Trey Nyoni Substitution",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 4313.0,
+    "displayValue": "72'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Trey Nyoni"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Alexis Mac Allister"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T18:01:27Z",
+   "shootout": false
+  },
+  {
+   "id": "55561610",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Liverpool. Víctor Muñoz replaces Bradley Barcola.",
+   "shortText": "Víctor Muñoz Substitution",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 4319.0,
+    "displayValue": "72'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Víctor Muñoz"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Bradley Barcola"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T18:01:33Z",
+   "shootout": false
+  },
+  {
+   "id": "55561980",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Liverpool. Jeremie Frimpong replaces Rio Ngumoha.",
+   "shortText": "Jeremie Frimpong Substitution",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 4622.0,
+    "displayValue": "78'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Jeremie Frimpong"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Rio Ngumoha"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T18:06:36Z",
+   "shootout": false
+  },
+  {
+   "id": "55562205",
+   "type": {
+    "id": "70",
+    "text": "Goal",
+    "type": "goal"
+   },
+   "text": "Goal! Liverpool 4, Manchester United 0. Víctor Muñoz (Liverpool) right footed shot from the centre of the box to the top right corner. Assisted by Florian Wirtz with a through ball.",
+   "shortText": "Víctor Muñoz Goal",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 4906.0,
+    "displayValue": "82'"
+   },
+   "scoringPlay": true,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Víctor Muñoz"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Florian Wirtz"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T18:11:20Z",
+   "shootout": false,
+   "goalPositionY": 46.0,
+   "fieldPositionX": 90.8,
+   "fieldPositionY": 58.1,
+   "fieldPosition2X": 100.0,
+   "fieldPosition2Y": 46.0
+  },
+  {
+   "id": "55562323",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Liverpool. Joe Gomez replaces Ronald Araujo.",
+   "shortText": "Joe Gomez Substitution",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 5086.0,
+    "displayValue": "85'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Joe Gomez"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Ronald Araujo"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T18:14:20Z",
+   "shootout": false
+  },
+  {
+   "id": "55562324",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Liverpool. Lewis Koumas replaces Alexander Isak.",
+   "shortText": "Lewis Koumas Substitution",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 5092.0,
+    "displayValue": "85'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Lewis Koumas"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Alexander Isak"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T18:14:26Z",
+   "shootout": false
+  },
+  {
+   "id": "55562509",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "text": "Substitution, Manchester United. Andrey Santos replaces Kobbie Mainoo.",
+   "shortText": "Andrey Santos Substitution",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 5202.0,
+    "displayValue": "87'"
+   },
+   "scoringPlay": false,
+   "team": {
+    "id": "360",
+    "displayName": "Manchester United"
+   },
+   "participants": [
+    {
+     "athlete": {
+      "displayName": "Andrey Santos"
+     }
+    },
+    {
+     "athlete": {
+      "displayName": "Kobbie Mainoo"
+     }
+    }
+   ],
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T18:16:16Z",
+   "shootout": false
+  },
+  {
+   "id": "55562686",
+   "type": {
+    "id": "83",
+    "text": "End Regular Time",
+    "type": "end-regular-time"
+   },
+   "text": "Second Half ends, Liverpool 4, Manchester United 0.",
+   "period": {
+    "number": 2
+   },
+   "clock": {
+    "value": 5400.0,
+    "displayValue": "90'+3'"
+   },
+   "scoringPlay": false,
+   "source": {
+    "id": "38",
+    "description": "SA.ENVOY"
+   },
+   "wallclock": "2026-11-22T18:24:21Z",
+   "shootout": false
+  }
+ ],
+ "boxscore": {
+  "teams": [
+   {
+    "team": {
+     "id": "364",
+     "slug": "eng.liverpool",
+     "location": "Liverpool",
+     "name": "Liverpool",
+     "abbreviation": "LIV",
+     "displayName": "Liverpool",
+     "shortDisplayName": "Liverpool",
+     "color": "d11317",
+     "alternateColor": "FFFFFF",
+     "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/364.png",
+     "uniform": {
+      "type": "home",
+      "color": "ff0000"
+     }
+    },
+    "statistics": [
+     {
+      "name": "foulsCommitted",
+      "displayValue": "15",
+      "label": "Fouls"
+     },
+     {
+      "name": "yellowCards",
+      "displayValue": "1",
+      "label": "Yellow Cards"
+     },
+     {
+      "name": "redCards",
+      "displayValue": "0",
+      "label": "Red Cards"
+     },
+     {
+      "name": "offsides",
+      "displayValue": "2",
+      "label": "Offsides"
+     },
+     {
+      "name": "wonCorners",
+      "displayValue": "15",
+      "label": "Corner Kicks"
+     },
+     {
+      "name": "saves",
+      "displayValue": "4",
+      "label": "Saves"
+     },
+     {
+      "name": "possessionPct",
+      "displayValue": "63.8",
+      "label": "Possession"
+     },
+     {
+      "name": "totalShots",
+      "displayValue": "28",
+      "label": "SHOTS"
+     },
+     {
+      "name": "shotsOnTarget",
+      "displayValue": "11",
+      "label": "ON GOAL"
+     },
+     {
+      "name": "shotPct",
+      "displayValue": "0.4",
+      "label": "On Target %"
+     },
+     {
+      "name": "penaltyKickGoals",
+      "displayValue": "0",
+      "label": "Penalty Goals"
+     },
+     {
+      "name": "penaltyKickShots",
+      "displayValue": "0",
+      "label": "Penalty Kicks Taken"
+     },
+     {
+      "name": "accuratePasses",
+      "displayValue": "509",
+      "label": "Accurate Passes"
+     },
+     {
+      "name": "totalPasses",
+      "displayValue": "575",
+      "label": "Passes"
+     },
+     {
+      "name": "passPct",
+      "displayValue": "0.9",
+      "label": "Pass Completion %"
+     },
+     {
+      "name": "accurateCrosses",
+      "displayValue": "4",
+      "label": "Accurate Crosses"
+     },
+     {
+      "name": "totalCrosses",
+      "displayValue": "24",
+      "label": "Crosses"
+     },
+     {
+      "name": "crossPct",
+      "displayValue": "0.2",
+      "label": "Cross %"
+     },
+     {
+      "name": "totalLongBalls",
+      "displayValue": "34",
+      "label": "Long Balls"
+     },
+     {
+      "name": "accurateLongBalls",
+      "displayValue": "19",
+      "label": "Accurate Long Balls"
+     },
+     {
+      "name": "longballPct",
+      "displayValue": "0.6",
+      "label": "Long Balls %"
+     },
+     {
+      "name": "blockedShots",
+      "displayValue": "10",
+      "label": "Blocked Shots"
+     },
+     {
+      "name": "effectiveTackles",
+      "displayValue": "8",
+      "label": "Effective Tackles"
+     },
+     {
+      "name": "totalTackles",
+      "displayValue": "12",
+      "label": "Tackles"
+     },
+     {
+      "name": "tacklePct",
+      "displayValue": "0.7",
+      "label": "Tackle %"
+     },
+     {
+      "name": "interceptions",
+      "displayValue": "9",
+      "label": "Interceptions"
+     },
+     {
+      "name": "effectiveClearance",
+      "displayValue": "14",
+      "label": "Effective Clearances"
+     },
+     {
+      "name": "totalClearance",
+      "displayValue": "14",
+      "label": "Clearances"
+     }
+    ],
+    "displayOrder": 1,
+    "homeAway": "home"
+   },
+   {
+    "team": {
+     "id": "360",
+     "slug": "eng.man_utd",
+     "location": "Manchester United",
+     "name": "Manchester United",
+     "abbreviation": "MAN",
+     "displayName": "Manchester United",
+     "shortDisplayName": "Man Utd",
+     "color": "da020e",
+     "alternateColor": "4169E1",
+     "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/360.png",
+     "uniform": {
+      "type": "third",
+      "color": "ffffff",
+      "alternateColor": "000000"
+     }
+    },
+    "statistics": [
+     {
+      "name": "foulsCommitted",
+      "displayValue": "7",
+      "label": "Fouls"
+     },
+     {
+      "name": "yellowCards",
+      "displayValue": "0",
+      "label": "Yellow Cards"
+     },
+     {
+      "name": "redCards",
+      "displayValue": "1",
+      "label": "Red Cards"
+     },
+     {
+      "name": "offsides",
+      "displayValue": "2",
+      "label": "Offsides"
+     },
+     {
+      "name": "wonCorners",
+      "displayValue": "5",
+      "label": "Corner Kicks"
+     },
+     {
+      "name": "saves",
+      "displayValue": "7",
+      "label": "Saves"
+     },
+     {
+      "name": "possessionPct",
+      "displayValue": "36.2",
+      "label": "Possession"
+     },
+     {
+      "name": "totalShots",
+      "displayValue": "10",
+      "label": "SHOTS"
+     },
+     {
+      "name": "shotsOnTarget",
+      "displayValue": "3",
+      "label": "ON GOAL"
+     },
+     {
+      "name": "shotPct",
+      "displayValue": "0.3",
+      "label": "On Target %"
+     },
+     {
+      "name": "penaltyKickGoals",
+      "displayValue": "0",
+      "label": "Penalty Goals"
+     },
+     {
+      "name": "penaltyKickShots",
+      "displayValue": "0",
+      "label": "Penalty Kicks Taken"
+     },
+     {
+      "name": "accuratePasses",
+      "displayValue": "252",
+      "label": "Accurate Passes"
+     },
+     {
+      "name": "totalPasses",
+      "displayValue": "327",
+      "label": "Passes"
+     },
+     {
+      "name": "passPct",
+      "displayValue": "0.8",
+      "label": "Pass Completion %"
+     },
+     {
+      "name": "accurateCrosses",
+      "displayValue": "3",
+      "label": "Accurate Crosses"
+     },
+     {
+      "name": "totalCrosses",
+      "displayValue": "12",
+      "label": "Crosses"
+     },
+     {
+      "name": "crossPct",
+      "displayValue": "0.3",
+      "label": "Cross %"
+     },
+     {
+      "name": "totalLongBalls",
+      "displayValue": "51",
+      "label": "Long Balls"
+     },
+     {
+      "name": "accurateLongBalls",
+      "displayValue": "18",
+      "label": "Accurate Long Balls"
+     },
+     {
+      "name": "longballPct",
+      "displayValue": "0.4",
+      "label": "Long Balls %"
+     },
+     {
+      "name": "blockedShots",
+      "displayValue": "2",
+      "label": "Blocked Shots"
+     },
+     {
+      "name": "effectiveTackles",
+      "displayValue": "12",
+      "label": "Effective Tackles"
+     },
+     {
+      "name": "totalTackles",
+      "displayValue": "18",
+      "label": "Tackles"
+     },
+     {
+      "name": "tacklePct",
+      "displayValue": "0.7",
+      "label": "Tackle %"
+     },
+     {
+      "name": "interceptions",
+      "displayValue": "9",
+      "label": "Interceptions"
+     },
+     {
+      "name": "effectiveClearance",
+      "displayValue": "34",
+      "label": "Effective Clearances"
+     },
+     {
+      "name": "totalClearance",
+      "displayValue": "34",
+      "label": "Clearances"
+     }
+    ],
+    "displayOrder": 2,
+    "homeAway": "away"
+   }
+  ]
+ },
+ "gameInfo": {
+  "venue": {
+   "id": "192",
+   "fullName": "Anfield",
+   "address": {
+    "city": "Liverpool",
+    "country": "England"
+   },
+   "images": []
+  },
+  "attendance": 0
+ },
+ "rosters": [
+  {
+   "homeAway": "home",
+   "formation": "4-2-3-1",
+   "team": {
+    "id": "364",
+    "displayName": "Liverpool"
+   },
+   "roster": [
+    {
+     "starter": true,
+     "jersey": "1",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "1",
+     "position": {
+      "abbreviation": "G"
+     },
+     "athlete": {
+      "displayName": "Alisson Becker",
+      "shortName": "A. Becker"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "4",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "6",
+     "position": {
+      "abbreviation": "CD-L"
+     },
+     "athlete": {
+      "displayName": "Virgil van Dijk",
+      "shortName": "V. van Dijk"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "5",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "5",
+     "position": {
+      "abbreviation": "CD-R"
+     },
+     "athlete": {
+      "displayName": "Jérémy Jacquet",
+      "shortName": "J. Jacquet"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "6",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "3",
+     "position": {
+      "abbreviation": "LB"
+     },
+     "athlete": {
+      "displayName": "Milos Kerkez",
+      "shortName": "M. Kerkez"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "33",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "2",
+     "position": {
+      "abbreviation": "RB"
+     },
+     "athlete": {
+      "displayName": "Ronald Araujo",
+      "shortName": "R. Araujo"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "7",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "10",
+     "position": {
+      "abbreviation": "AM"
+     },
+     "athlete": {
+      "displayName": "Florian Wirtz",
+      "shortName": "F. Wirtz"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "10",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "4",
+     "position": {
+      "abbreviation": "LM"
+     },
+     "athlete": {
+      "displayName": "Alexis Mac Allister",
+      "shortName": "A. Mac Allister"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "8",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "8",
+     "position": {
+      "abbreviation": "RM"
+     },
+     "athlete": {
+      "displayName": "Dominik Szoboszlai",
+      "shortName": "D. Szoboszlai"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "9",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "9",
+     "position": {
+      "abbreviation": "F"
+     },
+     "athlete": {
+      "displayName": "Alexander Isak",
+      "shortName": "A. Isak"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "73",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "11",
+     "position": {
+      "abbreviation": "AM-L"
+     },
+     "athlete": {
+      "displayName": "Rio Ngumoha",
+      "shortName": "R. Ngumoha"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "29",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "7",
+     "position": {
+      "abbreviation": "AM-R"
+     },
+     "athlete": {
+      "displayName": "Bradley Barcola",
+      "shortName": "B. Barcola"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "53",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "James McConnell",
+      "shortName": "J. McConnell"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "23",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Víctor Muñoz",
+      "shortName": "V. Muñoz"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "30",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Jeremie Frimpong",
+      "shortName": "J. Frimpong"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "14",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Federico Chiesa",
+      "shortName": "F. Chiesa"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "21",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Kostas Tsimikas",
+      "shortName": "K. Tsimikas"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "25",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Giorgi Mamardashvili",
+      "shortName": "G. Mamardashvili"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "67",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Lewis Koumas",
+      "shortName": "L. Koumas"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "2",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Joe Gomez",
+      "shortName": "J. Gomez"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "42",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Trey Nyoni",
+      "shortName": "T. Nyoni"
+     }
+    }
+   ]
+  },
+  {
+   "homeAway": "away",
+   "formation": "4-2-3-1",
+   "team": {
+    "id": "360",
+    "displayName": "Manchester United"
+   },
+   "roster": [
+    {
+     "starter": true,
+     "jersey": "1",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "1",
+     "position": {
+      "abbreviation": "G"
+     },
+     "athlete": {
+      "displayName": "Senne Lammens",
+      "shortName": "S. Lammens"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "4",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "6",
+     "position": {
+      "abbreviation": "CD-L"
+     },
+     "athlete": {
+      "displayName": "Matthijs de Ligt",
+      "shortName": "M. de Ligt"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "15",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "5",
+     "position": {
+      "abbreviation": "CD-R"
+     },
+     "athlete": {
+      "displayName": "Leny Yoro",
+      "shortName": "L. Yoro"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "6",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "3",
+     "position": {
+      "abbreviation": "LB"
+     },
+     "athlete": {
+      "displayName": "Lisandro Martínez",
+      "shortName": "L. Martínez"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "2",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "2",
+     "position": {
+      "abbreviation": "RB"
+     },
+     "athlete": {
+      "displayName": "Diogo Dalot",
+      "shortName": "D. Dalot"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "8",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "10",
+     "position": {
+      "abbreviation": "AM"
+     },
+     "athlete": {
+      "displayName": "Bruno Fernandes",
+      "shortName": "B. Fernandes"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "37",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "4",
+     "position": {
+      "abbreviation": "LM"
+     },
+     "athlete": {
+      "displayName": "Kobbie Mainoo",
+      "shortName": "K. Mainoo"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "18",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "8",
+     "position": {
+      "abbreviation": "RM"
+     },
+     "athlete": {
+      "displayName": "Youri Tielemans",
+      "shortName": "Y. Tielemans"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "10",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "9",
+     "position": {
+      "abbreviation": "F"
+     },
+     "athlete": {
+      "displayName": "Matheus Cunha",
+      "shortName": "M. Cunha"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "13",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "11",
+     "position": {
+      "abbreviation": "AM-L"
+     },
+     "athlete": {
+      "displayName": "Patrick Dorgu",
+      "shortName": "P. Dorgu"
+     }
+    },
+    {
+     "starter": true,
+     "jersey": "19",
+     "subbedIn": false,
+     "subbedOut": true,
+     "formationPlace": "7",
+     "position": {
+      "abbreviation": "AM-R"
+     },
+     "athlete": {
+      "displayName": "Bryan Mbeumo",
+      "shortName": "B. Mbeumo"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "26",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Ayden Heaven",
+      "shortName": "A. Heaven"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "17",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Andrey Santos",
+      "shortName": "A. Santos"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "11",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Joshua Zirkzee",
+      "shortName": "J. Zirkzee"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "31",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Shea Lacey",
+      "shortName": "S. Lacey"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "3",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Noussair Mazraoui",
+      "shortName": "N. Mazraoui"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "22",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Tom Heaton",
+      "shortName": "T. Heaton"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "16",
+     "subbedIn": false,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Amad Diallo",
+      "shortName": "A. Diallo"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "5",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Harry Maguire",
+      "shortName": "H. Maguire"
+     }
+    },
+    {
+     "starter": false,
+     "jersey": "7",
+     "subbedIn": true,
+     "subbedOut": false,
+     "formationPlace": "0",
+     "position": {
+      "abbreviation": "SUB"
+     },
+     "athlete": {
+      "displayName": "Mason Mount",
+      "shortName": "M. Mount"
+     }
+    }
+   ]
+  }
+ ]
+}

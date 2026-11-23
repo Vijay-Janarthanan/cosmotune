@@ -14,8 +14,7 @@ import java.io.File
  * Watch mode on the desktop: one repository and one store per process. The store file sits beside the listening store
  * (`~/.local/share/cosmotune/watch/watch.json`), sealed with DPAPI on Windows and owner-only elsewhere; the HTTP cache under
  * the media cache. The TMDB key comes from `-Dcosmotune.tmdb.key` (the build passes `TMDB_API_KEY` from local.properties)
- * or the environment; the live scores' keys the same way (`-Dcosmotune.cricketdata.key` / `CRICKETDATA_API_KEY`,
- * `-Dcosmotune.footballdata.key` / `FOOTBALL_DATA_API_KEY`).
+ * or the environment. The Spotlight's scores and news need no key.
  */
 object DesktopWatch {
     val dataDir: File get() = File(desktopListeningFile().parentFile, "watch")
@@ -43,7 +42,6 @@ object DesktopWatch {
                 cacheDir = com.cosmotune.music.desktop.DesktopMediaCache.directory.resolve("watch").toFile(),
                 tmdbKey = System.getProperty("cosmotune.tmdb.key")?.takeIf { it.isNotBlank() } ?: System.getenv("TMDB_API_KEY"),
                 videoSource = { desktopVideoGraph(build = true)?.source },
-                scoreKeys = com.cosmotune.watch.live.LiveScoreKeys.fromSystem(),
                 torrentExecutable = { torrentExecutable },
             ),
             store,

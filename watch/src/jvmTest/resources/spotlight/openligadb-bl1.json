@@ -1,0 +1,174 @@
+[
+ {
+  "matchID": 83237,
+  "matchDateTime": "2026-11-20T20:30:00",
+  "timeZoneID": "W. Europe Standard Time",
+  "leagueId": 4937,
+  "leagueName": "1. Fußball-Bundesliga 2026/2027",
+  "leagueSeason": 2026,
+  "leagueShortcut": "bl1",
+  "matchDateTimeUTC": "2026-11-20T19:30:00Z",
+  "team1": {
+   "teamName": "FC Bayern München",
+   "shortName": "Bayern",
+   "teamIconUrl": "https://upload.wikimedia.org/wikipedia/commons/1/1f/Logo_FC_Bayern_M%C3%BCnchen_%282002%E2%80%932017%29.svg"
+  },
+  "team2": {
+   "teamName": "1. FC Köln",
+   "shortName": "Köln",
+   "teamIconUrl": "https://upload.wikimedia.org/wikipedia/commons/0/01/1._FC_Koeln_Logo_2014%E2%80%93.svg"
+  },
+  "lastUpdateDateTime": "2026-11-21T18:21:38.077",
+  "matchIsFinished": true,
+  "matchResults": [
+   {
+    "resultID": 131533,
+    "resultName": "Halbzeit",
+    "pointsTeam1": 1,
+    "pointsTeam2": 1,
+    "resultOrderID": 1,
+    "resultTypeID": 1,
+    "resultTypeKind": "HalfTime",
+    "resultDescription": "Ergebnis nach Ende der ersten Halbzeit"
+   },
+   {
+    "resultID": 131534,
+    "resultName": "Endergebnis",
+    "pointsTeam1": 1,
+    "pointsTeam2": 1,
+    "resultOrderID": 2,
+    "resultTypeID": 2,
+    "resultTypeKind": "After90Minutes",
+    "resultDescription": "Ergebnis nach Ende der offiziellen Spielzeit"
+   }
+  ],
+  "goals": [
+   {
+    "goalID": 153601,
+    "scoreTeam1": 0,
+    "scoreTeam2": 1,
+    "matchMinute": 12,
+    "goalGetterID": 28260,
+    "goalGetterName": "M. Moore",
+    "scoringTeamId": 65,
+    "isPenalty": false,
+    "isOwnGoal": false,
+    "isOvertime": false,
+    "comment": null
+   },
+   {
+    "goalID": 153606,
+    "scoreTeam1": 1,
+    "scoreTeam2": 1,
+    "matchMinute": 37,
+    "goalGetterID": 826,
+    "goalGetterName": "N. Brown",
+    "scoringTeamId": 40,
+    "isPenalty": false,
+    "isOwnGoal": false,
+    "isOvertime": false,
+    "comment": null
+   }
+  ],
+  "numberOfViewers": 75024
+ },
+ {
+  "matchID": 83238,
+  "matchDateTime": "2026-11-21T15:30:00",
+  "timeZoneID": "W. Europe Standard Time",
+  "leagueId": 4937,
+  "leagueName": "1. Fußball-Bundesliga 2026/2027",
+  "leagueSeason": 2026,
+  "leagueShortcut": "bl1",
+  "matchDateTimeUTC": "2026-11-21T14:30:00Z",
+  "team1": {
+   "teamName": "Bayer 04 Leverkusen",
+   "shortName": "Leverkusen",
+   "teamIconUrl": "https://upload.wikimedia.org/wikipedia/de/f/f7/Bayer_Leverkusen_Logo.svg"
+  },
+  "team2": {
+   "teamName": "SC Paderborn 07",
+   "shortName": "Paderborn",
+   "teamIconUrl": "https://upload.wikimedia.org/wikipedia/commons/e/e3/SC_Paderborn_07_Logo.svg"
+  },
+  "lastUpdateDateTime": "2026-11-21T17:22:45.207",
+  "matchIsFinished": true,
+  "matchResults": [
+   {
+    "resultID": 131562,
+    "resultName": "Halbzeit",
+    "pointsTeam1": 1,
+    "pointsTeam2": 0,
+    "resultOrderID": 1,
+    "resultTypeID": 1,
+    "resultTypeKind": "HalfTime",
+    "resultDescription": "Ergebnis nach Ende der ersten Halbzeit"
+   },
+   {
+    "resultID": 131563,
+    "resultName": "Endergebnis",
+    "pointsTeam1": 4,
+    "pointsTeam2": 0,
+    "resultOrderID": 2,
+    "resultTypeID": 2,
+    "resultTypeKind": "After90Minutes",
+    "resultDescription": "Ergebnis nach Ende der offiziellen Spielzeit"
+   }
+  ],
+  "goals": [
+   {
+    "goalID": 153657,
+    "scoreTeam1": 1,
+    "scoreTeam2": 0,
+    "matchMinute": 14,
+    "goalGetterID": 28268,
+    "goalGetterName": "A. Moreira",
+    "scoringTeamId": 6,
+    "isPenalty": false,
+    "isOwnGoal": false,
+    "isOvertime": false,
+    "comment": null
+   },
+   {
+    "goalID": 153675,
+    "scoreTeam1": 2,
+    "scoreTeam2": 0,
+    "matchMinute": 47,
+    "goalGetterID": 28268,
+    "goalGetterName": "A. Moreira",
+    "scoringTeamId": 6,
+    "isPenalty": false,
+    "isOwnGoal": false,
+    "isOvertime": false,
+    "comment": null
+   },
+   {
+    "goalID": 153676,
+    "scoreTeam1": 3,
+    "scoreTeam2": 0,
+    "matchMinute": 51,
+    "goalGetterID": 18331,
+    "goalGetterName": "P. Schick",
+    "scoringTeamId": 6,
+    "isPenalty": false,
+    "isOwnGoal": false,
+    "isOvertime": false,
+    "comment": null
+   },
+   {
+    "goalID": 153678,
+    "scoreTeam1": 4,
+    "scoreTeam2": 0,
+    "matchMinute": 59,
+    "goalGetterID": 19677,
+    "goalGetterName": "E. Fernández",
+    "scoringTeamId": 6,
+    "isPenalty": false,
+    "isOwnGoal": false,
+    "isOvertime": false,
+    "comment": null
+   }
+  ],
+  "numberOfViewers": 29873
+ }
+]

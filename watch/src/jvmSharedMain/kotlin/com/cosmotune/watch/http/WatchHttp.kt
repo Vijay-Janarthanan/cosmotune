@@ -41,8 +41,11 @@ class WatchHttp(
     private val inFlight = ConcurrentHashMap<String, CompletableDeferred<String>>()
     val json = Json { ignoreUnknownKeys = true; isLenient = true; explicitNulls = false; coerceInputValues = true }
 
-    /** The body of [url] as text, from cache when younger than [ttlMs] (0 = always fetch). Stale cache is used when offline. */
-    suspend fun getText(url: String, headers: Map<String, String> = emptyMap(), ttlMs: Long = DEFAULT_TTL, maxBytes: Long = MAX_TEXT): String {
+    /**
+     * The body of [url] as text, from cache when younger than [ttlMs] (0 = always fetch). Stale cache is used when offline, unless
+     * [staleOk] is false (live scores: an old answer must not pass for a new one, so the failure is the caller's to see).
+     */
+    suspend fun getText(url: String, headers: Map<String, String> = emptyMap(), ttlMs: Long = DEFAULT_TTL, maxBytes: Long = MAX_TEXT, staleOk: Boolean = true): String {
         val key = cacheKey("GET", url, headers)
         memory[key]?.takeIf { ttlMs > 0 && now() - it.atMs < ttlMs }?.let { return it.body }
         diskRead(key, ttlMs)?.let { if (it.first.length <= MEMORY_MAX_CHARS) memory[key] = Cached(it.first, it.second); return it.first }
@@ -54,6 +57,7 @@ class WatchHttp(
                 fetch(request(url, headers).get().build(), maxBytes)
             } catch (e: IOException) {
                 // Offline or the server is down: an expired copy is better than nothing.
+                if (!staleOk) throw e
                 diskRead(key, Long.MAX_VALUE)?.first ?: memory[key]?.body ?: throw e
             }
             if (ttlMs > 0) { if (body.length <= MEMORY_MAX_CHARS) memory[key] = Cached(body, now()); diskWrite(key, body) }
@@ -64,8 +68,8 @@ class WatchHttp(
         } finally { inFlight.remove(key, mine) }
     }
 
-    suspend fun getJson(url: String, headers: Map<String, String> = emptyMap(), ttlMs: Long = DEFAULT_TTL): JsonElement =
-        json.parseToJsonElement(getText(url, headers + ("Accept" to "application/json"), ttlMs))
+    suspend fun getJson(url: String, headers: Map<String, String> = emptyMap(), ttlMs: Long = DEFAULT_TTL, staleOk: Boolean = true): JsonElement =
+        json.parseToJsonElement(getText(url, headers + ("Accept" to "application/json"), ttlMs, staleOk = staleOk))
 
     suspend fun postJson(url: String, body: String, headers: Map<String, String> = emptyMap(), contentType: String = "application/json"): JsonElement =
         json.parseToJsonElement(fetch(request(url, headers + ("Accept" to "application/json")).post(body.toRequestBody(contentType.toMediaType())).build(), MAX_TEXT))

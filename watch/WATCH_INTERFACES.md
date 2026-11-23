@@ -44,35 +44,48 @@ the call.
 `targetOf(summary)`, `targetOf(seriesTitle, episode)` and `targetOf(channel)` build the `PlayTarget` for Play and for the
 Sources list.
 
-## Live events (the "Live now" strip)
+## Spotlight (live events, news and coming events)
 
-`liveEvents(): Flow<List<LiveEvent>>` emits the cached list at once, then again after every poll while it is collected
-(about a minute while something is live, ten minutes otherwise). Collect it only while the strip is on screen. It never
-fails: a score source that is not set up or does not answer is left out.
+`liveEvents(interest): Flow<List<LiveEvent>>` emits the cached list at once, then again after every read while it is collected,
+on `SpotlightSchedule`'s cadence: while a match is live every 30 s with the sheet open (`LiveInterest.focus = SHEET`), every 15 s
+with a match's detail open (`DETAIL`), every minute for the strip alone; with nothing live every ten minutes and at the next
+kick-off. A higher `LiveInterest.refresh` reads the scores fresh at once. Collect it only while the app is in front: nothing is
+read in the background. It never fails: a source that does not answer keeps its last good answer (with the time it was read, so
+`SpotlightSchedule.isBehind` can say a live match's scores may be behind).
 
-`LiveEvent`: `id` (stable), `kind` (`CRICKET`, `FOOTBALL`, `SHOW`), `title` ("India v Australia, 2nd T20I"), `competition`
-("IPL 2027", "Premier League"), `teams` (`LiveTeam`: `name`, `shortName`, `logoUrl`, `score`, `country`, `batting`: cricket's side batting now, false when unknown), `scoreText` (the
-whole score on one line, null before the start), `statusText` ("India need 4 runs from 10 balls", "67'", "Full time"),
-`status` (`LIVE`, `UPCOMING`, `FINISHED`; `isLive`), `startMs`, `countries`, `languages`, `imageUrl`, `watchOptions`,
-`source` (the attribution line: "CricketData.org", "football-data.org", "TheSportsDB", "YouTube") and `updatedAtMs`.
+`LiveEvent`: `id` (stable: `football:espn:<league>:<id>`, `cricket:espn:<series>:<id>`, `news:...`, `event:wd:<Q>`), `kind`
+(`CRICKET`, `FOOTBALL`, `SHOW`, `NEWS`, `EVENT`), `title`, `competition` (the country of a local story), `competitionId` ("eng.1",
+a cricket series id), `teams` (`LiveTeam`: `name`, `shortName`, `logoUrl` (the crest), `score`, `country`, `batting`, `id`,
+`colour`), `scoreText`, `statusText` ("India lead by 197 runs", "Full time", a story's summary), `status` (`LIVE`, `UPCOMING`,
+`FINISHED`, `FEATURED` for news: a story is never live), `startMs`, `endMs`, `clock` (football's `MatchClock`: phase, ESPN's clock
+in seconds, display, period, when read; `SpotlightClock.minute` keeps it going between reads), `incidents` (goals and cards with
+side, minute and player), `venue`, `format` ("Test · Day 3"), `batting` ("Gill 104*, Jadeja 38*"), `outlets` (a story's outlets),
+`major` (a curated league, an international, a story two outlets carry or Wikipedia lists), `local`, `watchOptions`, `source` and
+`updatedAtMs`.
 
-Window: everything live; upcoming in the next 24 hours; finished matches that started in the last 16 hours.
+`matchDetail(event): MatchDetail?` reads a match's detail when its sheet opens: football's timeline (goals with the assist, cards,
+substitutions, half-time and full time), paired stats and line-ups; cricket's innings (batting, bowling, partnerships), the last
+balls and the notes.
 
-Order: live first, then upcoming, then finished; inside each, the viewer's country and language first (`WatchPlace`, the
-same as Live TV: an India match or an IPL game for a viewer in India, a Tamil show for a Tamil viewer), then events with a
-watch option, then upcoming by start time and the rest newest first.
+Windows (`SpotlightWindows`): everything live; matches coming up in the next week; results of the last 24 hours (a Test from its
+end); elections and summits of the next 60 days.
 
-Where the data comes from (all free, all read-only; a missing key leaves that service out, never fails):
+Order: matches first (live, upcoming, finished; inside each the big ones, then the viewer's country and language, then those
+with a watch option, then upcoming by start and the rest newest first), then the news (world stories with most outlets first,
+Wikipedia's picks, the country's own), then the coming events.
 
-| Sport | With a key | Key (local.properties or environment) | Without a key |
-| :-- | :-- | :-- | :-- |
-| Cricket | CricketData.org `currentMatches`: internationals and the major leagues (IPL, WPL, Big Bash, PSL, SA20, The Hundred, ICC events) with runs, wickets, overs and the status line; kept 15 minutes (the free key allows 100 calls a day) | `CRICKETDATA_API_KEY` (free at cricketdata.org) | TheSportsDB: the IPL's next match and last result |
-| Football | football-data.org `/v4/matches`: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie, Primeira Liga, Championship, Brasileirão, Champions League, Euros, World Cup, with the running score; kept 2 minutes | `FOOTBALL_DATA_API_KEY` (free at football-data.org/client/register) | TheSportsDB: each top league's and the ISL's next match and last result, no running score |
-| Shows | DD National's and DD Sports' live videos, and DD News' and DD India's live specials beside their 24x7 streams, from the DD plugin (when it is on) | none | |
+Where the data comes from (all free, keyless, read-only; unofficial ones are parsed defensively and left out when they fail):
 
-TheSportsDB uses its public test key unless `THESPORTSDB_API_KEY` is set. The desktop passes the keys as
-`-Dcosmotune.cricketdata.key`, `-Dcosmotune.footballdata.key`, `-Dcosmotune.thesportsdb.key`; the phone and TV as
-`BuildConfig` fields of the same names as the keys. `DefaultWatchRepository.liveEventsNow()` answers once without polling.
+| For | Source |
+| :-- | :-- |
+| Football | ESPN's site API: `soccer/<league>/scoreboard` (today's board, and yesterday's for the last day's results) for the Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League, MLS, Indian Super League, World Cup, its qualifiers and internationals; `summary?event=` for the detail. OpenLigaDB stands in for the Bundesliga when ESPN fails. |
+| Cricket | ESPN's live cricket header (`apis/v2/scoreboard/header?sport=cricket`): internationals, the big leagues (IPL, BBL, PSL, SA20, ILT20, The Hundred, ICC events) and the big countries' own competitions; `summary?event=` for the batters of a match in play and the scorecard. |
+| World news | BBC World, The Guardian World, Al Jazeera, France 24, DW (RSS), the same story put together by its words and ranked by how many outlets carry it; Wikipedia's featured feed "In the news" (CC BY-SA). |
+| The country | Google News for the viewer's country, its own tab. |
+| Coming events | Wikidata's query service: national elections and summits with a day and an English Wikipedia page. |
+| Shows | DD National's and DD Sports' live videos, and DD News' and DD India's live specials beside their 24x7 streams, from the DD plugin (when it is on). |
+
+`DefaultWatchRepository.liveEventsNow()` answers once without polling.
 
 A match's watch option is found, not assumed: a live video on DD Sports or DD National whose title names both sides.
 
