@@ -372,6 +372,8 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
     var collection by rememberSaveable { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf("recent") }
     var filters by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var genres by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var types by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var options by remember { mutableStateOf(false) }
     var dupes by remember { mutableStateOf(false) }
     val pick = rememberMangaImport { name, open ->
@@ -383,7 +385,7 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
             try { repository.store.save(repository.store.archives.importImages(folder.name, folder.images)) } finally { onBusy(false) }
         } }, onFailure = { scope.onError(it.message ?: "Folder could not be opened") })
     }
-    val books = mangaLibraryOrder(mangaLibraryFilter(state.collectionBooks(collection), filters.toSet(), state), sort, state)
+    val books = mangaLibraryOrder(mangaGenreFilter(mangaLibraryFilter(state.collectionBooks(collection), filters.toSet(), state), genres.toSet(), types.toSet()), sort, state)
     val reading = state.books.filter { book -> state.progress[book.id]?.let { !it.finished || mangaContinue(book, state).resumes } == true }
         .maxByOrNull { state.progress[it.id]?.updatedAtMs ?: 0L }
     val discovery = state.sources.firstOrNull { it.enabled && MangaSourcePolicy.allowed(it) }
@@ -414,8 +416,9 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
             if (reading != null) item(key = "continue:${reading.id}", span = { GridItemSpan(maxLineSpan) }) { MangaContinueRow(scope, reading, state) }
             if (books.isEmpty()) item(key = "none", span = { GridItemSpan(maxLineSpan) }) {
                 Column(Modifier.readBleed()) {
-                    ReadEmpty("Nothing here", if (filters.isNotEmpty()) "No series match these filters." else "No series in this collection yet.",
-                        actionLabel = if (filters.isNotEmpty()) "Clear filters" else null, onAction = { filters = emptyList() })
+                    val filtered = filters.isNotEmpty() || genres.isNotEmpty() || types.isNotEmpty()
+                    ReadEmpty("Nothing here", if (filtered) "No series match these filters." else "No series in this collection yet.",
+                        actionLabel = if (filtered) "Clear filters" else null, onAction = { filters = emptyList(); genres = emptyList(); types = emptyList() })
                 }
             }
         }
@@ -440,6 +443,18 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
                     ReadChip(mangaText(MangaLibraryFilters.label(filter)), filter in filters, { filters = if (filter in filters) filters - filter else filters + filter },
                         Modifier.testTag("manga:filter:$filter"))
                 }
+            }
+        }
+        val kinds = remember(state.books) { state.books.mapNotNull(::mangaType).distinct().sorted() }
+        if (kinds.size > 1) ReadSheetSection(mangaText("Type")) {
+            ReadChipRow(inset = 0.dp) {
+                kinds.forEach { kind -> ReadChip(mangaText(kind), kind in types, { types = if (kind in types) types - kind else types + kind }, Modifier.testTag("manga:type:$kind")) }
+            }
+        }
+        val genreChips = remember(state.books) { mangaLibraryGenres(state.books) }
+        if (genreChips.isNotEmpty()) ReadSheetSection(mangaText("Genre")) {
+            ReadChipRow(inset = 0.dp) {
+                genreChips.forEach { genre -> ReadChip(genre, genre in genres, { genres = if (genre in genres) genres - genre else genres + genre }, Modifier.testTag("manga:genre:$genre")) }
             }
         }
         com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Incognito"), state.incognito, { on -> scope.action { repository.store.update { it.copy(incognito = on) } } },

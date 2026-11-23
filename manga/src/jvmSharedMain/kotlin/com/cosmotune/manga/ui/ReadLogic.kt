@@ -236,6 +236,36 @@ internal object MangaLibraryFilters {
     }
 }
 
+/**
+ * What kind of comic a series is, for the library's Type filter: what its genres say (manhwa, manhua, webtoon, comic), else the
+ * language it is in (Korean manhwa, Chinese manhua, Japanese manga); null when nothing says.
+ */
+internal fun mangaType(book: MangaBook): String? {
+    val words = book.tags.map { it.lowercase() }
+    return when {
+        words.any { "manhwa" in it } -> "Manhwa"
+        words.any { "manhua" in it } -> "Manhua"
+        words.any { "webtoon" in it } -> "Webtoon"
+        words.any { it == "comic" || it == "comics" || "western" in it } -> "Comic"
+        words.any { it == "manga" || "japanese" in it } -> "Manga"
+        book.language.startsWith("ko") -> "Manhwa"
+        book.language.startsWith("zh") -> "Manhua"
+        book.language.startsWith("ja") -> "Manga"
+        else -> null
+    }
+}
+
+/** The genres worth a chip in the library's options: the most common ones across the library, at most [limit]. */
+internal fun mangaLibraryGenres(books: List<MangaBook>, limit: Int = 16): List<String> =
+    books.flatMap { book -> book.tags.map { it.trim() }.filter { it.isNotBlank() }.distinctBy { it.lowercase() } }
+        .groupingBy { it.lowercase() }.eachCount().entries.sortedByDescending { it.value }.take(limit)
+        .map { entry -> books.flatMap { it.tags }.first { it.trim().lowercase() == entry.key }.trim() }
+
+/** Keeps the series with any of [genres] (all when empty) and of any of [types] (all when empty). */
+internal fun mangaGenreFilter(books: List<MangaBook>, genres: Set<String>, types: Set<String>): List<MangaBook> = books.filter { book ->
+    (genres.isEmpty() || book.tags.any { tag -> genres.any { it.equals(tag.trim(), true) } }) && (types.isEmpty() || mangaType(book) in types)
+}
+
 internal fun mangaLibraryFilter(books: List<MangaBook>, filters: Set<String>, state: MangaLibraryState): List<MangaBook> = books.filter { book ->
     filters.all { filter -> when (filter) {
         MangaLibraryFilters.UNREAD -> book.chapters.any { it.id !in state.readChapters }
