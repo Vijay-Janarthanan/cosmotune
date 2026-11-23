@@ -359,6 +359,7 @@ internal fun BookConnections(repository: ReadingRepository, onDismiss: () -> Uni
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var insecure by remember { mutableStateOf(false) }
+    var hint by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val palette = LocalCosmoColors.current.palette
@@ -375,6 +376,13 @@ internal fun BookConnections(repository: ReadingRepository, onDismiss: () -> Uni
                     com.cosmotune.manga.ui.ReadTextButton("Remove", { scope.launch { runCatching { repository.removeOpdsSource(source.id) }.onFailure { onError("The connection could not be removed.") } } })
                 }
             }
+            item {
+                // Presets for the common library servers: they fill the name and the address's shape, which is then completed by hand.
+                com.cosmotune.manga.ui.ReadChipRow(inset = 0.dp) {
+                    libraryPresets.forEach { (label, address) -> com.cosmotune.manga.ui.ReadChip(label, name == label, { name = label; url = address; hint = libraryHints[label] }) }
+                }
+            }
+            hint?.let { line -> item { Text(line, style = ReadType.caption(), color = Color(palette.textSecondary)) } }
             item { OrbitInputField(name, { name = it }, "Library name", modifier = Modifier.fillMaxWidth()) }
             item { OrbitInputField(url, { url = it }, "OPDS address", modifier = Modifier.fillMaxWidth()) }
             item { OrbitInputField(username, { username = it }, "Username (optional)", modifier = Modifier.fillMaxWidth()) }
@@ -397,3 +405,17 @@ internal fun BookConnections(repository: ReadingRepository, onDismiss: () -> Uni
         onDismiss = onDismiss,
     )
 }
+
+/** The library servers people run at home, with the shape of their OPDS address. */
+internal val libraryPresets = listOf(
+    "Calibre" to "http://192.168.1.2:8080/opds",
+    "Calibre-Web" to "https://books.example.com/opds",
+    "Kavita" to "https://kavita.example.com/api/opds/YOUR-API-KEY",
+    "Komga" to "https://komga.example.com/opds/v1.2/catalog",
+)
+internal val libraryHints = mapOf(
+    "Calibre" to "Calibre: Preferences › Sharing over the net › Start server. Put your computer's address and port; allow HTTP below for a home network.",
+    "Calibre-Web" to "Calibre-Web: your server's address with /opds at the end, and your Calibre-Web sign-in.",
+    "Kavita" to "Kavita: copy your OPDS address from User settings › 3rd Party Clients (it holds your API key); no password needed.",
+    "Komga" to "Komga: your server's address with /opds/v1.2/catalog, and your Komga sign-in. Collections and read lists show in Browse.",
+)
