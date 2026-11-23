@@ -8,7 +8,7 @@ import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.Song
 
 /*
- * Music's "In my library" (the search-spotlight board's 6a, the idea of BitChord 1.10's library-only search): the words are looked
+ * Music's "In my library" (the search-spotlight board's 6a, after the upstream's 1.10 library-only search): the words are looked
  * for in what you keep, not on YouTube: your liked songs, the songs added to your library, your downloads, and the albums,
  * playlists and artists you saved. The kind chips narrow it as they narrow a YouTube search.
  */
