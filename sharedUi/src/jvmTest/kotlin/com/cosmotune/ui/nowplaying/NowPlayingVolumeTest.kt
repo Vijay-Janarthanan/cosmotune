@@ -105,5 +105,5 @@ class NowPlayingVolumeTest {
 
     @Test fun roomyCardKeepsTheLineBesideTheButtons() = check("roomy", 640, wide = false)
 
-    @Test fun wideCardWithVideoShowsTheLineUnderTheButtons() = check("wide", 900, wide = true)
+    @Test fun wideCardWithVideoShowsTheLineAtTheEndOfTheButtons() = check("wide", 900, wide = true)
 }

@@ -19,7 +19,7 @@ class NowPlayingVolumeContractTest {
     @Test fun everyPlacementOfTheCardHasTheVolume() {
         val src = card()
         val wide = src.substringAfter("if (wide) {").substringBefore("} else {")
-        assertTrue(wide.contains("if (volume) OrbitVolume("), "the wide card places it under the buttons")
+        assertTrue(wide.contains("if (fit != null) CardVolume("), "the wide card places it at the end of the buttons' row")
         val oneColumn = src.substringAfter("val topRight = volume && !roomBesideButtons")
         assertTrue(oneColumn.contains("if (topRight)"), "else it goes top right")
         assertTrue(
