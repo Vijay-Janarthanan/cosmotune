@@ -118,10 +118,6 @@ internal fun rememberStableAction(action: () -> Unit): () -> Unit {
     return remember { { latest() } }
 }
 
-/** The duration and the other faint numbers of a row: 13 sp with tabular figures, so a column of them lines up. */
-internal fun CosmoType.desktopRowDuration(): TextStyle =
-    TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 13.sp * 1.3f).tabular()
-
 // ---- the surface of a row ----
 
 /**

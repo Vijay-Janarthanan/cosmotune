@@ -566,8 +566,9 @@ private fun CollectionTrackRow(
             Text(
                 text = song.durationText ?: "—",
                 modifier = Modifier.padding(start = DESKTOP_DURATION_GAP, end = 4.dp).width(DESKTOP_DURATION_COLUMN),
-                style = type.desktopRowDuration(),
-                color = Color(palette.textSecondary),
+                // The Orbit rows' time (search, Home, the player bar): the mono label in the dim ink, so a length reads the same everywhere.
+                style = com.cosmotune.ui.orbit.orbitFonts().label,
+                color = com.cosmotune.ui.orbit.orbitLook().dim,
                 textAlign = TextAlign.End,
                 maxLines = 1,
             )
