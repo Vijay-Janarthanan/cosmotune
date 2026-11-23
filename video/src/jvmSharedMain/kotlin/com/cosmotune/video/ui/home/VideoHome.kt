@@ -512,7 +512,8 @@ private fun HomeFeedWide(
                     }
                     items(count = feed.items.size, key = { "feed:${keys[it]}" }, contentType = { "card" }) { index -> WideCard(feed.items[index], feed.watched[feed.items[index].id], onOpen, onMore, onChannel, downloaded) }
                     if (feed.loadingMore) items(count = columns, key = { "more-$it" }, contentType = { "skeleton" }) { CardSkeleton() }
-                    if (feed.exhausted) item(key = "end", span = { GridItemSpan(maxLineSpan) }, contentType = "status") { HomeNotice(stringResource(Res.string.video_home_exhausted)) }
+                    // The grid already keeps the page margin: the notice starts where the cards do.
+                    if (feed.exhausted) item(key = "end", span = { GridItemSpan(maxLineSpan) }, contentType = "status") { HomeNotice(stringResource(Res.string.video_home_exhausted), side = 0.dp) }
                 }
             }
         }

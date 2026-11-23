@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.kit.KitIconButton
@@ -66,13 +67,13 @@ internal fun HomeDiscoveryControls(region: String?, language: String?, feedbackC
     }
 }
 
-/** One quiet row under the chips (what failed), the Orbit row's fill, with its retry in the accent when there is one. */
+/** One quiet row under the chips (what failed), the Orbit row's fill, with its retry in the accent when there is one; [side] is its margin (none inside the wide grid, which keeps the page margin itself). */
 @Composable
-internal fun HomeNotice(text: String, retry: String? = null, onRetry: () -> Unit = {}) {
+internal fun HomeNotice(text: String, retry: String? = null, onRetry: () -> Unit = {}, side: Dp = 16.dp) {
     val fonts = orbitFonts()
     val look = orbitLook()
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(22.dp)).background(look.row)
+        Modifier.fillMaxWidth().padding(horizontal = side, vertical = 6.dp).clip(RoundedCornerShape(22.dp)).background(look.row)
             .padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp).heightIn(min = 40.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
