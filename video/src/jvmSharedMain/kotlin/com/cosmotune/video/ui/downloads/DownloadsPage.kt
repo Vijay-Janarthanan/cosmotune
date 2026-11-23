@@ -1,5 +1,6 @@
 package com.cosmotune.video.ui.downloads
 
+import com.cosmotune.video.resources.video_dl_search
 import com.cosmotune.video.resources.video_dl_resume_all
 import com.cosmotune.video.resources.video_library_label
 import androidx.compose.foundation.layout.Arrangement
@@ -107,7 +108,15 @@ fun DownloadsPage(contentPadding: PaddingValues, wide: Boolean) {
     val entries by downloads.downloads.collectAsState()
     val batches by downloads.batches.collectAsState()
     val page = rememberDownloadsPageState()
-    val rows = remember(entries, batches, page.filter, page.sort, page.collapsed) {
+    // the search field over the list: a title or a channel's name, any case
+    var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    val searched = remember(entries, query) {
+        val words = query.trim()
+        if (words.isEmpty()) entries
+        else entries.filter { it.item.title.contains(words, ignoreCase = true) || it.item.channelName?.contains(words, ignoreCase = true) == true }
+    }
+    val rows = remember(searched, batches, page.filter, page.sort, page.collapsed) {
+        @Suppress("NAME_SHADOWING") val entries = searched
         DownloadsPlan.build(entries, batches, page.filter, page.sort, page.collapsed)
     }
     val storage = rememberStorageLine(downloads, entries)
@@ -166,6 +175,17 @@ fun DownloadsPage(contentPadding: PaddingValues, wide: Boolean) {
                         paused.forEach { entry -> if (entry.state is DownloadState.Failed) downloads.retry(entry.id) else downloads.resume(entry.id) }
                     }) else null,
                 )
+            }
+            if (entries.size > 1) {
+                item(key = "search", contentType = "search") {
+                    com.cosmotune.ui.blocks.CosmoSearchField(
+                        query = query,
+                        onQueryChange = { query = it },
+                        onSubmit = {},
+                        placeholder = stringResource(Res.string.video_dl_search),
+                        modifier = Modifier.downloadsColumn(wide).padding(horizontal = com.cosmotune.ui.theme.CosmoSpacing.margin, vertical = 8.dp),
+                    )
+                }
             }
             if (entries.isNotEmpty()) {
                 item(key = "filters", contentType = "filters") {

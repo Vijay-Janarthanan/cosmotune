@@ -658,4 +658,5 @@
     <string name="video_history_week">This week</string>
     <string name="video_history_month">This month</string>
     <string name="video_dl_resume_all">Resume all</string>
+    <string name="video_dl_search">Search your downloads</string>
 </resources>
