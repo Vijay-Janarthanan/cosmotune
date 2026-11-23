@@ -324,6 +324,11 @@ fun CosmoNowPlaying(
     val inlineLyrics by com.cosmotune.settings.Extras.settings.inlineLyrics.collectAsStateWithLifecycle()
     var playerOptionsOpen by remember { mutableStateOf(false) }
     if (playerOptionsOpen) PlayerOptions(song.videoId, PlayerPlatform.host.bluetoothReconnectSupported, { playerOptionsOpen = false })
+    var marksOpen by remember { mutableStateOf(false) }
+    val abLoop by com.cosmotune.settings.Extras.settings.abLoop.collectAsStateWithLifecycle()
+    val looping = abLoop?.let { it.songId == song.videoId && it.endMs != null } == true
+    val canMark = com.cosmotune.settings.SongPlaybackMemory.isMusic(song.videoId) && !controlsLocked
+    if (marksOpen && canMark) SongMarksDialog(song, { livePlayheadMs(position, isPlaying) }, onSeek, { marksOpen = false })
     var visualsOpen by rememberSaveable { mutableStateOf(false) }
     if (visualsOpen) LocalVisualsPresentation.current({ visualsOpen = false }) { PlayerVisualsContent(song, { visualsOpen = false }) }
     val together: () -> Unit = { if (inParty) sheets.members = true else onListenTogether() }
@@ -333,7 +338,7 @@ fun CosmoNowPlaying(
     val automixOn by PlayerSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val active = NowPlayingActive(
         shuffle = shuffleEnabled, repeatMode = repeatMode, crossfade = features.crossfade, automix = automixOn,
-        equaliser = features.equaliser, castingTo = features.castingTo, inRoom = inParty,
+        equaliser = features.equaliser, castingTo = features.castingTo, inRoom = inParty, abLoop = looping,
     )
     // Best part (upstream 1.10): where YouTube's "Most replayed" curve says the song's best part starts; no chip without one.
     val bestPartOn by com.cosmotune.settings.Extras.settings.bestPart.collectAsStateWithLifecycle()
@@ -347,7 +352,7 @@ fun CosmoNowPlaying(
     val bestPart: (() -> Unit)? = bestPartMs?.takeIf { !controlsLocked }?.let { at -> { onSeek(at) } }
     val statusChips: @Composable (Boolean) -> Unit = { transportOnCard ->
         NowPlayingStatusChips(
-            activeChips(active, transportOnCard, onToggleShuffle, onCycleRepeat, { sheets.details = true }, { sheets.cast = true }, together),
+            activeChips(active, transportOnCard, onToggleShuffle, onCycleRepeat, { sheets.details = true }, { sheets.cast = true }, together) { marksOpen = true },
             orbitType, orbitInk, bestPart,
         )
     }
@@ -378,6 +383,7 @@ fun CosmoNowPlaying(
             if (openCanvasOn) add(OrbitMenuItem("Choose the video", chosenVideoLine, CosmoIcons.Video) { chooseVideoOpen = true })
             add(OrbitMenuItem("Player options", "Lyrics, song speed and playback behavior", CosmoIcons.Equaliser) { playerOptionsOpen = true })
             add(OrbitMenuItem("Song options", "Playlists, sharing, quality and the rest", CosmoIcons.MoreVertical, onClick = onOpenMenu))
+            if (canMark) add(OrbitMenuItem("Bookmarks", if (looping) "Repeating a part" else "Mark moments and repeat a part", CosmoIcons.Repeat, selected = looping) { marksOpen = true })
             // Says what is left while one runs ("23:41 left"), rather than going quiet once it is set.
             if (SleepTimerUi.control != null) {
                 add(OrbitMenuItem("Sleep timer", sleepTimer?.line() ?: "Pause after a while", CosmoIcons.Timer, selected = sleepTimer != null) { sleepMenuOpen = true })

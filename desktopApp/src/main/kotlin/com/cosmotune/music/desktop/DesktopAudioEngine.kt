@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -101,6 +102,17 @@ class DesktopPlaybackEngine(
             if (selected != observedOutputDevice) {
                 observedOutputDevice = selected
                 commands += Command.Reconfigure
+            }
+        }
+    }
+    // Aâ€“B repeat (Player menu > Bookmarks): back to A each time the song reaches B.
+    private val abLoopJob = scope.launch {
+        com.cosmotune.settings.Extras.settings.abLoop.collectLatest { loop ->
+            if (loop?.endMs == null) return@collectLatest
+            while (isActive) {
+                val shown = _state.value
+                loop.seekTarget(shown.song?.videoId, shown.positionMs)?.let(::seekTo)
+                delay(100)
             }
         }
     }

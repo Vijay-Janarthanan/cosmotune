@@ -832,6 +832,16 @@ class PlaybackService : MediaLibraryService() {
                 delay(1_000)
             }
         }
+        // Aâ€“B repeat (Player menu > Bookmarks): back to A each time the song reaches B, a few times a second while one is set.
+        scope.launch {
+            com.cosmotune.settings.Extras.settings.abLoop.collectLatest { loop ->
+                if (loop?.endMs == null) return@collectLatest
+                while (isActive) {
+                    player?.let { p -> loop.seekTarget(p.currentMediaItem?.mediaId, p.currentPosition)?.let(p::seekTo) }
+                    delay(100)
+                }
+            }
+        }
     }
 
     /** Canonical context owner for the active local bounded album/playlist. */

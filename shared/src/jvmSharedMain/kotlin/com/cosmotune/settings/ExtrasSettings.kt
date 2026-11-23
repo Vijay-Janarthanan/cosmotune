@@ -147,8 +147,22 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putInt(KEY_VOLUME_BOOST, clamped)
     }
 
-    /** The song playing now, set by the host as songs change, so [effectNow] can follow a song's own effect. */
+    /** The song playing now, set by the host as songs change, so [effectNow] can follow a song's own effect. Another song ends an A–B loop. */
     @Volatile var playingSongId: String? = null
+        set(value) {
+            field = value
+            if (value != null && abLoopFlow.value?.songId?.let { it != value } == true) abLoopFlow.value = null
+        }
+
+    // Bookmarks (Namida's idea): moments and parts kept per song, and the A–B loop playing now (not kept across restarts).
+    private val songMarksFlow = MutableStateFlow(SongMarks.decode(store.getString(KEY_SONG_MARKS, "")))
+    private val abLoopFlow = MutableStateFlow<AbLoop?>(null)
+    val songMarks: StateFlow<Map<String, List<SongMark>>> = songMarksFlow.asStateFlow()
+    val abLoop: StateFlow<AbLoop?> = abLoopFlow.asStateFlow()
+    fun addSongMark(id: String, mark: SongMark) = saveMarks(SongMarks.add(songMarksFlow.value, id, mark))
+    fun removeSongMark(id: String, mark: SongMark) = saveMarks(SongMarks.remove(songMarksFlow.value, id, listOf(mark)))
+    private fun saveMarks(next: Map<String, List<SongMark>>) { songMarksFlow.value = next; store.putString(KEY_SONG_MARKS, SongMarks.encode(next)) }
+    fun setAbLoop(value: AbLoop?) { abLoopFlow.value = value }
 
     /** The effect to play now: the playing song's own (Player options, For this song) when it has one, else [soundEffect]. */
     fun effectNow(): SoundEffect =
@@ -246,6 +260,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
 
     companion object {
         const val KEY_SONG_PLAYBACK="extras_song_playback"
+        const val KEY_SONG_MARKS = "extras_song_marks"
         const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
         const val KEY_SLEEP_FADE_OUT = "extras_sleep_fade_out"
         const val KEY_BEST_PART = "extras_best_part"
