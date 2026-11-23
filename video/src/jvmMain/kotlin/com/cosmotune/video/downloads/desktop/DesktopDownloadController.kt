@@ -9,7 +9,7 @@ import com.cosmotune.video.downloads.DownloadKind
 import com.cosmotune.video.downloads.DownloadPlatform
 import com.cosmotune.video.downloads.DownloadRunner
 import com.cosmotune.video.downloads.EmbedDetails
-import com.cosmotune.video.segments.SegmentProvider
+import com.cosmotune.media.segments.SegmentProvider
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.settings.VideoSettingsRepository
 import com.cosmotune.video.source.VideoSource

@@ -5,7 +5,7 @@ import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.SubtitleTrack
 import com.cosmotune.video.model.VideoCodec
 import com.cosmotune.video.model.VideoStream
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SkipSegment
 import com.cosmotune.video.settings.SmoothnessReadout
 import com.cosmotune.video.settings.SmoothnessSettings
 import kotlinx.coroutines.flow.MutableStateFlow

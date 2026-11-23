@@ -108,7 +108,7 @@ import com.cosmotune.video.ui.watch.WatchOrientation
 import com.cosmotune.video.ui.watch.votesOrNull
 import kotlinx.coroutines.flow.map
 import com.cosmotune.video.account.Rating
-import com.cosmotune.video.segments.Votes
+import com.cosmotune.media.segments.Votes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 

@@ -26,9 +26,9 @@ import com.cosmotune.video.resources.video_mark_too_many
 import com.cosmotune.video.resources.video_mark_there
 import com.cosmotune.video.resources.video_mark_refused
 import com.cosmotune.video.resources.video_mark_failed
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SegmentSubmission
-import com.cosmotune.video.segments.SubmitResult
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentSubmission
+import com.cosmotune.media.segments.SubmitResult
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.settings.categoryTitle
 import kotlinx.coroutines.launch

@@ -1,4 +1,4 @@
-package com.cosmotune.video.segments
+package com.cosmotune.media.segments
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json

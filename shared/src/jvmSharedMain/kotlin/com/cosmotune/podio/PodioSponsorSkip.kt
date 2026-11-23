@@ -1,9 +1,9 @@
 package com.cosmotune.podio
 
-import com.cosmotune.video.segments.SegmentAction
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SkipSegment
-import com.cosmotune.video.segments.SponsorBlockClient
+import com.cosmotune.media.segments.SegmentAction
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SkipSegment
+import com.cosmotune.media.segments.SponsorBlockClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

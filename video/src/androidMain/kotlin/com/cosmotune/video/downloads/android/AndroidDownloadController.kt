@@ -24,7 +24,7 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_dl_channel
 import com.cosmotune.video.resources.video_dl_notification
 import com.cosmotune.video.resources.video_dl_pause
-import com.cosmotune.video.segments.SegmentProvider
+import com.cosmotune.media.segments.SegmentProvider
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.settings.VideoSettingsRepository
 import com.cosmotune.video.source.VideoSource

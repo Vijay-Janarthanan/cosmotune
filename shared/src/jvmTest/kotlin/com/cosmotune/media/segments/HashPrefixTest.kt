@@ -1,4 +1,4 @@
-package com.cosmotune.video.segments
+package com.cosmotune.media.segments
 
 import java.security.MessageDigest
 import kotlin.test.Test

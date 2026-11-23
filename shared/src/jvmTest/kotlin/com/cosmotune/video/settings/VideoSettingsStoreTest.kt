@@ -6,7 +6,7 @@ import com.cosmotune.video.downloads.DownloadRequest
 import com.cosmotune.video.downloads.SubtitlePick
 import com.cosmotune.video.library.LibraryCodec
 import com.cosmotune.video.library.MemoryLibraryFiles
-import com.cosmotune.video.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentCategory
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher

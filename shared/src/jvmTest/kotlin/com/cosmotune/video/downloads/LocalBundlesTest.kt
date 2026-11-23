@@ -5,7 +5,7 @@ import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.VideoCodec
 import com.cosmotune.video.player.LocalSubtitle
 import com.cosmotune.video.player.MediaInput
-import com.cosmotune.video.segments.FakeSegmentProvider
+import com.cosmotune.media.segments.FakeSegmentProvider
 import com.cosmotune.video.source.FakeVideoSource
 import kotlinx.coroutines.runBlocking
 import java.io.File

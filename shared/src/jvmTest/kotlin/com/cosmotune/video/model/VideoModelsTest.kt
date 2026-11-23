@@ -206,7 +206,7 @@ class VideoModelsTest {
         playback.playLocal(FakeVideoSource.videos[0], files)
         assertEquals("fakevideo01", playback.state.value.item?.id)
         assertTrue(playback.state.value.segments.isEmpty())
-        val segment = com.cosmotune.video.segments.FakeSegmentProvider.SAMPLE.first()
+        val segment = com.cosmotune.media.segments.FakeSegmentProvider.SAMPLE.first()
         playback.playLocal(FakeVideoSource.videos[1], LocalBundle(files, segments = listOf(segment)), startMs = 4_000)
         assertEquals("fakevideo02", playback.state.value.item?.id)
         assertEquals(listOf(segment), playback.state.value.segments)

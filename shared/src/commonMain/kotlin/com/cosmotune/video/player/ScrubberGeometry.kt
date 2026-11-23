@@ -2,8 +2,8 @@ package com.cosmotune.video.player
 
 import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.Storyboard
-import com.cosmotune.video.segments.SegmentAction
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SegmentAction
+import com.cosmotune.media.segments.SkipSegment
 
 /**
  * Where a time falls in a storyboard (spec 6.5: the 160 x 90 frame in the scrubber's bubble): the sheet image ([sheet], an index into

@@ -33,8 +33,8 @@ import com.cosmotune.video.resources.video_set_sponsorblock_on_short
 import com.cosmotune.video.resources.video_set_using_sponsorblock
 import com.cosmotune.video.resources.video_set_whole_labels
 import com.cosmotune.video.resources.video_set_whole_labels_summary
-import com.cosmotune.video.segments.SegmentAction
-import com.cosmotune.video.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentAction
+import com.cosmotune.media.segments.SegmentCategory
 import com.cosmotune.video.settings.SegmentBehaviour
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.ui.VideoIcons

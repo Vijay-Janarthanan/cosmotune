@@ -183,7 +183,7 @@ import com.cosmotune.video.resources.video_size_large
 import com.cosmotune.video.resources.video_size_medium
 import com.cosmotune.video.resources.video_size_small
 import com.cosmotune.video.resources.video_speed_value
-import com.cosmotune.video.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentCategory
 import com.cosmotune.video.settings.CodecPreference
 import com.cosmotune.video.settings.TitleCase
 import com.cosmotune.video.resources.video_settings_label

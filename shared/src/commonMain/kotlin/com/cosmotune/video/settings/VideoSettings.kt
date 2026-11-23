@@ -1,7 +1,7 @@
 package com.cosmotune.video.settings
 
 import com.cosmotune.video.downloads.DownloadPrefs
-import com.cosmotune.video.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentCategory
 import kotlinx.coroutines.flow.StateFlow
 
 /** What happens with a SponsorBlock category (spec 5.11, 7.1): skip, mute, ask with a pill, show on the bar only, or off. */

@@ -1,4 +1,4 @@
-package com.cosmotune.video.segments
+package com.cosmotune.media.segments
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

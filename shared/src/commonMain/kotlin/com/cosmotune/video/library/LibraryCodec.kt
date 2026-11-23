@@ -8,7 +8,7 @@ import com.cosmotune.video.downloads.DownloadRequest
 import com.cosmotune.video.downloads.SubtitlePick
 import com.cosmotune.video.model.PlaylistItem
 import com.cosmotune.video.model.VideoItem
-import com.cosmotune.video.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentCategory
 import com.cosmotune.video.select.ContentFilter
 import com.cosmotune.video.settings.CodecPreference
 import com.cosmotune.video.settings.SegmentBehaviour

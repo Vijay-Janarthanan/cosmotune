@@ -9,7 +9,7 @@ import com.cosmotune.video.player.FirstStreamChooser
 import com.cosmotune.video.player.NoSegmentDecider
 import com.cosmotune.video.player.PlayerStatus
 import com.cosmotune.video.player.RelatedState
-import com.cosmotune.video.segments.FakeSegmentProvider
+import com.cosmotune.media.segments.FakeSegmentProvider
 import com.cosmotune.video.settings.FakeVideoSettingsRepository
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.source.FakeVideoSource

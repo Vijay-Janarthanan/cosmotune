@@ -6,10 +6,10 @@ import com.cosmotune.video.player.PlayerStatus
 import com.cosmotune.video.player.StartupTrace
 import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.player.controller.VideoPlayerController
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SegmentPolicy
-import com.cosmotune.video.segments.SegmentProvider
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentPolicy
+import com.cosmotune.media.segments.SegmentProvider
+import com.cosmotune.media.segments.SkipSegment
 import com.cosmotune.video.select.StreamSelector
 import com.cosmotune.video.settings.FakeVideoSettingsRepository
 import com.cosmotune.video.settings.VideoSettings

@@ -28,10 +28,10 @@ import com.cosmotune.video.player.StreamChooser
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.player.VideoUiError
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SegmentMath
-import com.cosmotune.video.segments.SegmentProvider
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentMath
+import com.cosmotune.media.segments.SegmentProvider
+import com.cosmotune.media.segments.SkipSegment
 import com.cosmotune.video.settings.SegmentBehaviour
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.settings.VideoSettingsRepository

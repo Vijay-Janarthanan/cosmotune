@@ -23,7 +23,7 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_elsewhere_follow
 import com.cosmotune.video.resources.video_elsewhere_following
 import com.cosmotune.video.resources.video_elsewhere_title
-import com.cosmotune.video.segments.TtlCache
+import com.cosmotune.media.segments.TtlCache
 import com.cosmotune.video.source.peertube.PeerChannelRef
 import com.cosmotune.video.ui.actions.ActionToastKind
 import com.cosmotune.video.ui.actions.VideoActionsState

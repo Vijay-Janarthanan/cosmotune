@@ -4,9 +4,9 @@ import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.StreamSet
 import com.cosmotune.video.model.VideoDetails
 import com.cosmotune.video.model.VideoItem
-import com.cosmotune.video.segments.SegmentAction
-import com.cosmotune.video.segments.SegmentProvider
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SegmentAction
+import com.cosmotune.media.segments.SegmentProvider
+import com.cosmotune.media.segments.SkipSegment
 import com.cosmotune.video.settings.SegmentBehaviour
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.settings.VideoSettingsRepository

@@ -2220,7 +2220,7 @@ fun CosmotuneDesktopApp() {
     // draws it — see PlaybackPosition — so a tick never recomposes the player.
     val playerPosition = remember { PlaybackPosition() }
     val musicSkipper = remember {
-        val client = com.cosmotune.video.segments.SponsorBlockClient()
+        val client = com.cosmotune.media.segments.SponsorBlockClient()
         com.cosmotune.listening.MusicSkipper(scope) { id, duration -> client.segments(id, com.cosmotune.listening.MusicSkips.CATEGORIES, duration) }
     }
     SideEffect { DesktopMiniPlayer.position = playerPosition }

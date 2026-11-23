@@ -17,7 +17,7 @@ import com.cosmotune.video.player.QualityOption
 import com.cosmotune.video.player.Selection
 import com.cosmotune.video.player.StreamChooser
 import com.cosmotune.video.player.VideoUiError
-import com.cosmotune.video.segments.FakeSegmentProvider
+import com.cosmotune.media.segments.FakeSegmentProvider
 import com.cosmotune.video.settings.FakeVideoSettingsRepository
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.source.FakeVideoSource

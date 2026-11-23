@@ -4,7 +4,7 @@ import com.cosmotune.video.downloads.DownloadPrefs
 import com.cosmotune.video.downloads.DownloadQuality
 import com.cosmotune.video.downloads.DownloadRequest
 import com.cosmotune.video.downloads.SubtitlePick
-import com.cosmotune.video.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentCategory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

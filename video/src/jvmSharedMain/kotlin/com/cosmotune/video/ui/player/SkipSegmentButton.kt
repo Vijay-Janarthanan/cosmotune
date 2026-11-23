@@ -60,8 +60,8 @@ import com.cosmotune.video.resources.video_seg_sponsor
 import com.cosmotune.video.resources.video_skip_segment
 import com.cosmotune.video.resources.video_skipped
 import com.cosmotune.video.resources.video_undo
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SkipSegment
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource

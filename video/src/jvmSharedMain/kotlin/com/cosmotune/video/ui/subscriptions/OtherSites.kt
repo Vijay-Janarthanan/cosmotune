@@ -36,7 +36,7 @@ import com.cosmotune.video.resources.video_other_bad
 import com.cosmotune.video.resources.video_other_hint
 import com.cosmotune.video.resources.video_other_note
 import com.cosmotune.video.resources.video_other_title
-import com.cosmotune.video.segments.TtlCache
+import com.cosmotune.media.segments.TtlCache
 import com.cosmotune.video.source.peertube.PeerTubeClient
 import com.cosmotune.video.ui.shell.VideoNavigator
 import kotlinx.coroutines.CoroutineScope

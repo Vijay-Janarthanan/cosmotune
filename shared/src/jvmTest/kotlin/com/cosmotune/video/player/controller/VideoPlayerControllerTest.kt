@@ -24,11 +24,11 @@ import com.cosmotune.video.player.Selection
 import com.cosmotune.video.player.StreamChooser
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.player.VideoUiError
-import com.cosmotune.video.segments.FakeSegmentProvider
-import com.cosmotune.video.segments.SegmentAction
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SegmentProvider
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.FakeSegmentProvider
+import com.cosmotune.media.segments.SegmentAction
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentProvider
+import com.cosmotune.media.segments.SkipSegment
 import com.cosmotune.video.settings.FakeVideoSettingsRepository
 import com.cosmotune.video.settings.SegmentBehaviour
 import com.cosmotune.video.settings.VideoSettings

@@ -13,10 +13,10 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_whole_exclusive
 import com.cosmotune.video.resources.video_whole_selfpromo
 import com.cosmotune.video.resources.video_whole_sponsor
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SegmentProvider
-import com.cosmotune.video.segments.TtlCache
-import com.cosmotune.video.segments.WholeVideoLabel
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SegmentProvider
+import com.cosmotune.media.segments.TtlCache
+import com.cosmotune.media.segments.WholeVideoLabel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore

@@ -1,8 +1,8 @@
 package com.cosmotune.podio
 
-import com.cosmotune.video.segments.SegmentAction
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SegmentAction
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SkipSegment
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

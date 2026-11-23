@@ -13,9 +13,9 @@ import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.music.VideoMusicBridge
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoSurfaceProvider
-import com.cosmotune.video.segments.BrandingProvider
-import com.cosmotune.video.segments.SegmentProvider
-import com.cosmotune.video.segments.VotesProvider
+import com.cosmotune.media.segments.BrandingProvider
+import com.cosmotune.media.segments.SegmentProvider
+import com.cosmotune.media.segments.VotesProvider
 import com.cosmotune.video.settings.VideoSettingsRepository
 import com.cosmotune.video.shorts.ShortsFeed
 import com.cosmotune.video.source.VideoSource

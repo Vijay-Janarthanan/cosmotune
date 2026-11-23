@@ -1,6 +1,6 @@
 package com.cosmotune.video.player
 
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SkipSegment
 import com.cosmotune.video.settings.VideoSettings
 
 /** What the SponsorBlock policy decides at a position tick (spec 6.1, 7.1). */

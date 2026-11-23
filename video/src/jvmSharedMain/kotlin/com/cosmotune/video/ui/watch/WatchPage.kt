@@ -72,8 +72,8 @@ import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoSurfaceProvider
 import com.cosmotune.video.player.VideoUiError
 import com.cosmotune.video.player.rememberPictureInPicture
-import com.cosmotune.video.segments.Votes
-import com.cosmotune.video.segments.VotesProvider
+import com.cosmotune.media.segments.Votes
+import com.cosmotune.media.segments.VotesProvider
 import com.cosmotune.video.select.ShortsFilter
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.ui.actions.VideoActionHandler

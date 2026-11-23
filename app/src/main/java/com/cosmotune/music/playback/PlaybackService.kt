@@ -896,7 +896,7 @@ class PlaybackService : MediaLibraryService() {
 
     /** The marked parts of music videos to skip, fetched once per song while the setting is on. */
     private val musicSkipper by lazy {
-        val client = com.cosmotune.video.segments.SponsorBlockClient()
+        val client = com.cosmotune.media.segments.SponsorBlockClient()
         com.cosmotune.listening.MusicSkipper(scope) { id, duration -> client.segments(id, com.cosmotune.listening.MusicSkips.CATEGORIES, duration) }
     }
 

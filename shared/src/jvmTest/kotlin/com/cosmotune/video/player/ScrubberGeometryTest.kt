@@ -2,9 +2,9 @@ package com.cosmotune.video.player
 
 import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.Storyboard
-import com.cosmotune.video.segments.SegmentAction
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SegmentAction
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SkipSegment
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

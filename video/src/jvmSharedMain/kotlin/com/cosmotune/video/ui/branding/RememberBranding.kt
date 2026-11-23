@@ -17,10 +17,10 @@ import coil3.request.ImageRequest
 import coil3.size.Size
 import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.model.VideoItem
-import com.cosmotune.video.segments.Branding
-import com.cosmotune.video.segments.BrandingProvider
-import com.cosmotune.video.segments.DeArrowTitles
-import com.cosmotune.video.segments.TtlCache
+import com.cosmotune.media.segments.Branding
+import com.cosmotune.media.segments.BrandingProvider
+import com.cosmotune.media.segments.DeArrowTitles
+import com.cosmotune.media.segments.TtlCache
 import com.cosmotune.video.settings.TitleCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay

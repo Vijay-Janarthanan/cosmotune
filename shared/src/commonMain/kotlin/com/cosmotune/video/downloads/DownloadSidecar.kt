@@ -4,9 +4,9 @@ import com.cosmotune.video.model.AudioCodec
 import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.VideoCodec
 import com.cosmotune.video.model.VideoItem
-import com.cosmotune.video.segments.SegmentAction
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SegmentAction
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SkipSegment
 import kotlinx.serialization.Serializable
 
 /** One subtitle file beside a download: its file name, language tag, label and whether a machine made it. */

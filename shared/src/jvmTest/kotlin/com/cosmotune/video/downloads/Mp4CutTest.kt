@@ -1,9 +1,9 @@
 package com.cosmotune.video.downloads
 
 import com.cosmotune.video.model.Chapter
-import com.cosmotune.video.segments.SegmentAction
-import com.cosmotune.video.segments.SegmentCategory
-import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.media.segments.SegmentAction
+import com.cosmotune.media.segments.SegmentCategory
+import com.cosmotune.media.segments.SkipSegment
 import java.io.File
 import java.io.RandomAccessFile
 import kotlin.io.path.createTempDirectory

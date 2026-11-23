@@ -2,7 +2,7 @@ package com.cosmotune.video.downloads
 
 import com.cosmotune.video.model.AudioCodec
 import com.cosmotune.video.model.VideoCodec
-import com.cosmotune.video.segments.FakeSegmentProvider
+import com.cosmotune.media.segments.FakeSegmentProvider
 import com.cosmotune.video.source.FakeVideoSource
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test

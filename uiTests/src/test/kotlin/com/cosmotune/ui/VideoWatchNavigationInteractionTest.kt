@@ -25,9 +25,9 @@ import com.cosmotune.video.nav.VideoTab
 import com.cosmotune.video.player.FakeVideoPlayback
 import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.PlayerStatus
-import com.cosmotune.video.segments.FakeBrandingProvider
-import com.cosmotune.video.segments.FakeSegmentProvider
-import com.cosmotune.video.segments.FakeVotesProvider
+import com.cosmotune.media.segments.FakeBrandingProvider
+import com.cosmotune.media.segments.FakeSegmentProvider
+import com.cosmotune.media.segments.FakeVotesProvider
 import com.cosmotune.video.settings.FakeVideoSettingsRepository
 import com.cosmotune.video.shorts.FakeShortsFeed
 import com.cosmotune.video.source.FakeVideoSource

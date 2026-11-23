@@ -1,4 +1,4 @@
-package com.cosmotune.video.segments
+package com.cosmotune.media.segments
 
 import com.cosmotune.video.settings.SegmentBehaviour
 

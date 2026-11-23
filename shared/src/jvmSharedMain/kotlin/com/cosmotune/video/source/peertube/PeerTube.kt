@@ -2,7 +2,7 @@ package com.cosmotune.video.source.peertube
 
 import com.cosmotune.video.local.LocalVideo
 import com.cosmotune.video.model.VideoItem
-import com.cosmotune.video.segments.WebServicesHttp
+import com.cosmotune.media.segments.WebServicesHttp
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject

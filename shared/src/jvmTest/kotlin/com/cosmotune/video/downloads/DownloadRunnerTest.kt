@@ -9,7 +9,7 @@ import com.cosmotune.video.model.SubtitleTrack
 import com.cosmotune.video.model.VideoCodec
 import com.cosmotune.video.model.VideoDetails
 import com.cosmotune.video.model.VideoStream
-import com.cosmotune.video.segments.FakeSegmentProvider
+import com.cosmotune.media.segments.FakeSegmentProvider
 import com.cosmotune.video.settings.FakeVideoSettingsRepository
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.source.FakeVideoSource
