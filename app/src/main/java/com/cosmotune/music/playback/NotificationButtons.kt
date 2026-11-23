@@ -8,9 +8,10 @@ import androidx.media3.common.Player
  * for Like when the song cannot be liked (signed out, a file on the phone, radio). An idea from LastWave Native.
  */
 internal object NotificationButtons {
-    enum class Kind { LIKE, SHUFFLE, REPEAT }
+    enum class Kind { LIKE, SHUFFLE, REPEAT, NEXT_CHAPTER }
 
-    fun pick(canLike: Boolean): List<Kind> = listOf(if (canLike) Kind.LIKE else Kind.SHUFFLE, Kind.REPEAT)
+    /** A podcast episode with chapters has Next chapter where Repeat would be. */
+    fun pick(canLike: Boolean, chapters: Boolean = false): List<Kind> = listOf(if (canLike) Kind.LIKE else Kind.SHUFFLE, if (chapters) Kind.NEXT_CHAPTER else Kind.REPEAT)
 
     /** Off → all → one → off: the same order as the app's own Repeat button. */
     fun nextRepeat(mode: Int): Int = when (mode) {

@@ -27,6 +27,15 @@ class PodioChapterMedia(private val directory: File, catalogue: PodioCatalogue =
     private val images = LinkedHashMap<String, Pair<String, ByteArray>?>()
     private val mutable = MutableStateFlow<PodioChapterImage?>(null)
     val state = mutable.asStateFlow()
+    private val loadedFlow = MutableStateFlow<String?>(null)
+    /** The episode whose chapters are known now (it has some), or null: the notification's Next chapter follows it. */
+    val loaded = loadedFlow.asStateFlow()
+
+    /** Whether the episode playing has chapters. */
+    val hasChapters: Boolean get() = synchronized(lock) { !chapters.isNullOrEmpty() }
+
+    /** Where the chapter after the playing one starts, or null in the last one. */
+    fun nextChapterStart(): Long? = synchronized(lock) { chapters?.firstOrNull { it.startMs > position + 1_000 }?.startMs }
 
     fun observe(song: Song?, positionMs: Long) = synchronized(lock) {
         val next = song?.takeIf { it.videoId.startsWith("podio:episode:") }?.let { value ->
@@ -34,7 +43,7 @@ class PodioChapterMedia(private val directory: File, catalogue: PodioCatalogue =
         }
         position = positionMs.coerceAtLeast(0)
         if (next != episode) {
-            generation++; metadata?.cancel(); image?.cancel(); episode = next; chapters = null; requested = null; mutable.value = null
+            generation++; metadata?.cancel(); image?.cancel(); episode = next; chapters = null; requested = null; mutable.value = null; loadedFlow.value = null
             if (next != null) {
                 val epoch = generation
                 metadata = scope.launch {
@@ -42,7 +51,7 @@ class PodioChapterMedia(private val directory: File, catalogue: PodioCatalogue =
                         catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
                     synchronized(lock) {
                         lists[next.second] = loaded; while (lists.size > 32) lists.remove(lists.keys.first())
-                        if (epoch == generation && episode == next) { chapters = loaded; select(epoch, next.first) }
+                        if (epoch == generation && episode == next) { chapters = loaded; loadedFlow.value = next.first.takeIf { loaded.isNotEmpty() }; select(epoch, next.first) }
                     }
                 }
             }

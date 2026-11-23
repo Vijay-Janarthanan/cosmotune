@@ -226,6 +226,7 @@ const val ACTION_TOGGLE_SHUFFLE = "com.cosmotune.music.action.TOGGLE_SHUFFLE"
 
 /** Session command used by the media notification's Repeat button: off → all → one → off. */
 const val ACTION_CYCLE_REPEAT = "com.cosmotune.music.action.CYCLE_REPEAT"
+const val ACTION_NEXT_CHAPTER = "com.cosmotune.music.action.NEXT_CHAPTER"
 
 /** Session actions exposed to Android Auto for the track that is playing. */
 const val ACTION_START_STATION = "com.cosmotune.music.action.START_STATION"
@@ -792,6 +793,8 @@ class PlaybackService : MediaLibraryService() {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    private val podioSkipper = com.cosmotune.podio.PodioSkipper()
+    private var podioSkipLibrary: com.cosmotune.podio.PodioLibrary? = null
     private data class PodioPosition(val id: String?, val positionMs: Long, val playing: Boolean, val loading: Boolean = false, val durationMs: Long = 0)
     private val podioPositions = kotlinx.coroutines.channels.Channel<PodioPosition>(kotlinx.coroutines.channels.Channel.BUFFERED)
     private val podioProgressScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -813,6 +816,8 @@ class PlaybackService : MediaLibraryService() {
                 }
             }
         }
+        // Next chapter joins the notification and the car once the episode's chapters are known.
+        scope.launch { podioChapterMedia.loaded.collect { refreshCustomLayouts() } }
         podioProgressScope.launch {
             var tracker: com.cosmotune.podio.PodioProgressTracker? = null
             try {
@@ -828,6 +833,13 @@ class PlaybackService : MediaLibraryService() {
                 player?.let {
                     podioChapterMedia.observe(it.currentMediaItem?.toSong(), it.currentPosition)
                     podioPositions.trySend(PodioPosition(it.currentMediaItem?.mediaId, it.currentPosition, it.isPlaying, it.playbackState == Player.STATE_BUFFERING, it.duration))
+                    // A show's own intro and outro lengths (its settings sheet) are skipped as it plays.
+                    val id = it.currentMediaItem?.mediaId
+                    if (id?.startsWith("podio:episode:") == true || podioSkipLibrary != null) {
+                        val library = podioSkipLibrary ?: runCatching { com.cosmotune.podio.PodioLibrary(java.io.File(filesDir, "podio/library.json")) }.getOrNull()?.also { podioSkipLibrary = it }
+                        if (library != null) podioSkipper.check(library, id, it.currentPosition, it.duration.takeIf { d -> d > 0 } ?: 0, it.isPlaying && it.playbackState == Player.STATE_READY)
+                            ?.let { target -> it.seekTo(target) }
+                    }
                 }
                 delay(1_000)
             }
@@ -905,6 +917,7 @@ class PlaybackService : MediaLibraryService() {
     private val autoplayCommand = SessionCommand(ACTION_TOGGLE_AUTOPLAY, Bundle.EMPTY)
     private val shuffleCommand = SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
     private val repeatCommand = SessionCommand(ACTION_CYCLE_REPEAT, Bundle.EMPTY)
+    private val nextChapterCommand = SessionCommand(ACTION_NEXT_CHAPTER, Bundle.EMPTY)
     private val startStationCommand = SessionCommand(ACTION_START_STATION, Bundle.EMPTY)
     private val revertToOriginalCommand = SessionCommand(ACTION_REVERT_TO_ORIGINAL, Bundle.EMPTY)
     private val swapToVersionCommand = SessionCommand(ACTION_SWAP_TO_VERSION, Bundle.EMPTY)
@@ -2089,7 +2102,10 @@ class PlaybackService : MediaLibraryService() {
         )
 
     /** Like and Repeat, or Shuffle and Repeat: the two actions of Cosmotune's own on the phone notification. See [NotificationButtons]. */
-    private fun notificationButtons(): List<CommandButton> = buttons(NotificationButtons.pick(canLike(player?.currentMediaItem)))
+    private fun notificationButtons(): List<CommandButton> = buttons(NotificationButtons.pick(canLike(player?.currentMediaItem), podioChapters()))
+
+    /** The playing podcast episode has chapters the player knows: the notification and the car offer Next chapter. */
+    private fun podioChapters(): Boolean = player?.currentMediaItem?.mediaId?.startsWith("podio:episode:") == true && podioChapterMedia.hasChapters
 
     private fun buttons(kinds: List<NotificationButtons.Kind>): List<CommandButton> =
         kinds.map { kind ->
@@ -2111,6 +2127,10 @@ class PlaybackService : MediaLibraryService() {
                         .setDisplayName(if (shuffleEnabled) "Shuffle off" else "Shuffle on")
                         .build()
                 }
+                NotificationButtons.Kind.NEXT_CHAPTER -> CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD)
+                    .setSessionCommand(nextChapterCommand)
+                    .setDisplayName("Next chapter")
+                    .build()
                 NotificationButtons.Kind.REPEAT -> {
                     val mode = player?.repeatMode ?: Player.REPEAT_MODE_OFF
                     CommandButton.Builder(
@@ -2160,7 +2180,8 @@ class PlaybackService : MediaLibraryService() {
                     .build()
             }
         // Cars keep Like and Shuffle; Repeat is only the phone notification's.
-        val own = listOfNotNull(NotificationButtons.Kind.LIKE.takeIf { canLike(player?.currentMediaItem) }, NotificationButtons.Kind.SHUFFLE)
+        val own = listOfNotNull(NotificationButtons.Kind.LIKE.takeIf { canLike(player?.currentMediaItem) }, NotificationButtons.Kind.SHUFFLE,
+            NotificationButtons.Kind.NEXT_CHAPTER.takeIf { podioChapters() })
         return buttons(own) + listOfNotNull(station, revert)
     }
 
@@ -8635,6 +8656,7 @@ class PlaybackService : MediaLibraryService() {
             val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                 .buildUpon()
                 .add(favoriteCommand)
+                .add(nextChapterCommand)
                 .add(boundedContextCommand)
                 .add(clearBoundedContextCommand)
                 .add(autoplayCommand)
@@ -8678,6 +8700,7 @@ class PlaybackService : MediaLibraryService() {
                 ACTION_TOGGLE_AUTOPLAY -> toggleAutoplayFromNotification()
                 ACTION_TOGGLE_SHUFFLE -> toggleShuffleFromSession()
                 ACTION_CYCLE_REPEAT -> cycleRepeatFromSession()
+                ACTION_NEXT_CHAPTER -> podioChapterMedia.nextChapterStart()?.let { start -> player?.seekTo(start) }
                 ACTION_START_STATION -> startStationFromSession()
                 ACTION_REVERT_TO_ORIGINAL -> revertCurrentToOriginal()
                 ACTION_SWAP_TO_VERSION -> swapCurrentToVersion(args)

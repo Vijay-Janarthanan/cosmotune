@@ -215,6 +215,7 @@ import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.PlaybackSourceType
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.podio.item
 import com.cosmotune.podio.offlinePodioItem
 import com.cosmotune.music.data.model.SubscriptionState
 import com.cosmotune.music.data.model.UiState
@@ -463,6 +464,21 @@ fun CosmotuneDesktopApp() {
         while (true) {
             kotlinx.coroutines.delay(com.cosmotune.update.UpdateCheckSchedule.MIN_GAP_MS)
             updates.refresh(com.cosmotune.update.UpdateTrigger.PERIODIC)
+        }
+    }
+    // Podio's followed shows are checked while the app runs (as Android's scheduled work does): each show's own choices
+    // download new episodes or add them to Up next.
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(5 * 60_000L)
+        while (true) {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val library = com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile())
+                    val found = com.cosmotune.podio.PodioRefresh.run(library, com.cosmotune.podio.PodioCatalogue(youtubePodcasts = com.cosmotune.podio.YouTubePodcasts()))
+                    com.cosmotune.podio.PodioShowRules.apply(found, library).download.forEach { DesktopDownloadQueue.enqueue(it.episode.item().song()) }
+                }
+            }
+            kotlinx.coroutines.delay(6 * 60 * 60_000L)
         }
     }
     // The window coming back from the tray or the Dock looks too, at most once an hour.
@@ -4451,6 +4467,7 @@ fun CosmotuneDesktopApp() {
                             is DesktopDownloadState.Failed -> "Download failed: ${status.reason} · tap to retry"
                         } },
                         episodeDownloadsRunning = downloadQueue.filterValues { it.state !is DesktopDownloadState.Failed }.keys,
+                        recordingsFolder = remember { com.cosmotune.podio.PodioRecordings.desktopFolder() },
                         onImportOpmlFile = {
                             com.cosmotune.desktop.chooseCosmotuneFile("", false, "Import podcast subscriptions")?.let { file ->
                                 withContext(Dispatchers.IO) { file.inputStream().use(com.cosmotune.podio.PodioOpml::read) }

@@ -34,8 +34,16 @@ class PodioRefreshWorker(context: Context, parameters: WorkerParameters) : Corou
         val library = PodioLibrary(libraryFile(applicationContext))
         val found = PodioRefresh.run(library, PodioCatalogue(youtubePodcasts = YouTubePodcasts()))
         if (found.isNotEmpty()) {
-            if (library.state.value.autoDownloadNew) found.take(AUTO_DOWNLOADS).forEach { Downloads.enqueue(applicationContext, it.episode.item().song(), "Podio") }
-            notify(found)
+            // Each show's own choices (its settings sheet): download, add to Up next, say so.
+            val plan = PodioShowRules.apply(found, library, AUTO_DOWNLOADS)
+            plan.download.forEach { Downloads.enqueue(applicationContext, it.episode.item().song(), "Podio") }
+            if (plan.notify.isNotEmpty()) notify(plan.notify)
+        }
+        // Played downloads, and those beyond a show's "Downloads to keep", go while the app is closed too.
+        runCatching {
+            val downloads = Downloads.getDownloadedSongs(applicationContext).mapNotNull(com.cosmotune.music.data.model.Song::offlinePodioItem)
+            PodioRetention.toRemove(downloads, library.state.value, playingId = null, queue = library.queue().state.value)
+                .forEach { Downloads.delete(applicationContext, it.id) }
         }
         Result.success()
     } catch (cancelled: CancellationException) { throw cancelled }

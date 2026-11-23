@@ -70,6 +70,8 @@ internal class PodioHost(
     val onPlayQueue: ((PodioItem, Long, List<PodioItem>) -> Unit)? = null,
     /** Replaces what comes after the playing episode in the player, after a change of the queue. */
     val onUpcoming: ((List<PodioItem>) -> Unit)? = null,
+    /** The system's share sheet for a text (its subject, the text); null where there is none, and Share copies instead. */
+    val share: ((String, String) -> Unit)? = null,
 )
 
 /**
@@ -129,6 +131,17 @@ internal class PodioModel(
     var lastPlayed by mutableStateOf<PodioItem?>(null)
     /** The episode whose details sheet is open, and the show it belongs to. */
     var episodeSheet by mutableStateOf<InboxEpisode?>(null)
+    /** Heard on the radio's full list is open. */
+    var songsOpen by mutableStateOf(false)
+
+    fun clearRadioHistory() {
+        val before = library.state.value.let { it.heardSongs to it.recentStations }
+        save(PodioHistory::clear)
+        offerUndo(PodioUndo("Radio history cleared") { save { it.copy(heardSongs = before.first, recentStations = before.second) } })
+    }
+
+    /** The followed show whose settings sheet is open. */
+    var showSettingsFor by mutableStateOf<PodcastShow?>(null)
     /** The phone's episode player sheet is open. */
     var playerSheet by mutableStateOf(false)
     /** The queue page (Up next) is open over the section. */
@@ -160,6 +173,41 @@ internal class PodioModel(
         old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station)
     }
 
+    /** The station dialog is open: null closed, a blank station to add one, a saved one to change it. */
+    var stationDialog by mutableStateOf<RadioStation?>(null)
+    var stationDialogError by mutableStateOf<String?>(null)
+    var savingStation by mutableStateOf(false)
+
+    fun addStation() { stationDialogError = null; stationDialog = RadioStation("", "", "") }
+    fun editStation(station: RadioStation) { stationDialogError = null; stationDialog = station }
+
+    /**
+     * Saves the station of the dialog: a playlist's address becomes the stream it names. A new station is added to Your stations
+     * and plays; an edited one keeps its place there.
+     */
+    fun saveStation(name: String, address: String, picture: String, editing: RadioStation?, onDone: () -> Unit) {
+        if (savingStation) return
+        savingStation = true; stationDialogError = null
+        scope.launch {
+            try {
+                val stream = catalogue.stationStream(address)
+                val changed = editing?.takeIf { it.id.isNotEmpty() }
+                val station = if (changed != null && !PodioStationLinks.isCustom(changed)) changed.copy(name = name.trim().ifBlank { changed.name }, url = stream,
+                        artwork = PodioCatalogue.httpUrl(picture).orEmpty())
+                    else requireNotNull(PodioStationLinks.station(name, stream, picture, changed?.country.orEmpty(), changed?.tags.orEmpty())) { "Enter an HTTP or HTTPS address." }
+                withContext(Dispatchers.IO) { library.update { PodioStationLinks.put(it, station, replacing = changed?.id) } }
+                if (selected?.id == changed?.id) selected = station
+                onDone()
+                if (changed == null) { playStation(station); notice = "Added ${station.name} to your stations." } else notice = "Saved ${station.name}."
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { stationDialogError = when (failure) {
+                is IllegalArgumentException -> failure.message ?: "Enter an HTTP or HTTPS address."
+                else -> "Couldn't read this address. Check it and try again."
+            } }
+            finally { savingStation = false }
+        }
+    }
+
     fun toggleFollow(show: PodcastShow) { scope.launch {
         try {
             var added = false
@@ -173,11 +221,6 @@ internal class PodioModel(
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { error = "Couldn't save or refresh your followed show. Retry from Following." }
     } }
-
-    fun setShowSkipSilence(shows: Set<String>, enabled: Boolean?) = save { old ->
-        old.copy(skipSilenceByShow = if (enabled == null) old.skipSilenceByShow - shows
-            else old.skipSilenceByShow + shows.associateWith { enabled })
-    }
 
     /** The playable item of [entry] with its show's playback choices (skip silence). */
     fun itemOf(entry: InboxEpisode): PodioItem = entry.item().copy(skipSilence = library.state.value.skipSilenceByShow[entry.show.id])
@@ -232,6 +275,30 @@ internal class PodioModel(
         offerUndo(PodioUndo("Removed from the queue") { changeQueue { PodioQueueOrder.restore(it, removed, index) } })
     }
 
+    /** The chosen queue entries to the top (or the end) of their group. */
+    fun moveQueuedToEdge(ids: Set<String>, top: Boolean) {
+        changeQueue { PodioQueueOrder.moveToEdge(it, ids, top) }
+        notice = (if (ids.size == 1) "1 episode" else "${ids.size} episodes") + if (top) " moved to the top" else " moved to the end"
+    }
+
+    /** Takes the chosen entries out of the queue, with one Undo. */
+    fun removeQueued(ids: Set<String>) {
+        val before = queue.state.value.entries
+        if (before.none { it.id in ids }) return
+        changeQueue { PodioQueueOrder.removeAll(it, ids) }
+        offerUndo(PodioUndo(if (ids.size == 1) "Removed from the queue" else "${ids.size} removed from the queue") {
+            changeQueue { now -> now.copy(entries = before.filter { it.id in ids || now.entries.any { e -> e.id == it.id } } + now.entries.filter { e -> before.none { it.id == e.id } }) }
+        })
+    }
+
+    fun toggleFavouriteEpisode(entry: InboxEpisode) {
+        val was = PodioFavourites.isFavourite(library.state.value, entry.item().id)
+        save { PodioFavourites.toggle(it, PodioQueueEntry(entry.episode, entry.show)) }
+        notice = if (was) "Removed from favourites" else "Added to favourites"
+    }
+
+    fun setShowTags(showId: String, tags: Collection<String>) = save { PodioTags.set(it, showId, tags) }
+
     fun moveInQueue(from: Int, to: Int) = changeQueue { PodioQueueOrder.move(it, from, to) }
     fun clearPlayNext() = changeQueue(PodioQueueOrder::clearPlayNext)
     fun clearQueue() {
@@ -263,6 +330,43 @@ internal class PodioModel(
         })
     }
 
+    /** Marks [positionMs] in the episode [item] (the player's Bookmark). */
+    fun addBookmark(item: PodioItem, positionMs: Long) {
+        if (!item.id.startsWith("podio:episode:")) return
+        save { PodioBookmarks.add(it, PodioBookmark(item.id, positionMs, item.title, item.author, item.url, item.artwork, item.durationSeconds, createdMs = System.currentTimeMillis())) }
+        notice = "Bookmarked at ${PodioFormat.clock(positionMs)}"
+    }
+
+    /** Plays a bookmark's episode from its time. */
+    fun playBookmark(mark: PodioBookmark) {
+        val item = mark.item().copy(skipSilence = PodioShowRules.showOf(mark.episodeId, library.state.value, queue.state.value, mark.showTitle)
+            ?.let { library.state.value.skipSilenceByShow[it] })
+        if (PodioCatalogue.httpUrl(item.url) == null) { error = "This bookmark's episode can't be played any more."; return }
+        lastPlayed = item
+        host.onPlay(item, mark.positionMs)
+    }
+
+    fun removeBookmark(mark: PodioBookmark) {
+        save { PodioBookmarks.remove(it, mark.key) }
+        offerUndo(PodioUndo("Bookmark removed") { save { PodioBookmarks.add(it, mark) } })
+    }
+
+    /** Shares [text] through the system's share sheet, or copies it where there is none. */
+    fun shareText(subject: String, text: String) {
+        val share = host.share
+        if (share != null) share(subject, text) else { host.copyText(text); notice = "Copied the link." }
+    }
+
+    /** A show to share: its name and its page (or its feed). */
+    fun shareShow(show: PodcastShow) = shareText(show.title.ifBlank { "Podcast" }, listOf(show.title, show.website.ifBlank { show.feed }).filter(String::isNotBlank).joinToString("\n"))
+
+    /** An episode to share, at [positionMs] when given ("listen from 12:34"). */
+    fun shareEpisode(episode: PodcastEpisode, show: String, positionMs: Long? = null) {
+        val link = if (positionMs != null && positionMs > 0) PodioBookmarks.linkAt(episode.url, positionMs) else episode.url
+        val at = positionMs?.takeIf { it > 0 }?.let { " (from ${PodioFormat.clock(it)})" }.orEmpty()
+        shareText(episode.title, "${episode.title} · ${show.ifBlank { episode.show }}$at\n$link")
+    }
+
     fun setRefreshInBackground(on: Boolean) = save { it.copy(refreshInBackground = on) }
     fun setAutoDownloadNew(on: Boolean) = save { it.copy(autoDownloadNew = on) }
 
@@ -272,7 +376,11 @@ internal class PodioModel(
         host.onPlay(item, resume)
     }
 
-    fun playStation(station: RadioStation) { selected = station; play(station.item()); scope.launch { catalogue.stationPlayed(station.id) } }
+    fun playStation(station: RadioStation) {
+        selected = station; play(station.item())
+        save { PodioHistory.played(it, station) }
+        scope.launch { catalogue.stationPlayed(station.id) }
+    }
 
     fun open(show: PodcastShow) {
         archiveJob?.cancel(); archiveLoading = false; archiveError = null
@@ -478,6 +586,75 @@ internal class PodioModel(
             // The host's list drops it as the file goes; once it has, the id may come back with a new download.
             else delay(2_000)
             removingDownloads = removingDownloads - item.id
+        }
+    }
+
+    /** Removes every played download of [downloads] at once, with one "Removed · Undo" (Downloads' "Remove played"). */
+    fun removePlayedDownloads(downloads: List<PodioItem>, playingId: String?) {
+        val remove = host.onRemoveDownload ?: return
+        val played = PodioRetention.played(downloads, library.state.value, playingId).filter { it.id !in removingDownloads }
+        if (played.isEmpty()) return
+        val ids = played.map { it.id }.toSet()
+        undoBar.removeAfterUndo(if (played.size == 1) played.single().title.ifBlank { "the episode" } else "${played.size} played downloads",
+            hide = { removingDownloads = removingDownloads + ids },
+            restore = { removingDownloads = removingDownloads - ids },
+        ) {
+            val failed = played.count { item -> !(try { remove(item) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { false }) }
+            if (failed > 0) error = "Couldn't remove $failed of the played downloads."
+            delay(2_000)
+            removingDownloads = removingDownloads - ids
+        }
+    }
+
+    private var retaining = false
+
+    /**
+     * Removes the downloads that "Remove played downloads" and "Downloads to keep" (the app's or a show's own) no longer keep, and
+     * says how many went. The playing episode and started ones stay.
+     */
+    suspend fun applyRetention(downloads: List<PodioItem>, playingId: String?) {
+        val remove = host.onRemoveDownload ?: return
+        if (retaining) return
+        val gone = PodioRetention.toRemove(downloads.filter { it.id !in removingDownloads }, library.state.value, playingId, queue.state.value)
+        if (gone.isEmpty()) return
+        retaining = true
+        try {
+            var count = 0
+            for (item in gone) if (try { remove(item) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { false }) count++
+            if (count > 0) notice = if (count == 1) "Removed a download you no longer need: ${gone.first().title}" else "Removed $count downloads you no longer need"
+        } finally { retaining = false }
+    }
+
+    /** Where recordings of stations are kept; null where the host keeps none. */
+    var recordingsFolder: java.io.File? = null
+    /** The recordings kept, newest first (Downloads' Recordings). */
+    var recordings by mutableStateOf(emptyList<PodioRecording>())
+    var removingRecordings by mutableStateOf(emptySet<String>())
+
+    suspend fun loadRecordings() {
+        val folder = recordingsFolder ?: return
+        recordings = withContext(Dispatchers.IO) { PodioRecordings.list(folder) }
+    }
+
+    fun startRecording(station: RadioStation) {
+        val folder = recordingsFolder ?: return
+        PodioRecorder.start(station, folder, split = library.state.value.recordBySong)
+        notice = if (library.state.value.recordBySong) "Recording ${station.name}: each song is saved as its own file in Downloads." else "Recording ${station.name} to Downloads."
+    }
+
+    fun stopRecording() { PodioRecorder.stop(); scope.launch { loadRecordings() } }
+
+    /** Removes a recording with "Removed · Undo"; its file goes once Undo has run out. */
+    fun removeRecording(recording: PodioRecording) {
+        val path = recording.file.absolutePath
+        undoBar.removeAfterUndo(recording.title.ifBlank { "the recording" },
+            hide = { removingRecordings = removingRecordings + path },
+            restore = { removingRecordings = removingRecordings - path },
+        ) {
+            val gone = withContext(Dispatchers.IO) { recording.file.delete() }
+            if (!gone) error = "Couldn't remove the recording."
+            loadRecordings()
+            removingRecordings = removingRecordings - path
         }
     }
 

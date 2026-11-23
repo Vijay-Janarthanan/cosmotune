@@ -62,6 +62,9 @@ class DesktopPlaybackEngine(
     private val _state = MutableStateFlow(DesktopPlaybackState())
     val state: StateFlow<DesktopPlaybackState> = _state.asStateFlow()
 
+    private val podioSkipper = com.cosmotune.podio.PodioSkipper()
+    private val skipLibrary by lazy { com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile()) }
+
     // Episode progress belongs to playback, not to whichever page is currently visible.
     private val podioProgressJob = scope.launch {
         var tracker: com.cosmotune.podio.PodioProgressTracker? = null
@@ -71,6 +74,10 @@ class DesktopPlaybackEngine(
                     tracker = runCatching { com.cosmotune.podio.PodioProgressTracker(com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile())) }.getOrNull()
                 }
                 tracker?.observe(snapshot.song?.videoId, snapshot.positionMs, snapshot.isPlaying, snapshot.isLoading, snapshot.durationMs)
+                // A show's own intro and outro lengths (its settings sheet) are skipped as it plays.
+                if (tracker != null) skipLibrary.let { library ->
+                    podioSkipper.check(library, snapshot.song?.videoId, snapshot.positionMs, snapshot.durationMs, snapshot.isPlaying && !snapshot.isLoading)?.let(::seekTo)
+                }
             }
         } finally {
             val snapshot = state.value

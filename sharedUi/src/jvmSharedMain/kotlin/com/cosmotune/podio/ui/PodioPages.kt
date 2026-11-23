@@ -314,14 +314,12 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
 /** The show's More menu: refresh, and (for a followed show) its own playback choices, which used to sit at the foot of Following. */
 @Composable private fun ShowMenu(m: PodioModel, env: PodioEnv, show: PodcastShow, feed: PodcastFeed?, open: Boolean, onDismiss: () -> Unit) {
     val following = env.saved.shows.any { it.id == show.id }
-    val skip = env.saved.skipSilenceByShow[show.id]
     val unplayedNew = feed?.episodes.orEmpty().map { it.item().id }.filter { env.isNew(it) }
     OrbitMenu(open, onDismiss, listOfNotNull(
         OrbitMenuItem("Refresh", icon = CosmoIcons.Replay) { m.open(show) },
         OrbitMenuItem("Mark every episode seen", enabled = unplayedNew.isNotEmpty()) { m.markSeen(unplayedNew) }.takeIf { following },
-        OrbitMenuItem("Skip silence", detail = when (skip) { true -> "On for this show"; false -> "Off for this show"; null -> "App default" }, selected = skip == true) {
-            m.setShowSkipSilence(setOf(show.id), if (skip == true) false else true)
-        }.takeIf { following },
+        OrbitMenuItem("Show settings", detail = "New episodes, skips, speed, downloads", icon = CosmoIcons.Settings, testTag = "podio:show:settings") { m.showSettingsFor = show }.takeIf { following },
+        OrbitMenuItem("Share show", icon = CosmoIcons.Share) { m.shareShow(feed?.show ?: show) },
         OrbitMenuItem("Copy feed address") { m.host.copyText(show.feed); m.notice = "Copied the feed address." },
     ), orbitFonts(), orbitLook(), header = show.title.ifBlank { "Podcast" })
 }
@@ -339,7 +337,19 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
     val list = rememberLazyListState()
     var segment by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
     var only by remember { mutableStateOf<String?>(null) }
-    var byName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    // The Shows grid's order: 0 latest episode, 1 name, 2 when followed (the newest follow first).
+    var order by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
+    var hidePlayed by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var tag by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var chosenList by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    // The list being made (an empty id) or changed.
+    var editingList by remember { mutableStateOf<PodioSmartList?>(null) }
+    editingList?.let { editing ->
+        val fresh = editing.id.isEmpty()
+        SmartListDialog(editing.takeUnless { fresh }, env.saved.shows, { editingList = null },
+            onSave = { list -> m.save { PodioSmartLists.put(it, list) }; chosenList = list.id; editingList = null },
+            onDelete = if (fresh) null else ({ m.save { PodioSmartLists.remove(it, editing.id) }; chosenList = null; editingList = null }))
+    }
     BoxWithConstraints(Modifier.fillMaxSize().testTag("podio:following")) {
         val side = orbitPageSide(maxWidth)
         val (columns, cell) = stationCells(maxWidth, side, maxWidth >= 840.dp)
@@ -371,17 +381,67 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                 OrbitChipRow(side, Modifier.padding(top = 16.dp)) {
                     OrbitSelectChip("New" + if (fresh.isEmpty()) "" else " ${fresh.size}", segment == 0, fonts, look, { segment = 0 }, haptic = false, modifier = Modifier.testTag("podio:following:new"))
                     OrbitSelectChip("Shows ${shows.size}", segment == 1, fonts, look, { segment = 1 }, haptic = false, modifier = Modifier.testTag("podio:following:shows"))
+                    OrbitSelectChip("Lists" + if (env.saved.smartLists.isEmpty()) "" else " ${env.saved.smartLists.size}", segment == 3, fonts, look, { segment = 3 }, haptic = false,
+                        modifier = Modifier.testTag("podio:following:lists"))
+                    OrbitSelectChip("Favourites" + if (env.saved.favouriteEpisodes.isEmpty()) "" else " ${env.saved.favouriteEpisodes.size}", segment == 4, fonts, look, { segment = 4 },
+                        haptic = false, modifier = Modifier.testTag("podio:following:favourites"))
+                    OrbitSelectChip("Bookmarks" + if (env.saved.bookmarks.isEmpty()) "" else " ${env.saved.bookmarks.size}", segment == 2, fonts, look, { segment = 2 }, haptic = false,
+                        modifier = Modifier.testTag("podio:following:bookmarks"))
                 }
+            }
+            if (segment == 4) {
+                val favourites = env.saved.favouriteEpisodes
+                if (favourites.isEmpty()) item(key = "no-favourites") {
+                    Text("Add an episode to your favourites from its page to keep it here.", style = fonts.body, color = look.dim,
+                        modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 16.dp))
+                }
+                items(favourites, key = { "f-" + it.id }) {
+                    EpisodeItemRow(m, env, InboxEpisode(it.episode, it.show), withShow = true, fonts, look, Modifier.padding(horizontal = side).padding(top = 4.dp))
+                }
+                return@LazyColumn
+            }
+            if (segment == 3) {
+                smartListItems(m, env, side, fonts, look, chosenList, { chosenList = it }, { editingList = it ?: PodioSmartList("", "") })
+                return@LazyColumn
+            }
+            if (segment == 2) {
+                val marks = PodioBookmarks.newestFirst(env.saved)
+                if (marks.isEmpty()) item(key = "no-bookmarks") {
+                    Text("Bookmark a moment from the player to come back to it here.", style = fonts.body, color = look.dim,
+                        modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 16.dp))
+                } else item(key = "bookmarks") { BookmarkList(m, marks, withEpisode = true, Modifier.padding(horizontal = side).padding(top = 14.dp)) }
+                return@LazyColumn
             }
             if (segment == 1) {
                 item(key = "order") {
                     OrbitChipRow(side, Modifier.padding(top = 10.dp)) {
-                        OrbitSelectChip("Latest", !byName, fonts, look, { byName = false }, haptic = false)
-                        OrbitSelectChip("Name", byName, fonts, look, { byName = true }, haptic = false)
+                        OrbitSelectChip("Latest", order == 0, fonts, look, { order = 0 }, haptic = false)
+                        OrbitSelectChip("Name", order == 1, fonts, look, { order = 1 }, haptic = false)
+                        OrbitSelectChip("Followed", order == 2, fonts, look, { order = 2 }, haptic = false, modifier = Modifier.testTag("podio:following:order:added"))
+                        Spacer(Modifier.width(4.dp))
+                        OrbitSelectChip("Hide played", hidePlayed, fonts, look, { hidePlayed = !hidePlayed }, haptic = false, modifier = Modifier.testTag("podio:following:hide-played"))
                     }
                 }
-                val ordered = if (byName) shows.sortedBy { it.title.lowercase() } else shows.sortedByDescending { show ->
-                    m.inbox.firstOrNull { it.show.id == show.id }?.let { PodioFormat.publishedAt(it.episode.published) } ?: Long.MIN_VALUE
+                // A show is played when every one of its latest episodes Following knows is heard.
+                val unheard = m.inbox.filter { !env.isPlayed(it.item().id, it.episode.durationSeconds * 1000) }.map { it.show.id }.toSet()
+                val tags = PodioTags.all(env.saved)
+                if (tags.isNotEmpty()) item(key = "tags") {
+                    OrbitChipRow(side, Modifier.padding(top = 8.dp)) {
+                        OrbitSelectChip("Every tag", tag == null, fonts, look, { tag = null }, haptic = false)
+                        tags.forEach { each -> OrbitSelectChip(each, tag.equals(each, ignoreCase = true), fonts, look, { tag = each }, haptic = false,
+                            count = PodioTags.shows(env.saved, each).size, modifier = Modifier.testTag("podio:following:tag:$each")) }
+                    }
+                }
+                val tagged = tag?.takeIf { it in tags }?.let { chosen -> PodioTags.shows(env.saved, chosen) } ?: shows
+                val kept = if (hidePlayed) tagged.filter { show -> show.id in unheard || m.inbox.none { it.show.id == show.id } } else tagged
+                val ordered = when (order) {
+                    1 -> kept.sortedBy { it.title.lowercase() }
+                    2 -> kept.reversed()
+                    else -> kept.sortedByDescending { show -> m.inbox.firstOrNull { it.show.id == show.id }?.let { PodioFormat.publishedAt(it.episode.published) } ?: Long.MIN_VALUE }
+                }
+                if (ordered.isEmpty()) item(key = "shows-none") {
+                    Text("Every show here is played. Turn off Hide played to see them.", style = fonts.body, color = look.dim,
+                        modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 16.dp))
                 }
                 val rows = ordered.chunked(columns)
                 items(rows.size, key = { "shows-" + rows[it].first().id }) { index ->
@@ -442,12 +502,32 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
         val side = orbitPageSide(maxWidth)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = env.bottom + 16.dp)) {
             item(key = "head") { PodioHead("Downloads", episodeCount(env.downloaded.size).ifBlank { "On this device" }, fonts, look, side, env.onMusic) }
-            if (env.downloaded.isEmpty()) item(key = "empty") {
+            if (env.downloaded.isEmpty() && m.recordings.isEmpty()) item(key = "empty") {
                 PodioMessage("Downloads", "No downloads", "Download an episode to listen here without a connection.", fonts, look, side, "Browse podcasts") { env.chooseSection(PodioSection.PODCASTS) }
-            } else item(key = "title") {
-                OrbitPageSection("Downloaded episodes", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp), subtitle = "Play without a connection")
+            } else if (env.downloaded.isNotEmpty()) item(key = "title") {
+                val played = PodioRetention.played(env.downloaded, env.saved, env.playback.id)
+                OrbitPageSection("Downloaded episodes", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp), subtitle = "Play without a connection",
+                    action = if (played.isNotEmpty() && m.host.onRemoveDownload != null) "Remove played ${played.size}" else null,
+                    onAction = { m.removePlayedDownloads(env.downloaded, env.playback.id) })
             }
             items(env.downloaded, key = { it.id }) { episode -> DownloadedRow(m, env, episode, fonts, look, Modifier.padding(horizontal = side)) }
+            val recordings = m.recordings.filter { it.file.absolutePath !in m.removingRecordings }
+            if (recordings.isNotEmpty()) {
+                item(key = "recordings-title") {
+                    OrbitPageSection("Recordings", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp),
+                        subtitle = if (recordings.size == 1) "1 from the radio" else "${recordings.size} from the radio")
+                }
+                items(recordings, key = { "rec-" + it.file.absolutePath }) { recording ->
+                    val item = recording.item()
+                    val now = env.playback.id == item.id
+                    EpisodeRow(recording.title, PodioFormat.episodeMeta(recording.station, PodioFormat.date(java.time.Instant.ofEpochMilli(recording.savedMs).toString()),
+                        PodioFormat.size(recording.bytes)), null, 0f, now = now, playing = now && env.playback.playing,
+                        progress = if (now) ({ env.playedFraction() }) else null, download = DownloadMark.NONE,
+                        onPlay = { if (now) env.onToggle() else m.play(item) }, onDownload = {}, onMore = null, fonts = fonts, look = look,
+                        modifier = Modifier.padding(horizontal = side).testTag("podio:recording"), onToggle = env.onToggle,
+                        end = if (!now) ({ OrbitRoundButton(CosmoIcons.Close, "Remove recording", look.ink, { m.removeRecording(recording) }, size = 36.dp) }) else null)
+                }
+            }
         }
     }
 }
@@ -593,8 +673,17 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                     modifier = Modifier.testTag("podio:episode:queue"))
                 OrbitSelectChip(if (played) "Mark unplayed" else "Mark played", false, fonts, look, { m.markPlayed(item, episode.durationSeconds * 1000, !played) },
                     icon = CosmoIcons.Check, haptic = false)
+                val favourite = PodioFavourites.isFavourite(env.saved, item.id)
+                OrbitSelectChip(if (favourite) "Favourite" else "Add to favourites", favourite, fonts, look, { m.toggleFavouriteEpisode(entry) },
+                    icon = if (favourite) CosmoIcons.HeartFill else CosmoIcons.Heart, haptic = false, modifier = Modifier.testTag("podio:episode:favourite"))
+                OrbitSelectChip("Share", false, fonts, look, { m.shareEpisode(episode, entry.show.title) }, icon = CosmoIcons.Share, haptic = false)
                 // The episode for everyone in the room, each device fetching it itself; hidden where rooms are not offered.
                 RoomPlayButton(remember(item.id) { item.roomItem() })
+            }
+            val marks = PodioBookmarks.of(env.saved, item.id)
+            if (marks.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OrbitLabel("Bookmarks · ${marks.size}", fonts, look.dim)
+                BookmarkList(m, marks, withEpisode = false, onPlayed = onDismiss)
             }
             EpisodeExtras(episode, m.catalogue, positionMs = if (now) env.playback.positionMs else null,
                 onSeek = { position -> if (now) env.onSeek(position) else m.playEpisodeAt(entry, position) },

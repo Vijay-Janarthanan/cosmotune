@@ -129,8 +129,14 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
             PodioCatalogue::class.java.getResourceAsStream("/podio/extra-stations.json")?.bufferedReader()?.use { json.decodeFromString<List<RadioStation>>(it.readText()) }
         }.getOrNull().orEmpty()
     }
+    /** The stream a station address plays: the address itself, or the first stream a playlist (M3U, PLS) at it names. */
+    suspend fun stationStream(url: String): String {
+        val address = requireNotNull(httpUrl(url)) { "Enter an HTTP or HTTPS address." }
+        if (!PodioStationLinks.isPlaylist(address)) return address
+        return PodioStationLinks.streams(read(address), address).firstOrNull() ?: error("This playlist names no stream.")
+    }
     suspend fun stationPlayed(id: String) {
-        if (!id.matches(Regex("[a-zA-Z0-9-]{1,64}"))) return
+        if (!id.matches(Regex("[a-zA-Z0-9-]{1,64}")) || id.startsWith(PodioStationLinks.CUSTOM_PREFIX)) return
         try { radio("/json/url/$id", emptyMap()) } catch(e: CancellationException) { throw e } catch (_: Exception) { }
     }
     /**
@@ -510,7 +516,27 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** Refresh followed shows in the background and say when there are new episodes. */
     val refreshInBackground: Boolean = true,
     /** Download new episodes of followed shows as the background refresh finds them. Off unless chosen. */
-    val autoDownloadNew: Boolean = false)
+    val autoDownloadNew: Boolean = false,
+    /** Each followed show's own settings ([PodioShowSettings]), by show id; a show at every default has none. */
+    val showSettings: Map<String, PodioShowSettings> = emptyMap(),
+    /** Remove a downloaded episode by itself once it is played (a show can choose otherwise). */
+    val deletePlayedDownloads: Boolean = false,
+    /** Keep only this many of each show's newest downloads; 0 keeps all (a show can choose otherwise). */
+    val keepDownloadsPerShow: Int = 0,
+    /** Moments marked in episodes ([PodioBookmarks]), oldest first. */
+    val bookmarks: List<PodioBookmark> = emptyList(),
+    /** Lists that fill themselves from the followed shows ([PodioSmartLists]). */
+    val smartLists: List<PodioSmartList> = emptyList(),
+    /** A station recording starts a new file at each new song the station names. */
+    val recordBySong: Boolean = true,
+    /** The stations played lately, the latest first ([PodioHistory]). */
+    val recentStations: List<RadioStation> = emptyList(),
+    /** The songs the stations named while they played, the latest first. */
+    val heardSongs: List<PodioHeardSong> = emptyList(),
+    /** Each followed show's tags ([PodioTags]), by show id. */
+    val showTags: Map<String, Set<String>> = emptyMap(),
+    /** Episodes kept as favourites ([PodioFavourites]), the newest first. */
+    val favouriteEpisodes: List<PodioQueueEntry> = emptyList())
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {
@@ -552,8 +578,10 @@ class PodioLibrary(private val file: File) {
             it.copy(stations = it.stations.take(500), shows = shows, progress = progress, completedEpisodes = it.completedEpisodes.intersect(progress.keys),
                 skipSilenceByShow = it.skipSilenceByShow.filterKeys(followed::contains),
                 speedByShow = it.speedByShow.filterKeys(followed::contains).filterValues { speed -> speed in 0.5f..3f },
+                showSettings = it.showSettings.filterKeys(followed::contains), showTags = it.showTags.filterKeys(followed::contains),
+                favouriteEpisodes = it.favouriteEpisodes.take(PodioFavourites.MAX),
                 knownEpisodes = it.knownEpisodes.filterKeys(followed::contains).mapValues { (_, ids) -> ids.take(PodioRefresh.KNOWN_PER_SHOW) },
-                seenEpisodes = it.seenEpisodes.toList().takeLast(2000).toSet())
+                seenEpisodes = it.seenEpisodes.toList().takeLast(2000).toSet(), bookmarks = it.bookmarks.takeLast(PodioBookmarks.MAX))
         }
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, file.name + ".tmp")
@@ -564,12 +592,17 @@ class PodioLibrary(private val file: File) {
 
     fun importOpml(xml: String): Int {
         val shows = PodioOpml.decode(xml)
+        // An OPML folder becomes a tag of the shows inside it.
+        val folders = PodioTags.foldersOf(xml)
         var added = 0
         update { old ->
             val combined = (old.shows + shows).distinctBy { it.feed.trimEnd('/') }
             require(combined.size <= 500) { "The library supports up to 500 followed podcasts." }
             added = combined.size - old.shows.size
-            old.copy(shows = combined)
+            combined.fold(old.copy(shows = combined)) { acc, show ->
+                val tags = folders[show.feed.trimEnd('/')] ?: return@fold acc
+                PodioTags.set(acc, show.id, acc.showTags[show.id].orEmpty() + tags)
+            }
         }
         return added
     }

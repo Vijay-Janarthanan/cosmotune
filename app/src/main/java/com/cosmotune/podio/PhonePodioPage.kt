@@ -124,6 +124,14 @@ import java.io.File
             is DownloadState.Failed -> "Download failed: ${status.reason} · tap to retry"
         } },
         episodeDownloadsRunning = activeDownloads.filterValues { it !is DownloadState.Failed }.keys,
+        onShare = { subject, text ->
+            runCatching {
+                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, subject).putExtra(Intent.EXTRA_TEXT, text), null))
+            }
+        },
+        // Station recordings stay in the app's own Music folder on the device (no storage permission needed).
+        recordingsFolder = remember(context) { File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC) ?: context.filesDir, "Cosmotune Radio") },
         onImportOpmlFile = { chooseFile(false)?.let { uri -> withContext(Dispatchers.IO) {
             requireNotNull(context.contentResolver.openInputStream(uri)).use(PodioOpml::read)
         } } })

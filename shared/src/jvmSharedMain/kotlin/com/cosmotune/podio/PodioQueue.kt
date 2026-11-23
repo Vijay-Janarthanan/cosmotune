@@ -76,6 +76,14 @@ object PodioQueueOrder {
         return state.copy(entries = next)
     }
 
+    /** The entries [ids] to the top (or the end, [top] false) of their own group, keeping their order (the queue's selection). */
+    fun moveToEdge(state: PodioQueueState, ids: Set<String>, top: Boolean): PodioQueueState {
+        fun edge(group: List<PodioQueueEntry>) = group.partition { it.id in ids }.let { (chosen, rest) -> if (top) chosen + rest else rest + chosen }
+        return state.copy(entries = edge(state.playNext) + edge(state.upNext))
+    }
+
+    fun removeAll(state: PodioQueueState, ids: Set<String>): PodioQueueState = state.copy(entries = state.entries.filterNot { it.id in ids })
+
     fun clearPlayNext(state: PodioQueueState): PodioQueueState = state.copy(entries = state.entries.filterNot { it.playNext })
 
     fun clear(state: PodioQueueState): PodioQueueState = state.copy(entries = emptyList())
