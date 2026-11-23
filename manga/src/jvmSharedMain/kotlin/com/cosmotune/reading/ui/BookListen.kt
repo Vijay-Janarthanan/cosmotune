@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Forward30
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Replay30
@@ -31,8 +32,14 @@ import kotlinx.coroutines.launch
 internal fun ReadingAudioHost.playBook(book: ReadingAudiobook, fromMs: Long = if (book.finished) 0 else book.positionMs) {
     val (index, inTrack) = ReadingAudioMath.locate(book.tracks, fromMs)
     val artwork = book.coverPath?.let { File(it).toURI().toString() } ?: book.coverUrl
-    play(book.tracks.mapIndexed { i, track -> ReadingAudioItem(ReadingAudioHost.itemId(book.id, i), track.title.ifBlank { book.title }, book.author, track.url, artwork) },
+    play(book.tracks.mapIndexed { i, track -> ReadingAudioItem(ReadingAudioHost.itemId(book.id, i), track.title.ifBlank { book.title }, book.author, track.playable, artwork) },
         index, inTrack)
+}
+
+/** Plays [book] once its stream addresses carry the server's current key (a short-lived Audiobookshelf key may have been renewed). */
+internal fun ReadScope.listen(host: ReadingAudioHost, book: ReadingAudiobook, fromMs: Long? = null) = action {
+    val fresh = repository.audio.ready(book)
+    if (fromMs == null) host.playBook(fresh) else host.playBook(fresh, fromMs)
 }
 
 /** Where the player is in [book] across the whole book, or null when it is playing something else. */
@@ -64,6 +71,9 @@ internal fun ReadingAudioTracker(repository: ReadingRepository) {
         }
     }
 }
+
+/** "1.2 GB" or "340 MB", for what a download takes on the device. */
+internal fun sizeLabel(bytes: Long): String = if (bytes >= 1L shl 30) "%.1f GB".format(bytes / 1_073_741_824.0) else "${(bytes / 1_048_576).coerceAtLeast(1)} MB"
 
 /** "4 h 12 min" or "35 min" or "50 s". */
 internal fun listenTime(ms: Long): String {
@@ -145,7 +155,7 @@ internal fun BookListen(scope: ReadScope) {
             val playingNow = host?.positionIn(now) != null && host.playing
             OrbitCoverTitleCard(cover = now.coverPath?.let(::File) ?: now.coverUrl, colourUrl = null, key = now.id,
                 label = "Audiobook · ${(now.fraction * 100).toInt()} %", title = now.title, line = now.author.ifBlank { null },
-                onContinue = host?.let { h -> { if (playingNow) h.toggle() else h.playBook(now) } }, onClick = { open = now.id },
+                onContinue = host?.let { h -> { if (playingNow) h.toggle() else scope.listen(h, now) } }, onClick = { open = now.id },
                 modifier = Modifier.padding(horizontal = ReadMargin).padding(top = 4.dp).testTag("books:listen:now"))
         }
         if (shelfBooks.isEmpty()) item(key = "empty") {
@@ -195,12 +205,24 @@ private fun AudiobookPage(scope: ReadScope, book: ReadingAudiobook, onBack: () -
     val active = here != null
     val chapters = remember(book) { ReadingAudioMath.chapters(book) }
     val current = ReadingAudioMath.chapterAt(book, position)
+    val downloading by scope.repository.audio.downloading.collectAsUiState()
+    var removingDownload by remember { mutableStateOf(false) }
+    if (removingDownload) com.cosmotune.ui.kit.KitSheet(onDismiss = { removingDownload = false }) {
+        ReadSheetHeader("Remove the download?", onDone = { removingDownload = false }, doneLabel = "Keep")
+        Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            androidx.compose.material3.Text("The book stays on your shelf and plays from your Audiobookshelf again; your place is kept.",
+                style = ReadType.body(), color = look.dim)
+            ReadButton("Remove download", { removingDownload = false; scope.action { scope.repository.audio.removeDownload(book.id) } },
+                Modifier.testTag("books:audiobook:download:confirm"), kind = ReadKind.TONAL)
+        }
+        Spacer(Modifier.height(16.dp))
+    }
     fun seekTo(ms: Long) {
         val target = ms.coerceIn(0, book.durationMs.coerceAtLeast(0))
         if (host == null) return
         val (index, inTrack) = ReadingAudioMath.locate(book.tracks, target)
         val playingTrack = ReadingAudioHost.parse(host.nowId)?.second
-        if (active && playingTrack == index) host.seek(inTrack) else host.playBook(book, target)
+        if (active && playingTrack == index) host.seek(inTrack) else scope.listen(host, book, target)
         scope.action { scope.repository.audio.savePosition(book.id, target) }
     }
     LazyColumn(Modifier.fillMaxSize().testTag("books:audiobook"), contentPadding = PaddingValues(bottom = scope.bottom)) {
@@ -231,7 +253,7 @@ private fun AudiobookPage(scope: ReadScope, book: ReadingAudiobook, onBack: () -
                 else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ReadIconButton(Icons.Rounded.Replay30, "Back 30 seconds", { seekTo(position - 30_000) }, Modifier.testTag("books:audiobook:back30"))
                     ReadButton(if (active && host.playing) "Pause" else if (book.positionMs > 0 && !book.finished) "Resume" else "Play",
-                        { if (active) host.toggle() else host.playBook(book) }, Modifier.testTag("books:audiobook:play"),
+                        { if (active) host.toggle() else scope.listen(host, book) }, Modifier.testTag("books:audiobook:play"),
                         icon = if (active && host.playing) CosmoIcons.Pause else CosmoIcons.Play)
                     ReadIconButton(Icons.Rounded.Forward30, "Ahead 30 seconds", { seekTo(position + 30_000) }, Modifier.testTag("books:audiobook:ahead30"))
                 }
@@ -243,6 +265,17 @@ private fun AudiobookPage(scope: ReadScope, book: ReadingAudiobook, onBack: () -
                 }
                 ReadChipRow(inset = 0.dp) {
                     ReadChip(if (book.finished) "Finished" else "Mark finished", book.finished, { scope.action { scope.repository.audio.markFinished(book.id, !book.finished) } }, icon = CosmoIcons.Check)
+                    if (book.source == ReadingAudioSource.AUDIOBOOKSHELF) {
+                        val share = downloading[book.id]
+                        when {
+                            share != null -> ReadChip("Downloading ${(share * 100).toInt()} % · Stop", true, { scope.repository.audio.cancelDownload(book.id) },
+                                Modifier.testTag("books:audiobook:download:stop"), icon = CosmoIcons.Close)
+                            book.downloaded -> ReadChip("On this device · ${sizeLabel(remember(book.tracks) { scope.repository.audio.downloadedBytes(book.id) })}", true,
+                                { removingDownload = true }, Modifier.testTag("books:audiobook:download:remove"), icon = CosmoIcons.Check)
+                            else -> ReadChip(if (book.tracks.any { it.localPath != null }) "Finish download" else "Download to listen offline", false,
+                                { scope.repository.audio.startDownload(book.id, scope.onError) }, Modifier.testTag("books:audiobook:download"), icon = Icons.Rounded.Download)
+                        }
+                    }
                     if (book.hasEbook) ReadChip("Read the book", false, { scope.action {
                         val (name, bytes) = scope.repository.audio.audiobookshelfEbook(book)
                         scope.open(scope.repository.importFile(name) { bytes.inputStream() })
@@ -270,14 +303,15 @@ private fun AudiobookshelfSheet(scope: ReadScope, onDismiss: () -> Unit) {
     var server by remember { mutableStateOf(account?.server.orEmpty()) }
     var username by remember { mutableStateOf(account?.username.orEmpty()) }
     var password by remember { mutableStateOf("") }
+    var withKey by remember { mutableStateOf(account?.apiKey == true) }
     var libraries by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     LaunchedEffect(account?.server) { libraries = if (account == null) emptyList() else runCatching { scope.repository.audio.libraries() }.getOrDefault(emptyList()) }
     com.cosmotune.ui.kit.KitSheet(onDismiss = onDismiss) {
         ReadSheetHeader("Audiobookshelf", onDone = onDismiss, doneLabel = "Close")
         Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (account != null) {
-                androidx.compose.material3.Text("Connected to ${account.server}" + if (account.username.isNotBlank()) " as ${account.username}." else ".",
-                    style = ReadType.body(), color = orbitLook().ink)
+                androidx.compose.material3.Text("Connected to ${account.server}" + (if (account.username.isNotBlank()) " as ${account.username}" else "") +
+                    if (account.apiKey) " with an API key." else ".", style = ReadType.body(), color = orbitLook().ink)
                 if (libraries.size > 1) ReadChipRow(inset = 0.dp) {
                     libraries.forEach { (id, name) -> ReadChip(name, id == account.libraryId, { scope.action { scope.repository.audio.chooseLibrary(id) } }) }
                 }
@@ -287,12 +321,18 @@ private fun AudiobookshelfSheet(scope: ReadScope, onDismiss: () -> Unit) {
                 androidx.compose.material3.Text("Your own Audiobookshelf server: Read lists its audiobooks, plays them and sends your place back.",
                     style = ReadType.body(), color = orbitLook().dim)
                 OrbitInputField(server, { server = it.take(300) }, "Server address, such as https://books.example.org", modifier = Modifier.fillMaxWidth().testTag("books:abs:server"))
-                OrbitInputField(username, { username = it.take(100) }, "User name (blank to use an API key)", modifier = Modifier.fillMaxWidth().testTag("books:abs:user"))
-                OrbitInputField(password, { password = it.take(4000) }, if (username.isBlank()) "API key" else "Password", modifier = Modifier.fillMaxWidth().testTag("books:abs:password"),
+                ReadChipRow(inset = 0.dp) {
+                    ReadChip("Password", !withKey, { withKey = false }, Modifier.testTag("books:abs:with-password"))
+                    ReadChip("API key", withKey, { withKey = true }, Modifier.testTag("books:abs:with-key"))
+                }
+                if (withKey) androidx.compose.material3.Text("Make a key in your Audiobookshelf under Settings › API Keys. Keys you give no end date keep working.",
+                    style = ReadType.body(), color = orbitLook().dim)
+                else OrbitInputField(username, { username = it.take(100) }, "User name", modifier = Modifier.fillMaxWidth().testTag("books:abs:user"))
+                OrbitInputField(password, { password = it.take(4000) }, if (withKey) "API key" else "Password", modifier = Modifier.fillMaxWidth().testTag("books:abs:password"),
                     secret = true)
                 Spacer(Modifier.height(4.dp))
-                ReadButton("Connect", { scope.action { scope.repository.audio.connectAudiobookshelf(server, username, password); password = "" } },
-                    enabled = server.isNotBlank() && password.isNotBlank() && !scope.busy, modifier = Modifier.testTag("books:abs:connect"))
+                ReadButton("Connect", { scope.action { scope.repository.audio.connectAudiobookshelf(server, username, password, apiKey = withKey); password = "" } },
+                    enabled = server.isNotBlank() && password.isNotBlank() && (withKey || username.isNotBlank()) && !scope.busy, modifier = Modifier.testTag("books:abs:connect"))
             }
         }
         Spacer(Modifier.height(16.dp))
