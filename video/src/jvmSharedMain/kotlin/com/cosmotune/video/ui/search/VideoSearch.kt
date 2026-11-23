@@ -43,6 +43,7 @@ import com.cosmotune.video.resources.video_filter_playlists
 import com.cosmotune.video.resources.video_filter_shorts
 import com.cosmotune.video.resources.video_filter_videos
 import com.cosmotune.video.resources.video_search_hint
+import com.cosmotune.video.resources.video_search_voice
 import com.cosmotune.video.shorts.ShortsOrigin
 import com.cosmotune.video.ui.actions.rememberDownloadedIds
 import com.cosmotune.video.ui.actions.rememberVideoActions
@@ -118,6 +119,7 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
     // What is typed: in the page's own field, or in the desktop sidebar's (which the route's query drives).
     val sidebar = sidebarSearchShown()
     var own by rememberSaveable(route.query) { mutableStateOf(route.query) }
+    val voice = rememberVoiceInput()
     val typed = if (sidebar) DesktopVideoState.query else own
     val submitted = route.query.trim()
     val mode = searchMode(typed, submitted)
@@ -196,6 +198,16 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
                 look = orbitLook(),
                 focusRequester = focusRequester,
                 modifier = Modifier.listWidth(wide).padding(horizontal = CosmoSpacing.margin).padding(top = 4.dp, bottom = FIELD_GAP + 4.dp),
+                trailing = voice?.let { input ->
+                    {
+                        com.cosmotune.ui.components.CosmoIconButton(
+                            icon = com.cosmotune.video.ui.VideoIcons.Mic,
+                            contentDescription = stringResource(Res.string.video_search_voice),
+                            onClick = { input.listen { words -> own = words; submit(words) } },
+                            size = 40.dp,
+                        )
+                    }
+                },
             )
         }
         val bottom = contentPadding.calculateBottomPadding()

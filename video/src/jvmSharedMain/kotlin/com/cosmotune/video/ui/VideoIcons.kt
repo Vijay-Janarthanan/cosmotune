@@ -104,6 +104,9 @@ object VideoIcons {
     /** A padlock, open. */
     val LockOpen by icon("lock-open") { rect(5f, 10.5f, 14f, 9.5f, 2.5f); stroke("M8 10.5V8a4 4 0 0 1 7.6-1.7") }
 
+    /** A microphone: search by voice. */
+    val Mic by icon("mic") { rect(9f, 3f, 6f, 11f, 3f); stroke("M5.5 11a6.5 6.5 0 0 0 13 0"); stroke("M12 17.5V21") }
+
     /** A camera: a screenshot of the video. */
     val Camera by icon("camera") { rect(3f, 7f, 18f, 13f, 2.5f); stroke("M8.5 7l1.5-2.5h4L15.5 7"); circle(12f, 13.5f, 3.5f) }
 

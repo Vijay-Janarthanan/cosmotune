@@ -7,6 +7,7 @@
     <string name="video_tab_library">Library</string>
     <string name="video_search">Search</string>
     <string name="video_search_hint">Search videos and channels</string>
+    <string name="video_search_voice">Search by voice</string>
     <string name="video_drawer_history">History</string>
     <string name="video_drawer_downloads">Downloads</string>
     <string name="video_drawer_settings">Video settings</string>
