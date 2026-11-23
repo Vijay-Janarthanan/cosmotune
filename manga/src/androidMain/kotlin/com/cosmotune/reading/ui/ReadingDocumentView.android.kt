@@ -82,11 +82,43 @@ private fun scriptResult(raw: String?): String? = runCatching {
             val taps = android.view.GestureDetector(context, object : android.view.GestureDetector.SimpleOnGestureListener() {
                 override fun onSingleTapConfirmed(event: android.view.MotionEvent): Boolean {
                     if (event.x > width / 3f && event.x < width * 2f / 3f) latestTap()
+                    else if (control?.tapZones == true) {
+                        val forward = (event.x >= width * 2f / 3f) != (control.invertZones)
+                        evaluateJavascript(ReadingEpubScripts.page(forward, control.slide), null); control.onTurn?.invoke(forward)
+                    }
                     return false
                 }
             })
+            // A swipe down or up the page's left edge dims or brightens it; anywhere else the page scrolls as usual.
+            var edgeY: Float? = null
             @SuppressLint("ClickableViewAccessibility")
-            setOnTouchListener { _, event -> taps.onTouchEvent(event); false }
+            setOnTouchListener { _, event ->
+                taps.onTouchEvent(event)
+                val brightness = control?.onBrightness
+                when (event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> edgeY = if (brightness != null && event.x < width * 0.06f) event.y else null
+                    android.view.MotionEvent.ACTION_MOVE -> edgeY?.let { start ->
+                        val delta = (start - event.y) / height.coerceAtLeast(1)
+                        if (kotlin.math.abs(delta) > 0.01f) { brightness?.invoke(delta * 1.5f); edgeY = event.y }
+                        return@setOnTouchListener true
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> if (edgeY != null) { edgeY = null; return@setOnTouchListener true }
+                }
+                false
+            }
+            // Page-turn pedals and keyboards (Page Down, arrows, space) and, when chosen, the volume keys turn the page.
+            setOnKeyListener { _, code, event ->
+                if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener code in pageKeys || (control?.volumeKeys == true && code in volumeKeys)
+                val forward = when (code) {
+                    android.view.KeyEvent.KEYCODE_PAGE_DOWN, android.view.KeyEvent.KEYCODE_DPAD_RIGHT, android.view.KeyEvent.KEYCODE_SPACE -> true
+                    android.view.KeyEvent.KEYCODE_PAGE_UP, android.view.KeyEvent.KEYCODE_DPAD_LEFT -> false
+                    android.view.KeyEvent.KEYCODE_VOLUME_DOWN -> if (control?.volumeKeys == true) true else return@setOnKeyListener false
+                    android.view.KeyEvent.KEYCODE_VOLUME_UP -> if (control?.volumeKeys == true) false else return@setOnKeyListener false
+                    else -> return@setOnKeyListener false
+                }
+                evaluateJavascript(ReadingEpubScripts.page(forward, control?.slide == true), null); control?.onTurn?.invoke(forward)
+                true
+            }
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse {
                     val href = request?.url?.toString()?.let(content::href)
@@ -161,8 +193,8 @@ private fun scriptResult(raw: String?): String? = runCatching {
     Column(modifier) {
         if (searchQuery.isNotBlank()) Text("$matches matches in this section", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium)
         if (!preferences.scrollMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            ReadTextButton("Previous screen", { web.evaluateJavascript(ReadingEpubScripts.page(false), null) })
-            ReadTextButton("Next screen", { web.evaluateJavascript(ReadingEpubScripts.page(true), null) })
+            ReadTextButton("Previous screen", { web.evaluateJavascript(ReadingEpubScripts.page(false, preferences.slideTurn && !preferences.eInk), null); control?.onTurn?.invoke(false) })
+            ReadTextButton("Next screen", { web.evaluateJavascript(ReadingEpubScripts.page(true, preferences.slideTurn && !preferences.eInk), null); control?.onTurn?.invoke(true) })
         }
         AndroidView(factory = { web }, modifier = Modifier.fillMaxSize())
     }
@@ -173,6 +205,10 @@ private val READING_IMPORT_TYPES = arrayOf("application/epub+zip", "application/
     "application/x-fictionbook+xml", "text/plain", "text/html", "text/markdown", "application/rtf", "text/rtf", "multipart/related", "message/rfc822",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.comicbook+zip", "application/x-cbz", "application/zip",
     "application/octet-stream")
+
+private val pageKeys = setOf(android.view.KeyEvent.KEYCODE_PAGE_DOWN, android.view.KeyEvent.KEYCODE_PAGE_UP, android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+    android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_SPACE)
+private val volumeKeys = setOf(android.view.KeyEvent.KEYCODE_VOLUME_DOWN, android.view.KeyEvent.KEYCODE_VOLUME_UP)
 
 internal actual fun openReadingPdf(file: File): ReadingPdfEngine = AndroidReadingPdf(file)
 internal actual fun supportsReadingPdfSearch(): Boolean = android.os.Build.VERSION.SDK_INT >= 35

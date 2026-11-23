@@ -127,17 +127,22 @@ internal object ReadingEpubScripts {
 
     /** The reader's look laid over the chapter: colours, font, size, spacing, margins, typography, columns and the reader's own rules. */
     fun preferences(value: ReadingPreferences, dark: Boolean, origin: String = ""): String {
-        val (bg, fg) = colours(value, dark)
+        val (bg, fg) = if (value.eInk) "#ffffff" to "#000000" else colours(value, dark)
         val text = "body p,body div,body span,body li,body blockquote,body td,body h1,body h2,body h3,body h4"
         val face = value.fontFamily.removePrefix("font:").takeIf { value.fontFamily.startsWith("font:") && ReadingFonts.file(it) != null }
-        val fontFace = face?.let { "@font-face{font-family:'CosmoReaderFont';src:url('" + origin + ReadingFonts.PREFIX + it + "')}" }.orEmpty()
+        // The chosen font's whole family: its bold and italic files join the regular one.
+        val family = ReadingFonts.known.firstOrNull { it.id == face }?.family
+        val members = if (face == null) emptyList() else ReadingFonts.known.filter { family != null && it.family == family }.ifEmpty { listOf(ReadingFont(face, "", "")) }
+        val fontFace = members.joinToString("") { font ->
+            "@font-face{font-family:'CosmoReaderFont';src:url('" + origin + ReadingFonts.PREFIX + font.id + "');font-weight:${font.weight};font-style:${if (font.italic) "italic" else "normal"}}"
+        }
         val familyName = when {
             face != null -> "'CosmoReaderFont',serif"
             value.fontFamily == "publisher" -> null
             value.fontFamily in setOf("sans-serif", "monospace") -> value.fontFamily
             else -> "serif"
         }
-        val family = familyName?.let { "font-family:$it!important;" }.orEmpty()
+        val familyCss = familyName?.let { "font-family:$it!important;" }.orEmpty()
         val margin = value.marginDp.coerceIn(8, 80)
         val columns = value.columns == 2 && !value.scrollMode
         val extra = buildString {
@@ -147,10 +152,11 @@ internal object ReadingEpubScripts {
             if (value.paragraphSpacing >= 0f) append("body p{margin-top:0!important;margin-bottom:${value.paragraphSpacing.coerceIn(0f, 3f)}em!important}")
             if (value.paragraphIndent) append("body p{text-indent:1.5em!important}")
             if (value.hideCaptions) append("figcaption,.caption,.figcaption{display:none!important}")
+            if (value.eInk) append("*{transition:none!important;animation:none!important;scroll-behavior:auto!important}a{text-decoration:underline!important}img{filter:grayscale(1) contrast(1.2)}")
             if (columns) append("html{height:100%!important;overflow-y:hidden!important}body{max-width:none!important;margin:0!important;box-sizing:border-box!important;height:100vh!important;-webkit-column-count:2;column-count:2;-webkit-column-gap:${margin * 2}px;column-gap:${margin * 2}px;column-fill:auto}")
             if (value.customCss.isNotBlank() && UNSAFE_CSS.none { value.customCss.contains(it, true) }) append(value.customCss)
         }
-        val css = "html{background:$bg!important;color:$fg!important;}body{background:$bg!important;color:$fg!important;${family}font-size:${20 * value.fontScale.coerceIn(.6f, 2.5f)}px!important;line-height:${value.lineHeight.coerceIn(1f, 2.5f)}!important;padding:${value.marginDp.coerceIn(8, 80)}px!important;}img,svg{max-width:100%;height:auto}a{color:inherit}mark.cosmotune-match{background:#ffd85a!important;color:#211a00!important}$HIGHLIGHT_CSS"
+        val css = "html{background:$bg!important;color:$fg!important;}body{background:$bg!important;color:$fg!important;${familyCss}font-size:${20 * value.fontScale.coerceIn(.6f, 2.5f)}px!important;line-height:${value.lineHeight.coerceIn(1f, 2.5f)}!important;padding:${value.marginDp.coerceIn(8, 80)}px!important;}img,svg{max-width:100%;height:auto}a{color:inherit}mark.cosmotune-match{background:#ffd85a!important;color:#211a00!important}$HIGHLIGHT_CSS"
         val mark = if (columns) "document.documentElement.setAttribute('data-cosmo-columns','2');" else "document.documentElement.removeAttribute('data-cosmo-columns');"
         // A fixed-layout page keeps the publisher's look and is zoomed to fit the screen.
         return "(function(){var e=document.getElementById('cosmotune-reader-style'),f=document.documentElement.getAttribute('data-cosmo-fixed');" +
@@ -159,10 +165,18 @@ internal object ReadingEpubScripts {
     }
 
     /** A screen on or back ([forward]): a page of two columns sideways, else nine tenths of the screen down. */
-    fun page(forward: Boolean): String {
+    fun page(forward: Boolean, slide: Boolean = false): String {
         val sign = if (forward) "" else "-"
-        return "(function(){if(document.documentElement.getAttribute('data-cosmo-columns'))window.scrollBy(${sign}window.innerWidth,0);else window.scrollBy(0,${sign}window.innerHeight*0.88);return '';})()"
+        val how = if (slide) "smooth" else "auto"
+        return "(function(){if(document.documentElement.getAttribute('data-cosmo-columns'))window.scrollBy({left:${sign}window.innerWidth,behavior:'$how'});else window.scrollBy({top:${sign}window.innerHeight*0.88,behavior:'$how'});return '';})()"
     }
+
+    /** Scrolls the chapter by itself at [pixelsPerSecond] (0 stops it); at its end it notes so for [autoScrollEnded]. */
+    fun autoScroll(pixelsPerSecond: Int): String = "(function(v){if(window.__cosmoAutoId){cancelAnimationFrame(window.__cosmoAutoId);window.__cosmoAutoId=0;}window.__cosmoAutoEnd=0;if(v<=0)return '';" +
+        "var last=0,acc=0;function step(t){if(last){acc+=v*(t-last)/1000;var d=Math.floor(acc);if(d>=1){window.scrollBy(0,d);acc-=d;}}last=t;" +
+        "if(window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-2){window.__cosmoAutoEnd=1;window.__cosmoAutoId=0;return;}window.__cosmoAutoId=requestAnimationFrame(step);}" +
+        "window.__cosmoAutoId=requestAnimationFrame(step);return '';})($pixelsPerSecond)"
+    const val autoScrollEnded = "(function(){var e=window.__cosmoAutoEnd?'1':'';window.__cosmoAutoEnd=0;return e;})()"
     fun restore(locator: ReadingLocator): String {
         val fragment = locator.resourceHref?.substringAfter('#', "").orEmpty()
         return if (fragment.isNotBlank()) "(function(){var e=document.getElementById(${quote(fragment)});if(e)e.scrollIntoView();})()"

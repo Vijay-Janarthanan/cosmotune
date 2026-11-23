@@ -53,7 +53,7 @@ internal actual val readingCenterTap: Boolean = false
     val latestSearch by rememberUpdatedState(searchQuery)
     val latestDark by rememberUpdatedState(dark)
     val scope = rememberCoroutineScope()
-    val controller = remember(document) { DesktopEpubController(document) }
+    val controller = remember(document) { DesktopEpubController(document, control) }
     var ready by remember(controller) { mutableStateOf(false) }
     var loaded by remember(controller) { mutableStateOf(false) }
     var matches by remember(controller) { mutableStateOf(0) }
@@ -126,14 +126,14 @@ internal actual val readingCenterTap: Boolean = false
     Column(modifier) {
         if (searchQuery.isNotBlank()) Text("$matches matches in this section", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium)
         if (!preferences.scrollMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            ReadTextButton("Previous screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(false)) } } })
-            ReadTextButton("Next screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(true)) } } })
+            ReadTextButton("Previous screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(false, preferences.slideTurn && !preferences.eInk)) } } })
+            ReadTextButton("Next screen", { scope.launch { controller.fx { engine.executeScript(ReadingEpubScripts.page(true, preferences.slideTurn && !preferences.eInk)) } } })
         }
         SwingPanel(factory = { controller.panel }, modifier = Modifier.fillMaxSize())
     }
 }
 
-private class DesktopEpubController(document: ReadingDocument.Epub) : AutoCloseable {
+private class DesktopEpubController(document: ReadingDocument.Epub, private val control: ReadingPageControl?) : AutoCloseable {
     val server = ReadingEpubServer(document)
     val content get() = server.content
     val panel = JFXPanel()
@@ -150,6 +150,15 @@ private class DesktopEpubController(document: ReadingDocument.Epub) : AutoClosea
                 web.engine.createPopupHandler = javafx.util.Callback { null }
                 web.engine.setOnAlert { }
                 web.engine.confirmHandler = javafx.util.Callback { false }
+                // Page Down, Page Up, space and the side arrows turn a screen (a page of two columns sideways), as a page-turn pedal sends them.
+                web.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED) { key ->
+                    val forward = when (key.code) {
+                        javafx.scene.input.KeyCode.PAGE_DOWN, javafx.scene.input.KeyCode.RIGHT, javafx.scene.input.KeyCode.SPACE -> true
+                        javafx.scene.input.KeyCode.PAGE_UP, javafx.scene.input.KeyCode.LEFT -> false
+                        else -> null
+                    }
+                    if (forward != null && !key.isShiftDown) { web.engine.executeScript(ReadingEpubScripts.page(forward, control?.slide == true)); key.consume() }
+                }
                 panel.scene = Scene(web)
                 started.complete(Unit)
             } catch (e: Throwable) { started.completeExceptionally(e) }

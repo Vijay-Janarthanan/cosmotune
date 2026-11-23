@@ -26,6 +26,7 @@ import com.cosmotune.ui.orbit.OrbitReaderCard
 import com.cosmotune.ui.orbit.orbitLook
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import androidx.compose.ui.text.withStyle
 import kotlinx.serialization.json.*
 
 /** A sentence of the open chapter: offsets into its text and the words to speak. */
@@ -229,5 +230,61 @@ internal fun VoiceSheet(speech: ReadingSpeech, preferences: ReadingPreferences, 
             }
         }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** The words of [sentences] one by one, for speed reading. */
+internal fun speedWords(sentences: List<SpokenSentence>, from: Int = 0): List<String> =
+    sentences.drop(from).flatMap { it.text.split(Regex("\\s+")) }.filter { it.isNotBlank() }
+
+/** The letter a reader's eye rests on in [word] (a little left of the middle), as speed-reading apps mark it. */
+internal fun focusLetter(word: String): Int = when (word.length) { 0, 1 -> 0; in 2..5 -> 1; in 6..9 -> 2; in 10..13 -> 3; else -> 4 }
+
+/** Speed reading: the open chapter from the screen on, one word at a time at the chosen pace, its focus letter in the accent. */
+@Composable
+internal fun SpeedReadingSheet(page: ReadingPageControl, fill: Color, ink: Color, onDismiss: () -> Unit) {
+    var words by remember { mutableStateOf<List<String>?>(null) }
+    var index by remember { mutableIntStateOf(0) }
+    var playing by remember { mutableStateOf(false) }
+    var pace by remember { mutableIntStateOf(300) }
+    LaunchedEffect(Unit) { val (list, first) = parseSentences(page.run(ReadingEpubScripts.sentences)); words = speedWords(list, first) }
+    LaunchedEffect(playing, pace, words) {
+        val all = words ?: return@LaunchedEffect
+        while (playing && index < all.size - 1) {
+            val word = all[index]
+            delay((60_000L / pace) * (if (word.last() in ".!?;:") 2 else 1))
+            index++
+        }
+        if (index >= all.size - 1) playing = false
+    }
+    val look = orbitLook()
+    KitSheet(onDismiss = onDismiss) {
+        ReadSheetHeader("Speed reading", onDone = onDismiss, doneLabel = "Close")
+        val all = words
+        Box(Modifier.fillMaxWidth().height(140.dp).padding(horizontal = 20.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            val word = all?.getOrNull(index)
+            if (word == null) Text(if (all == null) "Getting the chapter…" else "Nothing to read here.", style = ReadType.body(), color = look.dim)
+            else {
+                val focus = focusLetter(word).coerceAtMost(word.length - 1)
+                Text(androidx.compose.ui.text.buildAnnotatedString {
+                    append(word.substring(0, focus))
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = look.accent)) { append(word[focus]) }
+                    append(word.substring(focus + 1))
+                }, style = com.cosmotune.ui.orbit.orbitFonts().heroTitle, color = look.ink, maxLines = 1, modifier = Modifier.testTag("books:speed:word"))
+            }
+        }
+        if (all != null && all.size > 1) com.cosmotune.ui.orbit.OrbitProgressLine({ index / (all.size - 1f) }, look.accent, Modifier.padding(horizontal = 20.dp),
+            onSeek = { index = (it * (all.size - 1)).toInt() })
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            OrbitReaderButton(Icons.Rounded.SkipPrevious, "Back ten words", look.ink, look.ground, { index = (index - 10).coerceAtLeast(0) })
+            OrbitReaderButton(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pause" else "Start", look.ink, look.ground, { playing = !playing },
+                Modifier.testTag("books:speed:play"), on = true)
+            OrbitReaderButton(Icons.Rounded.SkipNext, "On ten words", look.ink, look.ground, { index = (index + 10).coerceAtMost(((all?.size ?: 1) - 1).coerceAtLeast(0)) })
+            Spacer(Modifier.weight(1f))
+            Text("$pace words a minute", style = ReadType.caption(), color = look.dim)
+        }
+        ReadChipRow(Modifier.padding(bottom = 16.dp)) {
+            listOf(200, 300, 400, 500, 650).forEach { value -> ReadChip("$value", pace == value, { pace = value }, Modifier.testTag("books:speed:$value")) }
+        }
     }
 }

@@ -59,7 +59,8 @@ fun ReadSettingsSection(modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("settings:read")) {
         error?.let { Text(it, style = ReadType.body(), color = look.accent, modifier = Modifier.padding(horizontal = 20.dp)) }
         ReadOverline("Reader", inset = 16.dp)
-        ReadingAppearanceChoices(state.preferences, reflowable = true, onChange = ::update, fonts = state.fonts, onAddFont = addFont,
+        ReadingAppearanceChoices(state.preferences, reflowable = true, onChange = ::update, fonts = state.fonts, onAddFont = addFont, profiles = state.profiles,
+            onSaveProfile = { name, remove -> scope.launch { try { repository.saveProfile(name, state.preferences, remove) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { error = "The style could not be saved." } } },
             onRemoveFont = { id -> scope.launch { try { repository.removeFont(id) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { error = "The font could not be removed." } } })
         ReadSheetSection("Your own style") {
             var css by remember(state.preferences.customCss) { mutableStateOf(state.preferences.customCss) }

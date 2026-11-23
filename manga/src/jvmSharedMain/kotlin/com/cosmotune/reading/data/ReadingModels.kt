@@ -6,7 +6,35 @@ import kotlinx.serialization.Serializable
 @Serializable enum class ReadingFormat { EPUB, PDF }
 @Serializable enum class ReadingTheme(val label: String) { SYSTEM("System"), LIGHT("Light"), SEPIA("Sepia"), GREY("Grey"), DARK("Dark"), BLACK("Black"), CUSTOM("Your colours") }
 /** A font the reader added for books (a TTF, OTF or WOFF file kept on this device). */
-@Serializable data class ReadingFont(val id: String, val name: String, val extension: String)
+@Serializable data class ReadingFont(val id: String, val name: String, val extension: String,
+    /** The family it belongs to and its weight and slant, so a bold and an italic file join their regular one. */
+    val family: String = name, val weight: Int = 400, val italic: Boolean = false) {
+    companion object {
+        /** "Literata-BoldItalic" → (Literata, 700, italic). */
+        fun parse(fileName: String): Triple<String, Int, Boolean> {
+            val words = fileName.replace(Regex("([a-z])([A-Z])"), "$1 $2").split(Regex("[-_ ]+")).filter { it.isNotBlank() }
+            val weights = mapOf("thin" to 100, "extralight" to 200, "light" to 300, "regular" to 400, "book" to 400, "medium" to 500,
+                "semibold" to 600, "demibold" to 600, "bold" to 700, "extrabold" to 800, "black" to 900, "heavy" to 900)
+            var weight = 400; var italic = false
+            val family = ArrayList<String>()
+            var i = 0
+            while (i < words.size) {
+                val word = words[i].lowercase()
+                val pair = if (i + 1 < words.size) word + words[i + 1].lowercase() else ""
+                when {
+                    pair in weights -> { weight = weights.getValue(pair); i++ }
+                    word in weights -> weight = weights.getValue(word)
+                    word == "italic" || word == "oblique" -> italic = true
+                    else -> family += words[i]
+                }
+                i++
+            }
+            return Triple(family.joinToString(" ").ifBlank { fileName }, weight, italic)
+        }
+    }
+}
+/** A saved reading style: a name and the whole look. */
+@Serializable data class ReadingProfile(val name: String, val preferences: ReadingPreferences)
 @Serializable data class ReadingBook(val id: String, val title: String, val authors: List<String> = emptyList(),
     val format: ReadingFormat, val filePath: String, val coverPath: String? = null, val language: String = "",
     val description: String = "", val sourceUrl: String? = null, val addedAtMs: Long = System.currentTimeMillis(),
@@ -56,7 +84,11 @@ import kotlinx.serialization.Serializable
     val pageColor: String = "#fdf6e3", val textColor: String = "#2b2b2b",
     /** The reader's foot line (in order), the book's title over the page, a progress bar under it, and image captions hidden. */
     val footer: List<ReadingFooterItem> = listOf(ReadingFooterItem.CHAPTER, ReadingFooterItem.CHAPTER_LEFT), val showTitle: Boolean = false,
-    val footerBar: Boolean = false, val hideCaptions: Boolean = false)
+    val footerBar: Boolean = false, val hideCaptions: Boolean = false,
+    /** Scrolling by itself (screen pixels a second), e-ink mode, the page turn's slide, side taps that turn the page (and the other way round),
+     *  volume keys that turn it, and a swipe down the left edge for brightness. */
+    val autoScrollSpeed: Int = 40, val eInk: Boolean = false, val slideTurn: Boolean = true, val tapZones: Boolean = true, val invertZones: Boolean = false,
+    val volumeKeys: Boolean = false, val brightnessSwipe: Boolean = true)
 @Serializable data class ReadingOpdsSource(val id: String, val name: String, val url: String,
     val username: String = "", val password: String = "", val allowInsecureHttp: Boolean = false)
 @Serializable data class ReadingCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())
@@ -74,7 +106,8 @@ import kotlinx.serialization.Serializable
     /** The KOReader sync account, when the reader signed in. */
     val koSync: ReadingKoSync? = null,
     /** Reading time by book and by day ("2026-11-23"), and each book's pace, for time left and the statistics. */
-    val readingMs: Map<String, Long> = emptyMap(), val readingDays: Map<String, Long> = emptyMap(), val paces: Map<String, ReadingPace> = emptyMap())
+    val readingMs: Map<String, Long> = emptyMap(), val readingDays: Map<String, Long> = emptyMap(), val paces: Map<String, ReadingPace> = emptyMap(),
+    val profiles: List<ReadingProfile> = emptyList())
 
 /** A folder of books on this device: a tree address on Android, a path on the desktop. */
 @Serializable data class ReadingFolder(val location: String, val name: String)
@@ -96,6 +129,8 @@ sealed interface ReadingDocument {
 /** Where the reader's own fonts are kept (set by the library); book pages get them at [PREFIX] on their own origin. */
 internal object ReadingFonts {
     @Volatile var directory: File? = null
+    /** The fonts the library holds, for laying a whole family (regular, bold, italic) over a page. */
+    @Volatile var known: List<ReadingFont> = emptyList()
     const val PREFIX = "cosmotune-font/"
     fun file(id: String): File? = if (!id.matches(Regex("[0-9a-f]{32}"))) null
         else directory?.listFiles()?.firstOrNull { it.nameWithoutExtension == id && it.extension in setOf("ttf", "otf", "woff", "woff2") }

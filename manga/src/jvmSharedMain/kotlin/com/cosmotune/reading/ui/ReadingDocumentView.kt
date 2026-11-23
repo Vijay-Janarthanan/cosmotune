@@ -52,6 +52,15 @@ class ReadingPageControl {
     /** Runs [script] (an expression giving a string) on the open chapter; null when the page cannot run it now. */
     suspend fun run(script: String): String? = try { evaluator?.invoke(script) } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
     internal fun loaded(href: String?) { this.href = href; loads++ }
+    /** Side taps that turn the page (and the other way round), volume keys and keyboard keys that turn it, a slide on turning,
+     *  and a swipe down the left edge for brightness ([onBrightness] hears the change, -1 to 1). */
+    var tapZones = true
+    var invertZones = false
+    var volumeKeys = false
+    var slide = true
+    var onBrightness: ((Float) -> Unit)? = null
+    /** Turns a screen on or back from the platform page (keys, taps); also counts toward a refresh in e-ink mode. */
+    var onTurn: ((Boolean) -> Unit)? = null
 }
 
 /** Whether a tap on the middle of the page reaches [ReadingDocumentView]'s onCenterTap; where it does not, the tools keep their button. */

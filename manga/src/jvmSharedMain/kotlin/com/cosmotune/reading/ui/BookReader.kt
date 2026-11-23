@@ -11,6 +11,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
@@ -97,6 +101,9 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     var reveal by remember(document) { mutableStateOf<String?>(null) }
     var lookingUp by remember(document) { mutableStateOf<String?>(null) }
     var footnote by remember(document) { mutableStateOf<String?>(null) }
+    var autoScrolling by remember(document) { mutableStateOf(false) }
+    var speedReading by remember(document) { mutableStateOf(false) }
+    var refresh by remember { mutableIntStateOf(0) }
     var picture by remember(document) { mutableStateOf<java.io.File?>(null) }
     val speech = if (epub != null) rememberReadingSpeech() else null
     val latestPreferences by rememberUpdatedState(preferences)
@@ -174,6 +181,26 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
             }
         }
     }
+    // The page's own ways of turning: side taps, keys and pedals, the brightness swipe; e-ink flashes the page every few turns.
+    SideEffect {
+        page.tapZones = preferences.tapZones; page.invertZones = preferences.invertZones; page.volumeKeys = preferences.volumeKeys
+        page.slide = preferences.slideTurn && !preferences.eInk
+        page.onBrightness = if (preferences.brightnessSwipe) { delta -> updatePreferences(preferences.copy(brightness = (preferences.brightness + delta).coerceIn(0.3f, 1f))) } else null
+        page.onTurn = { if (preferences.eInk) refresh++ }
+    }
+    // Scrolling by itself: the page moves at the chosen speed and turns to the next chapter at the end of one.
+    LaunchedEffect(autoScrolling, page.loads, preferences.autoScrollSpeed) {
+        if (!autoScrolling || epub == null) { page.run(ReadingEpubScripts.autoScroll(0)); return@LaunchedEffect }
+        kotlinx.coroutines.delay(400)
+        page.run(ReadingEpubScripts.autoScroll(preferences.autoScrollSpeed))
+        while (true) {
+            kotlinx.coroutines.delay(1_000)
+            if (page.run(ReadingEpubScripts.autoScrollEnded) == "1") {
+                val next = epub.spine.getOrNull(epub.spine.indexOfFirst { it.href == page.href } + 1)
+                if (next == null) { autoScrolling = false; break } else { saveLocation(ReadingLocator(resourceHref = next.href)); break }
+            }
+        }
+    }
     val canSearch = epub != null || supportsReadingPdfSearch()
     val section = epub?.spine?.indexOfFirst { it.href.substringBefore('#') == locator.resourceHref?.substringBefore('#') }?.takeIf { it >= 0 } ?: 0
     val look = orbitLook()
@@ -194,11 +221,25 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 onError = { error = it }, modifier = Modifier.weight(1f).fillMaxWidth().testTag("books:document"), onCenterTap = { tools = !tools },
                 control = page)
         }
+        // E-ink: every few page turns the screen goes black for a moment, as a full refresh clears ghosting.
+        if (preferences.eInk && refresh > 0 && refresh % 6 == 0) {
+            var flash by remember(refresh) { mutableStateOf(true) }
+            LaunchedEffect(refresh) { kotlinx.coroutines.delay(120); flash = false }
+            if (flash) Box(Modifier.fillMaxSize().background(Color.Black))
+        }
         // Brightness is a dimming over the page (the system's own stays as it is); it never takes a tap.
         if (preferences.brightness < 1f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = (1f - preferences.brightness).coerceIn(0f, 0.7f))))
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().widthIn(max = 620.dp).windowInsetsPadding(WindowInsets.navigationBars).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (aloud?.active == true) ReadAloudCard(aloud, fill, ink, onTimer = { panel = "Timer" }, onVoice = { panel = "Voice" })
+            if (autoScrolling) OrbitReaderCard(label = "Scrolling by itself · speed ${preferences.autoScrollSpeed}", progress = { overall.toFloat() }, fill = fill, ink = ink,
+                leading = { OrbitReaderButton(CosmoIcons.Close, "Stop scrolling", ink, fill, { autoScrolling = false }, Modifier.testTag("books:auto:stop")) },
+                modifier = Modifier.testTag("books:auto")) {
+                OrbitReaderButton(Icons.Rounded.Remove, "Slower", ink, fill, { updatePreferences(preferences.copy(autoScrollSpeed = (preferences.autoScrollSpeed - 10).coerceAtLeast(10))) },
+                    Modifier.testTag("books:auto:slower"))
+                OrbitReaderButton(Icons.Rounded.Add, "Faster", ink, fill, { updatePreferences(preferences.copy(autoScrollSpeed = (preferences.autoScrollSpeed + 10).coerceAtMost(300))) },
+                    Modifier.testTag("books:auto:faster"))
+            }
+            else if (aloud?.active == true) ReadAloudCard(aloud, fill, ink, onTimer = { panel = "Timer" }, onVoice = { panel = "Voice" })
             else selection?.let { words ->
                 ReaderSelectionBar(words, fill, ink, onHighlight = { highlight(words, it) }, onNote = { noting = words }, extra = {
                     if (aloud != null) com.cosmotune.ui.orbit.OrbitReaderButton(androidx.compose.material.icons.Icons.Rounded.RecordVoiceOver, "Read aloud from here", ink, fill,
@@ -215,7 +256,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                     style = ReadType.caption(), color = look.dim, modifier = Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 4.dp))
             }
             // A tap on the middle of the page shows the tools where the page can tell (the phone); the desktop keeps the button.
-            if (aloud?.active == true) Unit
+            if (aloud?.active == true || autoScrolling) Unit
             else if (!tools) Column(Modifier.fillMaxWidth()) {
                 if (preferences.footerBar) com.cosmotune.ui.orbit.OrbitProgressLine({ overall.toFloat() }, look.dim, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), moon = 3.dp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, if (readingCenterTap) Alignment.CenterHorizontally else Alignment.End),
@@ -254,6 +295,10 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                             icon = CosmoIcons.Search, selected = searching, enabled = canSearch) { searching = !searching; if (!searching) search = "" },
                         OrbitMenuItem("Bookmarks", icon = Icons.Outlined.BookmarkBorder) { panel = "Bookmarks" },
                         OrbitMenuItem("Dictionary", icon = CosmoIcons.Translate) { lookingUp = "" },
+                        OrbitMenuItem("Scroll by itself", detail = if (epub == null) "Works in reflowing books, not PDFs." else null, icon = Icons.Rounded.SwapVert,
+                            enabled = epub != null && preferences.columns == 1) { tools = false; autoScrolling = true },
+                        OrbitMenuItem("Speed reading", detail = if (epub == null) "Works in reflowing books, not PDFs." else "One word at a time", icon = Icons.Rounded.Speed,
+                            enabled = epub != null) { speedReading = true },
                         OrbitMenuItem("Read aloud", detail = if (aloud == null) "Reading aloud works in reflowing books, not PDFs." else null,
                             icon = androidx.compose.material.icons.Icons.Rounded.RecordVoiceOver, enabled = aloud != null) { aloud?.start() },
                         OrbitMenuItem("Highlights and notes", detail = if (epub == null) "Highlights work in reflowing books, not PDFs." else marks.size.takeIf { it > 0 }?.toString(),
@@ -308,7 +353,9 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
         "Timer" -> aloud?.let { SleepTimerSheet(it, onDismiss = { panel = "" }) }
         "Voice" -> speech?.let { VoiceSheet(it, preferences, book.language, onChange = ::updatePreferences, onDismiss = { panel = "" }) }
         "Appearance" -> ReaderAppearance(preferences, document is ReadingDocument.Epub, onChange = ::updatePreferences, onDismiss = { panel = "" },
-            fonts = state.fonts, onAddFont = addFont)
+            fonts = state.fonts, onAddFont = addFont, profiles = state.profiles, onSaveProfile = { name, remove ->
+                scope.launch { try { repository.saveProfile(name, preferences, remove) } catch (cancelled: CancellationException) { throw cancelled } catch (failure: Exception) { error = failure.message } }
+            })
     }
     fun guarded(block: suspend () -> Unit) = scope.launch {
         try { block() } catch (cancelled: CancellationException) { throw cancelled } catch (failure: Exception) { error = failure.message ?: "The highlight could not be changed." }
@@ -318,6 +365,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
             onNote = { note -> guarded { repository.updateHighlight(mark.id, note = note) } },
             onRemove = { guarded { repository.removeHighlight(mark.id) } }, onDismiss = { editing = null })
     }
+    if (speedReading) SpeedReadingSheet(page, fill, ink, onDismiss = { speedReading = false })
     footnote?.let { text ->
         KitSheet(onDismiss = { footnote = null }) {
             ReadSheetHeader("Note", onDone = { footnote = null }, doneLabel = "Close")
@@ -369,10 +417,10 @@ internal fun readingNoteText(document: ReadingDocument.Epub, address: String): S
  */
 @Composable
 private fun ReaderAppearance(preferences: ReadingPreferences, reflowable: Boolean, onChange: (ReadingPreferences) -> Unit, onDismiss: () -> Unit,
-    fonts: List<ReadingFont>, onAddFont: () -> Unit) {
+    fonts: List<ReadingFont>, onAddFont: () -> Unit, profiles: List<ReadingProfile> = emptyList(), onSaveProfile: ((String, Boolean) -> Unit)? = null) {
     KitSheet(onDismiss = onDismiss) {
         ReadSheetHeader("Appearance", onDone = onDismiss)
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) { item { ReadingAppearanceChoices(preferences, reflowable, onChange, fonts, onAddFont) } }
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) { item { ReadingAppearanceChoices(preferences, reflowable, onChange, fonts, onAddFont, profiles = profiles, onSaveProfile = onSaveProfile) } }
     }
 }
 
@@ -385,9 +433,23 @@ internal val readingColourPairs = listOf("#fdf6e3" to "#2b2b2b", "#e8f1e4" to "#
  */
 @Composable
 internal fun ReadingAppearanceChoices(preferences: ReadingPreferences, reflowable: Boolean, onChange: (ReadingPreferences) -> Unit,
-    fonts: List<ReadingFont> = emptyList(), onAddFont: (() -> Unit)? = null, onRemoveFont: ((String) -> Unit)? = null) {
+    fonts: List<ReadingFont> = emptyList(), onAddFont: (() -> Unit)? = null, onRemoveFont: ((String) -> Unit)? = null,
+    profiles: List<ReadingProfile> = emptyList(), onSaveProfile: ((String, Boolean) -> Unit)? = null) {
     val palette = LocalCosmoColors.current.palette
     Column(Modifier.fillMaxWidth()) {
+        if (onSaveProfile != null) ReadSheetSection("Styles") {
+            var removing by remember { mutableStateOf(false) }
+            ReadChipRow(inset = 0.dp) {
+                profiles.forEach { profile -> ReadChip(profile.name, profile.preferences == preferences, { onChange(profile.preferences) }, Modifier.testTag("books:style:${profile.name}")) }
+                ReadChip("Save this style", false, { onSaveProfile("Style ${profiles.size + 1}", false) }, Modifier.testTag("books:style:save"), icon = CosmoIcons.Plus)
+                if (profiles.isNotEmpty()) Box {
+                    ReadChip("Remove a style", false, { removing = true }, icon = CosmoIcons.Close)
+                    com.cosmotune.ui.orbit.OrbitMenu(removing, { removing = false }, profiles.map { profile ->
+                        com.cosmotune.ui.orbit.OrbitMenuItem(profile.name, icon = CosmoIcons.Close) { onSaveProfile(profile.name, true) }
+                    }, orbitFonts(), orbitLook(), header = "Remove a style")
+                }
+            }
+        }
         ReadSheetSection("Page theme") {
             ReadChipRow(inset = 0.dp) {
                 ReadingTheme.entries.forEach { theme -> ReadChip(theme.label, preferences.theme == theme, { onChange(preferences.copy(theme = theme)) }, Modifier.testTag("books:theme:${theme.name.lowercase()}")) }
@@ -415,7 +477,11 @@ internal fun ReadingAppearanceChoices(preferences: ReadingPreferences, reflowabl
                     listOf("publisher" to "The book's own", "serif" to "Serif", "sans-serif" to "Sans serif", "monospace" to "Monospace").forEach { (value, label) ->
                         ReadChip(label, preferences.fontFamily == value, { onChange(preferences.copy(fontFamily = value)) }, Modifier.testTag("books:font:$value"))
                     }
-                    fonts.forEach { font -> ReadChip(font.name, preferences.fontFamily == "font:${font.id}", { onChange(preferences.copy(fontFamily = "font:${font.id}")) }) }
+                    // One chip a family: its regular file (or the first) stands for it, and its bold and italic files join it on the page.
+                    fonts.groupBy { it.family }.forEach { (family, members) ->
+                        val lead = members.firstOrNull { it.weight == 400 && !it.italic } ?: members.first()
+                        ReadChip(family, members.any { preferences.fontFamily == "font:${it.id}" }, { onChange(preferences.copy(fontFamily = "font:${lead.id}")) })
+                    }
                     if (onAddFont != null) ReadChip("Add a font", false, onAddFont, Modifier.testTag("books:add-font"), icon = CosmoIcons.Plus)
                 }
                 if (fonts.isEmpty() && onAddFont != null) Text("Add a font file, such as OpenDyslexic, to read in it.", style = ReadType.caption(), color = orbitLook().dim,
@@ -446,6 +512,18 @@ internal fun ReadingAppearanceChoices(preferences: ReadingPreferences, reflowabl
                     switchModifier = Modifier.testTag("books:justify"))
                 com.cosmotune.ui.orbit.OrbitSwitchRow("Hyphenate long words", preferences.hyphenate, { onChange(preferences.copy(hyphenate = it)) }, Modifier.padding(vertical = 2.dp),
                     switchModifier = Modifier.testTag("books:hyphenate"))
+            }
+            ReadSheetSection("Turning pages") {
+                com.cosmotune.ui.orbit.OrbitSwitchRow("Tap the sides to turn", preferences.tapZones, { onChange(preferences.copy(tapZones = it)) }, Modifier.padding(vertical = 2.dp),
+                    switchModifier = Modifier.testTag("books:tap-zones"))
+                if (preferences.tapZones) com.cosmotune.ui.orbit.OrbitSwitchRow("Left side turns forward", preferences.invertZones, { onChange(preferences.copy(invertZones = it)) }, Modifier.padding(vertical = 2.dp))
+                com.cosmotune.ui.orbit.OrbitSwitchRow("Volume keys turn pages", preferences.volumeKeys, { onChange(preferences.copy(volumeKeys = it)) }, Modifier.padding(vertical = 2.dp),
+                    switchModifier = Modifier.testTag("books:volume-keys"))
+                com.cosmotune.ui.orbit.OrbitSwitchRow("Slide on turning", preferences.slideTurn, { onChange(preferences.copy(slideTurn = it)) }, Modifier.padding(vertical = 2.dp))
+                com.cosmotune.ui.orbit.OrbitSwitchRow("Swipe the left edge for brightness", preferences.brightnessSwipe, { onChange(preferences.copy(brightnessSwipe = it)) }, Modifier.padding(vertical = 2.dp))
+                com.cosmotune.ui.orbit.OrbitSwitchRow("E-ink screen", preferences.eInk, { onChange(preferences.copy(eInk = it, slideTurn = if (it) false else preferences.slideTurn)) },
+                    Modifier.padding(vertical = 2.dp), switchModifier = Modifier.testTag("books:eink"))
+                if (preferences.eInk) Text("Black text on white, no motion, and a quick black flash every few turns to clear the screen.", style = ReadType.caption(), color = orbitLook().dim)
             }
             ReadSheetSection("Layout") {
                 ReadChipRow(inset = 0.dp) {

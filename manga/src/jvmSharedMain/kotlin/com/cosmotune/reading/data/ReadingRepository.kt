@@ -34,7 +34,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     private val openStax = OpenStaxBookCatalogue(client)
     private val globalGrey = GlobalGreyBookCatalogue(client)
     val lookup = ReadingLookup(client)
-    private val fontFiles = File(root, "fonts").apply { mkdirs() }.also { ReadingFonts.directory = it }
+    private val fontFiles = File(root, "fonts").apply { mkdirs() }.also { ReadingFonts.directory = it; ReadingFonts.known = store.state.value.fonts }
 
     /** Adds a font (TTF, OTF, WOFF or WOFF2) for books, such as OpenDyslexic. */
     suspend fun importFont(name: String, open: () -> InputStream): ReadingFont = imports.withLock { withContext(Dispatchers.IO) {
@@ -46,15 +46,18 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         require(magic in setOf("wOFF", "wOF2", "OTTO", "true", "\u0000\u0001\u0000\u0000")) { "This file is not a font." }
         val id = MessageDigest.getInstance("SHA-256").digest(bytes).take(16).joinToString("") { "%02x".format(it) }
         File(fontFiles, "$id.$extension").writeBytes(bytes)
-        val font = ReadingFont(id, File(name).nameWithoutExtension.take(60).ifBlank { "My font" }, extension)
-        store.update { old -> require(old.fonts.size < 32 || old.fonts.any { it.id == id }) { "Remove a font before adding another." }
+        val (family, weight, italic) = ReadingFont.parse(File(name).nameWithoutExtension.take(60))
+        val font = ReadingFont(id, File(name).nameWithoutExtension.take(60).ifBlank { "My font" }, extension, family.take(60), weight, italic)
+        store.update { old -> require(old.fonts.size < 64 || old.fonts.any { it.id == id }) { "Remove a font before adding another." }
             old.copy(fonts = old.fonts.filterNot { it.id == id } + font) }
+        ReadingFonts.known = state.value.fonts
         font
     } }
     suspend fun removeFont(id: String) = withContext(Dispatchers.IO) {
         store.update { old -> old.copy(fonts = old.fonts.filterNot { it.id == id },
             preferences = if (old.preferences.fontFamily == "font:$id") old.preferences.copy(fontFamily = "serif") else old.preferences) }
         fontFiles.listFiles().orEmpty().filter { it.nameWithoutExtension == id }.forEach { it.delete() }
+        ReadingFonts.known = state.value.fonts
     }
     private val dictionaryFiles = File(root, "dictionaries").apply { mkdirs() }
     private val openDictionaries = HashMap<String, StarDict>()
@@ -239,6 +242,15 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         val clean = tags.map { it.trim() }.filter { it.isNotEmpty() }.onEach { require(it.length <= 40 && it.none(Char::isISOControl)) { "Keep a tag under 40 characters." } }.toSet()
         require(clean.size <= 30) { "A book can have up to 30 tags." }
         store.update { old -> old.copy(books = old.books.map { if (it.id == bookId) it.copy(tags = clean) else it }) }
+    }
+    /** Saves the current look as a style called [name] (replacing one of that name), or removes it with [remove]. */
+    suspend fun saveProfile(name: String, preferences: ReadingPreferences, remove: Boolean = false) {
+        val clean = title(name)
+        store.update { old ->
+            val others = old.profiles.filterNot { it.name.equals(clean, true) }
+            require(remove || others.size < 20) { "Remove a style before saving another." }
+            old.copy(profiles = if (remove) others else others + ReadingProfile(clean, preferences))
+        }
     }
     suspend fun createCollection(name: String): ReadingCollection {
         val collection = ReadingCollection(UUID.randomUUID().toString(), title(name))
