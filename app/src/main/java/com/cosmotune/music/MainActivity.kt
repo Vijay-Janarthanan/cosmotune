@@ -2325,6 +2325,15 @@ private fun CosmotuneApp(
                         it.memberId == playback.startedBy
                     }?.displayName?.takeIf(String::isNotBlank)
             }
+        // Up next marks the liked and downloaded songs.
+        val savedDownloads by com.cosmotune.music.download.Downloads.saved.collectAsStateWithLifecycle()
+        val queueMarks = remember(likeStatuses, libraryState, savedDownloads) {
+            com.cosmotune.ui.orbit.QueueMarks(
+                liked = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys + (libraryState as? UiState.Success)?.data?.likedSongs.orEmpty().map { it.videoId },
+                downloaded = savedDownloads.keys,
+            )
+        }
+        androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.orbit.LocalQueueMarks provides queueMarks) {
         NowPlayingSwitch(
             song = displayedSong,
             playedBy = playedBy,
@@ -2571,6 +2580,7 @@ private fun CosmotuneApp(
                 }
             },
         )
+        }
     }
 
     val listeningLibraryPage = (libraryState as? UiState.Success)?.data
