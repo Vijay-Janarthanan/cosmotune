@@ -387,6 +387,19 @@
                 android:resource="@xml/widget_media_pill" />
         </receiver>
 
+        <!-- Reading now: the book being read in Read, opening it on a tap. See ReadingWidget. -->
+        <receiver
+            android:name="com.cosmotune.reading.ReadingWidget"
+            android:exported="false"
+            android:label="@string/widget_reading_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_reading" />
+        </receiver>
+
         <!-- The transport buttons. Reached only by this app's own PendingIntents. -->
         <receiver
             android:name=".widget.MediaWidgetActions"

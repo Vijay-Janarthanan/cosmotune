@@ -234,6 +234,7 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
         modifier = Modifier.testTag("books:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
         val page = ReadScope(repository, pages, navigation, onMusic, showAccount, bottom, ::action, ::open, { error = it }, busy, pick, addFolder, { scanFolders(quiet = false) })
+        ReadingOutsideHooks(page)
         Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.padding(top = 8.dp), onDismiss = { error = null }) }
             scanning?.let { line -> ReadInlineBanner(line, Modifier.padding(top = 8.dp).testTag("books:scanning")) }

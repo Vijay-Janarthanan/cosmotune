@@ -95,6 +95,11 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     LaunchedEffect(watchLink.value != null, shell) {
         if (watchLink.value != null && shell != null && AppModes.available(AppMode.WATCH)) shell.settings.setMode(AppMode.WATCH)
     }
+    // A book the Reading now widget opens ([com.cosmotune.reading.ReadingWidget]): Read becomes the mode and opens it.
+    val readBook = com.cosmotune.reading.ui.ReadingAndroidShelf.pendingBook.collectAsStateWithLifecycle()
+    LaunchedEffect(readBook.value != null, shell) {
+        if (readBook.value != null && shell != null && AppModes.available(AppMode.READ)) shell.settings.setMode(AppMode.READ)
+    }
     // A Watch item the room opens here ([com.cosmotune.music.watch.RoomWatch]): Watch becomes the mode, its player page attached.
     val roomWatch = com.cosmotune.music.watch.RoomWatch.opening.collectAsStateWithLifecycle()
     LaunchedEffect(roomWatch.value, shell) {

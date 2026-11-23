@@ -38,3 +38,5 @@ private fun run(vararg command: String): String? {
     val text = process.inputStream.bufferedReader().use { it.readText() }
     return if (process.waitFor(8, TimeUnit.SECONDS) && process.exitValue() == 0) text else { process.destroy(); null }
 }
+
+@Composable internal actual fun ReadingOutsideHooks(scope: ReadScope) = Unit

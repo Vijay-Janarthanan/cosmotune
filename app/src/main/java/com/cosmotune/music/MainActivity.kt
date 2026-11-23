@@ -292,11 +292,14 @@ class MainActivity : AppCompatActivity() {
         // Room voice asks for the microphone through this, the first time someone unmutes.
         com.cosmotune.music.data.room.voice.MicPermission.attach(this)
         enableEdgeToEdge()
+        // Read tells its home-screen widget when the book being read or its place changes.
+        com.cosmotune.reading.ui.ReadingAndroidShelf.onChange = com.cosmotune.reading.ReadingWidget::refresh
         // Before the composition, so a cold launch from a widget's artwork has
         // the request already standing by the time CosmotuneApp first reads it.
         if (!com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent)) {
             PlayerDeepLink.consume(intent)
             JamInviteLink.consume(intent)
+            com.cosmotune.reading.ReadingWidget.consume(intent)
             // A Watch install or pack link is Watch's alone; anything else is Music's.
             if (!com.cosmotune.music.watch.AndroidWatch.consume(intent))
             // Likewise for a link tapped or shared from another app â€” see [MusicLink].
@@ -412,6 +415,7 @@ class MainActivity : AppCompatActivity() {
         if (com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent)) return
         PlayerDeepLink.consume(intent)
         JamInviteLink.consume(intent)
+        com.cosmotune.reading.ReadingWidget.consume(intent)
         // A Watch install or pack link is Watch's alone; anything else is Music's.
         if (!com.cosmotune.music.watch.AndroidWatch.consume(intent)) MusicLink.consume(intent)
     }

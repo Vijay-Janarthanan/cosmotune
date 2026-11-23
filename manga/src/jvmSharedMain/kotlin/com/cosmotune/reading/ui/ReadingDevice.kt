@@ -9,3 +9,6 @@ import androidx.compose.runtime.Composable
 internal fun readingBatteryFrom(text: String?): Int? =
     text?.let { Regex("""(\d{1,3})\s*%""").find(it)?.groupValues?.get(1) ?: it.trim().takeIf { t -> t.matches(Regex("""\d{1,3}""")) } }
         ?.toIntOrNull()?.takeIf { it in 0..100 }
+
+/** Read's links with the rest of the device's app: on a phone, the home-screen widget and a book it asks to open; nothing elsewhere. */
+@Composable internal expect fun ReadingOutsideHooks(scope: ReadScope)
