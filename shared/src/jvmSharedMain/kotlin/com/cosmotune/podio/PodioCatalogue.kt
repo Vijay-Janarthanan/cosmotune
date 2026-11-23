@@ -276,6 +276,28 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                 httpUrl(o.text("collectionViewUrl")).orEmpty(), "Apple Podcasts")
         }
     }
+    /**
+     * Episodes whose title or notes match [query], from Apple's episode index in [country]'s storefront, each with its show (its
+     * feed, so the show's page opens from it). The id is the one the show's own feed gives the episode (its feed and guid), so
+     * progress and the queue are shared with the feed's rows. A blank query asks nothing.
+     */
+    suspend fun searchEpisodes(query: String, country: String): List<Pair<PodcastEpisode, PodcastShow>> {
+        val term = query.trim().take(200)
+        if (term.isEmpty()) return emptyList()
+        val root = json.parseToJsonElement(read(address(appleBase, "/search",
+            mapOf("term" to term, "media" to "podcast", "entity" to "podcastEpisode", "limit" to "40", "country" to country.take(2).lowercase(Locale.ROOT)))))
+        return (root.jsonObject["results"] as? JsonArray).orEmpty().mapNotNull { element ->
+            val o = element.jsonObject
+            val feed = httpUrl(o.text("feedUrl")) ?: return@mapNotNull null
+            val audio = httpUrl(o.text("episodeUrl")) ?: return@mapNotNull null
+            val art = httpUrl(o.text("artworkUrl600").ifBlank { o.text("artworkUrl160") }).orEmpty()
+            val show = PodcastShow(identity(feed), o.text("collectionName"), o.text("artistName"), feed, art, httpUrl(o.text("collectionViewUrl")).orEmpty(), "Apple Podcasts")
+            val guid = o.text("episodeGuid").ifBlank { audio }
+            val seconds = (o.text("trackTimeMillis").toLongOrNull() ?: 0L) / 1000
+            PodcastEpisode(identity("$feed|$guid"), o.text("trackName").ifBlank { return@mapNotNull null }, show.title, audio, art, seconds,
+                o.text("releaseDate"), Jsoup.parse(o.text("description")).text().take(4000)) to show
+        }.distinctBy { it.first.id }
+    }
     private suspend fun fyydSearch(query: String): List<PodcastShow> {
         val root = json.parseToJsonElement(read(address(fyydBase, "/0.2/search/podcast", mapOf("title" to query, "count" to "30"))))
         return (root.jsonObject["data"] as? JsonArray).orEmpty().mapNotNull { element ->

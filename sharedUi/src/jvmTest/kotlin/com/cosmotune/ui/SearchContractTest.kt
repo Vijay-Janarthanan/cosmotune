@@ -38,7 +38,7 @@ class SearchContractTest {
 
     @Test fun searchSwitchKeepsSearchScreensListAndBrowseLast() {
         val switch = params(search("SearchSwitch"), "SearchSwitch")
-        assertEquals(46, switch.size, "upstream's SearchScreen list (37, the seven of the Add-ons source, BC-31, and Search in), then browse: $switch")
+        assertEquals(47, switch.size, "upstream's SearchScreen list (37, the seven of the Add-ons source, BC-31, Search in and In my library), then browse: $switch")
         assertEquals("browse: CosmoBrowse? = null", switch.last())
         assertEquals(listOf("query", "onQueryChange", "filter"), SourceContract.names(switch).take(3), "in upstream's order")
     }
@@ -143,16 +143,17 @@ class SearchContractTest {
         assertTrue("com.cosmotune.music.ui.screens.SearchScreen" in search("CosmoSearch"), "a comment names the source of the copy")
     }
 
-    @Test fun theFilterChipsAreTheOldFiltersAndComeUnderTheOldConditions() {
+    @Test fun theFilterChipsAreTheOldFiltersOnTheSharedPage() {
         val new = SourceContract.code(search("CosmoSearch"))
-        assertTrue("val filtering = results != null && !suggesting && !searchingLibrary && !searchingAddons" in new)
         assertTrue("SearchFilter.entries.sortedBy { FILTER_ORDER.indexOf(it)" in new, "every filter the search offers, in the board's order")
-        // P4-19: the chip that is already chosen does not buzz again; each carries its count (the Music board's 2b)
-        assertTrue("OrbitSelectChip(entry.label, selected = entry == filter, fonts = fonts, look = look, onClick = { onFilterChange(entry) }, haptic = entry != filter, count = counts[entry])" in new)
-        assertTrue("OrbitChipRow(side, Modifier.padding(bottom = 12.dp).testTag(\"search:chips\"))" in new && "SearchInChipsInRow(" in new, "the filters and Search in share one row of chips")
-        assertTrue("trailing = sources?.let { { SourceChip(it, page) } }" in new, "the source is a chip at the end of the field")
+        // each carries its count (the Music board's 2b); they are YouTube's categories, so only YouTube's source has them
+        assertTrue("kinds = if (youtube) FILTER_ENTRIES.map { CosmoSearchChoice(it.name, it.label, if (inMyLibrary) null else counts[it]) } else emptyList()," in new)
+        assertTrue("trailingChips = if (searchIn != null && !searchingLibrary) ({ SearchInChipsInRow(searchIn) }) else null," in new, "the filters and Search in share one row of chips")
+        assertTrue("fieldTrailing = sources?.let { { SourceChip(it, page) } }," in new, "the source is a chip at the end of the field")
         assertTrue("contentPadding.calculateBottomPadding()" in new, "the list takes the bottom of contentPadding")
-        assertTrue("if (showField) {" in new && "OrbitSearchPill(" in new, "the big search pill heads the page")
+        assertTrue("CosmoSearchPage(" in new && "showField = showField," in new, "the shared page with its big search pill heads the page")
+        // the chip that is already chosen does not buzz again (P4-19), on the shared page
+        assertTrue("haptic = choice.id != kind" in SourceContract.code(search("CosmoSearchPage")))
     }
 
     @Test fun theSuggestionsAreTheOldOnesAndTheTypedPartIsBold() {
@@ -166,16 +167,16 @@ class SearchContractTest {
         assertTrue("heightIn(min = 48.dp)" in new)
     }
 
-    @Test fun theIdlePageIsRecentsThenTheTilesAndFallsBackToTheOldSentence() {
+    @Test fun theIdlePageIsRecentsThenTheTiles() {
         val new = SourceContract.code(search("CosmoSearch"))
-        val idle = new.substringAfter("private fun LazyListScope.idleRows(").substringBefore("private fun LazyListScope.recentHeader(")
-        assertTrue(idle.indexOf("recentChips(") in 0 until idle.indexOf("browseTiles("), "the recent searches come before the moods and genres (the board)")
-        assertTrue("Res.string.search_empty" in idle, "nothing to show: the old sentence")
-        assertTrue("together = true" in idle, "one section, Moods and genres")
+        assertTrue(new.indexOf("recents = if (searchingAddons)") in 0 until new.indexOf("browseTiles("), "the recent searches come before the moods and genres (the board)")
+        assertTrue("together = true" in new, "one section, Moods and genres")
+        val page = SourceContract.code(search("CosmoSearchPage"))
+        assertTrue(page.indexOf("\"recent:chips\"") in 0 until page.indexOf("browse(side)"), "the shared page draws the recents first")
         val blocks = SourceContract.code(search("CosmoBrowseBlocks"))
         assertTrue("OrbitMoodTile(" in blocks && "mood.stripeColor" in blocks, "the tiles are Orbit's, in the stripe colour")
         assertTrue("BrowseSplit.moods(" in blocks && "BrowseSplit.genres(" in blocks)
-        assertTrue("onHistoryClear" in new && "Res.string.recent_search_remove" in new, "the recents can be removed one by one and cleared")
+        assertTrue("onHistoryClear" in new && "onRemove = { onHistoryRemove(it.id) }" in new, "the recents can be removed one by one and cleared")
     }
 
     // ---- the pure part: which sections a result page has ----

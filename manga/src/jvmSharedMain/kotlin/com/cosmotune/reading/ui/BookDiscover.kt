@@ -151,7 +151,7 @@ internal fun BookDiscover(scope: ReadScope) {
     val palette = LocalCosmoColors.current.palette
     Column(Modifier.fillMaxSize().testTag("books:discover")) {
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
-            item(key = "heading") { ReadPageHead("Browse", "Free ebooks, archive scans and connected libraries") { ReadRootActions(scope) } }
+            item(key = "heading") { ReadPageHead("Browse", "Free ebooks, archive scans and connected libraries") }
             if (category !in setOf("New Classics", "Global Grey")) item(key = "search") {
                 ReadSearchField(query, { query = it }, "Search books and authors", Modifier.testTag("books:catalogue-search"), onSearch = ::submit)
             }

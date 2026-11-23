@@ -688,6 +688,15 @@ private fun CosmotuneApp(
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val searchSource by viewModel.searchSource.collectAsStateWithLifecycle()
     val libraryResults by viewModel.libraryResults.collectAsStateWithLifecycle()
+    // Search's "In my library" chip: the liked and added songs, the downloads and the saved collections (the board's 6a).
+    var searchInMyLibrary by rememberSaveable { mutableStateOf(false) }
+    val searchDownloads by androidx.compose.runtime.produceState(emptyList<Song>(), searchInMyLibrary) {
+        if (searchInMyLibrary) value = runCatching { Downloads.getDownloadedSongs(context) }.getOrDefault(emptyList())
+    }
+    val searchMyLibrary = remember(libraryState, searchDownloads) {
+        val page = (libraryState as? UiState.Success)?.data
+        com.cosmotune.ui.search.MyLibrary.of(page?.likedSongs.orEmpty(), page?.librarySongs.orEmpty(), searchDownloads, page?.shelves.orEmpty())
+    }
     val addonResults by viewModel.addonResults.collectAsStateWithLifecycle()
     val addonSearchProgress by viewModel.addonSearchProgress.collectAsStateWithLifecycle()
     val searchInChoice by viewModel.searchInChoice.collectAsStateWithLifecycle()
@@ -1637,6 +1646,19 @@ private fun CosmotuneApp(
     }
     val onSongSwipe: (Song) -> Unit = { song ->
         if (AppSettings.swipeToPlayNext.value) playNext(song) else addToQueue(song)
+    }
+    // A swipe on a search row (the live ones while typing too) queues the song with "Added to queue · Undo", which takes it out again.
+    val searchUndo = com.cosmotune.ui.orbit.LocalOrbitUndo.current
+    val onSearchSwipe: (Song) -> Unit = { song ->
+        val next = AppSettings.swipeToPlayNext.value
+        onSongSwipe(song)
+        searchUndo?.show(context.getString(if (next) R.string.song_will_play_next else R.string.song_added_to_queue)) {
+            controller?.let { c ->
+                // Played next it went in just after the playing song; queued, at the end.
+                val after = if (next) ((c.currentMediaItemIndex + 1) until c.mediaItemCount) else ((c.mediaItemCount - 1) downTo (c.currentMediaItemIndex + 1))
+                after.firstOrNull { c.getMediaItemAt(it).mediaId == song.videoId }?.let(c::removeMediaItem)
+            }
+        }
     }
 
     /**
@@ -3388,7 +3410,7 @@ private fun CosmotuneApp(
                                 }
                             },
                             onSongLongPress = openSongMenu,
-                            onSongSwipe = onSongSwipe,
+                            onSongSwipe = onSearchSwipe,
                             onTopResultPlay = { song ->
                                 viewModel.recordEntity(SearchHistoryEntity(
                                     id = song.videoId,
@@ -3472,11 +3494,17 @@ private fun CosmotuneApp(
                                         )
                                     }
                                     EntityType.ALBUM, EntityType.ARTIST, EntityType.PLAYLIST -> {
+                                        // Its own page, by what it is (an artist's is not an album's).
                                         viewModel.openDetail(
                                             browseId = entity.id,
                                             title = entity.title,
                                             subtitle = entity.subtitle,
                                             thumbnailUrl = entity.artworkUrl,
+                                            type = when (entity.entityType) {
+                                                EntityType.ALBUM -> BrowseType.ALBUM
+                                                EntityType.ARTIST -> BrowseType.ARTIST
+                                                else -> BrowseType.PLAYLIST
+                                            },
                                         )
                                     }
                                 }
@@ -3498,6 +3526,7 @@ private fun CosmotuneApp(
                                 selected = searchSource.ordinal,
                                 onSelect = { index -> onSearchSourceChange(SearchSource.entries[index]) },
                             ),
+                            myLibrary = com.cosmotune.ui.search.MyLibraryScope(searchInMyLibrary, { searchInMyLibrary = it }, searchMyLibrary),
                             browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { viewModel.openMoodGenre(it); selectedTab = TAB_EXPLORE }, onRetry = viewModel::loadExplore),
                             searchingLibrary = searchSource == SearchSource.LIBRARY,
                             libraryResults = libraryResults,

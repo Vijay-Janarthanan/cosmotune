@@ -124,6 +124,9 @@ internal fun CosmoDesktopSidebar(
         val podioTab by com.cosmotune.ui.blocks.ModeNav.podioTab.collectAsState()
         val podioSaved by com.cosmotune.ui.blocks.ModeNav.podioSaved.collectAsState()
         val mangaTab by com.cosmotune.ui.blocks.ModeNav.mangaTab.collectAsState()
+        // Search is the first row under the mode chip, in every mode; while it is open no other row is lit.
+        val searchNav = if (podio) com.cosmotune.ui.blocks.ModeNav.podioSearch else com.cosmotune.ui.blocks.ModeNav.mangaSearch
+        val searchOpen by searchNav.open.collectAsState()
         val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
         val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
         Column(Modifier.width(ShellMetrics.DESKTOP_SIDEBAR_DP.dp).fillMaxHeight()) {
@@ -133,28 +136,34 @@ internal fun CosmoDesktopSidebar(
                 OrbitNavModeChip()
                 Spacer(Modifier.height(8.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(NAV_LIST_GAP)) {
+                    OrbitNavRow(CosmoIcons.Search, DesktopStrings["search", "Search"], null, searchOpen) { searchNav.tap() }
                     if (podio) {
-                        fun go(tab: String, saved: Boolean) { com.cosmotune.ui.blocks.ModeNav.podioTab.value = tab; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = saved }
+                        fun go(tab: String, saved: Boolean) {
+                            searchNav.open.value = false
+                            com.cosmotune.ui.blocks.ModeNav.podioTab.value = tab; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = saved
+                        }
                         // Podio's five sections (board batch-be, section C): Radio, Podcasts, the Globe, Following (new episodes, shows and
                         // stations you keep) and Downloads. The old "Episodes" and "Library" names, and the old saved rows, mean Following.
-                        val following = podioSaved || podioTab == "Following" || podioTab == "Episodes" || podioTab == "Library" || podioTab == "Saved"
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Radio, "Radio", null, podioTab == "Radio" && !following) { go("Radio", false) }
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Podcasts, "Podcasts", null, podioTab == "Podcasts" && !following) { go("Podcasts", false) }
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Public, "Globe", null, podioTab == "Globe" && !following) { go("Globe", false) }
+                        val following = !searchOpen && (podioSaved || podioTab == "Following" || podioTab == "Episodes" || podioTab == "Library" || podioTab == "Saved")
+                        val lit = if (searchOpen) "" else podioTab
+                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Radio, "Radio", null, lit == "Radio" && !following) { go("Radio", false) }
+                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Podcasts, "Podcasts", null, lit == "Podcasts" && !following) { go("Podcasts", false) }
+                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Public, "Globe", null, lit == "Globe" && !following) { go("Globe", false) }
                         OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Heart, "Following", null, following) { go("Following", false) }
-                        OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Download, "Downloads", null, podioTab == "Downloads" && !following) { go("Downloads", false) }
+                        OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Download, "Downloads", null, lit == "Downloads" && !following) { go("Downloads", false) }
                     } else {
                         // Manga's tabs (board D: Library, Updates, Browse, Sources, History) and Read's (Library, Browse, Bookmarks) as the
                         // sidebar's rows; the page listens to the same channel.
                         val read = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value == com.cosmotune.design.AppMode.READ
-                        fun go(tab: String) { com.cosmotune.ui.blocks.ModeNav.mangaTab.value = tab }
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.CollectionsBookmark, "Library", null, mangaTab == "Library") { go("Library") }
-                        if (!read) OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Bell, "Updates", null, mangaTab == "Updates") { go("Updates") }
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Explore, "Browse", null, mangaTab == "Browse") { go("Browse") }
-                        if (read) OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.BookmarkBorder, "Bookmarks", null, mangaTab == "Bookmarks") { go("Bookmarks") }
+                        fun go(tab: String) { searchNav.open.value = false; com.cosmotune.ui.blocks.ModeNav.mangaTab.value = tab }
+                        val lit = if (searchOpen) "" else mangaTab
+                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.CollectionsBookmark, "Library", null, lit == "Library") { go("Library") }
+                        if (!read) OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Bell, "Updates", null, lit == "Updates") { go("Updates") }
+                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Explore, "Browse", null, lit == "Browse") { go("Browse") }
+                        if (read) OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.BookmarkBorder, "Bookmarks", null, lit == "Bookmarks") { go("Bookmarks") }
                         else {
-                            OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Settings, "Sources", null, mangaTab == "Sources") { go("Sources") }
-                            OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Replay, "History", null, mangaTab == "History") { go("History") }
+                            OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Settings, "Sources", null, lit == "Sources") { go("Sources") }
+                            OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Replay, "History", null, lit == "History") { go("History") }
                         }
                     }
                 }

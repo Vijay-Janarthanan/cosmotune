@@ -151,7 +151,8 @@ fun searchCountLabel(count: Int, one: String = "result", many: String = "results
  * desktop's header holds it). [leading] stands above the head (a back row on a pushed page).
  *
  * [kinds] is the kind row (the first is usually "All"), [kind] the chosen one; [filters] the dropdown row, drawn once something has
- * been searched; [sort] a dropdown at the end of the count line. [onClearFilters] is offered when nothing matches. [recents] and
+ * been searched; [sort] a dropdown at the end of the count line. [extraChips] stand before the kinds (Music's "In my library"),
+ * [trailingChips] after them (Music's "Search in" sources). [onClearFilters] is offered when nothing matches. [recents] and
  * [browse] fill the page before anything is typed ([browseTitle] heads the mode's Browse items, each a list item it adds). [typing]
  * draws the suggestions while the box is being edited; [results] draws the mode's results in the room left (its modifier carries the
  * weight), with the page's side margin.
@@ -176,6 +177,7 @@ fun CosmoSearchPage(
     kind: String? = null,
     onKind: (String) -> Unit = {},
     extraChips: (@Composable RowScope.() -> Unit)? = null,
+    trailingChips: (@Composable RowScope.() -> Unit)? = null,
     filters: List<CosmoSearchFilter> = emptyList(),
     sort: CosmoSearchFilter? = null,
     onClearFilters: (() -> Unit)? = null,
@@ -209,13 +211,14 @@ fun CosmoSearchPage(
                     modifier = Modifier.padding(start = side, end = side, top = if (showHead) 12.dp else 8.dp).testTag("search:field"),
                 )
             }
-            if (kinds.isNotEmpty() || extraChips != null) {
+            if (kinds.isNotEmpty() || extraChips != null || trailingChips != null) {
                 OrbitChipRow(side, Modifier.padding(top = 12.dp).testTag("search:kinds")) {
                     extraChips?.invoke(this)
                     kinds.forEach { choice ->
                         OrbitSelectChip(choice.label, choice.id == kind, fonts, look, { onKind(choice.id) }, count = choice.count, haptic = choice.id != kind,
                             modifier = Modifier.semantics { if (choice.id == kind) stateDescription = "Selected" })
                     }
+                    trailingChips?.invoke(this)
                 }
             }
             val answered = status !is CosmoSearchStatus.Idle && status !is CosmoSearchStatus.Typing
@@ -343,7 +346,8 @@ private fun IdleList(
             }
         }
         if (browse != null) {
-            item(key = "browse:header") {
+            // A blank title leaves the heading to the mode's own items (Music's Moods and Genres).
+            if (browseTitle.isNotBlank()) item(key = "browse:header") {
                 OrbitLabel(browseTitle, fonts, look.dim, Modifier.padding(start = side + 4.dp, end = side, top = if (items.isEmpty()) 8.dp else 24.dp, bottom = 8.dp))
             }
             browse(side)

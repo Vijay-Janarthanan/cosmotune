@@ -111,9 +111,10 @@ class SearchStructureTest {
 
     @Test fun theFieldIsPinnedAboveTheListAndFocusedWhenTheRouteOpensEmpty() {
         val page = code("VideoSearch")
-        assertTrue("OrbitSearchPill(" in page, "Orbit's 60 dp search pill")
+        assertTrue("CosmoSearchPage(" in page, "every mode's search page, with Orbit's search pill pinned at its head")
         assertTrue("Res.string.video_search_hint" in page, "the hint")
-        assertTrue("route.query.isEmpty()" in page && "focusRequester.requestFocus()" in page, "focused when the route opens empty")
+        assertTrue("route.query.isEmpty()" in page && "navigator.searchFocus.request()" in page, "focused when the route opens empty")
+        assertTrue("showField = !sidebar" in page, "the desktop header's field is the box there")
         assertTrue("DesktopVideoState.query" in page, "the desktop's sidebar field is the field of the page")
         assertTrue("DesktopVideoState.navigator" in page && "ShellMetrics.DESKTOP_COMPACT_DP" in page, "a desktop window with no sidebar has the page's own field")
     }
@@ -137,19 +138,17 @@ class SearchStructureTest {
         assertTrue("catch (e: CancellationException)" in src, "a cancelled lookup is not a failure")
     }
 
-    @Test fun theRecentSearchesHaveARemoveButtonAndClearInTheOverline() {
+    @Test fun theRecentSearchesAreTheSharedPagesChipsWithRemoveAndClear() {
         val src = code("SearchSuggestions")
-        assertTrue("OrbitGroupLabel(" in src && "Res.string.video_recent_searches" in src)
-        assertTrue("Res.string.video_clear" in src && "CommentLink(" in src)
-        assertTrue("Res.string.video_remove_search" in src && "CosmoIcons.Close" in src)
         assertTrue("Res.string.video_use_suggestion" in src, "the fill arrow has a description")
         val page = code("VideoSearch")
+        assertTrue("recents = CosmoSearchRecents(" in page)
         assertTrue("library.removeSearch(" in page && "library.clearSearches()" in page)
     }
 
     @Test fun theResultsHaveTheFiveChipsAndTheShortsChipFollowsHideShorts() {
         val page = code("VideoSearch")
-        assertTrue("VideoChips(" in page)
+        assertTrue("kinds = filters.map { CosmoSearchChoice(it.name, filterLabel(it)) }," in page, "the kind chips of the shared page")
         for (key in listOf("video_filter_all", "video_filter_videos", "video_filter_shorts", "video_filter_channels", "video_filter_playlists")) {
             assertTrue("Res.string.$key" in page, key)
         }
@@ -177,17 +176,16 @@ class SearchStructureTest {
         assertTrue("VideoSheetContext.DEFAULT" in page)
     }
 
-    @Test fun anEmptyResultAndAFailureUseTheEmptyStateAndRetry() {
-        val results = code("SearchResults")
-        assertTrue("CosmoEmptyState(" in results)
-        assertTrue("Res.string.video_no_results" in results && "Res.string.video_no_results_hint" in results)
-        assertTrue("Res.string.video_retry" in results && "actionLabel" in results && "onAction" in results)
+    @Test fun anEmptyResultAndAFailureAreTheSharedPagesStatesWithTryAgain() {
+        val page = code("VideoSearch")
+        assertTrue("CosmoSearchStatus.Failed(stringResource(searchErrorMessage(tab.error))) { tab.retry(scope) }" in page)
+        assertTrue("CosmoSearchStatus.Empty()" in page && "CosmoSearchStatus.Searching" in page)
+        assertTrue("Res.string.video_retry" in code("SearchResults"), "a failed next page keeps its Try again at the list's end")
     }
 
     @Test fun theListIsAtMostEightHundredFortyWideAndCentredOnAWidePage() {
         val page = code("VideoSearch")
-        assertTrue("widthIn(max = LIST_MAX_WIDTH)" in page && "LIST_MAX_WIDTH = 840.dp" in page)
-        assertTrue("Alignment.CenterHorizontally" in page)
+        assertTrue("columnMaxWidth = if (wide) LIST_MAX_WIDTH" in page && "LIST_MAX_WIDTH = 840.dp" in page)
         assertTrue("desktop = wide" in code("SearchResults"), "the wide page's rows use the desktop thumbnail")
     }
 

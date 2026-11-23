@@ -3,6 +3,7 @@ package com.cosmotune.manga.ui
 import com.cosmotune.manga.data.MangaBook
 import com.cosmotune.manga.data.MangaChapter
 import com.cosmotune.manga.data.MangaLibraryState
+import com.cosmotune.manga.data.MangaParserBookData
 import com.cosmotune.manga.data.MangaProgress
 import com.cosmotune.manga.data.MangaReaderMode
 import java.time.LocalDate
@@ -15,6 +16,25 @@ class ReadLogicTest {
     private val utc = ZoneOffset.UTC
     private fun chapter(n: Int, language: String = "en", date: Long = 0) = MangaChapter("c$n", "book", "src", "Chapter $n", "u$n", n.toFloat(), language, uploadDate = date)
     private val book = MangaBook("book", "src", "A series", chapters = listOf(chapter(1), chapter(2), chapter(3)))
+
+    @Test fun librarySearchMatchesTitlesOtherTitlesAndAuthorsAndFiltersByTheSeriesOwnGenreAndStatus() {
+        fun series(id: String, title: String, tags: List<String>, state: String?, authors: List<String> = emptyList(), other: Set<String> = emptySet()) =
+            MangaBook(id, "src", title, tags = tags, authors = authors, parserData = state?.let { MangaParserBookData("u", alternateTitles = other, state = it) })
+        val books = listOf(
+            series("a", "Berserk", listOf("Action", "Dark fantasy"), "FINISHED", authors = listOf("Kentaro Miura")),
+            series("b", "Vagabond", listOf("Action", "Historical"), "PAUSED", other = setOf("バガボンド")),
+            series("c", "Yotsuba&!", listOf("Comedy"), "ONGOING"),
+            series("d", "Local comic", emptyList(), null),
+        )
+        assertEquals(listOf("a"), mangaLibrarySearch(books, "berserk", "", "").map { it.id })
+        assertEquals(listOf("a"), mangaLibrarySearch(books, "miura", "", "").map { it.id }, "the author counts")
+        assertEquals(listOf("b"), mangaLibrarySearch(books, "バガボンド", "", "").map { it.id }, "another title counts")
+        assertEquals(emptyList(), mangaLibrarySearch(books, " ", "", ""), "nothing typed asks nothing")
+        assertEquals(listOf("a", "b"), mangaLibrarySearch(books, "a", "action", "").map { it.id }, "a genre is matched whatever its case")
+        assertEquals(listOf("b"), mangaLibrarySearch(books, "a", "Action", "PAUSED").map { it.id })
+        assertEquals(emptyList(), mangaLibrarySearch(books, "local", "", "ONGOING"), "a series with no status is never one of a status")
+        assertEquals(listOf("Action", "Comedy", "Dark fantasy", "Historical"), mangaLibraryGenres(books))
+    }
 
     @Test fun aSeriesNeverReadStartsAtItsFirstChapter() {
         val next = mangaContinue(book, MangaLibraryState(books = listOf(book)))

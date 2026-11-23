@@ -14,6 +14,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
@@ -255,9 +258,13 @@ class PodioVisualReviewTest {
                 reset(); page(dark, size, catalogue, file, downloaded = listOf(offline)); tab(size, "Following"); waitFor("Salt roads of Gujarat"); capture("following-$tag")
                 reset(); page(dark, size, catalogue, file, downloaded = listOf(offline)); tab(size, "Downloads"); waitFor("Salt roads"); capture("downloads-$tag")
                 reset(); page(dark, size, catalogue, file); waitFor("10 STATIONS")
-                compose.onNode(SemanticsMatcher("search") { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)?.contains("Search") == true })
+                // The phone's round Search button beside the tabs; on the desktop the sidebar's Search row (the host's).
+                if (size.phone) compose.onNode(SemanticsMatcher("search") { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)?.contains("Search") == true })
                     .performClick()
-                waitFor("Find a station"); waitFor("10 stations"); capture("search-$tag")
+                else compose.runOnIdle { ModeNav.podioSearch.tap() }
+                waitFor("Find a station")
+                compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("podio:search"))).apply { performTextInput("radio"); performImeAction() }
+                waitFor("10 stations"); capture("search-$tag")
             }
         }
     }

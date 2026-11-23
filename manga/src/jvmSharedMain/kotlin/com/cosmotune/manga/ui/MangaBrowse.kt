@@ -128,9 +128,9 @@ internal class GlobalSearch {
 }
 
 @Composable
-internal fun rememberGlobalSearch(repository: MangaRepository, query: String): GlobalSearch {
+internal fun rememberGlobalSearch(repository: MangaRepository, query: String, retry: Int = 0): GlobalSearch {
     val library by repository.store.state.collectAsState()
-    val search = remember(query) { GlobalSearch() }
+    val search = remember(query, retry) { GlobalSearch() }
     val revision by repository.sourceChanges.collectAsState()
     LaunchedEffect(search, library.sources, revision) {
         val generation = ++search.generation
@@ -231,7 +231,7 @@ internal fun languageName(tag: String): String = if (tag.isBlank() || tag == "mu
 
 /** A source in Browse as a flat Orbit row: its initials on a round tile, its name, its language and kind, a chevron. */
 @Composable
-private fun MangaSourceRow(source: MangaSourceConfig, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun MangaSourceRow(source: MangaSourceConfig, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     OrbitSongRow(
@@ -320,33 +320,126 @@ internal fun MangaSourcePage(scope: MangaScope, sourceId: String) {
     }
 }
 
-/** Search (the top bar's 🔍): the series in the library that match, then every enabled source's first page. */
+/** The key of Manga's recent searches. */
+private const val MANGA_RECENT = "manga"
+
+/**
+ * Search (the round Search button), on the shared page ([com.cosmotune.ui.search.CosmoSearchPage]): your library or every source
+ * that is on. In the library the genre and the status come from each series' own details; across the sources Source picks one of
+ * them, whose catalogue is then searched page by page (the sources' genre filters differ from source to source, so none is faked
+ * from the results). Before anything is typed: the recent searches and the sources to browse. A series opens its page.
+ */
 @Composable
 internal fun MangaSearchPage(scope: MangaScope) {
     val state by scope.repository.store.state.collectAsState()
-    var query by rememberSaveable { mutableStateOf("") }
-    val search = rememberGlobalSearch(scope.repository, query)
-    val grid = rememberLazyGridState()
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    val saved = if (query.isBlank()) emptyList() else state.books.filter { it.title.contains(query.trim(), true) }
-    Column(Modifier.fillMaxSize()) {
-        ReadBackHead("Search", onBack = { scope.navigation.page = null })
-        LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.weight(1f).fillMaxWidth(), state = grid,
-            contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
+    val navigation = scope.navigation
+    val query = navigation.query
+    var scopeId by rememberSaveable { mutableStateOf(MANGA_SCOPE_SOURCES) }
+    var genre by rememberSaveable { mutableStateOf("") }
+    var status by rememberSaveable { mutableStateOf("") }
+    var sourceId by rememberSaveable { mutableStateOf("") }
+    val enabled = state.sources.filter { it.enabled && MangaSourcePolicy.allowed(it) }
+    if (sourceId.isNotEmpty() && enabled.none { it.id == sourceId }) sourceId = ""
+    val inLibrary = scopeId == MANGA_SCOPE_LIBRARY
+    val term = query.trim()
+    val saved = mangaLibrarySearch(state.books, term, genre, status)
+    // Every source at once (their first pages), or the one chosen, page after page.
+    var retry by remember { mutableIntStateOf(0) }
+    val global = rememberGlobalSearch(scope.repository, if (!inLibrary && sourceId.isEmpty()) term else "", retry)
+    val single = if (!inLibrary && sourceId.isNotEmpty() && term.length >= 2) rememberSourceCatalogue(scope.repository, sourceId, term) else null
+    val recent by com.cosmotune.ui.search.CosmoRecentSearches.of(MANGA_RECENT).collectAsState()
+    fun keep() { if (term.isNotBlank()) com.cosmotune.ui.search.CosmoRecentSearches.add(MANGA_RECENT, term) }
+    val books = when {
+        inLibrary -> saved
+        single != null -> single.results
+        else -> global.results?.books.orEmpty()
+    }
+    val pageStatus = when {
+        term.length < 2 -> com.cosmotune.ui.search.CosmoSearchStatus.Idle
+        inLibrary -> if (saved.isEmpty()) com.cosmotune.ui.search.CosmoSearchStatus.Empty() else
+            com.cosmotune.ui.search.CosmoSearchStatus.Results(saved.size, "${saved.size} " + mangaText("series in your library"))
+        single != null -> when {
+            single.results.isEmpty() && single.loading -> com.cosmotune.ui.search.CosmoSearchStatus.Searching
+            single.results.isEmpty() && single.error != null -> com.cosmotune.ui.search.CosmoSearchStatus.Failed(single.error.orEmpty()) { single.retryNow() }
+            single.results.isEmpty() -> com.cosmotune.ui.search.CosmoSearchStatus.Empty()
+            else -> com.cosmotune.ui.search.CosmoSearchStatus.Results(single.results.size, "${single.results.size} series")
+        }
+        global.loading -> com.cosmotune.ui.search.CosmoSearchStatus.Searching
+        global.error != null && books.isEmpty() -> com.cosmotune.ui.search.CosmoSearchStatus.Failed(global.error.orEmpty()) { retry++ }
+        books.isEmpty() -> com.cosmotune.ui.search.CosmoSearchStatus.Empty()
+        else -> global.results.let { found ->
+            com.cosmotune.ui.search.CosmoSearchStatus.Results(books.size, "${books.size} series · ${found?.completed ?: 0} / ${found?.total ?: 0} " + mangaText("sources"))
+        }
+    }
+    val any = com.cosmotune.ui.search.CosmoSearchChoice("", mangaText("Any"))
+    val filters = if (inLibrary) listOfNotNull(
+        mangaLibraryGenres(state.books).takeIf { it.isNotEmpty() }?.let { genres ->
+            com.cosmotune.ui.search.CosmoSearchFilter("genre", mangaText("Genre"), listOf(any) + genres.map { com.cosmotune.ui.search.CosmoSearchChoice(it, it) }, genre) { genre = it }
+        },
+        com.cosmotune.ui.search.CosmoSearchFilter("status", mangaText("Status"), listOf(any) + MANGA_STATUSES.map { (id, name) -> com.cosmotune.ui.search.CosmoSearchChoice(id, mangaText(name)) }, status) { status = it },
+    ) else listOf(
+        com.cosmotune.ui.search.CosmoSearchFilter("source", mangaText("Source"),
+            listOf(com.cosmotune.ui.search.CosmoSearchChoice("", mangaText("Every source"))) + enabled.map { com.cosmotune.ui.search.CosmoSearchChoice(it.id, it.name) }, sourceId) { sourceId = it },
+    )
+    val filtered = if (inLibrary) genre.isNotEmpty() || status.isNotEmpty() else sourceId.isNotEmpty()
+    com.cosmotune.ui.search.CosmoSearchPage(
+        eyebrow = mangaText("Manga"),
+        query = query,
+        onQueryChange = { navigation.query = it.take(500) },
+        onSubmit = ::keep,
+        placeholder = mangaText("Search manga"),
+        status = pageStatus,
+        modifier = Modifier.testTag("manga:search"),
+        focus = navigation.searchFocus,
+        contentPadding = PaddingValues(top = 4.dp, bottom = scope.bottom),
+        kinds = listOf(
+            com.cosmotune.ui.search.CosmoSearchChoice(MANGA_SCOPE_LIBRARY, mangaText("Library"), count = saved.size.takeIf { term.length >= 2 && !inLibrary && it > 0 }),
+            com.cosmotune.ui.search.CosmoSearchChoice(MANGA_SCOPE_SOURCES, mangaText("Every source")),
+        ),
+        kind = scopeId,
+        onKind = { scopeId = it },
+        filters = filters,
+        onClearFilters = if (filtered) ({ genre = ""; status = ""; sourceId = "" }) else null,
+        recents = com.cosmotune.ui.search.CosmoSearchRecents(
+            recent.map { com.cosmotune.ui.search.CosmoRecent(it, it) },
+            onPick = { navigation.query = it.title; com.cosmotune.ui.search.CosmoRecentSearches.add(MANGA_RECENT, it.title) },
+            onRemove = { com.cosmotune.ui.search.CosmoRecentSearches.remove(MANGA_RECENT, it.title) },
+            onClear = { com.cosmotune.ui.search.CosmoRecentSearches.clear(MANGA_RECENT) },
+        ),
+        browseTitle = mangaText("Your sources"),
+        browse = enabled.takeIf { it.isNotEmpty() }?.let { sources -> { side ->
+            sources.sortedBy { it.name.lowercase() }.forEach { source ->
+                item(key = "browse:${source.id}") { MangaSourceRow(source, Modifier.padding(horizontal = side)) { navigation.page = null; navigation.source = source.id } }
+            }
+        } },
+    ) { gridModifier, side ->
+        val grid = rememberLazyGridState()
+        if (single != null) LaunchedEffect(single) {
+            snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index to grid.layoutInfo.totalItemsCount }.collect { (last, total) ->
+                if (last != null && last >= total - 4 && single.results.isNotEmpty() && single.error == null) single.loadMore()
+            }
+        }
+        LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), gridModifier.readScrollbar(grid.scrollIndicatorState, bottomInset = scope.bottom), state = grid,
+            contentPadding = PaddingValues(start = side, end = side, bottom = scope.bottom),
             horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {
-                ReadPageHead(mangaText("Search"), mangaText("Your library and every source that is on"), Modifier.readBleed())
+            val errors = global.results?.errors.orEmpty()
+            if (!inLibrary && single == null && errors.isNotEmpty()) item(key = "note", span = { GridItemSpan(maxLineSpan) }) {
+                Text("${errors.size} " + mangaText("sources didn't answer. Pick one under Source to try it again."), style = ReadType.meta(),
+                    color = Color(LocalCosmoColors.current.palette.textSecondary))
             }
-            item(key = "field", span = { GridItemSpan(maxLineSpan) }) {
-                ReadSearchField(query, { query = it.take(500) }, mangaText("Search manga"), Modifier.readBleed(), focusRequester = focus)
+            items(books, key = { "result:${it.id}" }) { book ->
+                Box(Modifier.testTag("manga:search:result")) {
+                    MangaBookCard(scope, book, if (inLibrary) mangaLibraryLine(book, state) else state.sources.find { it.id == book.sourceId }?.name ?: book.sourceId,
+                        inLibrary = inLibrary)
+                }
             }
-            if (saved.isNotEmpty()) {
-                item(key = "saved:header", span = { GridItemSpan(maxLineSpan) }) { ReadOverline(mangaText("In your library"), Modifier.readBleed()) }
-                items(saved, key = { "saved:${it.id}" }) { book -> MangaBookCard(scope, book, mangaLibraryLine(book, state), inLibrary = true) }
-                item(key = "sources:header", span = { GridItemSpan(maxLineSpan) }) { ReadOverline(mangaText("Sources"), Modifier.readBleed()) }
+            if (single != null && single.results.isNotEmpty() && single.next != null) item(key = "more", span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                    if (single.loading) com.cosmotune.ui.orbit.OrbitBusyRing()
+                    else ReadButton(mangaText("Load more"), { single.loadMore() }, kind = ReadKind.TONAL)
+                }
             }
-            if (query.isNotBlank()) mangaGlobalResultItems(scope, search, query, state.sources)
         }
     }
 }
+

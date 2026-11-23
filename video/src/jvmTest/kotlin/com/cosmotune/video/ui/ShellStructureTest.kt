@@ -322,14 +322,14 @@ class ShellStructureTest {
         assertTrue("onWatch -> PaddingValues(bottom = PAGE_GAP + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())" in src, "only the navigation bar's room at the bottom")
     }
 
-    @Test fun theTopBarIsTheSharedCosmoTopBarWithSearchAndTheProfileButton() {
+    @Test fun theTopBarIsTheSharedCosmoTopBarWithTheProfileButtonAndNoSearch() {
         val src = VideoSourceContract.code(app)
         assertTrue("CosmoTopBar(" in src)
-        assertTrue("KitRootActions(" in src, "Search and the avatar stand where every mode's root page has them")
+        assertTrue("KitRootActions(" in src, "the avatar stands where every mode's root page has it")
         assertTrue(Regex("""CosmoProfileButton\(\s+avatarUrl = signedIn\?\.avatarUrl,\s+name = profileName,\s+subtitle = profileSubtitle,\s+entries = videoDrawerEntries\(navigator\)""").containsMatchIn(src))
         assertTrue("Res.string.video_profile_name" in src && "Res.string.video_profile_subtitle" in src)
-        assertTrue("showSearch = route !is VideoRoute.Search" in src, "the Search page has its own field")
-        assertTrue("onBack == null" in src, "a root page's one action, the file picker, stands before Search")
+        assertFalse("onSearch" in src, "Search is the round button beside the tabs, not in the top bar")
+        assertTrue("onBack == null" in src, "a root page's one action, the file picker, stands before the avatar")
         assertTrue(Regex("""scrolled = scrolled\(\)""").containsMatchIn(src), "the scroll answer is read inside the bar")
         assertFalse(java.io.File(VideoSourceContract.root, "$shellDir/VideoTopBar.kt").exists(), "Video has no top bar of its own")
         assertTrue("VideoAccountSheet(" in src, "the app's one account sheet")

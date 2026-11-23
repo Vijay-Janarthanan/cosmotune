@@ -158,6 +158,7 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
         selectedIndex = videoTabIndex(navigator),
         onTabSelected = { selectVideoTab(navigator, it) },
         navigation = navShown,
+        search = com.cosmotune.video.ui.shell.videoNavSearch(navigator),
         bottomChrome = { showTabs, _ ->
             if (!fullScreen && !onWatch) {
                 VideoBottomChrome(navigator, graph.playback, hazeState, capsuleShown, Modifier.align(Alignment.BottomCenter), onHeightChanged = { chromePixels = it },
@@ -187,8 +188,8 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
 
 /**
  * The top bar of Video's pages (DESIGN_SYSTEM.md 4.1): the app's one [CosmoTopBar], with the mode pill on a root page and back on a
- * pushed one, the page's name once its large title has gone, then a root page's one action (a video file on the device), Search (not
- * on the Search page itself) and the account's avatar, in the same place as in every other mode. The bar is clear at the top of a page
+ * pushed one, the page's name once its large title has gone, then a root page's one action (a video file on the device) and the
+ * account's avatar, in the same place as in every other mode (Search is the round button beside the tabs). The bar is clear at the top of a page
  * and takes the page's ground, with a hairline under it, as the page scrolls under it: read while drawing, so a scroll recomposes nothing.
  */
 @Composable
@@ -233,12 +234,9 @@ internal fun VideoBar(
             height = height,
             onBack = onBack,
             actions = {
-                val search = stringResource(Res.string.video_search)
+                // Search is the round button beside the tabs (and at the head of the rail), as in every mode.
                 val openFile = stringResource(Res.string.video_local_open)
                 KitRootActions(
-                    onSearch = { navigator.push(VideoRoute.Search()) },
-                    searchLabel = search,
-                    showSearch = route !is VideoRoute.Search,
                     pageAction = { if (onBack == null) KitIconButton(CosmoIcons.Video, openFile, onOpenFile) },
                     account = {
                         CosmoProfileButton(

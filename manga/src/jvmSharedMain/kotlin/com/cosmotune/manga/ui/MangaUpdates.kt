@@ -77,7 +77,6 @@ internal fun MangaUpdatesPage(scope: MangaScope) {
                 item(key = "heading") {
                     ReadPageHead(mangaText("Updates"), if (count == 1) mangaText("1 new chapter") else "$count " + mangaText("new chapters")) {
                         if (online && !check.running) ReadIconButton(CosmoIcons.Replay, mangaText("Check for updates"), { check.start(scope) }, Modifier.testTag("manga:updates:check"))
-                        MangaRootActions(scope)
                     }
                 }
                 item(key = "status") {
@@ -131,7 +130,7 @@ internal fun MangaHistoryPage(scope: MangaScope) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("manga:history:list"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
             item(key = "heading") {
-                ReadPageHead(mangaText("History"), mangaText("The last chapter of each series you read")) { MangaRootActions(scope) }
+                ReadPageHead(mangaText("History"), mangaText("The last chapter of each series you read"))
             }
             if (days.isEmpty()) item(key = "empty") {
                 ReadEmpty(mangaText("Nothing read yet"), mangaText("The series you read appear here, the latest first."))

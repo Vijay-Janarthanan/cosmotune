@@ -185,7 +185,8 @@ class MangaInteractionTest {
         compose.onNodeWithText("No sources are enabled.", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Manage sources").assertIsDisplayed().performClick()
         compose.onNodeWithTag("manga:sources:list").assertExists()
-        compose.onNode(hasNavTab("More")).assertIsSelected()
+        // The sources are no longer a tab of the bar (they are in the profile menu): no tab is lit on their page.
+        compose.onNode(hasNavTab("More")).assertDoesNotExist()
         assertFalse(store.state.value.sources.single().enabled)
     }
 

@@ -100,6 +100,25 @@ internal class PodioModel(
     /** The search page is open; [searchShows] chooses its scope (shows, or stations). */
     var searching by searchingState
     var searchShows by searchShowsState
+    /** The search page asks for episodes (Apple's episode index) rather than stations or shows. */
+    var searchEpisodes by mutableStateOf(false)
+    /** The episodes found, each with its show; their state while asked. */
+    var episodes by mutableStateOf(emptyList<InboxEpisode>())
+    var episodesLoading by mutableStateOf(false)
+    var episodesError by mutableStateOf<String?>(null)
+
+    /** Asks for the episodes that match the search, in the chosen region's storefront. */
+    suspend fun loadEpisodes() {
+        val typed = query.trim()
+        if (typed.isEmpty()) { episodes = emptyList(); episodesError = null; return }
+        episodesLoading = true; episodesError = null
+        try {
+            val storefront = country.ifBlank { java.util.Locale.getDefault().country.ifBlank { "US" } }
+            episodes = catalogue.searchEpisodes(typed, storefront).map { (episode, show) -> InboxEpisode(episode, show) }
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { episodesError = "Couldn't reach the episode directory. Check your connection and try again." }
+        finally { episodesLoading = false }
+    }
     var satellite by satelliteState
     var globeFull by globeFullState
 

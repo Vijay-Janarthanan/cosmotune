@@ -16,6 +16,7 @@ import com.cosmotune.ui.rememberUiCoroutineScope
 import com.cosmotune.ui.orbit.OrbitInputField
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.flow.drop
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -145,15 +146,30 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     val sidebarDetail by ModeNav.podioDetail.collectAsState()
     val detailOpen = if (local) localDetail else sidebarDetail
     fun setDetail(open: Boolean) { if (local) localDetail = open else ModeNav.podioDetail.value = open }
-    val searchFocus = remember { FocusRequester() }
-    fun openSearch() { m.searchShows = section == PodioSection.PODCASTS || section == PodioSection.FOLLOWING; m.searching = true }
+    val searchFocus = com.cosmotune.ui.search.rememberCosmoSearchFocus(focusOnOpen = false)
+    fun openSearch() {
+        m.searchShows = section == PodioSection.PODCASTS || section == PodioSection.FOLLOWING; m.searchEpisodes = false
+        m.searching = true
+        searchFocus.request()
+    }
     fun closeSearch() { m.searching = false; m.query = ""; m.browse() }
-    LaunchedEffect(m.searching) { if (m.searching) { delay(50); runCatching { searchFocus.requestFocus() } } }
+    // The round Search button (the dock's, the rail's, the desktop sidebar's row): opens the search, or, on it, clears the box and
+    // focuses it.
+    fun tapSearch() { if (m.searching) { m.query = ""; m.browse(); searchFocus.request() } else openSearch() }
+    val searchNav = com.cosmotune.ui.shell.CosmoNavSearch("Search", selected = m.searching, onClick = ::tapSearch)
+    LaunchedEffect(m.searching) { ModeNav.podioSearch.open.value = m.searching }
+    // A sidebar row chosen while searching (the section shown, too) closes the search.
+    LaunchedEffect(Unit) { ModeNav.podioSearch.open.drop(1).collect { open -> if (!open && m.searching) closeSearch() } }
+    val tapFromSidebar by rememberUpdatedState(::tapSearch)
+    LaunchedEffect(Unit) {
+        val seen = ModeNav.podioSearch.taps.value
+        ModeNav.podioSearch.taps.collect { if (it != seen) tapFromSidebar() }
+    }
 
     // A change of section (from the tabs, or the desktop sidebar) leaves an open feed and a search, and starts the new section clean.
     LaunchedEffect(section) { m.browse(); m.query = ""; m.genre = ""; m.searching = false; m.globeFull = false; m.queueOpen = false }
-    val stationsWanted = if (m.searching) !m.searchShows else section == PodioSection.RADIO || section == PodioSection.GLOBE
-    val showsWanted = if (m.searching) m.searchShows else section == PodioSection.PODCASTS
+    val stationsWanted = if (m.searching) !m.searchShows && !m.searchEpisodes else section == PodioSection.RADIO || section == PodioSection.GLOBE
+    val showsWanted = if (m.searching) m.searchShows && !m.searchEpisodes else section == PodioSection.PODCASTS
     LaunchedEffect(stationsWanted, showsWanted, m.searching, m.language, m.country, m.genre, m.request) {
         // Network continuations can resume on a worker with an immediate effect dispatcher. Publish page state on the UI dispatcher.
         withContext(Dispatchers.Main.immediate) { if (stationsWanted || showsWanted) m.loadDirectory(stations = stationsWanted) }
@@ -244,10 +260,10 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                 m.queueOpen -> PodioQueuePage(m, env) { m.queueOpen = false }
                 m.requestedFeed != null -> ShowPage(m, env)
                 m.globeFull && compact -> RadioFullScreen(m, env, onAir, globeView, pageHeight, onToggle)
-                m.searching -> SearchContent(m, env, searchFocus, ::closeSearch)
-                section == PodioSection.RADIO -> RadioPage(m, env, onAir, ::openSearch, timer) { chooseSection(PodioSection.GLOBE) }
+                m.searching -> SearchContent(m, env, searchFocus)
+                section == PodioSection.RADIO -> RadioPage(m, env, onAir, timer) { chooseSection(PodioSection.GLOBE) }
                 section == PodioSection.GLOBE -> GlobePage(m, env, onAir, globeView)
-                section == PodioSection.PODCASTS -> PodcastsPage(m, env, ::openSearch)
+                section == PodioSection.PODCASTS -> PodcastsPage(m, env)
                 section == PodioSection.FOLLOWING -> FollowingPage(m, env) { inboxRequest++ }
                 else -> DownloadsPage(m, env)
             }
@@ -256,7 +272,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             // A notice, or an error the page does not show in its own place (saving the library, the OPML files, a bad address).
             val pageShowsError = when {
                 m.requestedFeed != null -> true
-                m.searching -> if (m.searchShows) m.shows.isEmpty() else m.radio.isEmpty()
+                m.searching -> true
                 section == PodioSection.RADIO || section == PodioSection.GLOBE -> m.radio.isEmpty()
                 section == PodioSection.PODCASTS -> m.shows.isEmpty()
                 else -> false
@@ -281,8 +297,10 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                 windowWidth = maxWidth,
                 tabs = tabs,
                 selectedIndex = lit,
-                onTabSelected = { chooseSection(NAV_SECTIONS[it]) },
+                // A tab leaves the search, the tab of the section shown too.
+                onTabSelected = { if (m.searching) closeSearch(); chooseSection(NAV_SECTIONS[it]) },
                 modifier = Modifier.padding(padding),
+                search = searchNav,
                 // The full-screen globe has the whole window.
                 navigation = !(compact && m.globeFull),
                 bottomChrome = { showTabs, _ ->
@@ -290,11 +308,12 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                         banner(Modifier)
                         // Without a shell (no theme above: a test, a preview) the dock is drawn as Music's, since it draws only for the stored mode.
                         CosmoBottomChrome(
-                            tabs = tabs, selectedIndex = lit, onTabSelected = { chooseSection(NAV_SECTIONS[it]) },
+                            tabs = tabs, selectedIndex = lit, onTabSelected = { if (m.searching) closeSearch(); chooseSection(NAV_SECTIONS[it]) },
                             song = null, isPlaying = playback.playing, isLoading = playback.loading, position = remember { PlaybackPosition() }, durationMs = playback.durationMs,
                             onPlayPause = onToggle, onNext = {}, onExpand = { if (live) setDetail(true) else m.playerSheet = true },
                             controlsLocked = false, onBlockedControl = {}, hazeState = null, onHeightChanged = { dockPx = it },
                             modifier = Modifier.fillMaxWidth(), mode = if (LocalCosmoShell.current == null) AppMode.MUSIC else AppMode.PODIO,
+                            search = searchNav,
                             miniPlayer = if (podio) ({ PodioMiniPlayer(playback, playingStation, song, nowArt ?: playingStation?.artwork ?: playingEntry?.show?.artwork, onToggle,
                                 onOpen = { if (live) setDetail(true) else m.playerSheet = true }, onSeek = onSeek, queued = queued.entries.size, onQueue = ::openQueue) }) else null,
                         )

@@ -153,6 +153,12 @@ import org.jetbrains.compose.resources.stringResource
 data class CosmoDrawerEntry(val icon: ImageVector, val label: String, val aside: String? = null, val onClick: () -> Unit)
 
 /**
+ * Rows the open mode adds at the head of the profile menu's list (Manga's "Manga sources", the page that no longer fits in
+ * its bar beside Search). A mode provides them around its pages; every profile button under it shows them.
+ */
+val LocalModeMenuEntries = androidx.compose.runtime.staticCompositionLocalOf<List<CosmoDrawerEntry>> { emptyList() }
+
+/**
  * The profile drawer (`.drawer` of the boards): from the start edge, [PANEL_WIDTH] wide (at most 85 % of the window), full
  * height, with end corners of 17 dp, on the C glass surface (solid: it floats over a screen that already has two blurred
  * layers, and has no [dev.chrisbanes.haze.HazeState] to sample) under a black scrim at 56 %. It is drawn in a [DrawerWindow],
@@ -247,8 +253,9 @@ fun CosmoProfileButton(
     ) {
         Avatar(avatarUrl, size, Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }.cosmoFocusRing(interaction, size / 2))
     }
-    // An entry closes the drawer and then does its thing.
-    val closing = remember(entries) { entries.map { entry -> entry.copy(onClick = { open = false; entry.onClick() }) } }
+    // An entry closes the drawer and then does its thing. The open mode's own rows (Manga's "Manga sources") come first.
+    val modeEntries = LocalModeMenuEntries.current
+    val closing = remember(entries, modeEntries) { (modeEntries + entries).map { entry -> entry.copy(onClick = { open = false; entry.onClick() }) } }
     CosmoProfileDrawer(
         open = open,
         onDismiss = { open = false },

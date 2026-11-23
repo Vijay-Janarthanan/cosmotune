@@ -60,6 +60,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.drop
 import java.io.File
 
 /**
@@ -109,7 +110,16 @@ internal class ReadNavigation(tab: String) {
     var book by mutableStateOf<ReadingBook?>(null)
     var publication by mutableStateOf<ReadingPublication?>(null)
     var search by mutableStateOf(false)
+    /** What Search's box holds (kept while a result's page stands over it), and its hold on the box. */
+    var query by mutableStateOf("")
+    val searchFocus = com.cosmotune.ui.search.CosmoSearchFocus()
     val atRoot: Boolean get() = book == null && publication == null && !search
+
+    /** The round Search button: opens Search, or, on it, clears the box and focuses it. */
+    fun tapSearch() {
+        if (search && book == null && publication == null) query = "" else { book = null; publication = null; search = true }
+        searchFocus.request()
+    }
 
     fun select(next: String) { tab = next; book = null; publication = null; search = false }
 
@@ -168,6 +178,13 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
         ModeNav.mangaTab.collect { name -> val next = BookTabs.of(name); if (next != navigation.tab) navigation.select(next) }
     }
     LaunchedEffect(navigation.tab) { ModeNav.mangaTab.value = navigation.tab }
+    // The desktop sidebar's Search row: lit while Search is open; its tap opens it (or clears and focuses it); another row closes it.
+    LaunchedEffect(navigation.search) { ModeNav.mangaSearch.open.value = navigation.search }
+    LaunchedEffect(Unit) {
+        val seen = ModeNav.mangaSearch.taps.value
+        launch { ModeNav.mangaSearch.taps.collect { if (it != seen) navigation.tapSearch() } }
+        ModeNav.mangaSearch.open.drop(1).collect { open -> if (!open && navigation.search) navigation.search = false }
+    }
     LaunchedEffect(document != null) { onReaderVisibility(document != null) }
     DisposableEffect(Unit) { onDispose { onReaderVisibility(false) } }
     val pick = rememberReadingImport { name, stream ->
@@ -186,7 +203,8 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
     }
     MangaBackHandler(!navigation.atRoot || navigation.tab != BookTabs.LIBRARY) { navigation.back() }
     ReadModeFrame(BookTabs.all, navigation.tab, { navigation.select(it) }, showNavigation, showNavigation && navigation.atRoot, onMusic, showAccount,
-        modifier = Modifier.testTag("books:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
+        modifier = Modifier.testTag("books:root").padding(top = contentPadding.calculateTopPadding()),
+        search = com.cosmotune.ui.shell.CosmoNavSearch("Search", selected = navigation.search, onClick = navigation::tapSearch)) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
         val page = ReadScope(repository, pages, navigation, onMusic, showAccount, bottom, ::action, ::open, { error = it }, busy, pick)
         Column(Modifier.fillMaxSize()) {
@@ -206,13 +224,6 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
             }
         }
     }
-}
-
-/** The round actions of a tab's heading: its own, then Search. */
-@Composable
-internal fun RowScope.ReadRootActions(scope: ReadScope, page: @Composable () -> Unit = {}) {
-    page()
-    ReadIconButton(CosmoIcons.Search, "Search", { scope.navigation.search = true })
 }
 
 /** How far into [book] the reader is, 0..1, or null before it is opened. */
@@ -294,7 +305,6 @@ private fun BookLibrary(scope: ReadScope) {
             val count = state.books.size
             ReadPageHead("Library", if (count == 1) "1 book · ${reading.size} reading" else "$count books · ${reading.size} reading", Modifier.readBleed()) {
                 ReadIconButton(CosmoIcons.Plus, "Import EPUB or PDF", { if (!scope.busy) scope.importBooks() }, Modifier.testTag("books:import"))
-                ReadRootActions(scope)
             }
         }
         if (hero != null) item(key = "hero:${hero.id}", span = { GridItemSpan(maxLineSpan) }) { BookHero(scope, hero, state) }
@@ -405,7 +415,7 @@ private fun BookBookmarks(scope: ReadScope) {
     LazyColumn(Modifier.fillMaxSize().testTag("books:bookmarks:list"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
         item(key = "heading") {
             val count = state.bookmarks.size
-            ReadPageHead("Bookmarks", if (count == 1) "1 passage kept" else "$count passages kept") { ReadRootActions(scope) }
+            ReadPageHead("Bookmarks", if (count == 1) "1 passage kept" else "$count passages kept")
         }
         if (groups.isEmpty()) item(key = "empty") {
             ReadEmpty("No bookmarks yet", "Bookmark a passage from the reader's tools to come back to it here.")
@@ -528,42 +538,148 @@ internal fun bookFacts(book: ReadingBook, zone: java.time.ZoneId = java.time.Zon
     "Source" to (book.sourceUrl ?: "On this device"),
 )
 
-/** Search (the heading's 🔍): the books in the library that match, then Open Library's results. */
+/** What Read's search asks: books (their titles and authors) or authors alone. */
+internal enum class BookSearchKind(val id: String, val label: String) { BOOKS("books", "Books"), AUTHORS("authors", "Authors") }
+
+/** Where Read's search looks: everywhere it can, the books on this device, Open Library, or Project Gutenberg. */
+internal enum class BookSearchSource(val id: String, val label: String) {
+    ALL("all", "All sources"), MINE("mine", "Your books"), OPEN_LIBRARY("openlibrary", "Open Library"), GUTENBERG("gutenberg", "Project Gutenberg");
+    companion object { fun of(id: String) = entries.firstOrNull { it.id == id } ?: ALL }
+}
+
+/**
+ * The languages Read's search can ask for: Open Library's own code (its `language` filter) and the two-letter code a book on this
+ * device carries in its metadata.
+ */
+internal val BOOK_SEARCH_LANGUAGES = listOf(
+    Triple("eng", "en", "English"), Triple("tam", "ta", "Tamil"), Triple("hin", "hi", "Hindi"), Triple("tel", "te", "Telugu"),
+    Triple("mal", "ml", "Malayalam"), Triple("kan", "kn", "Kannada"), Triple("ben", "bn", "Bengali"), Triple("mar", "mr", "Marathi"),
+    Triple("spa", "es", "Spanish"), Triple("fre", "fr", "French"), Triple("ger", "de", "German"), Triple("ita", "it", "Italian"),
+    Triple("por", "pt", "Portuguese"), Triple("rus", "ru", "Russian"), Triple("jpn", "ja", "Japanese"), Triple("chi", "zh", "Chinese"),
+    Triple("ara", "ar", "Arabic"),
+)
+
+/** Whether a book on this device is in the language Open Library calls [code] (its own metadata's tag, two or three letters). */
+internal fun ReadingBook.inLanguage(code: String): Boolean {
+    val tag = language.trim().lowercase().substringBefore('-')
+    val two = BOOK_SEARCH_LANGUAGES.firstOrNull { it.first == code }?.second
+    return tag.isNotEmpty() && (tag == code || tag == two)
+}
+
+/** The books on this device that match [query] as [kind] asks (the title and the authors, or the authors alone), in [language]. */
+internal fun ReadingState.searchBooks(query: String, kind: BookSearchKind, language: String): List<ReadingBook> {
+    val term = query.trim()
+    if (term.isEmpty()) return emptyList()
+    return books.filter { book ->
+        val haystack = if (kind == BookSearchKind.AUTHORS) book.authors.joinToString(" ") else book.title + " " + book.authors.joinToString(" ")
+        haystack.contains(term, ignoreCase = true) && (language.isEmpty() || book.inLanguage(language))
+    }.sortedByDescending { progress[it.id]?.updatedAtMs ?: it.addedAtMs }
+}
+
+/** The key of Read's recent searches. */
+private const val READ_RECENT = "read"
+
+/**
+ * Search (the round Search button), on the shared page ([com.cosmotune.ui.search.CosmoSearchPage]): Books or Authors; the language
+ * (Open Library's own filter, and each book's metadata on this device) and the source (your books, Open Library, Project
+ * Gutenberg). Project Gutenberg's search matches titles and authors together, so it is offered for Books only, and has no language
+ * filter. Before anything is typed: the recent searches and what is trending on Open Library. A result opens its own page.
+ */
 @Composable
 private fun BookSearchPage(scope: ReadScope) {
     val state by scope.repository.state.collectAsUiState()
-    var query by rememberSaveable { mutableStateOf("") }
+    val navigation = scope.navigation
+    val query = navigation.query
+    var kindId by rememberSaveable { mutableStateOf(BookSearchKind.BOOKS.id) }
+    var sourceId by rememberSaveable { mutableStateOf(BookSearchSource.ALL.id) }
+    var language by rememberSaveable { mutableStateOf("") }
+    val kind = BookSearchKind.entries.first { it.id == kindId }
+    val sources = if (kind == BookSearchKind.AUTHORS) BookSearchSource.entries - BookSearchSource.GUTENBERG else BookSearchSource.entries
+    val source = BookSearchSource.of(sourceId).takeIf { it in sources } ?: BookSearchSource.ALL
+    val languageOffered = source != BookSearchSource.GUTENBERG
+    val shownLanguage = if (languageOffered) language else ""
     var results by remember { mutableStateOf(emptyList<ReadingPublication>()) }
     var searching by remember { mutableStateOf(false) }
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    LaunchedEffect(query) { withContext(Dispatchers.Main.immediate) {
-        results = emptyList()
-        if (query.trim().length < 2) return@withContext
+    var failure by remember { mutableStateOf<String?>(null) }
+    var retry by remember { mutableIntStateOf(0) }
+    val term = query.trim()
+    LaunchedEffect(term, kind, source, shownLanguage, retry) { withContext(Dispatchers.Main.immediate) {
+        results = emptyList(); failure = null
+        if (term.length < 2 || source == BookSearchSource.MINE) { searching = false; return@withContext }
         searching = true
-        try { kotlinx.coroutines.delay(400); results = scope.repository.search(query.trim(), 0).publications }
-        catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { scope.onError(failure.message ?: "The catalogue could not be searched.") }
+        try {
+            kotlinx.coroutines.delay(400)
+            val openLibrary = source == BookSearchSource.ALL || source == BookSearchSource.OPEN_LIBRARY
+            results = if (openLibrary) scope.repository.search(term, 0, author = kind == BookSearchKind.AUTHORS, language = shownLanguage.ifBlank { null }).publications
+                else scope.repository.gutenberg(term).publications
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: Exception) { failure = error.message ?: "The catalogue could not be searched." }
         finally { searching = false }
     } }
-    val mine = if (query.isBlank()) emptyList() else state.shelf(BookShelf.ALL, query)
-    Column(Modifier.fillMaxSize()) {
-        ReadBackHead("Search", onBack = { scope.navigation.search = false })
-        LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
-            horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            item(key = "heading", span = { GridItemSpan(maxLineSpan) }) { ReadPageHead("Search", "Your books and Open Library", Modifier.readBleed()) }
-            item(key = "field", span = { GridItemSpan(maxLineSpan) }) {
-                ReadSearchField(query, { query = it.take(500) }, "Search books and authors", Modifier.readBleed(), focusRequester = focus)
+    val mine = if (source == BookSearchSource.ALL || source == BookSearchSource.MINE) state.searchBooks(term, kind, shownLanguage) else emptyList()
+    val found = results.distinctBy { it.id }
+    val recent by com.cosmotune.ui.search.CosmoRecentSearches.of(READ_RECENT).collectAsState()
+    val trending = remember(scope.pages, scope.repository) { readTrending(scope.pages, scope.repository) }
+    LaunchedEffect(trending) { trending.restore(); if (!trending.isFresh) runCatching { trending.fetchNow() } }
+    val trendingPage by trending.state.collectAsState()
+    fun keep(text: String) { if (text.isNotBlank()) com.cosmotune.ui.search.CosmoRecentSearches.add(READ_RECENT, text) }
+    val status = when {
+        term.length < 2 -> com.cosmotune.ui.search.CosmoSearchStatus.Idle
+        searching && mine.isEmpty() -> com.cosmotune.ui.search.CosmoSearchStatus.Searching
+        failure != null && mine.isEmpty() -> com.cosmotune.ui.search.CosmoSearchStatus.Failed(failure.orEmpty()) { retry++ }
+        searching -> com.cosmotune.ui.search.CosmoSearchStatus.Searching
+        mine.isEmpty() && found.isEmpty() -> com.cosmotune.ui.search.CosmoSearchStatus.Empty()
+        else -> com.cosmotune.ui.search.CosmoSearchStatus.Results(mine.size + found.size, com.cosmotune.ui.search.searchCountLabel(mine.size + found.size, "book", "books"))
+    }
+    val filters = buildList {
+        if (languageOffered) add(com.cosmotune.ui.search.CosmoSearchFilter("language", "Language",
+            listOf(com.cosmotune.ui.search.CosmoSearchChoice("", "Any language")) + BOOK_SEARCH_LANGUAGES.map { com.cosmotune.ui.search.CosmoSearchChoice(it.first, it.third) },
+            shownLanguage) { language = it })
+        add(com.cosmotune.ui.search.CosmoSearchFilter("source", "Source", sources.map { com.cosmotune.ui.search.CosmoSearchChoice(it.id, it.label) }, source.id) { sourceId = it })
+    }
+    com.cosmotune.ui.search.CosmoSearchPage(
+        eyebrow = "Read",
+        query = query,
+        onQueryChange = { navigation.query = it.take(500) },
+        onSubmit = { keep(query) },
+        placeholder = if (kind == BookSearchKind.AUTHORS) "Search authors" else "Search books and authors",
+        status = status,
+        modifier = Modifier.testTag("books:search"),
+        focus = navigation.searchFocus,
+        contentPadding = PaddingValues(top = 4.dp, bottom = scope.bottom),
+        kinds = BookSearchKind.entries.map { com.cosmotune.ui.search.CosmoSearchChoice(it.id, it.label) },
+        kind = kind.id,
+        onKind = { kindId = it },
+        filters = filters,
+        onClearFilters = if (shownLanguage.isNotEmpty() || source != BookSearchSource.ALL) ({ language = ""; sourceId = BookSearchSource.ALL.id }) else null,
+        recents = com.cosmotune.ui.search.CosmoSearchRecents(
+            recent.map { com.cosmotune.ui.search.CosmoRecent(it, it) },
+            onPick = { navigation.query = it.title; keep(it.title) },
+            onRemove = { com.cosmotune.ui.search.CosmoRecentSearches.remove(READ_RECENT, it.title) },
+            onClear = { com.cosmotune.ui.search.CosmoRecentSearches.clear(READ_RECENT) },
+        ),
+        browseTitle = "Trending on Open Library",
+        browse = trendingPage.data?.publications?.takeIf { it.isNotEmpty() }?.let { books -> { side ->
+            item(key = "browse:trending") {
+                LazyRow(contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(ReadGutter)) {
+                    items(books.take(15), key = { "trending:${it.id}" }) { publication -> PublicationCard(scope, publication, width = 112.dp) }
+                }
             }
+        } },
+    ) { listModifier, side ->
+        LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), listModifier,
+            contentPadding = PaddingValues(start = side, end = side, bottom = scope.bottom),
+            horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             if (mine.isNotEmpty()) {
-                item(key = "mine", span = { GridItemSpan(maxLineSpan) }) { ReadOverline("In your library", Modifier.readBleed()) }
+                item(key = "mine", span = { GridItemSpan(maxLineSpan) }) { ReadOverline("Your books", Modifier.readBleed(side), inset = side) }
                 items(mine, key = { "mine:${it.id}" }) { book -> BookCard(scope, book) }
             }
-            if (results.isNotEmpty()) {
-                item(key = "catalogue", span = { GridItemSpan(maxLineSpan) }) { ReadOverline("Open Library", Modifier.readBleed()) }
-                items(results.distinctBy { it.id }, key = { "result:${it.id}" }) { publication -> PublicationCard(scope, publication) }
-            } else if (searching) item(key = "loading", span = { GridItemSpan(maxLineSpan) }) { ReadSkeletonGrid(Modifier.readBleed()) }
+            if (found.isNotEmpty()) {
+                item(key = "catalogue", span = { GridItemSpan(maxLineSpan) }) {
+                    ReadOverline(if (source == BookSearchSource.GUTENBERG) "Project Gutenberg" else "Open Library", Modifier.readBleed(side), inset = side)
+                }
+                items(found, key = { "result:${it.id}" }) { publication -> PublicationCard(scope, publication) }
+            }
         }
     }
 }

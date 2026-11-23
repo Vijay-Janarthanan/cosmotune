@@ -199,7 +199,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
         val config = state.value.sources.find { it.id == sourceId } ?: error("This catalogue was removed.")
         return PersonalOpdsCatalogue(config.id, config.url, config.username.takeIf(String::isNotEmpty), config.password, client, config.allowInsecureHttp).search(query)
     }
-    suspend fun search(query: String, offset: Int = 0) = metadata.search(query, offset)
+    suspend fun search(query: String, offset: Int = 0, author: Boolean = false, language: String? = null) = metadata.search(query, offset, author, language)
     suspend fun trending(offset: Int = 0) = metadata.trending(offset)
     suspend fun editions(publication: ReadingPublication, offset: Int = 0) = metadata.editions(publication, offset)
     suspend fun gutenberg(query: String = "", page: Int = 1) = GutenbergBookCatalogue(client).browse(query, page)
