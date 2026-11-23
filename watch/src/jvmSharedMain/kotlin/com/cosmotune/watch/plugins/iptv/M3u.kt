@@ -61,6 +61,18 @@ object M3uParser {
                     val key = opt.substringBefore('=').trim().lowercase(); val value = opt.substringAfter('=', "").trim()
                     when (key) { "http-user-agent" -> headers["User-Agent"] = value; "http-referrer", "http-referer" -> headers["Referer"] = value; "http-origin" -> headers["Origin"] = value }
                 }
+                // Kodi's inputstream.adaptive headers ("User-Agent=a&Referer=b") and TiviMate's #EXTHTTP JSON object.
+                line.startsWith("#KODIPROP:") -> {
+                    val opt = line.removePrefix("#KODIPROP:")
+                    if (opt.substringBefore('=').trim().lowercase() in setOf("inputstream.adaptive.stream_headers", "inputstream.adaptive.manifest_headers"))
+                        opt.substringAfter('=', "").split('&').forEach { kv -> kv.split('=', limit = 2).takeIf { it.size == 2 && it[0].isNotBlank() }?.let {
+                            headers[it[0].trim()] = runCatching { java.net.URLDecoder.decode(it[1], "UTF-8") }.getOrDefault(it[1]).trim() } }
+                }
+                line.startsWith("#EXTHTTP:") -> runCatching {
+                    (kotlinx.serialization.json.Json.parseToJsonElement(line.removePrefix("#EXTHTTP:")) as kotlinx.serialization.json.JsonObject).forEach { (k, v) ->
+                        (v as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content?.let { headers[k] = it }
+                    }
+                }
                 line.startsWith("#EXTGRP:") -> group = line.removePrefix("#EXTGRP:").trim()
                 line.startsWith("#") -> Unit
                 else -> {
