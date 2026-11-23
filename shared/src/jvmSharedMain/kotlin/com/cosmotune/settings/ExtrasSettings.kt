@@ -150,9 +150,22 @@ class ExtrasSettings(private val store: KeyValueStore) {
     /** The song playing now, set by the host as songs change, so [effectNow] can follow a song's own effect. Another song ends an A–B loop. */
     @Volatile var playingSongId: String? = null
         set(value) {
+            val changed = field != value
             field = value
             if (value != null && abLoopFlow.value?.songId?.let { it != value } == true) abLoopFlow.value = null
+            if (changed && value != null && SongPlaybackMemory.isMusic(value)) {
+                lastPlayed = com.cosmotune.music.playback.FreshShuffle.played(lastPlayed, value, System.currentTimeMillis())
+                store.putString(KEY_LAST_PLAYED, com.cosmotune.music.playback.FreshShuffle.encode(lastPlayed))
+            }
         }
+
+    // Fresh shuffle (Lokal's idea): when each song last started here, so a shuffle puts the ones heard lately further back.
+    @Volatile private var lastPlayed: Map<String, Long> = com.cosmotune.music.playback.FreshShuffle.decode(store.getString(KEY_LAST_PLAYED, ""))
+    private val freshShuffleFlow = MutableStateFlow(store.getBoolean(KEY_FRESH_SHUFFLE, true))
+    val freshShuffle: StateFlow<Boolean> = freshShuffleFlow.asStateFlow()
+    fun setFreshShuffle(value: Boolean) { freshShuffleFlow.value = value; store.putBoolean(KEY_FRESH_SHUFFLE, value) }
+    /** When [id] last started playing, while Fresh shuffle is on; null otherwise. */
+    fun lastPlayedAt(id: String): Long? = if (freshShuffleFlow.value) lastPlayed[id] else null
 
     // Bookmarks (Namida's idea): moments and parts kept per song, and the A–B loop playing now (not kept across restarts).
     private val songMarksFlow = MutableStateFlow(SongMarks.decode(store.getString(KEY_SONG_MARKS, "")))
@@ -261,6 +274,8 @@ class ExtrasSettings(private val store: KeyValueStore) {
     companion object {
         const val KEY_SONG_PLAYBACK="extras_song_playback"
         const val KEY_SONG_MARKS = "extras_song_marks"
+        const val KEY_LAST_PLAYED = "extras_last_played"
+        const val KEY_FRESH_SHUFFLE = "extras_fresh_shuffle"
         const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
         const val KEY_SLEEP_FADE_OUT = "extras_sleep_fade_out"
         const val KEY_BEST_PART = "extras_best_part"
