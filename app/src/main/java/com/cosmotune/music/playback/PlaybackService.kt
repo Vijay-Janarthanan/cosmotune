@@ -849,6 +849,12 @@ class PlaybackService : MediaLibraryService() {
                 player?.let {
                     podioChapterMedia.observe(it.currentMediaItem?.toSong(), it.currentPosition)
                     podioPositions.trySend(PodioPosition(it.currentMediaItem?.mediaId, it.currentPosition, it.isPlaying, it.playbackState == Player.STATE_BUFFERING, it.duration))
+                    // Stops to load and the output's clock, for the player's Audio details.
+                    com.cosmotune.audio.PlaybackHealth.monitor.observe(
+                        it.currentMediaItem?.mediaId, it.currentPosition, it.playWhenReady,
+                        it.playbackState == Player.STATE_BUFFERING, it.playbackParameters.speed, System.nanoTime(),
+                        bufferedAheadMs = (it.bufferedPosition - it.currentPosition).takeIf { ahead -> ahead >= 0 },
+                    )
                 }
                 delay(1_000)
             }

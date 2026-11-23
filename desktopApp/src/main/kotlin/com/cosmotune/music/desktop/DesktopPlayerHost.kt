@@ -297,6 +297,8 @@ private fun DesktopAudioPipeline.toOutputFormat(): OutputFormatUi {
         summary = listOfNotNull(depth, rate).joinToString(" · "),
         carriesHiRes = outputIsFloat == true || (outputBytesPerSample ?: 2) > 2 ||
             (outputSampleRateHz ?: 0) > 48_000,
+        sampleRateHz = outputSampleRateHz?.takeIf { it > 0 },
+        fidelity = fidelityFacts().takeIf { outputSampleRateHz != null },
     )
 }
 

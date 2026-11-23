@@ -2134,6 +2134,11 @@ fun CosmotuneDesktopApp() {
             playerPosition.report(it.positionMs, it.positionSampledAtNanos)
             playerPosition.seeks = it.seeks
             playerPosition.advancing = !it.awaitingAudio
+            // Stops to load and the output's clock, for the player's Audio details.
+            if (it.positionSampledAtNanos > 0L) com.cosmotune.audio.PlaybackHealth.monitor.observe(
+                it.song?.videoId, it.positionMs, it.isPlaying, it.awaitingAudio || it.isLoading, playbackEngine.playbackRate,
+                it.positionSampledAtNanos, seeks = it.seeks,
+            )
         }
     }
 

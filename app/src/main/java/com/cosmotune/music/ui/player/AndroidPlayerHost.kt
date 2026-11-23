@@ -154,9 +154,24 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     }
 
     override val outputFormat: StateFlow<OutputFormatUi> by lazy {
-        AudioOutputStatus.current
-            .map { it.toOutputFormat() }
-            .stateIn(scope, SharingStarted.Eagerly, AudioOutputStatus.current.value.toOutputFormat())
+        combine(
+            AudioOutputStatus.current,
+            combine(AppSettings.equalizerEnabled, AppSettings.spatialAudio, AppSettings.loudnessNormalization, ::Triple),
+            com.cosmotune.music.data.NerdStats.current,
+        ) { status, (eq, spatial, loudness), stats ->
+            // What changes the samples on the way out, the same facts the full pipeline's verdict reads.
+            val facts = com.cosmotune.music.ui.components.bitExactFacts(
+                dsd = stats?.mimeType?.startsWith("audio/dsd") == true,
+                outputExact = status.outputExact,
+                outputExactDetail = status.outputExactDetail,
+                loudnessActive = loudness && status.loudnessGainDb != null,
+                eqActive = eq,
+                spatialActive = spatial,
+                bitPerfectConfirmed = status.bitPerfect.confirmed,
+                directActual = status.directPlaybackActual,
+            )
+            status.toOutputFormat().copy(fidelity = facts.takeIf { status.actualSampleRateHz != null })
+        }.stateIn(scope, SharingStarted.Eagerly, AudioOutputStatus.current.value.toOutputFormat())
     }
 
     override val party: StateFlow<PartyUi> by lazy {
@@ -249,7 +264,7 @@ private fun AudioOutputStatus.Snapshot.toOutputFormat(): OutputFormatUi {
         -> true
         else -> (actualSampleRateHz ?: 0) > 48_000
     }
-    return OutputFormatUi(summary = summary, carriesHiRes = carriesHiRes)
+    return OutputFormatUi(summary = summary, carriesHiRes = carriesHiRes, sampleRateHz = rate)
 }
 
 private fun ListenTogether.State.toPartyUi() = PartyUi(

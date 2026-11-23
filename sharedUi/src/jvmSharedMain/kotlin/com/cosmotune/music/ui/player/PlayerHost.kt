@@ -293,6 +293,10 @@ data class OutputFormatUi(
     val summary: String = "",
     /** Whether the negotiated output could carry more than 16-bit / 48 kHz. */
     val carriesHiRes: Boolean = false,
+    /** The rate the output opened at, where the host knows it. */
+    val sampleRateHz: Int? = null,
+    /** What changes the samples between the decoder and the device, for the fidelity score. Null where the host can't say. */
+    val fidelity: com.cosmotune.audio.OutputFidelityFacts? = null,
 )
 
 data class PartyUi(

@@ -33,7 +33,10 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.sources.AudioSourceComparisons
 import com.cosmotune.music.data.sources.TrackMatcher
 import com.cosmotune.music.ui.player.PlayerDrawer
+import com.cosmotune.music.ui.player.OutputFormatUi
 import com.cosmotune.music.ui.player.PlayerPlatform
+import com.cosmotune.audio.FidelityScore
+import com.cosmotune.audio.PlaybackHealth
 import com.cosmotune.providers.ProviderHub
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.OrbitFonts
@@ -64,7 +67,9 @@ fun AudioDetailsSheet(song: Song, hazeState: HazeState, onDismiss: () -> Unit, o
     PlayerDrawer(hazeState, "Audio details", onDismiss, titleGap = 4.dp) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(song.title, style = fonts.body, color = look.dim)
-            DetailCard(look) { SignalPath(stats, name, rememberOutputSummary(), fonts, look) }
+            val output = rememberOutput()
+            DetailCard(look) { SignalPath(stats, name, output?.summary?.takeIf { it.isNotBlank() }, fonts, look) }
+            DetailCard(look) { ListeningHealth(stats, output, fonts, look) }
             DetailCard(look) {
                 DetailSection("Playing now", fonts, look)
                 DetailFact("Source", name, small, look)
@@ -128,11 +133,42 @@ private fun DetailCard(look: OrbitLook, content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/** What the output says it negotiated ("24-bit PCM · 48 kHz"), or null where the host reports nothing (or has no output to ask). */
+/** What the output says it negotiated ("24-bit PCM · 48 kHz"), or null where there is no host output to ask. */
 @Composable
-private fun rememberOutputSummary(): String? {
+private fun rememberOutput(): OutputFormatUi? {
     val flow = remember { runCatching { PlayerPlatform.host.outputFormat }.getOrNull() } ?: return null
-    return flow.collectAsStateWithLifecycle().value.summary.takeIf { it.isNotBlank() }
+    return flow.collectAsStateWithLifecycle().value
+}
+
+/**
+ * The fidelity score (out of 100, each lost point with its reason), how smoothly the song is arriving, and how the
+ * output's clock keeps time against this device's own (LastWave's output screen, adapted; see NOTICE.md).
+ */
+@Composable
+private fun ListeningHealth(stats: NerdStats.Snapshot?, output: OutputFormatUi?, fonts: OrbitFonts, look: OrbitLook) {
+    val health by PlaybackHealth.monitor.state.collectAsStateWithLifecycle()
+    val small = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 17.sp)
+    val score = FidelityScore.of(stats?.isLossless?.takeIf { stats.mimeType != null }, stats?.bitrateKbps, stats?.sampleRateHz, output?.sampleRateHz, output?.fidelity)
+    DetailSection("Listening health", fonts, look)
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text("Fidelity", style = fonts.title.copy(fontSize = 14.sp), color = look.ink)
+        if (score == null) {
+            Text("Waiting for the first measurement", style = small, color = look.dim)
+        } else {
+            Text("${score.value} out of 100 · ${score.label}", style = fonts.title.copy(fontSize = 20.sp), color = look.accent)
+            if (score.deductions.isEmpty()) Text("Nothing changes the sound on its way to the speakers.", style = small, color = look.dim)
+            score.deductions.forEach { Text("−${it.points}  ${it.reason}", style = small, color = look.dim) }
+        }
+    }
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text("Stream", style = fonts.title.copy(fontSize = 14.sp), color = look.ink)
+        Text(health.streamLabel, style = small, color = look.dim)
+        health.bufferLabel?.let { Text(it, style = small, color = look.dim) }
+    }
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text("Output clock", style = fonts.title.copy(fontSize = 14.sp), color = look.ink)
+        Text(health.clockLabel, style = small, color = look.dim)
+    }
 }
 
 /** One step of the signal path: what it is, what it says, and how that is known. */

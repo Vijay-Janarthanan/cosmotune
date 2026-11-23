@@ -112,6 +112,20 @@ internal fun bitExactVerdict(
     bitPerfectConfirmed: Boolean = false,
     directActual: Boolean = false,
 ): String = OutputFidelityVerdict.label(
+    bitExactFacts(dsd, outputExact, outputExactDetail, loudnessActive, eqActive, spatialActive, bitPerfectConfirmed, directActual),
+)
+
+/** The facts [bitExactVerdict] reads, also used for the fidelity score in Audio details. */
+internal fun bitExactFacts(
+    dsd: Boolean,
+    outputExact: Boolean,
+    outputExactDetail: String?,
+    loudnessActive: Boolean,
+    eqActive: Boolean,
+    spatialActive: Boolean,
+    bitPerfectConfirmed: Boolean = false,
+    directActual: Boolean = false,
+): OutputFidelityFacts = (
     OutputFidelityFacts(
         // Not a fault to fix: there is no DSD output path (native DSD or DoP)
         // here, so the PCM conversion is a deviation every DSD track carries,
@@ -134,7 +148,7 @@ internal fun bitExactVerdict(
             else -> OutputMixing.SYSTEM_MIXER
         },
         systemName = "Android",
-    ),
+    )
 )
 
 /**
