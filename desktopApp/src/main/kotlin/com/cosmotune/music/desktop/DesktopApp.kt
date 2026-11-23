@@ -4410,6 +4410,8 @@ fun CosmotuneDesktopApp() {
                     // An episode as the desktop player takes it: from its downloaded file when there is one.
                     fun podioSong(item: com.cosmotune.podio.PodioItem): Song =
                         com.cosmotune.podio.PodioDownloads.withOfflinePath(item.song(), downloads.firstOrNull { it.videoId == item.id })
+                    // How long each running episode download still needs.
+                    val podioEta = remember { com.cosmotune.podio.PodioDownloadEta() }
                     return@DesktopFrame BoxWithConstraints {
                     val podioCompact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
                     com.cosmotune.podio.ui.PodioApp(
@@ -4467,9 +4469,9 @@ fun CosmotuneDesktopApp() {
                                 true
                             } else false
                         },
-                        episodeDownloadStatus = downloadQueue.mapValues { (_, item) -> when (val status = item.state) {
+                        episodeDownloadStatus = downloadQueue.also { podioEta.keepOnly(it.keys) }.mapValues { (id, item) -> when (val status = item.state) {
                             DesktopDownloadState.Queued -> "Queued"
-                            is DesktopDownloadState.Running -> "Downloading ${(status.fraction.coerceIn(0f, 1f) * 100).toInt()}%"
+                            is DesktopDownloadState.Running -> com.cosmotune.podio.PodioFormatting.downloading(status.fraction, podioEta.left(id, status.fraction.coerceIn(0f, 1f)))
                             is DesktopDownloadState.Failed -> "Download failed: ${status.reason} · tap to retry"
                         } },
                         episodeDownloadsRunning = downloadQueue.filterValues { it.state !is DesktopDownloadState.Failed }.keys,

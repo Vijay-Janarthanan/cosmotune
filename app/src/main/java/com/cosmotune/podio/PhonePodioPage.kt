@@ -61,6 +61,8 @@ import java.io.File
     val podioSaved by remember(context) { PodioLibrary(PodioRefreshWorker.libraryFile(context)).state }.collectAsState()
     val refreshWanted = podioSaved.refreshInBackground && podioSaved.shows.isNotEmpty()
     LaunchedEffect(refreshWanted) { runCatching { PodioRefreshWorker.schedule(context, refreshWanted) } }
+    // How long each running download still needs.
+    val eta = remember { PodioDownloadEta() }
     val sleepMinutes by com.cosmotune.music.playback.SleepTimer.minutes.collectAsState()
     val sleepAfterEpisode by com.cosmotune.music.playback.SleepTimer.afterTrack.collectAsState()
     var pending by remember { mutableStateOf<Pair<PodioItem, Long>?>(null) }
@@ -118,9 +120,9 @@ import java.io.File
         downloadedEpisodes = offlineEpisodes,
         onRemoveDownload = { item -> Downloads.delete(context, item.id) },
         remoteGlobeControls = remoteGlobeControls,
-        episodeDownloadStatus = activeDownloads.mapValues { (_, status) -> when (status) {
+        episodeDownloadStatus = activeDownloads.also { eta.keepOnly(it.keys) }.mapValues { (id, status) -> when (status) {
             DownloadState.Queued -> "Queued"
-            is DownloadState.Running -> "Downloading ${(status.fraction.coerceIn(0f, 1f) * 100).toInt()}%"
+            is DownloadState.Running -> PodioFormatting.downloading(status.fraction, eta.left(id, status.fraction.coerceIn(0f, 1f)))
             is DownloadState.Failed -> "Download failed: ${status.reason} · tap to retry"
         } },
         episodeDownloadsRunning = activeDownloads.filterValues { it !is DownloadState.Failed }.keys,
