@@ -59,16 +59,20 @@ class ShellClearanceTest {
      * and the phone chrome's height (the capsules, the compact window's bar) in a compact one. The page pads for exactly what floats over it, no more: the bar is 80 dp and two 14 dp margins (108), not
      * the 168 dp that the phone's chrome plus slack had been (the last row scrolled 60 dp further than the bar needed).
      */
+    // The page's box stops at the bar's lower edge (`padding(bottom = underBar)`, the strip under the bar), and the content pads
+    // the rest (`- underBar`), so the two together are still exactly X.
     private val desktopShellPadding =
-        Regex("""bottom = com\.cosmotune\.design\.ShellMetrics\.desktopPageBottomDp\(compact, songShown = LocalNowPlaying\.current != null\)\.dp,""")
+        Regex("""bottom = com\.cosmotune\.design\.ShellMetrics\.desktopPageBottomDp\(compact, songShown = LocalNowPlaying\.current != null\)\.dp - underBar,""")
+    private val underBarBox = Regex("""Box\(Modifier\.fillMaxSize\(\)\.padding\(bottom = underBar\)""")
 
     /** The padding under the page, in dp, worked out from the source line the way the line is written. */
     private fun desktopPaddingWithShell(compact: Boolean, songShown: Boolean = true): Float {
         val file = File(root, desktopApp)
         if (!file.isFile) fail("$desktopApp is not where this test expects it; update ShellClearanceTest")
-        if (!desktopShellPadding.containsMatchIn(file.readText()))
+        if (!desktopShellPadding.containsMatchIn(file.readText()) || !underBarBox.containsMatchIn(file.readText()))
             fail(
-                "Could not find `bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp,` " +
+                "Could not find `bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp - underBar,` " +
+                    "inside `Box(Modifier.fillMaxSize().padding(bottom = underBar)` " +
                     "in $desktopApp (the bottom padding of DesktopFrame's content). " +
                     "The line moved, changed or is missing: re-check that the last row can be scrolled clear of the floating " +
                     "chrome and is not padded for more than it, then update this test.",
