@@ -35,6 +35,20 @@ fun String.forLyricsSearch(): String {
 }
 
 /**
+ * The names a video upload credits after its title's pipes: "Rathinamo - Official Music Video | Saurav Srisan | Tanisha
+ * Gnanavel | Vidhu, Yogalakshmi" credits Saurav Srisan, Tanisha Gnanavel and "Vidhu, Yogalakshmi". The channel that uploaded it
+ * is often only one of them, while the catalogue files the song under another; matching takes any of these as the artist.
+ * Empty for a title without pipes.
+ */
+fun String.uploadCredits(): List<String> {
+    val parts = split(PIPE)
+    if (parts.size < 2) return emptyList()
+    return parts.drop(1).map { it.trim() }.filter { it.isNotEmpty() }
+}
+
+private val PIPE = Regex("""\s*\|\s*""")
+
+/**
  * Trims " - Topic" off an auto-generated channel name.
  *
  * YouTube's own artist channels for licensed music are named this way, and it

@@ -54,6 +54,7 @@
     <string name="lyrics_already_in_language">These lyrics are already in %1$s</string>
     <string name="lyrics_already_romanized">These lyrics already use Latin characters</string>
     <string name="lyrics_by">Lyrics by %1$s</string>
+    <string name="lyrics_untimed_other_length">Untimed: %1$s has them for another length</string>
     <string-array name="lyrics_intro_lines">
         <item>The beat is landing</item>
         <item>The song is starting</item>

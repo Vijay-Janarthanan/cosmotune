@@ -2,6 +2,9 @@ package com.cosmotune.lyrics
 
 import com.cosmotune.music.data.lyrics.LrcLib
 import com.cosmotune.music.data.lyrics.LrcRed
+import com.cosmotune.music.data.lyrics.uploadCredits
+import com.cosmotune.music.data.lyrics.LyricsRepository
+import com.cosmotune.music.data.lyrics.LyricsSource
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
@@ -48,8 +51,42 @@ class RecordingMatchTest {
         val wrong = hit("Other song", 240.0, "wrong")
         val edit = hit("Aadiyile Sedhi", 250.0, "different edit")
         val right = hit("Aadiyile Sedhi", 241.0, "right")
-        assertEquals("right", LrcLib.bestHit(listOf(wrong, edit, right), "Aadiyile Sedhi", "Deva", 240_000))
-        assertNull(LrcLib.bestHit(listOf(wrong, edit), "Aadiyile Sedhi", "Deva", 240_000))
+        assertEquals(LrcLib.Hit("right", timed = true), LrcLib.bestHit(listOf(wrong, edit, right), "Aadiyile Sedhi", "Deva", 240_000))
+        // Only the length differs: the words, never the timing that belongs to the other edit.
+        assertEquals(LrcLib.Hit("different edit", timed = false), LrcLib.bestHit(listOf(wrong, edit), "Aadiyile Sedhi", "Deva", 240_000))
+        assertNull(LrcLib.bestHit(listOf(wrong), "Aadiyile Sedhi", "Deva", 240_000))
+    }
+
+    @Test fun anUploadsPipedCreditsCountAsItsArtists() {
+        val upload = "Rathinamo - Official Music Video | Saurav Srisan | Tanisha Gnanavel | Vidhu, Yogalakshmi |TamilIndie"
+        val credits = upload.uploadCredits()
+        assertEquals(listOf("Saurav Srisan", "Tanisha Gnanavel", "Vidhu, Yogalakshmi", "TamilIndie"), credits)
+        // The channel is the second singer; the catalogue files the song under the first. Without the credits it is refused.
+        assertFalse(RecordingMatch.accepts("Rathinamo", "Tanisha Gnanavel", 191_000, "Rathinamo", "Saurav Srisan", 190_000))
+        assertTrue(RecordingMatch.accepts("Rathinamo", "Tanisha Gnanavel", 191_000, "Rathinamo", "Saurav Srisan", 190_000, credits))
+        assertTrue(RecordingMatch.accepts("Rathinamo", "Tanisha Gnanavel", 191_000, "Rathinamo", "Yogalakshmi", 190_000, credits))
+        assertFalse(RecordingMatch.accepts("Rathinamo", "Tanisha Gnanavel", 191_000, "Rathinamo", "Someone Else", 190_000, credits))
+        assertEquals(emptyList(), "Blinding Lights (Official Video)".uploadCredits())
+    }
+
+    @Test fun onlyTheLengthDifferingIsItsOwnVerdict() {
+        assertEquals(RecordingMatch.Verdict.SAME, RecordingMatch.judge("Song", "Deva", 240_000, "Song", "Deva", 242_000))
+        assertEquals(RecordingMatch.Verdict.OTHER_LENGTH, RecordingMatch.judge("Song", "Deva", 240_000, "Song", "Deva", 250_000))
+        assertEquals(RecordingMatch.Verdict.NO, RecordingMatch.judge("Song", "Deva", 240_000, "Song", "Deva", null))
+        assertEquals(RecordingMatch.Verdict.NO, RecordingMatch.judge("Song", "Deva", 240_000, "Song (Remix)", "Deva", 250_000))
+        assertEquals(RecordingMatch.Verdict.NO, RecordingMatch.judge("Song", "Deva", 240_000, "Song", "Other", 250_000))
+    }
+
+    @Test fun lrcLibsWordsWithoutTheirTimingAreUntimedLines() {
+        val lines = LrcLib.untimed("[00:12.00] First line\n[00:15.00]\n[00:18.00] Second line")
+        assertEquals(listOf("First line", "Second line"), lines.map { it.text })
+        assertTrue(lines.all { it.timeMs == 0L })
+        val plain = LrcLib.untimed("Verse one\nline two\n\n\nVerse two")
+        assertEquals(listOf("Verse one", "line two", "", "Verse two"), plain.map { it.text })
+        assertTrue(plain.all { it.timeMs == 0L })
+        assertTrue(LyricsRepository.untimedForAnotherLength(LyricsSource.LRCLIB, plain))
+        assertFalse(LyricsRepository.untimedForAnotherLength(LyricsSource.LRCLIB, LrcLib.parseLrc("[00:12.00] One\n[00:15.00] Two")))
+        assertFalse(LyricsRepository.untimedForAnotherLength(LyricsSource.YOUTUBE_MUSIC, plain))
     }
 
     @Test fun lrcRedDistinguishesExplicitDubbedVersionsAndIndicVowels() {
