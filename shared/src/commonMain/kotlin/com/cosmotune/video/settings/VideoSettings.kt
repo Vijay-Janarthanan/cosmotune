@@ -83,6 +83,8 @@ data class VideoSettings(
     val rememberSpeed: Boolean = false,
     /** The speed each video was last watched at (with rememberSpeed). */
     val speedByVideo: Map<String, Float> = emptyMap(),
+    /** Downloads carry their title, channel, chapters, subtitles and cover inside the file, for other players. */
+    val embedDetails: Boolean = true,
     val smoothness: SmoothnessSettings = SmoothnessSettings() /* frame smoothing: off, so frames are shown as they come */,
 ) {
     companion object {

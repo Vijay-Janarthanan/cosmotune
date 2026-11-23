@@ -56,6 +56,12 @@ interface DownloadPlatform {
     /** Joins [video] and [audio] into [output] as [container] without re-encoding; false keeps the two files (spec 2.5). */
     suspend fun join(video: File, audio: File, output: File, container: DownloadContainer): Boolean
 
+    /** Whether [embed] can write files that are no MP4 (WebM); MP4 and M4A files are written by [Mp4Embed] everywhere. */
+    val embedsOther: Boolean get() = false
+
+    /** Writes [input] (a WebM) with [details] and the [subtitles] file inside to [output]; false keeps the file as it was. */
+    suspend fun embed(input: File, output: File, details: EmbedDetails, subtitles: File?): Boolean = false
+
     /** Whether the network is metered now (mobile data); the desktop never is. */
     fun isMetered(): Boolean
 
@@ -121,6 +127,7 @@ class DownloadRunner(
     private val segments: SegmentProvider? = null,
     private val downloader: RangeDownloader = RangeDownloader(),
     private val subtitles: SubtitleFetcher = SubtitleFetcher(),
+    private val covers: CoverFetcher = CoverFetcher(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val store: DownloadsFile.Io = FileDownloadsIo(platform.stateDir),
@@ -386,6 +393,10 @@ class DownloadRunner(
             if (categories.isEmpty()) null else attempt { provider.segments(entry.item.id, categories) }
         }.orEmpty()
 
+        if (now.embedDetails && media.size == 1) {
+            attempt { embedInto(media.first(), entry.item, details, sidecarSubtitles.firstOrNull()?.let { File(outDir, it.file) }, track?.language) }
+        }
+
         val sidecar = File(outDir, DownloadSidecar.fileName(base))
         val got = sidecarSubtitles.firstOrNull()?.label
         sidecar.writeText(DownloadSidecar.encode(DownloadSidecar(
@@ -396,6 +407,32 @@ class DownloadRunner(
         written += sidecar
 
         apply(QueueEvent.Finish(entry.id, media.first().path, media.sumOf { it.length() }, sidecarSubtitles.map { File(outDir, it.file).path }, got))
+    }
+
+    /**
+     * Puts the title, channel, upload day, description, address, chapters, the [subtitleFile] and the cover inside [file]
+     * (the "Put details in the file" setting), through a temporary file that replaces it only when it was written whole.
+     */
+    private suspend fun embedInto(file: File, item: VideoItem, details: VideoDetails, subtitleFile: File?, language: String?) {
+        val mp4 = Mp4Embed.isMp4(file)
+        if (!mp4 && !platform.embedsOther) return
+        val cues = subtitleFile?.takeIf { it.isFile }?.let { attempt { VttCues.parse(it.readText()) } }.orEmpty()
+        val cover = if (mp4) attempt { covers.fetch(item) } else null
+        val embed = EmbedDetails(
+            title = item.title,
+            channel = item.channelName,
+            description = details.description.text.takeIf { it.isNotBlank() },
+            date = item.uploadedAtMs?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString() },
+            url = "https://www.youtube.com/watch?v=${item.id}",
+            chapters = details.chapters,
+            subtitles = cues.takeIf { it.isNotEmpty() }?.let { EmbedSubtitles(it, language.orEmpty()) },
+            cover = cover,
+        )
+        val temp = File(file.parentFile, file.name + ".embed.part").apply { delete() }
+        val ok = kotlinx.coroutines.withContext(io) {
+            if (mp4) Mp4Embed.embed(file, temp, embed) else platform.embed(file, temp, embed, subtitleFile?.takeIf { it.isFile })
+        }
+        if (ok && temp.length() > 0) move(temp, file) else temp.delete()
     }
 
     /** Runs [block]; null when it failed for any reason but cancellation (subtitles and segments never fail a download). */

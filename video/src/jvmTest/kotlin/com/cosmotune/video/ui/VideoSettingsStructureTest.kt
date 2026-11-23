@@ -76,7 +76,7 @@ class VideoSettingsStructureTest {
     private val fields: List<String> = VideoSettings::class.java.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }.map { it.name }
 
     @Test fun theFieldsAreTheOnesTheTestKnows() {
-        assertEquals(48, fields.size, "a new field of VideoSettings needs a row (or a word in this test): $fields")
+        assertEquals(49, fields.size, "a new field of VideoSettings needs a row (or a word in this test): $fields")
         assertTrue("firstRunSeen" in fields && "homeKiosk" in fields)
     }
 

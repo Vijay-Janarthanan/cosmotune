@@ -175,7 +175,7 @@ class LibraryCodecTest {
         hiddenWords = listOf("spoiler", "/react(s|ion)/"), hiddenChannels = mapOf("UCx" to "Some channel"), commentMinLikes = 10,
         feedGroups = listOf(com.cosmotune.video.feed.FeedChannelGroup("g1", "News", setOf("UCn"))), bellChannels = setOf("UCb"),
         uploadAlertsSeenMs = 1_700_000_000_000, sponsorBlockExcluded = mapOf("UCs" to "Friendly"), volumeBoost = 150, voiceBoost = true,
-        skipSilence = true, channelHideWatched = true, rememberSpeed = true, speedByVideo = mapOf("v1" to 1.75f), autoBackupDays = 7, autoBackupLastMs = 1_700_000_100_000,
+        skipSilence = true, channelHideWatched = true, rememberSpeed = true, embedDetails = false, speedByVideo = mapOf("v1" to 1.75f), autoBackupDays = 7, autoBackupLastMs = 1_700_000_100_000,
         smoothness = SmoothnessSettings(SmoothMode.SMOOTH, targetFps = 90, strength = 70, onlyBelow30 = false, preset = SmoothPreset.ANIME, matchDisplayRate = false),
     )
 
@@ -208,7 +208,7 @@ class LibraryCodecTest {
     fun theSettingsDocumentCoversEveryFieldOfVideoSettings() {
         val fields = VideoSettings::class.java.declaredFields.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
         assertEquals(
-            48, fields.size,
+            49, fields.size,
             "VideoSettings changed: ${fields.map { it.name }}. Add the new field to SettingsDocument in LibraryCodec.kt and to everyFieldChanged here.",
         )
     }
