@@ -85,6 +85,8 @@ data class VideoSettings(
     val speedByVideo: Map<String, Float> = emptyMap(),
     /** Downloads carry their title, channel, chapters, subtitles and cover inside the file, for other players. */
     val embedDetails: Boolean = true,
+    /** Downloads leave out the SponsorBlock segments set to skip. */
+    val cutSegments: Boolean = false,
     val smoothness: SmoothnessSettings = SmoothnessSettings() /* frame smoothing: off, so frames are shown as they come */,
 ) {
     companion object {

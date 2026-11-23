@@ -66,6 +66,8 @@ import com.cosmotune.video.resources.video_clear_history_confirm
 import com.cosmotune.video.resources.video_disclaimer_text
 import com.cosmotune.video.resources.video_disclaimer_title
 import com.cosmotune.video.resources.video_dl_audio_only
+import com.cosmotune.video.resources.video_set_dl_cut
+import com.cosmotune.video.resources.video_set_dl_cut_summary
 import com.cosmotune.video.resources.video_set_dl_embed
 import com.cosmotune.video.resources.video_set_dl_embed_summary
 import com.cosmotune.video.resources.video_dl_each_original
@@ -436,6 +438,9 @@ private fun DownloadSettings(settings: VideoSettings, update: SettingsUpdate, pl
         )
         SwitchRow(VideoIcons.Info, stringResource(Res.string.video_set_dl_embed), settings.embedDetails, stringResource(Res.string.video_set_dl_embed_summary)) { value ->
             update { it.copy(embedDetails = value) }
+        }
+        SwitchRow(VideoIcons.SkipSegment, stringResource(Res.string.video_set_dl_cut), settings.cutSegments, stringResource(Res.string.video_set_dl_cut_summary)) { value ->
+            update { it.copy(cutSegments = value) }
         }
         CosmoRowDivider()
         // Only on Wi-Fi and the battery hold are the phone's; the folder is the desktop's.

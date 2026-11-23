@@ -1,6 +1,7 @@
 package com.cosmotune.video.downloads.desktop
 
 import com.cosmotune.CosmoConfig
+import com.cosmotune.video.downloads.CutRange
 import com.cosmotune.video.downloads.DeviceCaps
 import com.cosmotune.video.downloads.DownloadContainer
 import com.cosmotune.video.downloads.DownloadController
@@ -53,7 +54,10 @@ internal class DesktopDownloadPlatform(
     override suspend fun join(video: File, audio: File, output: File, container: DownloadContainer): Boolean =
         withContext(Dispatchers.IO) { FfmpegRemux.remux(video, audio, output, container) }
 
-    override val embedsOther: Boolean = true
+    override val editsOther: Boolean = true
+
+    override suspend fun cut(input: File, output: File, ranges: List<CutRange>): List<CutRange>? =
+        withContext(Dispatchers.IO) { FfmpegRemux.cut(input, output, ranges) }
 
     override suspend fun embed(input: File, output: File, details: EmbedDetails, subtitles: File?): Boolean =
         withContext(Dispatchers.IO) { FfmpegRemux.embed(input, subtitles, output, details) }

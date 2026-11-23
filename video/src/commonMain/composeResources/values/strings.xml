@@ -667,5 +667,7 @@
     <string name="video_settings_imported">Settings loaded</string>
     <string name="video_set_remember_speed">Remember the speed of each video</string>
     <string name="video_set_dl_embed">Put details in the file</string>
+    <string name="video_set_dl_cut">Cut skipped parts out of downloads</string>
+    <string name="video_set_dl_cut_summary">Parts SponsorBlock skips are left out of the file</string>
     <string name="video_set_dl_embed_summary">Title, channel, chapters, subtitles and the cover go inside each download, for other players</string>
 </resources>

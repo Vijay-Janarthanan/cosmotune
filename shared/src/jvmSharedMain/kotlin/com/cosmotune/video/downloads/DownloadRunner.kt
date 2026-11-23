@@ -1,8 +1,10 @@
 package com.cosmotune.video.downloads
 
+import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.StreamSet
 import com.cosmotune.video.model.VideoDetails
 import com.cosmotune.video.model.VideoItem
+import com.cosmotune.video.segments.SegmentAction
 import com.cosmotune.video.segments.SegmentProvider
 import com.cosmotune.video.segments.SkipSegment
 import com.cosmotune.video.settings.SegmentBehaviour
@@ -56,8 +58,11 @@ interface DownloadPlatform {
     /** Joins [video] and [audio] into [output] as [container] without re-encoding; false keeps the two files (spec 2.5). */
     suspend fun join(video: File, audio: File, output: File, container: DownloadContainer): Boolean
 
-    /** Whether [embed] can write files that are no MP4 (WebM); MP4 and M4A files are written by [Mp4Embed] everywhere. */
-    val embedsOther: Boolean get() = false
+    /** Whether [embed] and [cut] can write files that are no MP4 (WebM); MP4 and M4A files are written by [Mp4Embed] and [Mp4Cut] everywhere. */
+    val editsOther: Boolean get() = false
+
+    /** Writes [input] (a WebM) without [ranges] to [output]; the cuts made, or null when it could not. */
+    suspend fun cut(input: File, output: File, ranges: List<CutRange>): List<CutRange>? = null
 
     /** Writes [input] (a WebM) with [details] and the [subtitles] file inside to [output]; false keeps the file as it was. */
     suspend fun embed(input: File, output: File, details: EmbedDetails, subtitles: File?): Boolean = false
@@ -393,14 +398,27 @@ class DownloadRunner(
             if (categories.isEmpty()) null else attempt { provider.segments(entry.item.id, categories) }
         }.orEmpty()
 
+        // "Cut skipped parts out of downloads": the segments set to skip leave the file, and every time after them moves back
+        val skipped = now.segmentBehaviours.filterValues { it == SegmentBehaviour.SKIP }.keys
+        val cutRanges = if (now.cutSegments && media.size == 1) SegmentCuts.ranges(segmentList, skipped) else emptyList()
+        val cuts = if (cutRanges.isEmpty()) emptyList() else attempt { cutInto(media.first(), cutRanges) }.orEmpty()
+        val subtitleFile = sidecarSubtitles.firstOrNull()?.let { File(outDir, it.file) }
+        if (cuts.isNotEmpty() && subtitleFile != null) {
+            attempt { subtitleFile.writeText(SegmentCuts.vtt(SegmentCuts.cues(VttCues.parse(subtitleFile.readText()), cuts))) }
+        }
+        val removed = segmentList.filter { it.action == SegmentAction.SKIP && it.category in skipped }.map { it.uuid }.toSet()
+        val keptSegments = if (cuts.isEmpty()) segmentList else SegmentCuts.remaining(segmentList, removed, cuts)
+        val chapters = if (cuts.isEmpty()) details.chapters else SegmentCuts.chapters(details.chapters, cuts)
+        val item = if (cuts.isEmpty()) entry.item else entry.item.copy(durationSec = entry.item.durationSec?.let { (it - SegmentCuts.total(cuts) / 1000).coerceAtLeast(0) })
+
         if (now.embedDetails && media.size == 1) {
-            attempt { embedInto(media.first(), entry.item, details, sidecarSubtitles.firstOrNull()?.let { File(outDir, it.file) }, track?.language) }
+            attempt { embedInto(media.first(), item, details, chapters, subtitleFile, track?.language) }
         }
 
         val sidecar = File(outDir, DownloadSidecar.fileName(base))
         val got = sidecarSubtitles.firstOrNull()?.label
         sidecar.writeText(DownloadSidecar.encode(DownloadSidecar(
-            item = entry.item, chapters = details.chapters, segments = segmentList, subtitles = sidecarSubtitles, quality = choice.label,
+            item = item, chapters = chapters, segments = keptSegments, subtitles = sidecarSubtitles, quality = choice.label,
             container = choice.container, videoCodec = choice.video?.codec, audioCodec = choice.audio.codec, languageGot = got,
             files = media.map { it.name }, downloadedAtMs = clock(),
         )))
@@ -413,9 +431,9 @@ class DownloadRunner(
      * Puts the title, channel, upload day, description, address, chapters, the [subtitleFile] and the cover inside [file]
      * (the "Put details in the file" setting), through a temporary file that replaces it only when it was written whole.
      */
-    private suspend fun embedInto(file: File, item: VideoItem, details: VideoDetails, subtitleFile: File?, language: String?) {
+    private suspend fun embedInto(file: File, item: VideoItem, details: VideoDetails, chapters: List<Chapter>, subtitleFile: File?, language: String?) {
         val mp4 = Mp4Embed.isMp4(file)
-        if (!mp4 && !platform.embedsOther) return
+        if (!mp4 && !platform.editsOther) return
         val cues = subtitleFile?.takeIf { it.isFile }?.let { attempt { VttCues.parse(it.readText()) } }.orEmpty()
         val cover = if (mp4) attempt { covers.fetch(item) } else null
         val embed = EmbedDetails(
@@ -424,7 +442,7 @@ class DownloadRunner(
             description = details.description.text.takeIf { it.isNotBlank() },
             date = item.uploadedAtMs?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString() },
             url = "https://www.youtube.com/watch?v=${item.id}",
-            chapters = details.chapters,
+            chapters = chapters,
             subtitles = cues.takeIf { it.isNotEmpty() }?.let { EmbedSubtitles(it, language.orEmpty()) },
             cover = cover,
         )
@@ -433,6 +451,21 @@ class DownloadRunner(
             if (mp4) Mp4Embed.embed(file, temp, embed) else platform.embed(file, temp, embed, subtitleFile?.takeIf { it.isFile })
         }
         if (ok && temp.length() > 0) move(temp, file) else temp.delete()
+    }
+
+    /** Cuts [ranges] out of [file] through a temporary file; the cuts made (empty when none was). */
+    private suspend fun cutInto(file: File, ranges: List<CutRange>): List<CutRange> {
+        val mp4 = Mp4Embed.isMp4(file)
+        if (!mp4 && !platform.editsOther) return emptyList()
+        val temp = File(file.parentFile, file.name + ".cut.part").apply { delete() }
+        val cuts = kotlinx.coroutines.withContext(io) { if (mp4) Mp4Cut.cut(file, temp, ranges) else platform.cut(file, temp, ranges) }
+        return if (!cuts.isNullOrEmpty() && temp.length() > 0) {
+            move(temp, file)
+            cuts
+        } else {
+            temp.delete()
+            emptyList()
+        }
     }
 
     /** Runs [block]; null when it failed for any reason but cancellation (subtitles and segments never fail a download). */

@@ -367,6 +367,7 @@ internal data class SettingsDocument(
     val rememberSpeed: Boolean = false,
     val speedByVideo: Map<String, Float> = emptyMap(),
     val embedDetails: Boolean = true,
+    val cutSegments: Boolean = false,
     val smoothness: SmoothnessDto = SmoothnessDto(),
 )
 
@@ -442,6 +443,7 @@ internal fun VideoSettings.toDocument() = SettingsDocument(
     rememberSpeed = rememberSpeed,
     speedByVideo = speedByVideo.entries.toList().takeLast(300).associate { it.key to it.value },
     embedDetails = embedDetails,
+    cutSegments = cutSegments,
     smoothness = smoothness.toDto(),
 )
 
@@ -501,6 +503,7 @@ internal fun SettingsDocument.toSettings(): VideoSettings {
         rememberSpeed = rememberSpeed,
         speedByVideo = speedByVideo.filter { (id, speed) -> id.isNotBlank() && speed.isFinite() && speed in 0.25f..4f }.entries.toList().takeLast(300).associate { it.key to it.value },
         embedDetails = embedDetails,
+        cutSegments = cutSegments,
         smoothness = smoothness.toDomain(),
     )
 }

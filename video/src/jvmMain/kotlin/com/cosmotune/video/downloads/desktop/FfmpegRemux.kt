@@ -1,13 +1,16 @@
 package com.cosmotune.video.downloads.desktop
 
 import com.cosmotune.video.downloads.DownloadContainer
+import com.cosmotune.video.downloads.CutRange
 import com.cosmotune.video.downloads.EmbedDetails
+import com.cosmotune.video.downloads.SegmentCuts
 import org.bytedeco.ffmpeg.avcodec.AVCodec
 import org.bytedeco.ffmpeg.avcodec.AVPacket
 import org.bytedeco.ffmpeg.avformat.AVChapter
 import org.bytedeco.ffmpeg.avformat.AVFormatContext
 import org.bytedeco.ffmpeg.avformat.AVIOContext
 import org.bytedeco.ffmpeg.avutil.AVDictionary
+import org.bytedeco.ffmpeg.global.avcodec.AV_PKT_FLAG_KEY
 import org.bytedeco.ffmpeg.global.avcodec.av_packet_alloc
 import org.bytedeco.ffmpeg.global.avcodec.av_packet_free
 import org.bytedeco.ffmpeg.global.avcodec.av_packet_rescale_ts
@@ -37,6 +40,7 @@ import org.bytedeco.ffmpeg.global.avutil.av_dict_free
 import org.bytedeco.ffmpeg.global.avutil.av_dict_set
 import org.bytedeco.ffmpeg.global.avutil.av_make_q
 import org.bytedeco.ffmpeg.global.avutil.av_mallocz
+import org.bytedeco.ffmpeg.global.avutil.av_rescale_q
 import org.bytedeco.javacpp.Loader
 import org.bytedeco.javacpp.PointerPointer
 import java.io.File
@@ -49,7 +53,8 @@ import java.util.Locale
  * packets are written in time order (`av_interleaved_write_frame`). MP4 for H.264 or AV1 with AAC or Opus (fast start: the
  * index at the front), WebM for VP9 with Opus. Any failure answers false and the caller keeps both files. [embed] copies a
  * WebM the same way with the title, channel, upload day, description and chapters inside and a WebVTT file as its subtitle
- * track (MP4 files are written by `Mp4Embed` instead).
+ * track, and [cut] copies one without stretches (each cut ends on a keyframe; MP4 files are written by `Mp4Embed` and
+ * `Mp4Cut` instead).
  */
 object FfmpegRemux {
     /** Joins [video] and [audio] into [output] as [container] (MP4 or WebM); true when the file was written. */
@@ -73,6 +78,21 @@ object FfmpegRemux {
         Native.copy(picks, output, "webm", Extras(metadata, chapters, details.subtitles?.language))
     }
 
+    /** Writes the WebM [input] without [ranges] to [output]; the cuts made (empty: none fell in the file), or null when it failed. */
+    fun cut(input: File, output: File, ranges: List<CutRange>): List<CutRange>? = try {
+        output.delete()
+        val (times, sync, endMs) = Native.scan(input)
+        val cuts = SegmentCuts.snap(times, sync, ranges, endMs)
+        if (cuts.isNotEmpty()) {
+            Native.copy(listOf(Pick(input, null)), output, "webm", Extras(cuts = cuts))
+            check(output.length() > 0)
+        }
+        cuts
+    } catch (_: Throwable) {
+        output.delete()
+        null
+    }
+
     private inline fun guarded(output: File, block: () -> Unit): Boolean = try {
         output.delete()
         block()
@@ -94,6 +114,7 @@ object FfmpegRemux {
         val metadata: Map<String, String> = emptyMap(),
         val chapters: List<ChapterSpan> = emptyList(),
         val subtitleLanguage: String? = null,
+        val cuts: List<CutRange> = emptyList(),
     )
 
     /** Every FFmpeg call, in a class of its own: without FFmpeg's classes or natives only this fails to load, inside the guard. */
@@ -121,6 +142,39 @@ object FfmpegRemux {
                 throw t
             }
         }
+
+        /** The times (ms) of the picture's packets (the sound's when there is no picture), which are keyframes, and the length. */
+        fun scan(file: File): Triple<LongArray, BooleanArray, Long> {
+            val input = open(Pick(file, AVMEDIA_TYPE_VIDEO).takeIf { hasVideo(file) } ?: Pick(file, AVMEDIA_TYPE_AUDIO), 0)
+            val packet = av_packet_alloc() ?: error("no packet")
+            try {
+                val index = input.streams.keys.single()
+                val base = input.context.streams(index).time_base()
+                val times = ArrayList<Long>()
+                val sync = ArrayList<Boolean>()
+                while (av_read_frame(input.context, packet) >= 0) {
+                    if (packet.stream_index() == index && timeOf(packet) != AV_NOPTS_VALUE) {
+                        times += av_rescale_q(timeOf(packet), base, MS)
+                        sync += (packet.flags() and AV_PKT_FLAG_KEY) != 0
+                    }
+                    av_packet_unref(packet)
+                }
+                val order = times.indices.sortedBy { times[it] }
+                return Triple(LongArray(order.size) { times[order[it]] }, BooleanArray(order.size) { sync[order[it]] }, durationMs(input.context))
+            } finally {
+                av_packet_free(packet)
+                avformat_close_input(input.context)
+            }
+        }
+
+        private fun hasVideo(file: File): Boolean = try {
+            avformat_close_input(open(Pick(file, AVMEDIA_TYPE_VIDEO), 0).context)
+            true
+        } catch (_: IllegalStateException) {
+            false
+        }
+
+        private val MS = av_make_q(1, 1000)
 
         fun copy(picks: List<Pick>, output: File, format: String, extras: Extras) {
             val inputs = mutableListOf<Input>()
@@ -175,6 +229,19 @@ object FfmpegRemux {
                         if (i < 0 || av_compare_ts(timeOf(packets[j]), timeBase(inputs[j], packets[j]), timeOf(packets[i]), timeBase(inputs[i], packets[i])) < 0) i = j
                     }
                     val packet = packets[i]
+                    if (extras.cuts.isNotEmpty() && timeOf(packet) != AV_NOPTS_VALUE) {
+                        // a packet inside a cut goes; the ones after it move back by what was cut before them
+                        val base = timeBase(inputs[i], packet)
+                        val ms = av_rescale_q(timeOf(packet), base, MS)
+                        if (SegmentCuts.isCut(ms, extras.cuts)) {
+                            av_packet_unref(packet)
+                            next(i)
+                            continue
+                        }
+                        val shift = av_rescale_q(ms - SegmentCuts.map(ms, extras.cuts), MS, base)
+                        if (packet.pts() != AV_NOPTS_VALUE) packet.pts(packet.pts() - shift)
+                        if (packet.dts() != AV_NOPTS_VALUE) packet.dts(packet.dts() - shift)
+                    }
                     val target = inputs[i].streams.getValue(packet.stream_index())
                     av_packet_rescale_ts(packet, timeBase(inputs[i], packet), streams[target].time_base())
                     packet.stream_index(target)
