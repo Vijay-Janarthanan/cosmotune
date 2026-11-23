@@ -309,4 +309,6 @@ OuterTune) and the MusicBrainz part of Song info (`RecordingFacts.kt`, the idea 
 code may not be used); Now playing for other apps, a webhook and the music broadcasts (`NowPlayingOut.kt`, the idea from Namida) and
 the now-playing file for OBS (th-ch YouTube Music, MIT); DNS over HTTPS (`PrivateDns.kt`, the idea from RiMusic and Kreate, GPL-3.0); from Kreate
 as well, the history by days, weeks or months with source chips, Replay's weekday chart and time per source (`ListeningActivity.kt`),
-and the sleep timer button on the notification (`SleepButtonCycle.kt`).
+and the sleep timer button on the notification (`SleepButtonCycle.kt`); sharing a local song's file itself (`LocalFileShare.kt`, Kreate);
+AIFF on the phone (`AiffExtractor.kt`, written from Apple's AIFF and AIFF-C specifications) and AIFF and DSD in the desktop library
+(the idea from LastWave, GPL-3.0).

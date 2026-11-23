@@ -28,9 +28,9 @@ object LocalMediaRepository {
     // `mp4` only ever reaches this list as an audio row — MediaStore files a
     // video .mp4 under Video, not Audio — so it is the audio-only MP4s Dolby
     // and Apple music downloads come as (AC-4, E-AC-3, ALAC). `dsf`/`dff` are
-    // DSD, which DsdExtractor plays.
+    // DSD, which DsdExtractor plays; `aiff`/`aif`/`aifc` are AIFF, which AiffExtractor plays.
     private val localMusicExtensions = setOf(
-        "mp3", "m4a", "mp4", "flac", "ogg", "opus", "aac", "webm", "dsf", "dff",
+        "mp3", "m4a", "mp4", "flac", "ogg", "opus", "aac", "webm", "dsf", "dff", "aiff", "aif", "aifc",
     )
 
     private val nonMusicPathSegments = listOf(
