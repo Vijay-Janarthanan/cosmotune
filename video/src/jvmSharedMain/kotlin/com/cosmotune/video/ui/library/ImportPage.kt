@@ -77,6 +77,11 @@ import com.cosmotune.video.resources.video_import_opml
 import com.cosmotune.video.resources.video_import_skipped
 import com.cosmotune.video.resources.video_import_summary
 import com.cosmotune.video.resources.video_import_takeout
+import com.cosmotune.video.resources.video_downloads_added
+import com.cosmotune.video.resources.video_downloads_export
+import com.cosmotune.video.resources.video_downloads_file
+import com.cosmotune.video.resources.video_downloads_import
+import com.cosmotune.video.downloads.DownloadListFile
 import com.cosmotune.video.resources.video_import_freetube
 import com.cosmotune.video.resources.video_import_libretube
 import com.cosmotune.video.resources.video_set_export
@@ -134,6 +139,31 @@ fun ImportPage(contentPadding: PaddingValues, wide: Boolean) {
             }
         },
     )
+    // The download list, apart from the library: to download the same videos on another device, or again after the files were lost.
+    val downloadsPicker = rememberFilePicker(
+        onOpened = { file ->
+            scope.launch {
+                val list = withContext(Dispatchers.IO) {
+                    runCatching { file.open().use { it.readBytes().decodeToString() } }.getOrNull()?.let(DownloadListFile::read)
+                }
+                if (list == null) {
+                    toast.show(PageToastMessage.NotSaved)
+                } else {
+                    val missing = DownloadListFile.missing(list, graph.downloads.downloads.value)
+                    for ((item, request) in missing) graph.downloads.enqueue(item, request)
+                    toast.show(PageToastMessage.DownloadsAdded(missing.size))
+                }
+            }
+        },
+        onCreated = { file ->
+            scope.launch {
+                val written = withContext(Dispatchers.IO) {
+                    runCatching { file.open().use { it.write(DownloadListFile.write(graph.downloads.downloads.value).encodeToByteArray()) } }.isSuccess
+                }
+                toast.show(if (written) PageToastMessage.Saved(file.name) else PageToastMessage.NotSaved)
+            }
+        },
+    )
     val rows = listOf(
         ImportRow(ImportKind.NEWPIPE_SUBSCRIPTIONS, VideoIcons.Subscriptions, Res.string.video_import_newpipe_subs),
         ImportRow(ImportKind.NEWPIPE_BACKUP, VideoIcons.History, Res.string.video_import_newpipe_db),
@@ -169,6 +199,25 @@ fun ImportPage(contentPadding: PaddingValues, wide: Boolean) {
                     stringResource(Res.string.video_set_export),
                     count = null,
                     onClick = { picker.create(LibraryPlan.exportFileName(LocalDate.now()), LibraryPlan.EXPORT_MIME) },
+                    modifier = cell,
+                )
+            }
+            item(key = "downloads:header") { OrbitGroupLabel(stringResource(Res.string.video_downloads_file), cell) }
+            item(key = "downloads:export") {
+                LinkRow(
+                    VideoIcons.Upload,
+                    stringResource(Res.string.video_downloads_export),
+                    count = null,
+                    onClick = { downloadsPicker.create("cosmotune-video-downloads-${LocalDate.now()}.json", LibraryPlan.EXPORT_MIME) },
+                    modifier = cell,
+                )
+            }
+            item(key = "downloads:import") {
+                LinkRow(
+                    CosmoIcons.Download,
+                    stringResource(Res.string.video_downloads_import),
+                    count = null,
+                    onClick = { downloadsPicker.open(listOf(LibraryPlan.EXPORT_MIME)) },
                     modifier = cell,
                 )
             }
@@ -309,6 +358,8 @@ private sealed interface PageToastMessage {
     data object NotSaved : PageToastMessage
 
     data object SettingsImported : PageToastMessage
+
+    data class DownloadsAdded(val count: Int) : PageToastMessage
 }
 
 /** The page's own toast: [show] puts it up for 4 s; a second one replaces it. */
@@ -338,6 +389,7 @@ private fun PageToast(toast: PageToastState, contentPadding: PaddingValues) {
         is PageToastMessage.Saved -> stringResource(Res.string.video_export_done, shown.name)
         PageToastMessage.NotSaved -> stringResource(Res.string.video_import_failed)
         PageToastMessage.SettingsImported -> stringResource(Res.string.video_settings_imported)
+        is PageToastMessage.DownloadsAdded -> pluralStringResource(Res.plurals.video_downloads_added, shown.count, shown.count)
     }
     LaunchedEffect(serial) {
         delay(TOAST_MS)

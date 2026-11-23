@@ -713,6 +713,13 @@
     <string name="video_settings_export">Save your settings to a file</string>
     <string name="video_settings_import">Load settings from a file</string>
     <string name="video_settings_imported">Settings loaded</string>
+    <string name="video_downloads_file">Downloads</string>
+    <string name="video_downloads_export">Save the list of downloads</string>
+    <string name="video_downloads_import">Download the videos of a saved list</string>
+    <plurals name="video_downloads_added">
+        <item quantity="one">%1$d video added to Downloads</item>
+        <item quantity="other">%1$d videos added to Downloads</item>
+    </plurals>
     <string name="video_set_remember_speed">Remember the speed of each video</string>
     <string name="video_set_dl_embed">Put details in the file</string>
     <string name="video_set_keys_seek">Headset buttons skip back and on</string>
