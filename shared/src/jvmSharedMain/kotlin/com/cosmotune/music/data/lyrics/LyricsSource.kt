@@ -56,6 +56,17 @@ enum class LyricsSource(
         detail = "Whole lines, from a free community library",
         wordSynced = false,
     ),
+
+    /**
+     * The listener's own: lyrics they picked from a typed search or timed themselves ([OwnLyrics]). Never asked like a
+     * provider and not in the list; [LyricsStore] answers with them before asking anyone.
+     */
+    OWN(
+        label = "Your lyrics",
+        detail = "Lyrics you chose or timed yourself",
+        wordSynced = true,
+        hidden = true,
+    ),
     ;
 
     companion object {

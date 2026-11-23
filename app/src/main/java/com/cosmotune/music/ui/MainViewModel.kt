@@ -490,6 +490,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 LyricsStore.Request(
                     videoId, title, artist, durationMs, album, sources,
                     AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+                    // The player lays the listener's own lyrics over this answer itself.
+                    ownFirst = false,
                 ),
                 onSourceStarted = { source -> providerStarted(generation, source) },
                 onSourceResult = { source, result ->

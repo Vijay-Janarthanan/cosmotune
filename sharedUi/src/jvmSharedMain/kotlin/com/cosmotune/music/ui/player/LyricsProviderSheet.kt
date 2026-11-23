@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
@@ -49,6 +50,14 @@ internal fun LyricsProviderSheet(
     onSelect: (LyricsSource) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Where the song's own lyrics came from, when it has some ([OwnLyrics]): "LRCLIB" for a search pick, "" for lines timed by hand. */
+    ownLyricsFrom: String? = null,
+    /** Opens "Search for lyrics"; null leaves the row out. */
+    onSearch: (() -> Unit)? = null,
+    /** Opens the editor (add, correct or time the lyrics); null leaves the row out. */
+    onEdit: (() -> Unit)? = null,
+    /** Drops the song's own lyrics, so the providers answer again. */
+    onRemoveOwn: (() -> Unit)? = null,
 ) {
     val savedOrder by PlayerSettings.lyricsSourceOrder.collectAsStateWithLifecycle()
     val sources = remember(savedOrder) { LyricsSource.ordered(savedOrder) }
@@ -67,18 +76,41 @@ internal fun LyricsProviderSheet(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (ownLyricsFrom != null) {
+                OrbitOptionRow(
+                    title = LyricsSource.OWN.label,
+                    subtitle = if (ownLyricsFrom.isBlank()) "In use · timed by you" else "In use · picked from $ownLyricsFrom",
+                    icon = Icons.Rounded.Check,
+                    onClick = null,
+                    checked = true,
+                )
+            }
             sources.forEach { source ->
                 LyricsProviderRow(
                     source = source,
                     state = states[source] ?: LyricsProviderState.NOT_FETCHED,
-                    current = source == currentSource,
+                    current = ownLyricsFrom == null && source == currentSource,
                     onClick = {
+                        // Choosing a provider puts the song's own lyrics aside.
+                        if (ownLyricsFrom != null) onRemoveOwn?.invoke()
                         val wasFound = states[source] == LyricsProviderState.FOUND
                         requestedSource = source
                         onSelect(source)
                         if (wasFound) onDismiss()
                     },
                 )
+            }
+            if (onSearch != null) {
+                OrbitOptionRow("Search for lyrics", "Type a title, an artist or a line", Icons.Rounded.Search, onClick = onSearch, chevron = true)
+            }
+            if (onEdit != null) {
+                OrbitOptionRow(
+                    if (currentSource == null && ownLyricsFrom == null) "Add lyrics" else "Edit or time lyrics",
+                    "Fix a line, or tap along to time them", Icons.Rounded.Edit, onClick = onEdit, chevron = true,
+                )
+            }
+            if (ownLyricsFrom != null && onRemoveOwn != null) {
+                OrbitOptionRow("Remove your lyrics", "Go back to the lyrics found for you", Icons.Rounded.Close, onClick = { onRemoveOwn(); onDismiss() })
             }
         }
     }

@@ -195,7 +195,7 @@ class LyricsParityContractTest {
         assertEquals(listOf("share.request != null", "share.picking"), handlers, "a later registration is reached first: the pick, then the card")
         // the host is composed after the sheets, so it is registered after them
         assertTrue(screen.indexOf("CosmoLyricShareHost(lyricShare, playerHaze)") > screen.indexOf("NowPlayingSheets(\n"), "after the sheets")
-        assertTrue(screen.contains("val lyricShare = rememberCosmoLyricShare(song, lyrics, lyricsTranslation.subLines, remoteArt, haptics)"))
+        assertTrue(screen.contains("val lyricShare = rememberCosmoLyricShare(song, lyricLines, lyricsTranslation.subLines, remoteArt, haptics)"))
         assertTrue(screen.contains("share = lyricShare"))
     }
 

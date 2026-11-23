@@ -69,6 +69,11 @@ import com.cosmotune.music.ui.player.KeepScreenOn
 import com.cosmotune.music.ui.player.ListenTogetherMembersSheet
 import com.cosmotune.music.ui.player.LyricsOffsetSheet
 import com.cosmotune.music.ui.player.LyricsProviderSheet
+import com.cosmotune.music.ui.player.LyricsEditorSheet
+import com.cosmotune.music.ui.player.LyricsSearchSheet
+import com.cosmotune.music.ui.player.livePlayheadMs
+import com.cosmotune.music.ui.player.rememberOwnLyrics
+import com.cosmotune.music.data.lyrics.OwnLyrics
 import com.cosmotune.music.ui.player.NEXT_CANVAS_PREFETCH_DELAY_MS
 import com.cosmotune.music.ui.player.PlayerBackHandler
 import com.cosmotune.music.ui.player.PlayerPlatform
@@ -235,6 +240,11 @@ fun CosmoNowPlaying(
     PlayerBackHandler(enabled = panels.relatedOpen && !wide) { panels.closeRelated() }
 
     // ---- the lyrics: the playhead their clock reads, the romanisation and translation, where a tap on a line goes ----------
+    // The listener's own lyrics for the song (a search pick or lines they timed) are laid over the host's answer.
+    val ownLyrics = rememberOwnLyrics(song.videoId)
+    val lyricLines = ownLyrics?.lines ?: lyrics
+    val lyricSource = if (ownLyrics != null) LyricsSource.OWN else lyricsSource
+    val noLyrics = ownLyrics == null && lyricsUnavailable
     val haptics = rememberHaptics()
     val lyricsPlayhead = rememberLyricPlayhead(position)
     val lyricsOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
@@ -242,11 +252,11 @@ fun CosmoNowPlaying(
     val lyricsLoadingLines = stringArrayResource(Res.array.lyrics_loading_lines)
     val lyricsLoadingText = remember(song.videoId) { lyricsLoadingLines.random() }
     val lyricsTranslation = rememberLyricsTranslation(
-        trackId = song.videoId, lyrics = lyrics, lyricsSource = lyricsSource, lyricsUnavailable = lyricsUnavailable,
+        trackId = song.videoId, lyrics = lyricLines, lyricsSource = lyricSource, lyricsUnavailable = noLyrics,
         loadingText = lyricsLoadingText, haptics = haptics,
     )
     // Choosing lines to share as a card, and the card they make (the phone's; the desktop has none).
-    val lyricShare = rememberCosmoLyricShare(song, lyrics, lyricsTranslation.subLines, remoteArt, haptics)
+    val lyricShare = rememberCosmoLyricShare(song, lyricLines, lyricsTranslation.subLines, remoteArt, haptics)
 
     // ---- the video: whether it is wanted, how it is shown, and the one number that follows it -----------------------------
     // Reduced motion: the video does not start by itself; the person turns it on.
@@ -378,7 +388,7 @@ fun CosmoNowPlaying(
             if (coverLoop) add(OrbitMenuItem(if (videoHidden) "Animated cover" else "Still cover", if (videoHidden) "Play the cover's loop in the record" else "Show the cover without its loop", CosmoIcons.Canvas) { videoHidden = !videoHidden })
             add(OrbitMenuItem("Visuals", "Artwork, pulse or waveform, full screen", CosmoIcons.Waveform) { visualsOpen = true })
             add(OrbitMenuItem("Audio details", "The signal path, from source to output", CosmoIcons.Equaliser) { sheets.details = true })
-            add(OrbitMenuItem("Lyrics source", "Choose where the lyrics come from", CosmoIcons.Lyrics) { sheets.providers = true })
+            add(OrbitMenuItem("Lyrics source", "Choose, search for or time the lyrics", CosmoIcons.Lyrics) { sheets.providers = true })
         }
     }
     val sourceLabel = nowPlayingSource(song, playedBy)
@@ -398,7 +408,7 @@ fun CosmoNowPlaying(
     val lyricStageSong = remember(song.title, song.artist, song.albumName, remoteArt) { LyricStageSong(song.title, song.artist, song.albumName, remoteArt) }
     val lyricsPanel: @Composable (Modifier, LyricsStyle, Dp) -> Unit = { m, style, topPadding ->
         CosmoLyricsPanel(
-            lyrics = lyrics, lyricsUnavailable = lyricsUnavailable, loadingText = lyricsLoadingText, translation = lyricsTranslation,
+            lyrics = lyricLines, lyricsUnavailable = noLyrics, loadingText = lyricsLoadingText, translation = lyricsTranslation,
             trackKey = song.videoId, playhead = lyricsPlayhead, isPlaying = isPlaying && position.advancing,
             onSeekToLine = seekToLyric, onOpenProviders = { sheets.providers = true },
             style = style, modifier = m, topPadding = topPadding, share = lyricShare,
@@ -446,7 +456,7 @@ fun CosmoNowPlaying(
     // The measured quality in the card's time row, for the video and the cover alike: a tap opens the audio details.
     val cardQuality: @Composable (androidx.compose.ui.graphics.Color) -> Unit = { ink -> RecordAudioDetails(song.videoId, orbitType, ink) { sheets.details = true } }
     val lyricLineOf: (Boolean) -> (@Composable (androidx.compose.ui.graphics.Color) -> Unit)? = { lyricsShown ->
-        lyrics?.takeIf { lines -> !lyricsShown && lines.any { it.timeMs > 0L && !it.isGap } }?.let { lines ->
+        lyricLines?.takeIf { lines -> !lyricsShown && lines.any { it.timeMs > 0L && !it.isGap } }?.let { lines ->
             { ink -> CurrentLyricLine(lines, lyricsPlayhead, orbitType, ink) { panels.panel = NowPlayingPanel.LYRICS } }
         }
     }
@@ -460,7 +470,7 @@ fun CosmoNowPlaying(
     // The wide page (board sections 1 and 3): the top row with the chips, the video or the record over the song card on the
     // left, the chosen panel on the right. The chips are the panel; one always shows.
     val inlinePreview: @Composable (Modifier) -> Unit = { m ->
-        CosmoLyricsView(lyrics.orEmpty(), lyricsTranslation.subLines, song.videoId, lyricsPlayhead, isPlaying && position.advancing,
+        CosmoLyricsView(lyricLines.orEmpty(), lyricsTranslation.subLines, song.videoId, lyricsPlayhead, isPlaying && position.advancing,
             seekToLyric, LyricsStyle(TypeScale.BODY, 1f, 0.9f), modifier = m, topPadding = 8.dp)
     }
     val widePage: @Composable BoxScope.() -> Unit = {
@@ -487,7 +497,7 @@ fun CosmoNowPlaying(
                         previousButton, nextButton, likeButton, screenButton,
                     ),
                 )
-                if (inlineLyrics && panels.widePanel != NowPlayingPanel.LYRICS && windowHeight >= 620.dp && !lyrics.isNullOrEmpty()) inlinePreview(Modifier.fillMaxWidth().height(128.dp))
+                if (inlineLyrics && panels.widePanel != NowPlayingPanel.LYRICS && windowHeight >= 620.dp && !lyricLines.isNullOrEmpty()) inlinePreview(Modifier.fillMaxWidth().height(128.dp))
                 }
             },
             panel = { m ->
@@ -538,7 +548,7 @@ fun CosmoNowPlaying(
             more = { ink, fill -> MoreButton(moreItems(true), orbitType, orbitInk, ink, fill, sleepMenu) },
             modifier = Modifier.fillMaxWidth(), lyricLine = lyricLineOf(panelOpen), quality = cardQuality,
         )
-        if (inlineLyrics && !panelOpen && !landscape && windowHeight >= 620.dp && !lyrics.isNullOrEmpty()) inlinePreview(Modifier.fillMaxWidth().height(128.dp))
+        if (inlineLyrics && !panelOpen && !landscape && windowHeight >= 620.dp && !lyricLines.isNullOrEmpty()) inlinePreview(Modifier.fillMaxWidth().height(128.dp))
         }
     }
     val phoneChips: @Composable (Modifier) -> Unit = { m -> PhoneChips(panels.panel, { panels.panel = it }, orbitType, orbitInk, m, status = { statusChips(false) }) }
@@ -590,7 +600,9 @@ fun CosmoNowPlaying(
             if (chooseVideoOpen) ChooseVideoSheet(song, canvas?.takeIf { musicVideo }?.videoId, playerHaze) { chooseVideoOpen = false }
             NowPlayingSheets(
                 song = song, flags = sheets, hazeState = playerHaze, accountName = accountName, isPlaying = isPlaying,
-                lyricsSource = lyricsSource, lyricsProviderStates = lyricsProviderStates, onSelectLyricsProvider = onSelectLyricsProvider,
+                lyricsSource = lyricSource, lyricsProviderStates = lyricsProviderStates, onSelectLyricsProvider = onSelectLyricsProvider,
+                lyrics = lyricLines, ownLyricsFrom = ownLyrics?.let { it.from.orEmpty() }, durationMs = durationMs,
+                livePositionMs = { livePlayheadMs(position, isPlaying) }, onSeek = onSeek, onPlayPause = onPlayPause,
                 lyricsOffsetOpen = lyricsOffsetOpen, onDismissLyricsOffset = onDismissLyricsOffset, onListenTogether = onListenTogether,
             )
             // After the sheets: back reaches the card, then the pick, before any of them.
@@ -682,6 +694,8 @@ internal class NowPlayingSheetFlags {
     var pipeline by mutableStateOf(false)
     var cast by mutableStateOf(false)
     var members by mutableStateOf(false)
+    var lyricsSearch by mutableStateOf(false)
+    var lyricsEditor by mutableStateOf(false)
 }
 
 /**
@@ -701,12 +715,20 @@ private fun NowPlayingSheets(
     lyricsSource: LyricsSource?,
     lyricsProviderStates: Map<LyricsSource, LyricsProviderState>,
     onSelectLyricsProvider: (LyricsSource) -> Unit,
+    lyrics: List<LyricLine>?,
+    ownLyricsFrom: String?,
+    durationMs: Long,
+    livePositionMs: () -> Long,
+    onSeek: (Long) -> Unit,
+    onPlayPause: () -> Unit,
     lyricsOffsetOpen: Boolean,
     onDismissLyricsOffset: () -> Unit,
     onListenTogether: () -> Unit,
 ) {
     PlayerBackHandler(enabled = flags.output) { flags.output = false }
     PlayerBackHandler(enabled = flags.providers) { flags.providers = false }
+    PlayerBackHandler(enabled = flags.lyricsSearch) { flags.lyricsSearch = false }
+    PlayerBackHandler(enabled = flags.lyricsEditor) { flags.lyricsEditor = false }
     PlayerBackHandler(enabled = flags.members) { flags.members = false }
     PlayerBackHandler(enabled = flags.details) { flags.details = false }
     PlayerBackHandler(enabled = flags.pipeline) { flags.pipeline = false }
@@ -728,6 +750,28 @@ private fun NowPlayingSheets(
             states = lyricsProviderStates,
             onSelect = onSelectLyricsProvider,
             onDismiss = { flags.providers = false },
+            ownLyricsFrom = ownLyricsFrom,
+            onSearch = { flags.providers = false; flags.lyricsSearch = true },
+            onEdit = { flags.providers = false; flags.lyricsEditor = true },
+            onRemoveOwn = { OwnLyrics.remove(song.videoId) },
+        )
+    }
+    if (flags.lyricsSearch) {
+        LyricsSearchSheet(
+            hazeState = hazeState, title = song.title, artist = song.artist, durationMs = durationMs,
+            onPick = { hit ->
+                OwnLyrics.save(song.videoId, hit.lines, from = "LRCLIB")
+                flags.lyricsSearch = false
+            },
+            onDismiss = { flags.lyricsSearch = false },
+        )
+    }
+    if (flags.lyricsEditor) {
+        LyricsEditorSheet(
+            hazeState = hazeState, initial = lyrics, durationMs = durationMs, isPlaying = isPlaying,
+            livePositionMs = livePositionMs, onSeek = onSeek, onPlayPause = onPlayPause,
+            onSave = { lines -> OwnLyrics.save(song.videoId, lines) },
+            onDismiss = { flags.lyricsEditor = false },
         )
     }
     if (flags.details) {

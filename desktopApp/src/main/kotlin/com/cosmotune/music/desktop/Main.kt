@@ -112,6 +112,8 @@ private fun runDesktop() {
     com.cosmotune.cache.PageCache.configure(DesktopMediaCache.directory.resolveSibling("pages").toFile())
     // Each song's lyrics, kept between plays (LyricsStore).
     com.cosmotune.music.data.lyrics.LyricsStore.configure(DesktopMediaCache.directory.resolveSibling("lyrics").toFile())
+    // Lyrics the listener chose or timed themselves: kept for good beside the listening history, not in the cache (OwnLyrics).
+    com.cosmotune.music.data.lyrics.OwnLyrics.configure(java.io.File(com.cosmotune.desktop.desktopListeningFile().parentFile, "own-lyrics"))
     // A song video candidate's preview frames (a WebP sheet) are opened with Skia, to tell a still poster from a video.
     com.opencanvas.core.stream.PreviewFrames.decoder = { bytes ->
         runCatching {
