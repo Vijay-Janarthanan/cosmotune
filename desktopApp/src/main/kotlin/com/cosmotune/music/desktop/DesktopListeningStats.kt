@@ -101,9 +101,25 @@ object DesktopListeningStats {
 
     fun record(song: Song, playedMs: Long, countsAsPlay: Boolean) {
         if (song.videoId.isBlank() || (playedMs <= 0L && !countsAsPlay)) return
-        val at = Instant.now().atZone(ZoneId.systemDefault())
         synchronized(lock) {
             val buckets = read().associateByTo(LinkedHashMap(), Bucket::month)
+            add(buckets, song, playedMs, countsAsPlay, Instant.now().atZone(ZoneId.systemDefault()))
+            write(buckets.values.toList())
+        }
+    }
+
+    /** Plays from a Spotify or ListenBrainz history (Listening tools > Listening history), each in the month it happened, written once. */
+    fun importPlays(entries: List<Pair<Song, List<com.cosmotune.listening.ListeningHistoryImport.Play>>>) = synchronized(lock) {
+        val buckets = read().associateByTo(LinkedHashMap(), Bucket::month)
+        for ((song, plays) in entries) for (play in plays) {
+            if (song.videoId.isBlank() || (play.playedMs <= 0L && !play.counts)) continue
+            add(buckets, song, play.playedMs, play.counts, Instant.ofEpochMilli(play.atMs).atZone(ZoneId.systemDefault()))
+        }
+        write(buckets.values.toList())
+    }
+
+    private fun add(buckets: MutableMap<String, Bucket>, song: Song, playedMs: Long, countsAsPlay: Boolean, at: java.time.ZonedDateTime) {
+        run {
             val key = YearMonth.from(at).toString()
             val bucket = buckets.getOrPut(key) { Bucket(key) }
             val previous = bucket.tracks[song.videoId]
@@ -116,7 +132,6 @@ object DesktopListeningStats {
             bucket.hours[at.hour] += added
             val day = at.toLocalDate().toString()
             bucket.days[day] = (bucket.days[day] ?: 0L) + added
-            write(buckets.values.toList())
         }
     }
 

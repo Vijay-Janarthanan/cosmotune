@@ -223,6 +223,7 @@ fun PhoneListeningTools(
             com.cosmotune.video.importers.AndroidSqliteRows(path)
         },
         likeSongs = likeSongs,
+        recordHistory = { plays -> withContext(Dispatchers.IO) { ListeningStats.importPlays(plays) } },
         importPlaylistFile = {
             check(pending == null) { "Finish the open file chooser first." }
             val answer = CompletableDeferred<Uri?>().also { pending = it }

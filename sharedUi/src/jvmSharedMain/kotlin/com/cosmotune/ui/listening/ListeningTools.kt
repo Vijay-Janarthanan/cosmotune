@@ -34,10 +34,17 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.withPermit
+
 import java.time.Instant
 import java.io.File
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+/** How many of a listening history's most played songs are looked up when it is imported. */
+private const val HISTORY_SONGS = 200
 
 enum class ListeningTab(val label: String) {
     SESSIONS("Sessions"), SMART("Smart playlists"), LINKED("Linked playlists"), REPLAY("Replay playlists"),
@@ -475,6 +482,26 @@ private fun ColumnScope.BackupPage(host: ListeningToolsHost, store: ListeningSto
                     like(backup.liked)
                     backup.playlists.forEach { host.createPlaylist(it.name, it.songs) }
                     "From ${backup.app}: ${backup.liked.size} liked songs and ${backup.playlists.size} playlists"
+                } })
+            }
+            val record = host.recordHistory
+            if (pick != null && record != null) {
+                Spacer(Modifier.height(12.dp))
+                Heading("Listening history", "Add what you played on Spotify or ListenBrainz to Replay. Choose the zip or the files the service sent you, once each. Your ${HISTORY_SONGS} most played songs are found here; it can take a few minutes.")
+                ToolButton("Import listening history", enabled = !busy, kind = ToolKind.QUIET, tag = "listening:history", onClick = { run {
+                    val bytes = pick() ?: return@run null
+                    val history = withContext(Dispatchers.IO) { com.cosmotune.listening.ListeningHistoryImport.read(bytes) }
+                    if (history.tracks.isEmpty()) return@run "That file has no songs in it."
+                    val wanted = history.tracks.take(HISTORY_SONGS)
+                    val gate = kotlinx.coroutines.sync.Semaphore(4)
+                    val found = kotlinx.coroutines.coroutineScope {
+                        wanted.map { track -> async { gate.withPermit { findRecording(track.title, track.artist, track.album)?.let { it to track.plays } } } }.awaitAll()
+                    }.filterNotNull()
+                    if (found.isEmpty()) return@run "None of those songs could be found. Check your connection and try again."
+                    record(found)
+                    val plays = found.sumOf { (_, list) -> list.count { it.counts } }
+                    "From ${history.from}: $plays plays of ${found.size} songs are in Replay" +
+                        (if (found.size < wanted.size) ". ${wanted.size - found.size} songs were not found." else ".")
                 } })
             }
             Spacer(Modifier.height(12.dp))

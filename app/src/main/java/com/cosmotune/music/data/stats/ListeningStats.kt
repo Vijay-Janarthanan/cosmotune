@@ -142,11 +142,21 @@ object ListeningStats {
      * watching the track rather than here — see [ListeningRecorder], which holds
      * the same threshold the scrobbler uses.
      */
-    fun record(song: Song, playedMs: Long, countsAsPlay: Boolean) {
+    /**
+     * Plays from a Spotify or ListenBrainz history (Listening tools > Listening history), each filed in the month and on the
+     * day it happened, oldest first so each month is written once as the next one opens.
+     */
+    suspend fun importPlays(entries: List<Pair<Song, List<com.cosmotune.listening.ListeningHistoryImport.Play>>>) {
+        entries.flatMap { (song, plays) -> plays.map { song to it } }.sortedBy { it.second.atMs }
+            .forEach { (song, play) -> record(song, play.playedMs, play.counts, play.atMs) }
+        flushAndAwait()
+    }
+
+    fun record(song: Song, playedMs: Long, countsAsPlay: Boolean, atMs: Long = clock.millis()) {
         if (!ready) return
         if (playedMs <= 0 && !countsAsPlay) return
         if (song.videoId.isBlank()) return
-        val now = clock.millis()
+        val now = atMs
         val at = Instant.ofEpochMilli(now).atZone(clock.zone)
         val dayKey = "${at.year}-${"%02d".format(at.monthValue)}-${"%02d".format(at.dayOfMonth)}"
         synchronized(lock) {
@@ -163,7 +173,7 @@ object ListeningStats {
                 )
             }
             track.ms += playedMs
-            track.last = now
+            track.last = maxOf(track.last, now)
             // Filled in as it becomes known: a track queued from search reaches
             // the player with no album, and the lookup that finds one lands
             // while it is already playing. The entry was created without it.

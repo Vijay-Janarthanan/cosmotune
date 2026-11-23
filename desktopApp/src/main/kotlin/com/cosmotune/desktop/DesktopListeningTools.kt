@@ -61,6 +61,7 @@ fun DesktopListeningTools(
             File(System.getProperty("java.io.tmpdir"), "cosmotune-import"), ::JdbcSqliteRowsFor,
         ),
         likeSongs = likeSongs,
+        recordHistory = { plays -> withContext(Dispatchers.IO) { com.cosmotune.music.desktop.DesktopListeningStats.importPlays(plays) } },
         importPlaylistFile = {
             chooseCosmotuneFile("", saving = false, title = "Import music playlist")?.let { selected -> withContext(Dispatchers.IO) {
                 val file = selected.canonicalFile

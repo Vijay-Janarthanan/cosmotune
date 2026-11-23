@@ -88,15 +88,23 @@ data class ListeningToolsHost(
     val pickBackupFile: (suspend () -> ByteArray?)? = null,
     val openSqlite: com.cosmotune.video.importers.SqliteOpener? = null,
     val likeSongs: (suspend (List<Song>) -> Unit)? = null,
+    /**
+     * Files plays from a Spotify or ListenBrainz history into Replay (Backup > Listening history): each matched song with its
+     * plays, filed on the days they happened. Offered with [pickBackupFile].
+     */
+    val recordHistory: (suspend (List<Pair<Song, List<com.cosmotune.listening.ListeningHistoryImport.Play>>>) -> Unit)? = null,
 )
 
-private suspend fun findPlaylistRecording(row: com.cosmotune.listening.MusicPlaylistImportRow): Song? =
+private suspend fun findPlaylistRecording(row: com.cosmotune.listening.MusicPlaylistImportRow): Song? = findRecording(row.title, row.artist, row.album)
+
+/** The music catalogue's recording of [title] by [artist], checked by [com.cosmotune.music.data.sources.TrackMatcher]; null when none is sure. */
+internal suspend fun findRecording(title: String, artist: String, album: String?): Song? =
     kotlinx.coroutines.withTimeoutOrNull(15_000) {
-        val target = com.cosmotune.music.data.sources.TrackMatcher.Target(row.title, row.artist, album = row.album)
+        val target = com.cosmotune.music.data.sources.TrackMatcher.Target(title, artist, album = album)
         for (query in com.cosmotune.music.data.sources.TrackMatcher.queries(target).take(2)) {
             val candidates = com.cosmotune.music.data.YtMusicRepository.search(query, com.cosmotune.music.data.model.SearchFilter.SONGS)
                 .getOrDefault(emptyList()).mapNotNull { (it as? com.cosmotune.music.data.model.SearchResult.Track)?.song }
-                .filter { com.cosmotune.music.data.sources.TrackMatcher.sharesArtist(row.artist, it.artist) }
+                .filter { com.cosmotune.music.data.sources.TrackMatcher.sharesArtist(artist, it.artist) }
             com.cosmotune.music.data.sources.TrackMatcher.best(candidates, target)?.let { return@withTimeoutOrNull it }
         }
         null
