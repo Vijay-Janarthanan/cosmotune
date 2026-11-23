@@ -41,6 +41,21 @@ internal fun kotlinx.coroutines.CoroutineScope.observeParserBundleChanges(
     }
 }
 
+/**
+ * The series a library update checks (Mihon's smart update): those on an enabled network source, without the finished ones whose
+ * every chapter is read when [MangaLibraryState.updateSkipFinished] is on; taken a source at a time in turn, so the checks
+ * running together are on different sources and no one website is asked for everything at once.
+ */
+fun mangaSeriesToUpdate(state: MangaLibraryState, enabled: Set<String>): List<MangaBook> {
+    val wanted = state.books.filter { it.sourceId != "local" && it.sourceId in enabled }.filterNot { book ->
+        state.updateSkipFinished && book.parserData?.state == "FINISHED" && book.chapters.isNotEmpty() && book.chapters.all { it.id in state.readChapters }
+    }
+    val bySource = wanted.groupBy { it.sourceId }.values.sortedByDescending { it.size }.map { it.iterator() }
+    val result = ArrayList<MangaBook>(wanted.size)
+    while (result.size < wanted.size) bySource.forEach { if (it.hasNext()) result += it.next() }
+    return result
+}
+
 class MangaRepository(val store: MangaStore,
     /** Offline tests only: a parser in place of the pinned catalogue's. */
     internal val kotatsuParser: ((MangaSourceConfig, ParserContext) -> org.koitharu.kotatsu.parsers.MangaParser)? = null,
@@ -324,6 +339,18 @@ class MangaRepository(val store: MangaStore,
     /** Frees the pages of downloads taken out once their Undo has run out (as [removeDownload] does at once). */
     suspend fun trimDownloads() {
         transfers.withLock { withContext(Dispatchers.IO) { trimCache(0, emptySet()) } }
+    }
+
+    /**
+     * Moves [from] onto [target], a series found on another source: its chapters are loaded, then it takes the old series' place
+     * with the read chapters, reading place, collections and reading-list links ([MangaLibraryState.migrated]). Returns it.
+     */
+    suspend fun migrate(from: MangaBook, target: MangaBook): MangaBook {
+        val detail = if (target.chapters.isNotEmpty()) target else withContext(Dispatchers.IO) { parserRequest(target.sourceId) { sourceApi { source(target.sourceId).details(target) } } }
+        check(detail.chapters.isNotEmpty()) { "This series has no chapters on ${store.state.value.sources.find { it.id == target.sourceId }?.name ?: "that source"}. Choose another match." }
+        store.update { it.migrated(from, detail) }
+        transfers.withLock { withContext(Dispatchers.IO) { trimCache(0, emptySet()) } }
+        return store.state.value.books.find { it.id == detail.id } ?: detail
     }
 
     suspend fun removeBook(bookId: String) {

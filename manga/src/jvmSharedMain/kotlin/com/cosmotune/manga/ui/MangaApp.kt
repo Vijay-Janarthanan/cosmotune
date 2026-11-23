@@ -139,7 +139,7 @@ internal class MangaScope(
     /** Opens [book] at the chapter it continues with (the reader), or its page while its chapters are not known yet. */
     fun continueReading(book: MangaBook, state: MangaLibraryState) {
         val target = mangaContinue(book, state).chapter
-        if (target == null) openBook(book)
+        if (target == null || book.unlinkedSourceName() != null) openBook(book)
         else action { repository.store.save(book); navigation.book = book; navigation.chapter = target }
     }
 }
@@ -199,6 +199,8 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
     }
     fun openBook(item: MangaBook) {
         navigation.book = state.books.find { it.id == item.id } ?: item
+        // A series from a Mihon backup has no source to refresh from until it is found on one.
+        if (item.unlinkedSourceName() != null) return
         scope.launch {
             busy = true; error = null
             try { val detail = repository.chapters(item); if (navigation.book?.id == item.id) navigation.book = detail }

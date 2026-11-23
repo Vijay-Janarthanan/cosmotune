@@ -225,17 +225,28 @@ internal enum class ReaderTap { PREVIOUS, NEXT, MENU }
  * The reader's tap zones (Mihon's default for paged reading): the outer thirds turn the page, the middle third shows or hides
  * the chrome. In right-to-left reading the left edge goes forward. A webtoon scrolls, so every tap shows or hides the chrome.
  */
-internal fun readerTap(x: Float, width: Float, mode: MangaReaderMode): ReaderTap {
-    if (mode == MangaReaderMode.WEBTOON || width <= 0f) return ReaderTap.MENU
-    val fraction = x / width
-    val edge = when {
-        fraction < 1f / 3f -> -1
-        fraction > 2f / 3f -> 1
-        else -> 0
+internal fun readerTap(x: Float, width: Float, mode: MangaReaderMode): ReaderTap = readerTap(x, 0.5f, width, 1f, mode, MangaTapZones.THIRDS, false)
+
+/**
+ * The reader's tap zones in the layout the listener chose (Mihon's layouts): [MangaTapZones.THIRDS], the outer thirds turn the
+ * page; [MangaTapZones.L_SHAPED], the top band and the left side go back, the bottom band and the right side go on;
+ * [MangaTapZones.KINDLE], the left strip goes back and the rest under the top band goes on; [MangaTapZones.EDGE], both sides go
+ * on and the bottom middle goes back; [MangaTapZones.OFF], every tap shows or hides the chrome. The middle always shows the
+ * chrome. Right to left mirrors the layout; [invert] swaps back and on. A webtoon scrolls, so in it every tap is the chrome's.
+ */
+internal fun readerTap(x: Float, y: Float, width: Float, height: Float, mode: MangaReaderMode, zones: MangaTapZones, invert: Boolean): ReaderTap {
+    if (mode == MangaReaderMode.WEBTOON || width <= 0f || height <= 0f || zones == MangaTapZones.OFF) return ReaderTap.MENU
+    val fx = (x / width).let { if (mode == MangaReaderMode.PAGES_RTL) 1f - it else it }
+    val fy = y / height
+    val left = fx < 1f / 3f; val right = fx > 2f / 3f; val top = fy < 1f / 3f; val bottom = fy > 2f / 3f
+    val forward: Boolean? = when (zones) {
+        MangaTapZones.THIRDS -> if (left) false else if (right) true else null
+        MangaTapZones.L_SHAPED -> when { top || (left && !bottom) -> false; bottom || right -> true; else -> null }
+        MangaTapZones.KINDLE -> when { top -> null; left -> false; else -> true }
+        MangaTapZones.EDGE -> when { left || right -> true; bottom -> false; else -> null }
+        MangaTapZones.OFF -> null
     }
-    if (edge == 0) return ReaderTap.MENU
-    val forward = if (mode == MangaReaderMode.PAGES_RTL) edge < 0 else edge > 0
-    return if (forward) ReaderTap.NEXT else ReaderTap.PREVIOUS
+    return when (forward) { null -> ReaderTap.MENU; true -> if (invert) ReaderTap.PREVIOUS else ReaderTap.NEXT; false -> if (invert) ReaderTap.NEXT else ReaderTap.PREVIOUS }
 }
 
 /** The name of a reading mode, as the reading-mode sheet lists it. */

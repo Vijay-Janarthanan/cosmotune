@@ -59,6 +59,8 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
     val state by repository.store.state.collectAsState()
     val list = rememberLazyListState()
     var more by remember { mutableStateOf(false) }
+    var migrate by remember(book.id) { mutableStateOf(false) }
+    val readOrFind: (MangaChapter) -> Unit = { chapter -> if (book.unlinkedSourceName() != null) migrate = true else onRead(chapter) }
     // A hold on a chapter starts choosing several (Mihon's selection): mark read or unread, download, remove downloads.
     var selection by remember(book.id) { mutableStateOf(emptySet<String>()) }
     val editions = book.editions()
@@ -81,15 +83,21 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
                     ReadIconButton(CosmoIcons.MoreVertical, "More", { more = true })
                 })
             }
-            item(key = "series:card") { SeriesCard(scope, book, cover, saved, next, onRead) }
+            book.unlinkedSourceName()?.let { from -> item(key = "series:unlinked") {
+                ReadInlineBanner("From your Mihon backup ($from). Find it on one of your sources to read it; your read chapters come along.",
+                    Modifier.padding(bottom = 8.dp), actionLabel = mangaText("Find it"), onAction = { migrate = true })
+            } }
+            item(key = "series:card") { SeriesCard(scope, book, cover, saved, next, readOrFind) }
             item(key = "series:about") { SeriesAbout(scope, book) }
+            item(key = "series:related") { SeriesRelated(scope, book) }
             chapterItems(scope, book, listed, filters, next.chapter, selection, onRead = { chapter ->
-                if (selection.isEmpty()) onRead(chapter) else selection = selection.toggle(chapter.id)
+                if (selection.isEmpty()) readOrFind(chapter) else selection = selection.toggle(chapter.id)
             }) { chapter -> selection = selection.toggle(chapter.id) }
         }
         if (selection.isNotEmpty()) SelectionBar(scope, book, listed, selection, { selection = it }, Modifier.align(Alignment.BottomCenter).padding(bottom = scope.bottom))
     }
     MangaBackHandler(selection.isNotEmpty()) { selection = emptySet() }
+    if (migrate) MangaMigrateSheet(scope, book) { migrate = false }
     if (more) KitSheet(onDismiss = { more = false }, title = book.title) {
         ReadSheetRow(mangaText("Refresh chapters"), CosmoIcons.Replay, { more = false; onRefresh() })
         val website = book.parserData?.publicUrl?.takeIf { it.isNotBlank() } ?: book.url.takeIf { it.startsWith("http") }
@@ -97,8 +105,21 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
             val uri = LocalUriHandler.current
             ReadSheetRow(mangaText("Open website"), Icons.AutoMirrored.Rounded.OpenInNew, { more = false; runCatching { uri.openUri(website) }.onFailure { scope.onError("This website could not be opened") } })
         }
-        if (saved) ReadSheetRow(mangaText("Remove from library"), CosmoIcons.Close, enabled = !scope.transfer.active, onClick = {
-            more = false; scope.action { repository.removeBook(book.id); scope.navigation.book = null }
+        if (!saved && book.sourceId != "local") {
+            val undo = LocalOrbitUndo.current
+            val words = mangaText("Not suggested again")
+            ReadSheetRow(mangaText("Not interested"), CosmoIcons.Close, { more = false; scope.action {
+                repository.store.update { it.copy(notInterested = (it.notInterested + book.id).let { set -> if (set.size > 5_000) set.drop(set.size - 5_000).toSet() else set }) }
+                scope.navigation.book = null
+                undo.showThen(words) { repository.store.update { it.copy(notInterested = it.notInterested - book.id) } }
+            } }, Modifier.testTag("manga:notinterested"))
+        }
+        if (book.sourceId != "local") ReadSheetRow(mangaText("Find on another source"), CosmoIcons.Search, { more = false; migrate = true }, Modifier.testTag("manga:migrate:open"))
+        if (saved) ReadSheetRow(mangaText("Remove from library"), CosmoIcons.Close, onClick = {
+            more = false; scope.action {
+                book.chapters.forEach { repository.downloads.cancel(it.id) }
+                repository.removeBook(book.id); scope.navigation.book = null
+            }
         })
         Spacer(Modifier.height(16.dp))
     }

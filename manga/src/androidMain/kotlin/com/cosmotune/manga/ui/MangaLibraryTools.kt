@@ -59,5 +59,10 @@ class MangaLibraryUpdateWorker(context: Context, parameters: WorkerParameters) :
         } } }
         contents.fold(onSuccess = { imported.value(it) }, onFailure = { result.value(Result.failure(it)) })
     } }
-    return MangaBackupTransfer({ contents -> bytes = contents; save.launch("cosmotune-manga-library.json") }, { load.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) })
+    return MangaBackupTransfer({ contents -> bytes = contents; save.launch("cosmotune-manga-library.json") }, { load.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "application/gzip", "application/x-gzip")) })
+}
+
+/** The Manga library's store for the app's account sync (Settings › Account), opened the first time a sync needs it. */
+object AndroidMangaSync {
+    fun store(context: Context): MangaStore = AndroidMangaLibrary.repository(context).store
 }

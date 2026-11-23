@@ -391,9 +391,27 @@ internal fun readerLabel(chapter: MangaChapter, page: Int, pages: Int): String {
 /** Pages fetched ahead of the reader: a small window, so a slow source never downloads a whole chapter just by being opened. */
 private const val PREFETCH_PAGES = 2
 
+/** The ground around the pages. */
+internal fun readerGround(background: MangaReaderBackground): Color = when (background) {
+    MangaReaderBackground.BLACK -> Color.Black
+    MangaReaderBackground.GREY -> Color(0xFF3A3A3A)
+    MangaReaderBackground.WHITE -> Color.White
+}
+
+/** The colour filter over the pages (Mihon's grayscale and invert, and a warm sepia for night reading). */
+internal fun readerFilter(filter: MangaReaderFilter): androidx.compose.ui.graphics.ColorFilter? = when (filter) {
+    MangaReaderFilter.NONE -> null
+    MangaReaderFilter.GREY -> androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) })
+    MangaReaderFilter.INVERT -> androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix(floatArrayOf(
+        -1f, 0f, 0f, 0f, 255f, 0f, -1f, 0f, 0f, 255f, 0f, 0f, -1f, 0f, 255f, 0f, 0f, 0f, 1f, 0f)))
+    MangaReaderFilter.SEPIA -> androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix(floatArrayOf(
+        0.393f, 0.769f, 0.189f, 0f, 0f, 0.349f, 0.686f, 0.168f, 0f, 0f, 0.272f, 0.534f, 0.131f, 0f, 0f, 0f, 0f, 0f, 1f, 0f)))
+}
+
 @Composable
 private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: String, webtoon: Boolean, fitWidth: Boolean, scale: Float,
-    onScale: (Float) -> Unit, onTap: (Float, Float) -> Unit, onReady: (Boolean) -> Unit = {}) {
+    onScale: (Float) -> Unit, onTap: (Float, Float, Float, Float) -> Unit, onReady: (Boolean) -> Unit = {}, treatment: MangaPageTreatment = MangaPageTreatment(),
+    filter: androidx.compose.ui.graphics.ColorFilter? = null) {
     var file by remember(page.id) { mutableStateOf<File?>(null) }
     val latestReady = rememberUpdatedState(onReady)
     val latestScale = rememberUpdatedState(scale)

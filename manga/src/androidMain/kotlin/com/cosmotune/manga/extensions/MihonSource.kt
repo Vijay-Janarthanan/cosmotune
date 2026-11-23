@@ -59,5 +59,5 @@ class MihonSource(override val config: MangaSourceConfig, private val source: So
     }
     private fun convert(raw: SManga) = MangaBook("${config.id}:series:${hash(raw.url)}", config.id, raw.title, raw.url, raw.thumbnail_url,
         listOfNotNull(raw.author, raw.artist).distinct(), raw.description.orEmpty(), raw.getGenres().orEmpty(), config.language, sourceMemo = raw.memo)
-    private fun hash(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).take(16).joinToString("") { "%02x".format(it) }
+    private fun hash(value: String) = MihonIds.key(value)
 }
