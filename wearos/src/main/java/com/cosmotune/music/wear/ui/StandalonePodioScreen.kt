@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +38,7 @@ import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
+import com.cosmotune.music.wear.data.WatchPodioDownloads
 import com.cosmotune.music.wear.playback.StandalonePodioService
 import com.cosmotune.podio.PodioCatalogue
 import com.cosmotune.podio.PodcastShow
@@ -44,9 +46,9 @@ import java.net.URI
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 
-private enum class PodioDirectory { RADIO, PODCASTS }
+private enum class PodioDirectory { RADIO, PODCASTS, SAVED }
 
-private data class WatchAudio(val id: String, val title: String, val detail: String, val url: String, val hls: Boolean = false)
+private data class WatchAudio(val id: String, val title: String, val detail: String, val url: String, val hls: Boolean = false, val episode: Boolean = false)
 
 private data class WatchPlayerState(
     val title: String,
@@ -75,6 +77,12 @@ internal fun StandalonePodioScreen() {
     var playerState by remember { mutableStateOf<WatchPlayerState?>(null) }
     var connectionFailed by remember { mutableStateOf(false) }
     var connectAttempt by remember { mutableIntStateOf(0) }
+    // The episode the player was last given, so it can be saved to the watch.
+    var lastAudio by remember { mutableStateOf<WatchAudio?>(null) }
+    val savedEpisodes by WatchPodioDownloads.saved.collectAsState()
+    val saving by WatchPodioDownloads.running.collectAsState()
+    val saveFailed by WatchPodioDownloads.failed.collectAsState()
+    LaunchedEffect(Unit) { WatchPodioDownloads.load(context) }
 
     DisposableEffect(context, connectAttempt) {
         val token = SessionToken(context, ComponentName(context, StandalonePodioService::class.java))
@@ -114,8 +122,10 @@ internal fun StandalonePodioScreen() {
             val address = feed
             if (address != null) {
                 results = catalogue.publisherFeed(address).episodes.mapNotNull { episode ->
-                    httpsUrl(episode.url)?.let { WatchAudio(episode.id, episode.title, episode.show, it) }
+                    httpsUrl(episode.url)?.let { WatchAudio(episode.id, episode.title, episode.show, it, episode = true) }
                 }
+            } else if (directory == PodioDirectory.SAVED) {
+                results = emptyList()
             } else if (directory == PodioDirectory.RADIO) {
                 results = catalogue.stations(query = query, limit = 180).asSequence().mapNotNull { station ->
                     httpsUrl(station.url)?.let {
@@ -183,6 +193,22 @@ internal fun StandalonePodioScreen() {
                     item("rewind") { PodioCell("Back 10 seconds") { controller?.seekBack() } }
                     item("forward") { PodioCell("Forward 15 seconds") { controller?.seekForward() } }
                 }
+                // An episode playing from the internet can be kept on the watch for later, with no phone and no connection.
+                lastAudio?.takeIf { it.episode && it.title == current.title }?.let { audio ->
+                    val stored = savedEpisodes.firstOrNull { it.id == audio.id }
+                    val progress = saving[audio.id]
+                    item("save") {
+                        when {
+                            stored != null -> PodioCell("Saved on this watch", "Remove it to free space") { WatchPodioDownloads.remove(context, audio.id) }
+                            progress != null -> PodioCell("Saving to watch…", if (progress >= 0) "${(progress * 100).toInt()}% · tap to stop" else "Tap to stop") {
+                                WatchPodioDownloads.cancel(audio.id)
+                            }
+                            else -> PodioCell("Save to watch", "Listen later without a connection") {
+                                WatchPodioDownloads.save(context, audio.id, audio.title, audio.detail, audio.url)
+                            }
+                        }
+                    }
+                }
                 item("stop") { PodioCell("Stop playback") { controller?.stop(); controller?.clearMediaItems() } }
             }
             if (connectionFailed) item("reconnect") {
@@ -195,12 +221,15 @@ internal fun StandalonePodioScreen() {
                 item("back") { PodioCell("Back to podcasts") { feed = null } }
             } else {
                 item("directory") {
-                    val radio = directory == PodioDirectory.RADIO
-                    PodioCell(if (radio) "Radio" else "Podcasts", if (radio) "Switch to podcasts" else "Switch to radio") {
-                        selectDirectory(if (radio) PodioDirectory.PODCASTS else PodioDirectory.RADIO)
+                    val (title, next) = when (directory) {
+                        PodioDirectory.RADIO -> "Radio" to PodioDirectory.PODCASTS
+                        PodioDirectory.PODCASTS -> "Podcasts" to PodioDirectory.SAVED
+                        PodioDirectory.SAVED -> "On this watch" to PodioDirectory.RADIO
                     }
+                    val nextName = when (next) { PodioDirectory.RADIO -> "radio"; PodioDirectory.PODCASTS -> "podcasts"; PodioDirectory.SAVED -> "episodes on this watch" }
+                    PodioCell(title, "Switch to $nextName") { selectDirectory(next) }
                 }
-                item("query") {
+                if (directory != PodioDirectory.SAVED) item("query") {
                     BasicTextField(
                         value = draft, onValueChange = { draft = it.take(200) }, singleLine = true,
                         textStyle = WearType.row.copy(color = WearOrbit.Ink, textAlign = TextAlign.Center),
@@ -218,11 +247,25 @@ internal fun StandalonePodioScreen() {
                         },
                     )
                 }
-                item("search") { PodioCell("Search", enabled = !loading) { search() } }
+                if (directory != PodioDirectory.SAVED) item("search") { PodioCell("Search", enabled = !loading) { search() } }
             }
             if (loading) item("loading") { PodioHint("Loading…") }
             if (error) item("error") { PodioCell("Retry", "Check this watch's internet connection") { attempt++ } }
-            if (!loading && !error && results.isEmpty() && shows.isEmpty()) {
+            saveFailed?.let { message -> item("save-failed") { PodioHint(message) } }
+            if (directory == PodioDirectory.SAVED && feed == null) {
+                if (savedEpisodes.isEmpty()) item("saved-empty") { PodioHint("Episodes you save while they play are kept here.") }
+                items(savedEpisodes, key = { "saved:" + it.id }) { episode ->
+                    PodioCell(episode.title, episode.show, mark = episode.title, enabled = controller != null) {
+                        controller?.let {
+                            it.setMediaItem(MediaItem.Builder().setMediaId(episode.id).setUri(android.net.Uri.fromFile(episode.file))
+                                .setMediaMetadata(MediaMetadata.Builder().setTitle(episode.title).setArtist(episode.show).build()).build())
+                            it.prepare()
+                            it.play()
+                        }
+                    }
+                }
+            }
+            if (directory != PodioDirectory.SAVED && !loading && !error && results.isEmpty() && shows.isEmpty()) {
                 item("empty") { PodioHint("No results with secure streams.") }
             }
             items(shows, key = { it.id }) { show ->
@@ -231,6 +274,7 @@ internal fun StandalonePodioScreen() {
             items(results, key = { it.id }) { audio ->
                 PodioCell(audio.title, audio.detail, mark = audio.title, enabled = controller != null) {
                     controller?.let {
+                        lastAudio = audio
                         val media = MediaItem.Builder().setMediaId(audio.id).setUri(audio.url)
                             .setMediaMetadata(MediaMetadata.Builder().setTitle(audio.title).setArtist(audio.detail).build())
                         if (audio.hls) media.setMimeType(MimeTypes.APPLICATION_M3U8)
