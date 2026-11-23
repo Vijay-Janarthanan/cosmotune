@@ -12,7 +12,7 @@ object MusicSongList {
         val terms = key(query).split(' ').filter(String::isNotEmpty)
         val filtered = songs.withIndex().filter { (_, song) ->
             (!downloadedOnly || song.videoId in downloadedIds || !song.localPath.isNullOrBlank() || !song.localUri.isNullOrBlank()) &&
-                (terms.isEmpty() || key("${song.title} ${song.artist} ${song.albumName.orEmpty()}").let { haystack -> terms.all(haystack::contains) })
+                (terms.isEmpty() || com.cosmotune.music.data.LooseMatch.matches(query, song.title, song.artist, song.albumName))
         }
         return when (order) {
             MusicListOrder.DEFAULT -> filtered

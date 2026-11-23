@@ -299,8 +299,7 @@ fun CosmoDeviceMusic(
 
 private fun Set<String>.toggle(id: String): Set<String> = if (id in this) this - id else this + id
 
-private fun Song.matchesQuery(query: String): Boolean =
-    title.contains(query, ignoreCase = true) || artist.contains(query, ignoreCase = true) || albumName.orEmpty().contains(query, ignoreCase = true)
+private fun Song.matchesQuery(query: String): Boolean = com.cosmotune.music.data.LooseMatch.matches(query, title, artist, albumName)
 
 /** The albums of [songs]: the releases kept whole first (they are the ones asked for by name), then the album tags of the rest. */
 private fun deviceAlbums(songs: List<Song>, collections: List<DeviceCollection>): List<DeviceGroup> {
