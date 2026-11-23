@@ -5765,6 +5765,7 @@ private fun DesktopDeviceMusic(
         onFindMusic = onFindMusic,
         currentSong = currentSong,
         isPlaying = isPlaying,
+        beats = com.cosmotune.ui.library.rememberTempoBeats(songs) { DesktopAnalysisRuntime.analysisHome() },
     )
 }
 

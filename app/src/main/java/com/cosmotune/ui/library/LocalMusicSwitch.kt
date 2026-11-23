@@ -47,6 +47,7 @@ fun LocalMusicSwitch(
     val sort by if (isDownloads) AppSettings.downloadedMusicSort.collectAsStateWithLifecycle() else AppSettings.localMusicSort.collectAsStateWithLifecycle()
     val sorted = remember(songs, sort) { songs.sortedForLibrary(sort) }
     val prefs = LocalContext.current.getSharedPreferences("cosmotune_library_view", Context.MODE_PRIVATE)
+    val appContext = LocalContext.current.applicationContext
     val viewKey = if (isDownloads) "downloads" else "local"
     var columns by remember(viewKey) { mutableStateOf(LibraryViewOptions.decode(prefs.getString(viewKey, null))) }
     CosmoDeviceMusic(
@@ -78,5 +79,8 @@ fun LocalMusicSwitch(
         onUploadSelected = onUploadToWebDav,
         currentSong = currentSong,
         isPlaying = isPlaying,
+        beats = rememberTempoBeats(songs) { filesDirOf(appContext) },
     )
 }
+
+private fun filesDirOf(context: Context): java.io.File = context.filesDir

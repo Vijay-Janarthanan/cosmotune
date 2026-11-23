@@ -119,6 +119,8 @@ fun CosmoDeviceMusic(
     currentSong: Song? = null,
     isPlaying: Boolean = false,
     listState: LazyListState = rememberLazyListState(),
+    /** The tempo Automix measured per song id ([rememberTempoBeats]); with any, the sort offers Tempo and the heading Smooth shuffle. */
+    beats: Map<String, com.cosmotune.music.playback.smart.TempoOrder.Beat> = emptyMap(),
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -127,14 +129,18 @@ fun CosmoDeviceMusic(
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var open by remember { mutableStateOf<DeviceGroup?>(null) }
     var sortOpen by remember { mutableStateOf(false) }
+    var byTempo by rememberSaveable { mutableStateOf(false) }
+    val tempoSort = byTempo && beats.isNotEmpty()
+    val beatOf = { song: Song -> beats[song.videoId] }
     val selecting = onDeleteSelected != null && selected.isNotEmpty()
     PlayerBackHandler(enabled = selecting) { selected = emptySet() }
     PlayerBackHandler(enabled = open != null && !selecting) { open = null }
 
     val analysisOf = { song: Song -> LibraryLoudness.analysisFor(song.videoId) }
     val genres = remember(songs) { LibraryViewOptions.genresOf(songs, analysisOf) }
-    val shownSongs = remember(songs, query, columns) {
-        val found = if (query.isBlank()) songs else songs.filter { it.matchesQuery(query) }
+    val shownSongs = remember(songs, query, columns, tempoSort, beats) {
+        val ordered = if (tempoSort) com.cosmotune.music.playback.smart.TempoOrder.byTempo(songs, beatOf) else songs
+        val found = if (query.isBlank()) ordered else ordered.filter { it.matchesQuery(query) }
         columns?.apply(found, analysisOf) ?: found
     }
     val artists = remember(songs, query) {
@@ -210,7 +216,18 @@ fun CosmoDeviceMusic(
                         fonts = fonts, look = look,
                         modifier = Modifier.padding(start = side, end = side, top = 12.dp, bottom = 18.dp),
                         trailing = if (onShuffle != null && shownSongs.isNotEmpty()) {
-                            { OrbitRoundButton(CosmoIcons.Shuffle, "Shuffle", look.ink, onClick = { onShuffle(shownSongs) }, size = 44.dp) }
+                            {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (beats.isNotEmpty()) {
+                                        com.cosmotune.ui.components.CosmoIconButton(
+                                            CosmoIcons.Waveform, "Smooth shuffle: each song close in tempo to the one before",
+                                            onClick = { onSongClick(com.cosmotune.music.playback.smart.TempoOrder.smoothShuffle(shownSongs, beatOf), 0) },
+                                            size = 44.dp,
+                                        )
+                                    }
+                                    OrbitRoundButton(CosmoIcons.Shuffle, "Shuffle", look.ink, onClick = { onShuffle(shownSongs) }, size = 44.dp)
+                                }
+                            }
                         } else null,
                     )
                 }
@@ -252,10 +269,13 @@ fun CosmoDeviceMusic(
                             }
                             if (sortLabels.isNotEmpty()) {
                                 Box {
-                                    OrbitSelectChip(sortLabels[sortIndex.coerceIn(0, sortLabels.lastIndex)], false, fonts, look, { sortOpen = true }, Modifier.testTag("device:sort"), icon = CosmoIcons.Sort)
+                                    val sortLabel = if (tempoSort) TEMPO_SORT else sortLabels[sortIndex.coerceIn(0, sortLabels.lastIndex)]
+                                    OrbitSelectChip(sortLabel, false, fonts, look, { sortOpen = true }, Modifier.testTag("device:sort"), icon = CosmoIcons.Sort)
                                     OrbitMenu(
                                         open = sortOpen, onDismiss = { sortOpen = false }, fonts = fonts, look = look, header = "Sort by",
-                                        items = sortLabels.mapIndexed { i, label -> OrbitMenuItem(label, selected = i == sortIndex) { onSort(i) } },
+                                        items = sortLabels.mapIndexed { i, label -> OrbitMenuItem(label, selected = !tempoSort && i == sortIndex) { byTempo = false; onSort(i) } } +
+                                            // Slowest first, from the songs Automix has measured; the rest follow in the usual order.
+                                            listOfNotNull(if (beats.isNotEmpty()) OrbitMenuItem(TEMPO_SORT, "Slowest first, for the songs that have played", selected = tempoSort) { byTempo = true } else null),
                                     )
                                 }
                             }
@@ -322,6 +342,9 @@ fun CosmoDeviceMusic(
         }
     }
 }
+
+/** The sort by the measured tempo. */
+private const val TEMPO_SORT = "Tempo"
 
 private fun Set<String>.toggle(id: String): Set<String> = if (id in this) this - id else this + id
 
@@ -438,4 +461,21 @@ private fun GroupHeading(
             OrbitPlayButton(playing = false, onClick = onPlay, look = look, modifier = Modifier.padding(start = 10.dp), size = 52.dp)
         }
     }
+}
+
+/**
+ * The tempo and key Automix measured for each of [songs] that has played, read from the host's analysis folder ([directory]) off
+ * the main thread; empty until read, and for songs never measured.
+ */
+@Composable
+fun rememberTempoBeats(songs: List<Song>, directory: () -> java.io.File): Map<String, com.cosmotune.music.playback.smart.TempoOrder.Beat> {
+    val store = remember { com.cosmotune.music.playback.smart.AnalysisStore(directory) }
+    return produceState<Map<String, com.cosmotune.music.playback.smart.TempoOrder.Beat>>(emptyMap(), songs) {
+        value = withContext(Dispatchers.IO) {
+            songs.asSequence().map { it.videoId }.distinct().mapNotNull { id ->
+                val analysis = runCatching { store.load(id) }.getOrNull()?.takeIf { it.isUsable } ?: return@mapNotNull null
+                id to com.cosmotune.music.playback.smart.TempoOrder.Beat(analysis.bpm, if (analysis.keyConfidence >= 0.25) analysis.key else "")
+            }.toMap()
+        }
+    }.value
 }
