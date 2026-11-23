@@ -238,7 +238,7 @@ class MangaInteractionTest {
 
     @Test fun fitWidthScrollsATallPageAndButtonsAndKeysZoomTheCurrentPage() {
         // The zoom buttons are a wide window's (a mouse, no pinch); a phone zooms by pinching.
-        val (repository, _) = show(pageCount = 3, imageHeight = 2_200, mode = MangaReaderMode.PAGES_LTR, width = 900.dp)
+        val (repository, book) = show(pageCount = 3, imageHeight = 2_200, mode = MangaReaderMode.PAGES_LTR, width = 900.dp)
         compose.onNodeWithText("Evening story").performClick()
         compose.onNodeWithText("Read").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Manga page").fetchSemanticsNodes().isNotEmpty() }
@@ -250,7 +250,7 @@ class MangaInteractionTest {
         compose.onNodeWithContentDescription("Reading mode").performClick()
         compose.onNode(hasText("Fit page") and isSelectable()).assertIsSelected()
         compose.onNodeWithText("Fit width").performClick()
-        compose.waitUntil(10_000) { repository.store.state.value.readerFit == MangaReaderFit.WIDTH }
+        compose.waitUntil(10_000) { repository.store.state.value.seriesFit[book.id] == MangaReaderFit.WIDTH }
         compose.onNode(hasText("Fit width") and isSelectable()).assertIsSelected()
         compose.onNodeWithText("Done").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Manga page").onFirst().getUnclippedBoundsInRoot().let { it.bottom - it.top > 2_000.dp } }
@@ -268,7 +268,7 @@ class MangaInteractionTest {
         compose.onNodeWithContentDescription("Zoom out").performClick()
         compose.waitForIdle()
         assertEquals("Zoom 100%", zoomOf(page), "zoom never goes below the fitted size")
-        assertEquals(MangaReaderFit.WIDTH, MangaStore(repository.store.root).state.value.readerFit, "the fit survives a restart")
+        assertEquals(MangaReaderFit.WIDTH, MangaStore(repository.store.root).state.value.seriesFit[book.id], "the series keeps its fit over a restart")
     }
 
     @Test fun theNextTwoPagesAreFetchedAheadOfTheReaderAndNoMore() {
