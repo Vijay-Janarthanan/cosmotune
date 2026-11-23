@@ -46,6 +46,10 @@ internal fun PlayerOptions(songId: String, bluetoothSupported: Boolean, onDismis
                 }
             }
         }
+        if (com.cosmotune.podio.YouTubePodcasts.videoId(songId) != null) {
+            val sponsors by settings.podioSkipSponsors.collectAsState()
+            PlayerOptionSwitch("Skip sponsors in podcasts","In episodes from YouTube, skip paid promotion and plugs that SponsorBlock's community marked. Asks sponsor.ajay.app for each episode.",sponsors,settings::setPodioSkipSponsors)
+        }
         val fresh by settings.freshShuffle.collectAsState()
         PlayerOptionSwitch("Fresh shuffle","Shuffle still plays everything, but the songs you heard lately tend to come later.",fresh,settings::setFreshShuffle)
         PlayerOptionSwitch("Player lyrics","Show timed lyrics beside the artwork when there is room. The Lyrics panel remains available.",inline,settings::setInlineLyrics)

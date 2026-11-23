@@ -488,6 +488,7 @@ services, including every one that 1.0.4 added; the paragraphs below it say what
 | Update check | `api.github.com` (this repository's latest release) | Each start | On | No switch |
 | Music video (OpenCanvas) | YouTube, `cdn.jsdelivr.net` | Each song | On (not on mobile data on Android) | Settings > Lyrics & music video |
 | Video mode extras | `sponsor.ajay.app`, `dearrow-thumb.ajay.app`, `returnyoutubedislikeapi.com` | Each video you open in Video mode | On | Video settings |
+| Podcast sponsor skipping | `sponsor.ajay.app` | Each YouTube podcast episode you play | Off | Player options > Skip sponsors in podcasts |
 | Artist photo and header video | `itunes.apple.com`, `music.apple.com`, Apple's image and video servers | Opening an artist page | On | The video follows "Animated cover art"; the lookup has no switch |
 | Artist signatures | The address you enter (there is none by default) | Opening an artist page | Off | Settings > Appearance > Artist signatures |
 | Scrobbling | `ws.audioscrobbler.com` (Last.fm), `api.listenbrainz.org` | Each play | Off until you connect an account | Account & scrobbling (Android), Account & integrations (desktop) |

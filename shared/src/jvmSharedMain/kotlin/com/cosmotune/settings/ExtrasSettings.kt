@@ -164,6 +164,11 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val freshShuffleFlow = MutableStateFlow(store.getBoolean(KEY_FRESH_SHUFFLE, true))
     val freshShuffle: StateFlow<Boolean> = freshShuffleFlow.asStateFlow()
     fun setFreshShuffle(value: Boolean) { freshShuffleFlow.value = value; store.putBoolean(KEY_FRESH_SHUFFLE, value) }
+    // SponsorBlock in YouTube podcast episodes (Player options, shown for a Podio episode); off until chosen.
+    private val podioSponsorsFlow = MutableStateFlow(store.getBoolean(KEY_PODIO_SPONSORS, false))
+    val podioSkipSponsors: StateFlow<Boolean> = podioSponsorsFlow.asStateFlow()
+    fun setPodioSkipSponsors(value: Boolean) { podioSponsorsFlow.value = value; store.putBoolean(KEY_PODIO_SPONSORS, value) }
+
     /** When [id] last started playing, while Fresh shuffle is on; null otherwise. */
     fun lastPlayedAt(id: String): Long? = if (freshShuffleFlow.value) lastPlayed[id] else null
 
@@ -276,6 +281,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_SONG_MARKS = "extras_song_marks"
         const val KEY_LAST_PLAYED = "extras_last_played"
         const val KEY_FRESH_SHUFFLE = "extras_fresh_shuffle"
+        const val KEY_PODIO_SPONSORS = "extras_podio_sponsors"
         const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
         const val KEY_SLEEP_FADE_OUT = "extras_sleep_fade_out"
         const val KEY_BEST_PART = "extras_best_part"

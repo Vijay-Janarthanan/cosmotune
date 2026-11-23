@@ -832,6 +832,9 @@ class PlaybackService : MediaLibraryService() {
                 delay(1_000)
             }
         }
+        // SponsorBlock in YouTube podcast episodes (Player options > Skip sponsors in podcasts).
+        com.cosmotune.podio.PodioSponsorSkip.watch(scope, { com.cosmotune.settings.Extras.settings.podioSkipSponsors.value },
+            { player?.let { p -> p.currentMediaItem?.mediaId to p.currentPosition } }, { at -> player?.seekTo(at) })
         // Aâ€“B repeat (Player menu > Bookmarks): back to A each time the song reaches B, a few times a second while one is set.
         scope.launch {
             com.cosmotune.settings.Extras.settings.abLoop.collectLatest { loop ->

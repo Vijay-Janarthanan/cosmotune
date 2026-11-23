@@ -105,6 +105,9 @@ class DesktopPlaybackEngine(
             }
         }
     }
+    // SponsorBlock in YouTube podcast episodes (Player options > Skip sponsors in podcasts).
+    private val podioSponsorJob = com.cosmotune.podio.PodioSponsorSkip.watch(scope, { com.cosmotune.settings.Extras.settings.podioSkipSponsors.value },
+        { _state.value.let { it.song?.videoId to it.positionMs } }, ::seekTo)
     // Aâ€“B repeat (Player menu > Bookmarks): back to A each time the song reaches B.
     private val abLoopJob = scope.launch {
         com.cosmotune.settings.Extras.settings.abLoop.collectLatest { loop ->
