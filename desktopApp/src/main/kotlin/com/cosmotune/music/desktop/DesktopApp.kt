@@ -2225,6 +2225,10 @@ fun CosmotuneDesktopApp() {
     LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed) {
         DesktopDiscordRpc.onPlaybackStateChanged(playback, playbackEngine.playbackRate)
     }
+    // The window's title names the playing song: the taskbar, Alt+Tab and the Dock show it.
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying) {
+        DesktopWindowTitle.show(playback.song?.title, playback.song?.artist, playback.isPlaying)
+    }
     // Settings, Player, Keep the screen on: past lyrics or a video, the display stays awake while the player is open or while music plays.
     val screenOnPolicy by com.cosmotune.settings.Extras.settings.screenOn.collectAsState()
     val keepAwake = screenOnPolicy.keepsOn(playerOpen = overlays.nowPlaying, lyricsOrVideo = false, isPlaying = playback.isPlaying)

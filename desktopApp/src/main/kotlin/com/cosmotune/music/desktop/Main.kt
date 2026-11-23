@@ -205,6 +205,7 @@ private fun desktopMain() = application {
     // Closing puts the window away rather than ending the process, while there is a tray icon to
     // bring it back from — see [DesktopWindowVisibility].
     val visible by DesktopWindowVisibility.visible.collectAsState()
+    val windowTitle by DesktopWindowTitle.title.collectAsState()
     val state = rememberWindowState(width = 1_220.dp, height = 780.dp)
     LaunchedEffect(visible) {
         if (visible && state.isMinimized) {
@@ -235,7 +236,7 @@ private fun desktopMain() = application {
         // and a button its press. See [DesktopSpaceKey].
         onKeyEvent = { event -> DesktopSpaceKey.onKeyEvent(event, lookSettings.mode.value) },
         visible = visible,
-        title = "Cosmotune",
+        title = windowTitle,
         icon = painterResource(Res.drawable.logo),
         state = state,
         // No system title bar on Windows, where the application draws its own instead — see
