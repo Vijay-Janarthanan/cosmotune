@@ -290,23 +290,25 @@ fun SongActionsSheet(
             )
             GroupSeparator(palette)
         }
-        if (signedIn && !isOffline && !com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)) {
+        val canAdd = signedIn && !isOffline && !com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)
+        if (canAdd) {
             ActionRow(
                 icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
                 label = stringResource(R.string.add_to_playlist),
                 accent = palette.accent,
                 onClick = onAddToPlaylist,
             )
-            onRemoveFromPlaylist?.let {
-                ActionRow(
-                    icon = Icons.Rounded.PlaylistRemove,
-                    label = stringResource(R.string.remove_from_playlist),
-                    accent = palette.accent,
-                    onClick = it,
-                )
-            }
-            GroupSeparator(palette)
         }
+        // Shown whenever there is a removal to make, signed in or not: a playlist imported onto the device has one too.
+        onRemoveFromPlaylist?.let {
+            ActionRow(
+                icon = Icons.Rounded.PlaylistRemove,
+                label = stringResource(R.string.remove_from_playlist),
+                accent = palette.accent,
+                onClick = it,
+            )
+        }
+        if (canAdd || onRemoveFromPlaylist != null) GroupSeparator(palette)
 
         DownloadRow(song, palette, isOffline, onDownload)
         WebDavUploadRow(song, palette, isOffline, onUploadToWebDav)

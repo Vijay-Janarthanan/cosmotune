@@ -4365,7 +4365,15 @@ private fun CosmotuneApp(
                         songActions = null
                         viewModel.removeFromPlaylist(it.browseId, song)
                     }
-                },
+                } ?: detail?.browseId
+                    ?.takeIf { !fromPlayer && com.cosmotune.music.data.spotify.LocalPlaylistStore.getPlaylist(it)?.songs?.any { s -> s.videoId == song.videoId } == true }
+                    ?.let { id ->
+                        {
+                            songActions = null
+                            com.cosmotune.music.data.spotify.LocalPlaylistStore.removeSong(id, song.videoId)
+                            viewModel.reloadLocalDetail(id)
+                        }
+                    },
                 onOpenAlbum = { id ->
                     openPage(
                         id,
@@ -4649,12 +4657,14 @@ private fun CosmotuneApp(
                 ?.takeIf { signedIn && ownedPlaylists[it] == true }
                 ?.let { id -> playlists.firstOrNull { it.browseId == id } }
             val remote = target.browseId?.startsWith("local:") == false
+            // A playlist imported onto the device (Spotify while signed out, or one YouTube refused): renamed and deleted here.
+            val imported = target.browseId?.let { com.cosmotune.music.data.spotify.LocalPlaylistStore.getPlaylist(it) }
             val pickedCovers = com.cosmotune.ui.covers.rememberPlaylistCovers()
             val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
             val pinnableId = target.browseId?.takeIf { target.type == BrowseType.PLAYLIST }
             BrowseActionsSheet(
                 // The live answer, not the one the target was built with.
-                target = target.copy(playlist = playlist),
+                target = target.copy(playlist = playlist ?: imported?.let { com.cosmotune.music.data.model.UserPlaylist(it.id, it.title, target.subtitle, target.thumbnailUrl) }),
                 presentation = presentation,
                 onRenameInSheet = {
                     browseRenameInSheet = true
@@ -4758,6 +4768,12 @@ private fun CosmotuneApp(
                         browseActions = null
                         viewModel.renamePlaylist(p, name)
                     }
+                } ?: imported?.let { lp ->
+                    { name: String ->
+                        browseActions = null
+                        com.cosmotune.music.data.spotify.LocalPlaylistStore.renamePlaylist(lp.id, name.trim())
+                        if (detail?.browseId == lp.browseId) viewModel.reloadLocalDetail(lp.browseId)
+                    }
                 },
                 onChangeCover = playlist?.let { p ->
                     {
@@ -4792,6 +4808,12 @@ private fun CosmotuneApp(
                     {
                         browseActions = null
                         viewModel.deletePlaylist(p)
+                    }
+                } ?: imported?.let { lp ->
+                    {
+                        browseActions = null
+                        com.cosmotune.music.data.spotify.LocalPlaylistStore.deletePlaylist(lp.id)
+                        if (detail?.browseId == lp.browseId) viewModel.closeDetail()
                     }
                 },
                 onDeleteDownload = target.downloadId?.let { id ->

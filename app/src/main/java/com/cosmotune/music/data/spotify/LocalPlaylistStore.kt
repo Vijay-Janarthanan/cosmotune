@@ -99,6 +99,24 @@ object LocalPlaylistStore {
         persist(updated)
     }
 
+    /** Takes [videoId] out of the imported playlist [id] (its song menu's "Remove from playlist", from upstream 1.10). */
+    @Synchronized fun removeSong(id: String, videoId: String) {
+        val updated = removing(_playlists.value, id, videoId)
+        if (updated == _playlists.value) return
+        _playlists.value = updated
+        persist(updated)
+    }
+
+    /** [list] with every [videoId] row gone from the playlist [id] names (its own id or its page id); the rest untouched. */
+    internal fun removing(list: List<LocalPlaylist>, id: String, videoId: String): List<LocalPlaylist> {
+        val cleanId = id.removePrefix("local:playlist:").removePrefix("VL")
+        return list.map { playlist ->
+            if ((playlist.id == cleanId || playlist.id == id || playlist.browseId == id) && playlist.songs.any { it.videoId == videoId }) {
+                playlist.copy(songs = playlist.songs.filterNot { it.videoId == videoId })
+            } else playlist
+        }
+    }
+
     fun getPlaylist(id: String): LocalPlaylist? {
         val cleanId = id.removePrefix("local:playlist:").removePrefix("VL")
         return _playlists.value.firstOrNull { it.id == cleanId || it.id == id || it.browseId == id }
