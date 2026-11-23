@@ -78,6 +78,7 @@ import kotlinx.serialization.json.booleanOrNull
 import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
+import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 
 /** What the app hosts hand the repository. */
@@ -687,9 +688,43 @@ class DefaultWatchRepository(
         return enriched
     }
 
-    override suspend fun episodes(series: WatchKey, season: Int): List<Episode> = when {
-        metadata.owns(series) -> metadata.episodes(series, season)
-        else -> (activePlugins() + builtInPlugins).firstOrNull { it.id == series.namespace }?.episodes(series, season).orEmpty()
+    override suspend fun episodes(series: WatchKey, season: Int): List<Episode> {
+        val listed = when {
+            metadata.owns(series) -> metadata.episodes(series, season)
+            else -> (activePlugins() + builtInPlugins).firstOrNull { it.id == series.namespace }?.episodes(series, season).orEmpty()
+        }
+        if (listed.isEmpty()) return listed
+        // Anime: MyAnimeList's filler and recap marks, when the season is found there.
+        val anime = runCatching { animeSeason(series, season) }.getOrNull() ?: return listed
+        val kinds = runCatching { com.cosmotune.watch.meta.AnimeMatch.kinds(http, anime.malId) }.getOrDefault(emptyMap())
+        if (kinds.isEmpty()) return listed
+        return listed.map { e -> kinds[e.number + anime.offset]?.let { e.copy(kind = it) } ?: e }
+    }
+
+    private val animeSeasons = ConcurrentHashMap<String, Optional<com.cosmotune.watch.meta.AnimeSeason>>()
+
+    /**
+     * The MyAnimeList entry of [series]' [season]: the listener's own match ("Match anime season"), else one looked up on
+     * MyAnimeList by name and the season's year, for a Japanese animated series only. Kept for the process.
+     */
+    internal suspend fun animeSeason(series: WatchKey, season: Int): com.cosmotune.watch.meta.AnimeSeason? {
+        if (season < 1) return null
+        store.state.value.settings["watch.mal.${series.value}.$season"]?.toIntOrNull()?.let { return com.cosmotune.watch.meta.AnimeSeason(it) }
+        val key = "${series.value}:$season"
+        animeSeasons[key]?.let { return it.orElse(null) }
+        val title = title(series) ?: return null
+        val anime = title.summary.genres.any { it.equals("Animation", true) } && (title.originalLanguage == "ja" || "JP" in title.countries)
+        val found = if (!anime) null else {
+            title.summary.ids.mal?.takeIf { season == 1 }?.let { com.cosmotune.watch.meta.AnimeSeason(it) } ?: run {
+                val numbered = title.seasons.filter { it.number > 0 }.sortedBy { it.number }
+                fun year(s: com.cosmotune.watch.model.Season?) = s?.airDate?.take(4)?.toIntOrNull()
+                val earlier = numbered.filter { it.number < season }.sumOf { it.episodeCount }
+                com.cosmotune.watch.meta.AnimeMatch.season(http, title.summary.name, season,
+                    year(numbered.firstOrNull { it.number == season }), earlier, year(numbered.firstOrNull()) ?: title.firstYear)
+            }
+        }
+        animeSeasons[key] = Optional.ofNullable(found)
+        return found
     }
 
     override suspend fun nextUp(series: WatchKey): NextUp? {
@@ -998,14 +1033,15 @@ class DefaultWatchRepository(
         require(series.kind == WatchKey.Kind.SERIES && season in 1..100 && (malId == null || malId in 1..1_000_000))
         val key = "watch.mal.${series.value}.$season"
         update { it.copy(settings = if (malId == null) it.settings - key else it.settings + (key to malId.toString())) }
+        animeSeasons.remove("${series.value}:$season")
     }
     override suspend fun skipIntervals(target: PlayTarget, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> {
         if (!preferences.value.animeSkips || durationMs <= 0) return emptyList()
         val anime = (target as? PlayTarget.EpisodeOf)?.let { episode ->
             val series = episode.key.seriesKey ?: return@let emptyList()
-            val mal = store.state.value.settings["watch.mal.${series.value}.${episode.season}"]?.toIntOrNull()
-                ?: episode.seriesIds.mal?.takeIf { episode.season == 1 } ?: return@let emptyList()
-            runCatching { com.cosmotune.watch.meta.AniSkip.fetch(http, mal, episode.episode, durationMs) }.getOrDefault(emptyList())
+            val season = runCatching { animeSeason(series, episode.season) }.getOrNull()
+                ?: episode.seriesIds.mal?.takeIf { episode.season == 1 }?.let { com.cosmotune.watch.meta.AnimeSeason(it) } ?: return@let emptyList()
+            runCatching { com.cosmotune.watch.meta.AniSkip.fetch(http, season.malId, episode.episode + season.offset, durationMs) }.getOrDefault(emptyList())
         }.orEmpty()
         val database = when (target) {
             is PlayTarget.EpisodeOf -> com.cosmotune.watch.meta.IntroSkips.fetch(http, target.seriesIds.tmdb, target.seriesIds.imdb, target.season, target.episode, durationMs)

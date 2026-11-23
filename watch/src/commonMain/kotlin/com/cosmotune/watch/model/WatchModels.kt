@@ -136,7 +136,13 @@ data class Episode(
     val airDate: String? = null,
     val runtimeMin: Int? = null,
     val ids: ExternalIds = ExternalIds(),
+    /** MyAnimeList marks this anime episode as filler or a recap; null for a story episode or one nothing is known of. */
+    val kind: EpisodeKind? = null,
 )
+
+/** What MyAnimeList says an anime episode is, when it is not part of the story. */
+@Serializable
+enum class EpisodeKind(val label: String) { FILLER("Filler"), RECAP("Recap") }
 
 /** A catch-up template of an M3U or Xtream channel (Kodi pvr.iptvsimple modes: default, append, shift, flussonic, xc). */
 @Serializable data class Catchup(val mode: String, val days: Int, val source: String? = null)

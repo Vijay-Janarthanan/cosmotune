@@ -535,7 +535,7 @@ private fun EpisodeRow(e: Episode, progress: WatchProgress?, next: Boolean, watc
             Text("${e.number}. ${e.name}", style = fonts.title.copy(fontSize = 14.sp, lineHeight = 18.sp), color = if (next) look.accent else look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val inProgress = progress != null && !progress.completed && progress.fraction > 0f
             val second = if (inProgress) leftText(progress!!.remainingMs) else e.overview?.lineSequence()?.firstOrNull { it.isNotBlank() }
-            Text(listOfNotNull(runtimeText(e.runtimeMin), second).joinToString(" · "), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
+            Text(listOfNotNull(runtimeText(e.runtimeMin), e.kind?.label, second).joinToString(" · "), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp),
                 color = if (next) look.accent else look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
         WatchRoundButton(CosmoIcons.Check, if (watched) "Mark episode ${e.number} as not watched" else "Mark episode ${e.number} as watched", look,
