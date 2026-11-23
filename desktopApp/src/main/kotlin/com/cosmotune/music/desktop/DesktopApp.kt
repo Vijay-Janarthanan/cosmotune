@@ -247,6 +247,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
@@ -1274,17 +1275,33 @@ fun CosmotuneDesktopApp() {
     // "Keep downloaded" with the playlist page closed: a pass on start and once a day while the app runs, and one for a playlist as
     // soon as its switch is turned on, through the same downloads as Download all (a desktop is never on a metered link as far as
     // this app can tell, see DesktopPlayerHost).
-    suspend fun keepDownloadedPass(playlists: Collection<String>? = null) {
+    suspend fun keepDownloadedPass(playlists: Collection<String>? = null, newestOnly: Boolean = false) {
         val look = com.cosmotune.ui.settings.cosmoLookSettings()
         if (look.keepDownloaded.value.isEmpty()) return
         runCatching {
             com.cosmotune.ui.pages.KeepDownloaded.run(
                 look,
-                songsOf = { id -> YtMusicRepository.completePlaylistSongs(id).getOrThrow() },
+                songsOf = { id ->
+                    if (newestOnly) YtMusicRepository.browseSongs(id).getOrThrow().songs
+                    else YtMusicRepository.completePlaylistSongs(id).getOrThrow()
+                },
                 onDevice = { id -> downloads.any { it.videoId == id } },
                 download = { _, songs -> downloadAll(songs) },
                 playlists = playlists ?: look.keepDownloaded.value,
+                stamp = !newestOnly,
             )
+        }
+    }
+    // A like while Liked Music is kept downloaded: its newest page a little later (upstream 1.10); each like restarts the wait.
+    LaunchedEffect(Unit) {
+        var before = com.cosmotune.music.data.LikeState.overrides.value
+        com.cosmotune.music.data.LikeState.overrides.collectLatest { now ->
+            val wanted = com.cosmotune.ui.pages.KeepDownloaded.likedPassWanted(before, now, com.cosmotune.ui.settings.cosmoLookSettings().keepDownloaded.value)
+            before = now
+            if (wanted) {
+                delay(com.cosmotune.ui.pages.KeepDownloaded.LIKED_SETTLE_MS)
+                keepDownloadedPass(listOf(com.cosmotune.ui.pages.KeepDownloaded.LIKED_MUSIC), newestOnly = true)
+            }
         }
     }
     LaunchedEffect(Unit) {

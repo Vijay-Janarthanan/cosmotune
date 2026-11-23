@@ -1,5 +1,6 @@
 package com.cosmotune.ui.pages
 
+import com.cosmotune.music.data.model.LikeStatus
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.isMatchMissing
 import com.cosmotune.music.data.model.isMatchPending
@@ -15,6 +16,19 @@ import kotlinx.coroutines.CancellationException
 object KeepDownloaded {
     /** A day: the background passes run at most this often. */
     const val DAY_MS = 24L * 60 * 60 * 1000
+
+    /** Liked Music's page id: its own "Keep downloaded" switch is what keeps liked songs downloaded. */
+    const val LIKED_MUSIC = "VLLM"
+
+    /** How long after a like the quick pass waits; each like restarts it, so a run of likes is one pass. */
+    const val LIKED_SETTLE_MS = 20_000L
+
+    /**
+     * Whether a change of ratings from [before] to [now] wants a quick pass over Liked Music (upstream 1.10's "Keep liked songs
+     * downloaded"): a song newly liked while Liked Music is [kept] downloaded. An unlike keeps its file and fetches nothing.
+     */
+    fun likedPassWanted(before: Map<String, LikeStatus>, now: Map<String, LikeStatus>, kept: Set<String>): Boolean =
+        LIKED_MUSIC in kept && now.any { (id, status) -> status == LikeStatus.LIKE && before[id] != LikeStatus.LIKE }
 
     /** What a pass hands to the downloads of [songs]: the matched ones on neither the device ([onDevice]) nor in [kept], once each. */
     fun fresh(songs: List<Song>, onDevice: (String) -> Boolean, kept: Set<String>): List<Song> =
@@ -37,6 +51,8 @@ object KeepDownloaded {
         download: suspend (String, List<Song>) -> Unit,
         playlists: Collection<String> = look.keepDownloaded.value,
         nowMs: Long = System.currentTimeMillis(),
+        /** False for a quick pass that read only a playlist's newest page: the whole daily pass stays due. */
+        stamp: Boolean = true,
     ): Int {
         var handed = 0
         for (id in playlists.toList()) {
@@ -48,7 +64,7 @@ object KeepDownloaded {
             look.addKeptSongs(id, fresh.map { it.videoId })
             handed += fresh.size
         }
-        look.setKeepDownloadedCheckedMs(nowMs)
+        if (stamp) look.setKeepDownloadedCheckedMs(nowMs)
         return handed
     }
 }
