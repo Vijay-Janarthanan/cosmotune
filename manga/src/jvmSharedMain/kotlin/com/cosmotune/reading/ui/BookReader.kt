@@ -58,7 +58,9 @@ import kotlinx.coroutines.launch
  * contents, bookmark and more: search, bookmarks, hide). Contents, bookmarks and the typography live in sheets.
  */
 @Composable
-fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack: () -> Unit) {
+fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack: () -> Unit, modifier: Modifier = Modifier,
+    /** Opens another book beside this one (a wide screen); null where there is no room. */
+    onBeside: (() -> Unit)? = null) {
     val state by repository.state.collectAsUiState()
     val scope = rememberUiCoroutineScope()
     val book = document.book
@@ -227,7 +229,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     val (fill, ink) = coverFill(null, book.id)
     MangaBackHandler(true, onBack)
     ReaderKeepScreenOn(preferences.keepScreenOn)
-    Box(Modifier.fillMaxSize().background(look.ground).testTag("books:reader")) {
+    Box(modifier.fillMaxSize().background(look.ground).testTag("books:reader")) {
         Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.windowInsetsPadding(WindowInsets.statusBars), onDismiss = { error = null }) }
             if (preferences.showTitle) Text(listOf(book.title, epub?.spine?.getOrNull(section)?.title.orEmpty()).filter { it.isNotBlank() }.joinToString(" · ").uppercase(),
@@ -350,6 +352,8 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                             icon = androidx.compose.material.icons.Icons.Rounded.RecordVoiceOver, enabled = aloud != null) { aloud?.start() },
                         OrbitMenuItem("Highlights and notes", detail = if (epub == null) "Highlights work in reflowing books, not PDFs." else marks.size.takeIf { it > 0 }?.toString(),
                             icon = androidx.compose.material.icons.Icons.Rounded.EditNote, enabled = epub != null) { panel = "Highlights" },
+                        OrbitMenuItem("Read another book beside this", detail = if (onBeside == null) "Needs a wider window or screen" else null, icon = CosmoIcons.Library,
+                            enabled = onBeside != null) { onBeside?.invoke() },
                         OrbitMenuItem("Hide tools", icon = CosmoIcons.Close) { tools = false },
                     ), orbitFonts(), look, header = book.title)
                 }

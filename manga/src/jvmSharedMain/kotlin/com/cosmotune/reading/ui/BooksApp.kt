@@ -149,6 +149,8 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
     val navigation = remember { ReadNavigation(savedTab) }
     LaunchedEffect(navigation.tab) { savedTab = navigation.tab }
     var document by remember { mutableStateOf<ReadingDocument?>(null) }
+    var beside by remember { mutableStateOf<ReadingDocument?>(null) }
+    var choosingBeside by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf<Job?>(null) }
@@ -210,7 +212,21 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
     val holder = rememberSaveableStateHolder()
     val current = document
     if (current != null) {
-        BookReader(repository, current, onBack = { document = null })
+        // Two books side by side where the screen is wide enough: the second opens from the first's tools and closes on its own.
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+            val wide = maxWidth >= 840.dp
+            val second = beside?.takeIf { wide && it.book.id != current.book.id }
+            if (second == null) BookReader(repository, current, onBack = { document = null; beside = null }, onBeside = if (wide) ({ choosingBeside = true }) else null)
+            else Row(Modifier.fillMaxSize()) {
+                BookReader(repository, current, onBack = { document = second; beside = null }, Modifier.weight(1f))
+                Box(Modifier.fillMaxHeight().width(1.dp).background(orbitLook().dim.copy(alpha = 0.3f)))
+                BookReader(repository, second, onBack = { beside = null }, Modifier.weight(1f))
+            }
+        }
+        if (choosingBeside) BesideSheet(repository.state.collectAsUiState().value.books.filter { it.id != current.book.id }, onPick = { book ->
+            choosingBeside = false
+            action { busy = true; try { beside = repository.openDocument(book.id) } finally { busy = false } }
+        }, onDismiss = { choosingBeside = false })
         return
     }
     MangaBackHandler(!navigation.atRoot || navigation.tab != BookTabs.LIBRARY) { navigation.back() }
@@ -761,6 +777,22 @@ private fun BookTagsSheet(book: ReadingBook, known: List<String>, onSave: (Set<S
             com.cosmotune.ui.orbit.OrbitInputField(typed, { typed = it.take(40) }, "A new tag, such as To lend or Book club", modifier = Modifier.fillMaxWidth().testTag("books:tag-field"))
         }
         if (typed.isNotBlank()) ReadChipRow { ReadChip("Add “${typed.trim()}”", false, { chosen = chosen + typed.trim(); typed = "" }, icon = CosmoIcons.Plus) }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** Choosing the book to read beside the open one: the library's books, the latest read first. */
+@Composable
+private fun BesideSheet(books: List<ReadingBook>, onPick: (ReadingBook) -> Unit, onDismiss: () -> Unit) {
+    com.cosmotune.ui.kit.KitSheet(onDismiss = onDismiss) {
+        ReadSheetHeader("Read beside", onDone = onDismiss, doneLabel = "Close")
+        if (books.isEmpty()) Text("Add another book to the library first.", style = ReadType.body(), color = orbitLook().dim, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
+            items(books, key = { it.id }) { book ->
+                ReadCoverRow(book.title, book.authors.joinToString(" · "), book.coverPath?.let(::File), onClick = { onPick(book) }, key = book.id,
+                    modifier = Modifier.padding(horizontal = 12.dp).testTag("books:beside:${book.id}"))
+            }
+        }
         Spacer(Modifier.height(16.dp))
     }
 }
