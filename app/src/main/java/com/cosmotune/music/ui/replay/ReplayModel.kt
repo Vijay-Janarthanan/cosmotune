@@ -187,6 +187,7 @@ fun ReplayPeriod.localizedChip(context: Context): String = when (this) {
     ReplayPeriod.THIS_MONTH -> context.getString(R.string.this_month)
     ReplayPeriod.THIS_YEAR -> context.getString(R.string.this_year)
     ReplayPeriod.ALL_TIME -> context.getString(R.string.all_time)
+    ReplayPeriod.MEMORIES -> "Memories"
 }
 
 fun ReplaySummary.localizedLabel(context: Context): String = when (period) {
@@ -196,6 +197,7 @@ fun ReplaySummary.localizedLabel(context: Context): String = when (period) {
         .replaceFirstChar { it.titlecase(Locale.getDefault()) }
     ReplayPeriod.THIS_YEAR -> LocalDate.now().year.toString()
     ReplayPeriod.ALL_TIME -> context.getString(R.string.all_time)
+    ReplayPeriod.MEMORIES -> com.cosmotune.music.data.stats.memoriesLabel(LocalDate.now())
 }
 
 /**

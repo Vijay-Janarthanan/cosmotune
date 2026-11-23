@@ -91,6 +91,7 @@ internal fun DesktopReplayPage(
                     title = DesktopStrings["not_enough_listening", "Not enough listening yet"],
                     body = when (period) {
                         DesktopReplayPeriod.THIS_MONTH -> "Nothing this month. Play some music and it will fill up."
+                        DesktopReplayPeriod.MEMORIES -> "Nothing from this month in earlier years yet. What you play now comes back here next year."
                         else -> "Play some music and your Replay will build itself."
                     },
                     side = GUTTER,

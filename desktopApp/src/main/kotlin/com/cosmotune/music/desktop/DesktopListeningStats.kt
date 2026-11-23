@@ -36,6 +36,9 @@ enum class DesktopReplayPeriod(val chip: String) {
     THIS_MONTH("This month"),
     THIS_YEAR("This year"),
     ALL_TIME("All time"),
+
+    /** Memories: what was played in this calendar month in the years before this one. */
+    MEMORIES("Memories"),
     ;
 
     fun covers(month: String, today: LocalDate): Boolean = when (this) {
@@ -43,6 +46,8 @@ enum class DesktopReplayPeriod(val chip: String) {
         THIS_MONTH -> month == YearMonth.from(today).toString()
         THIS_YEAR -> month.startsWith("${today.year}-")
         ALL_TIME -> true
+        MEMORIES -> runCatching { YearMonth.parse(month) }.getOrNull()
+            ?.let { it.monthValue == today.monthValue && it.year < today.year } == true
     }
 }
 
@@ -206,6 +211,8 @@ object DesktopListeningStats {
             today.month.name.lowercase(Locale.ROOT).replaceFirstChar(Char::uppercase)
         DesktopReplayPeriod.THIS_YEAR -> today.year.toString()
         DesktopReplayPeriod.ALL_TIME -> "All time"
+        DesktopReplayPeriod.MEMORIES ->
+            today.month.name.lowercase(Locale.ROOT).replaceFirstChar(Char::uppercase) + " in earlier years"
     }
 
     internal fun mergeSong(old: Song?, current: Song): Song = old?.copy(

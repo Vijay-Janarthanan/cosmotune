@@ -133,6 +133,7 @@ fun ReplayScreen(
                     body = when (state.period) {
                         ReplayPeriod.THIS_WEEK -> stringResource(R.string.not_enough_this_week)
                         ReplayPeriod.THIS_MONTH -> stringResource(R.string.not_enough_this_month)
+                        ReplayPeriod.MEMORIES -> "Nothing from this month in earlier years yet. What you play now comes back here next year."
                         else -> stringResource(R.string.replay_empty_description)
                     },
                     side = side,

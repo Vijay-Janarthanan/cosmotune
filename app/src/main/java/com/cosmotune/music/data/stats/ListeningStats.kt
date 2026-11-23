@@ -1009,9 +1009,12 @@ enum class ReplayPeriod(val chip: String) {
     THIS_MONTH("This month"),
     THIS_YEAR("This year"),
     ALL_TIME("All time"),
+
+    /** Memories: what was played in this calendar month in the years before this one. */
+    MEMORIES("Memories"),
     ;
 
-    /** The inclusive date range this period covers. Null for ALL_TIME. */
+    /** The inclusive date range this period covers. Null for ALL_TIME and MEMORIES. */
     fun range(today: LocalDate): Pair<LocalDate, LocalDate>? = when (this) {
         THIS_WEEK -> {
             val start = today.with(java.time.DayOfWeek.MONDAY)
@@ -1022,7 +1025,7 @@ enum class ReplayPeriod(val chip: String) {
             ym.atDay(1) to ym.atEndOfMonth()
         }
         THIS_YEAR -> LocalDate.of(today.year, 1, 1) to LocalDate.of(today.year, 12, 31)
-        ALL_TIME -> null
+        ALL_TIME, MEMORIES -> null
     }
 
     fun covers(month: YearMonth, today: LocalDate): Boolean = when (this) {
@@ -1035,6 +1038,7 @@ enum class ReplayPeriod(val chip: String) {
         THIS_MONTH -> month == YearMonth.from(today)
         THIS_YEAR -> month.year == today.year
         ALL_TIME -> true
+        MEMORIES -> month.monthValue == today.monthValue && month.year < today.year
     }
 
     /** Whether this period needs day-level filtering (week spans potentially multiple months). */
@@ -1046,8 +1050,13 @@ enum class ReplayPeriod(val chip: String) {
             .replaceFirstChar { it.uppercase(Locale.ROOT) } + " ${today.year}"
         THIS_YEAR -> today.year.toString()
         ALL_TIME -> "All time"
+        MEMORIES -> memoriesLabel(today)
     }
 }
+
+/** "November in earlier years": what the Memories chip of Replay shows. */
+fun memoriesLabel(today: LocalDate): String =
+    YearMonth.from(today).month.name.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase(Locale.ROOT) } + " in earlier years"
 
 /**
  * Everything the Replay page and the stories draw, worked out once.
