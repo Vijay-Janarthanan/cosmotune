@@ -26,6 +26,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.LibrarySort
@@ -87,8 +89,9 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * "Live now" (Canvas repo, design/cosmotune/live-strip/board.html) on the fake repository's events: the pill in Watch's and Podio's
- * phone headers and in a desktop top bar over Watch, the desktop's panel, the phone's sheet, Settings > Live now, Live TV with the
+ * The Spotlight (Canvas repo, design/cosmotune/search-spotlight/board.html, section 4) on the fake repository's events: the strip in Watch's
+ * and Podio's phone headers and in a desktop top bar over Watch, the desktop's panel, the phone's sheet (and at 360 dp with a match
+ * opened), Settings > Spotlight, Live TV with the
  * DD and official YouTube live channels and the Plugins page with "Find plugins" first, in the dark and the light palettes, written
  * under build/live-review for a look.
  */
@@ -127,6 +130,7 @@ class LiveNowVisualReviewTest {
     private class Size(val name: String, val width: Int, val height: Int)
     private val phone = Size("phone", 390, 844)
     private val wide = Size("wide", 1180, 780)
+    private val narrow = Size("narrow", 360, 780)
 
     /** The fake repository with DD's channels and an official YouTube live news channel in Live TV, as the plugins list them. */
     private class LiveTvRepository(private val fake: FakeWatchRepository = FakeWatchRepository()) : WatchRepository by fake {
@@ -153,7 +157,7 @@ class LiveNowVisualReviewTest {
     }
 
     private fun host(repository: WatchRepository, settings: LiveNowSettings = LiveNowSettings(LiveNowMemoryStore())) =
-        LiveNowHost(events = { repository.liveEvents(it) }, settings = settings, play = { _, _ -> }, clock = { evening + 20_000 })
+        LiveNowHost(events = { repository.liveEvents(it) }, settings = settings, play = { _, _ -> }, clock = { evening + 20_000 }, detail = { repository.matchDetail(it) })
 
     private fun page(dark: Boolean, size: Size, content: @Composable () -> Unit) {
         val palette = CosmoPaletteState(com.cosmotune.theme.OnePalette.of(dark, false), dark)
@@ -248,6 +252,15 @@ class LiveNowVisualReviewTest {
                 }
             }
             capture("sheet-phone-$tag")
+            // The narrowest phone: the tabs scroll sideways, nothing is cut; then a match opened.
+            page(dark, narrow) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                    CosmoSheetSurface { LiveNowPanel(live, events, orbitFonts(), orbitLook(), modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) }
+                }
+            }
+            capture("sheet-narrow-$tag")
+            compose.onAllNodesWithText("Arsenal")[0].performClick()
+            capture("detail-football-narrow-$tag")
             settings.setTeam("India", true)
             settings.setSport(com.cosmotune.watch.model.LiveEventKind.SHOW, false)
             page(dark, phone) {

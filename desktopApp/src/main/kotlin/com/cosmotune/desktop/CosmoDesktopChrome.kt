@@ -126,8 +126,9 @@ internal fun CosmoDesktopTopBar(
 }
 
 /**
- * The Live pill of the top bar ([com.cosmotune.ui.live.LiveNowTopBarPill]) on the desktop's Watch repository: a free stream plays in
- * Watch's player (Watch becomes the mode), and a reminder is told through the tray when there is one. It takes 8 dp after it only
+ * The Spotlight strip of the top bar ([com.cosmotune.ui.live.LiveNowTopBarPill]) on the desktop's Watch repository: a free stream plays
+ * in Watch's player (Watch becomes the mode), a match opens its detail, and a reminder or a followed match's goal is told through the
+ * tray when there is one. It takes 8 dp after it only
  * when it shows.
  */
 @Composable
@@ -142,6 +143,7 @@ private fun DesktopLiveNowPill() {
             notify = { title, text -> com.cosmotune.music.desktop.DesktopAwtTray.notify(title, text) },
             // Put away in the tray the window still composes: the pill stops asking until it is back.
             shown = com.cosmotune.music.desktop.DesktopWindowVisibility.visible,
+            detail = { event -> DesktopWatch.repository.matchDetail(event) },
         )
     }
     androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.live.LocalLiveNow provides host) {

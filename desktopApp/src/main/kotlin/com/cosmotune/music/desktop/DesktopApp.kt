@@ -6717,9 +6717,9 @@ private fun DesktopSettingsScreen(
                 DesktopModeLink(AppMode.VIDEO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO_SUMMARY.text())
             }
             DesktopSettingsSection.LIVE_NOW -> {
-                // The Live pill of every mode, the sports and the teams it follows (kept on this computer).
-                SettingsGroup("Live now") {
-                    if (settingsRowVisible("Live pill", "sports teams cricket football scores")) com.cosmotune.ui.live.LiveNowSettingsSection()
+                // The Spotlight of every mode, the sports it shows and the teams and competitions followed (kept on this computer).
+                SettingsGroup("Spotlight") {
+                    if (settingsRowVisible("Spotlight", "news scores live sports teams competitions follow cricket football")) com.cosmotune.ui.live.LiveNowSettingsSection()
                 }
             }
             DesktopSettingsSection.READ -> {

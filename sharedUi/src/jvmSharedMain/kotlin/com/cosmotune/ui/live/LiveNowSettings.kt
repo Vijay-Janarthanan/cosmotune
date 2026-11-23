@@ -2,6 +2,7 @@ package com.cosmotune.ui.live
 
 import androidx.compose.runtime.Composable
 import com.cosmotune.settings.KeyValueStore
+import com.cosmotune.watch.live.EspnFootball
 import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.LiveEventKind
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,27 +12,46 @@ import kotlinx.coroutines.flow.asStateFlow
 /** A match the person asked to be told about before it starts ("Remind" on a "Coming up" row). */
 data class LiveReminder(val id: String, val title: String, val startMs: Long)
 
+/** A side the Spotlight has seen, offered in Settings to follow: its name, short name, crest and competition. */
+data class KnownTeam(val name: String, val shortName: String?, val logoUrl: String?, val competition: String?, val kind: LiveEventKind)
+
+/** A competition offered in Settings to follow: its source id ("eng.1", a cricket series id) and name. */
+data class KnownCompetition(val id: String, val name: String, val kind: LiveEventKind)
+
 /**
- * The "Live now" choices, kept on this device only (SharedPreferences `cosmotune_live` on Android, the Preferences node
- * `com.cosmotune.desktop/live` on the desktop): whether the pill shows at all, which sports it follows, the teams followed (none
- * means every team) and the reminders set on "Coming up" rows. Main thread only.
+ * The Spotlight's choices, kept on this device only (SharedPreferences `cosmotune_live` on Android, the Preferences node
+ * `com.cosmotune.desktop/live` on the desktop): whether the strip shows at all, which sports it shows, the teams and competitions
+ * followed (listed first, and told about when they score), the reminders set on "Coming up" rows, and the teams and competitions
+ * seen so far (the lists Settings searches). Main thread only.
  */
 class LiveNowSettings(private val store: KeyValueStore) {
     private val pillFlow = MutableStateFlow(store.getBoolean(KEY_PILL, true))
     private val sportsFlow = MutableStateFlow(readSports())
     private val teamsFlow = MutableStateFlow(readList(KEY_TEAMS))
+    private val competitionsFlow = MutableStateFlow(readList(KEY_COMPETITIONS))
     private val remindersFlow = MutableStateFlow(readReminders())
+    private val knownTeamsFlow = MutableStateFlow(readKnownTeams())
+    private val knownCompetitionsFlow = MutableStateFlow(BUILT_IN_COMPETITIONS + readKnownCompetitions().filter { k -> BUILT_IN_COMPETITIONS.none { it.id == k.id } })
 
-    /** The Live pill in every mode's top bar; off hides it (and so the panel) everywhere. */
+    /** The strip in every mode; off hides it (and so the sheet) everywhere. */
     val pillOn: StateFlow<Boolean> = pillFlow.asStateFlow()
 
-    /** The kinds followed: cricket, football and live shows, all three until the person drops one. */
+    /** The kinds shown: cricket, football and live shows, all three until the person drops one. */
     val sports: StateFlow<Set<LiveEventKind>> = sportsFlow.asStateFlow()
 
-    /** The teams followed, as typed or chosen ("India", "CSK"); empty follows every team. */
+    /** The teams followed, by name ("India", "Arsenal"). */
     val teams: StateFlow<List<String>> = teamsFlow.asStateFlow()
 
+    /** The competitions followed, by source id ("eng.1"). */
+    val competitions: StateFlow<List<String>> = competitionsFlow.asStateFlow()
+
     val reminders: StateFlow<List<LiveReminder>> = remindersFlow.asStateFlow()
+
+    /** The sides seen so far, for Settings' list. */
+    val knownTeams: StateFlow<List<KnownTeam>> = knownTeamsFlow.asStateFlow()
+
+    /** ESPN's football competitions and the cricket series seen so far, for Settings' list. */
+    val knownCompetitions: StateFlow<List<KnownCompetition>> = knownCompetitionsFlow.asStateFlow()
 
     fun setPillOn(on: Boolean) { store.putBoolean(KEY_PILL, on); pillFlow.value = on }
 
@@ -43,13 +63,38 @@ class LiveNowSettings(private val store: KeyValueStore) {
         sportsFlow.value = next
     }
 
-    fun setTeam(name: String, on: Boolean) {
-        val clean = name.trim().replace(SEP, " ")
+    fun setTeam(name: String, on: Boolean) = setIn(teamsFlow, KEY_TEAMS, name, on)
+
+    fun setCompetition(id: String, on: Boolean) = setIn(competitionsFlow, KEY_COMPETITIONS, id, on)
+
+    private fun setIn(flow: MutableStateFlow<List<String>>, key: String, value: String, on: Boolean) {
+        val clean = value.trim().replace(SEP, " ")
         if (clean.isEmpty()) return
-        val now = teamsFlow.value
+        val now = flow.value
         val next = if (on) (if (now.any { it.equals(clean, ignoreCase = true) }) now else now + clean) else now.filterNot { it.equals(clean, ignoreCase = true) }
-        store.putString(KEY_TEAMS, next.joinToString(SEP))
-        teamsFlow.value = next
+        store.putString(key, next.joinToString(SEP))
+        flow.value = next
+    }
+
+    /** Keeps the sides and competitions of [events] for Settings' lists (the most recent [MAX_KNOWN] sides). */
+    fun learn(events: List<LiveEvent>) {
+        val matches = events.filter { it.isMatch }
+        if (matches.isEmpty()) return
+        val seen = matches.flatMap { e -> e.teams.map { t -> KnownTeam(t.name, t.shortName, t.logoUrl, e.competition, e.kind) } }
+        val teams = (seen + knownTeamsFlow.value).distinctBy { it.kind to it.name.lowercase() }.take(MAX_KNOWN)
+        if (teams != knownTeamsFlow.value) {
+            knownTeamsFlow.value = teams
+            store.putString(KEY_KNOWN_TEAMS, teams.joinToString(LINE) { listOf(it.kind.name, it.name, it.shortName.orEmpty(), it.logoUrl.orEmpty(), it.competition.orEmpty()).joinToString(FIELD) { f -> f.replace(LINE, " ").replace(FIELD, " ") } })
+        }
+        val competitions = (knownCompetitionsFlow.value + matches.mapNotNull { e ->
+            val id = e.competitionId ?: return@mapNotNull null
+            KnownCompetition(id, e.competition ?: return@mapNotNull null, e.kind)
+        }).distinctBy { it.id }.take(MAX_KNOWN)
+        if (competitions != knownCompetitionsFlow.value) {
+            knownCompetitionsFlow.value = competitions
+            store.putString(KEY_KNOWN_COMPETITIONS, competitions.filter { c -> BUILT_IN_COMPETITIONS.none { it.id == c.id } }
+                .joinToString(LINE) { listOf(it.kind.name, it.id, it.name).joinToString(FIELD) { f -> f.replace(LINE, " ").replace(FIELD, " ") } })
+        }
     }
 
     fun isReminded(id: String): Boolean = remindersFlow.value.any { it.id == id }
@@ -78,7 +123,7 @@ class LiveNowSettings(private val store: KeyValueStore) {
         val raw = store.getString(KEY_SPORTS, "")
         if (raw.isEmpty()) return followedKinds
         if (raw == NONE) return emptySet()
-        return raw.split(SEP).mapNotNull { n -> LiveEventKind.entries.firstOrNull { it.name == n } }.toSet()
+        return raw.split(SEP).mapNotNull { n -> LiveEventKind.entries.firstOrNull { it.name == n } }.filter { it in followedKinds }.toSet()
     }
 
     private fun readList(key: String): List<String> = store.getString(key, "").split(SEP).map { it.trim() }.filter { it.isNotEmpty() }
@@ -88,14 +133,34 @@ class LiveNowSettings(private val store: KeyValueStore) {
         if (parts.size < 3) null else parts[1].toLongOrNull()?.let { LiveReminder(parts[0], parts.drop(2).joinToString(" "), it) }
     }
 
+    private fun readKnownTeams(): List<KnownTeam> = store.getString(KEY_KNOWN_TEAMS, "").split(LINE).mapNotNull { line ->
+        val p = line.split(FIELD)
+        if (p.size < 5) return@mapNotNull null
+        val kind = LiveEventKind.entries.firstOrNull { it.name == p[0] } ?: return@mapNotNull null
+        KnownTeam(p[1].ifBlank { return@mapNotNull null }, p[2].ifBlank { null }, p[3].ifBlank { null }, p[4].ifBlank { null }, kind)
+    }
+
+    private fun readKnownCompetitions(): List<KnownCompetition> = store.getString(KEY_KNOWN_COMPETITIONS, "").split(LINE).mapNotNull { line ->
+        val p = line.split(FIELD)
+        if (p.size < 3) return@mapNotNull null
+        val kind = LiveEventKind.entries.firstOrNull { it.name == p[0] } ?: return@mapNotNull null
+        KnownCompetition(p[1], p[2], kind)
+    }
+
     companion object {
         val followedKinds = setOf(LiveEventKind.CRICKET, LiveEventKind.FOOTBALL, LiveEventKind.SHOW)
+        /** ESPN's football competitions the Spotlight reads, each once (the three qualifier groups are one). */
+        val BUILT_IN_COMPETITIONS: List<KnownCompetition> = EspnFootball.LEAGUES.distinctBy { it.name }.map { KnownCompetition(it.slug, it.name, LiveEventKind.FOOTBALL) }
         const val KEY_PILL = "live_pill"
         const val KEY_SPORTS = "live_sports"
         const val KEY_TEAMS = "live_teams"
+        const val KEY_COMPETITIONS = "live_competitions"
         const val KEY_REMINDERS = "live_reminders"
+        const val KEY_KNOWN_TEAMS = "live_known_teams"
+        const val KEY_KNOWN_COMPETITIONS = "live_known_competitions"
         /** A reminder fires this long before the start. */
         const val REMIND_BEFORE_MS = 5 * 60_000L
+        const val MAX_KNOWN = 600
         private const val SEP = "|"
         private const val LINE = "\n"
         private const val FIELD = "\t"

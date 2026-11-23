@@ -1,17 +1,21 @@
 package com.cosmotune.ui.orbit
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,7 +24,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,273 +39,503 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.cosmoFocusRing
-import com.cosmotune.ui.live.cardLabel
+import com.cosmotune.ui.live.ScorerLine
+import com.cosmotune.ui.live.agoText
+import com.cosmotune.ui.live.comingLine
 import com.cosmotune.ui.live.cricketScore
-import com.cosmotune.ui.live.label
-import com.cosmotune.ui.live.pillDescription
-import com.cosmotune.ui.live.pillScore
-import com.cosmotune.ui.live.rowTitle
-import com.cosmotune.ui.live.short
-import com.cosmotune.ui.live.startText
+import com.cosmotune.ui.live.initials
+import com.cosmotune.ui.live.outletsLine
+import com.cosmotune.ui.live.outletsTag
+import com.cosmotune.ui.live.scorerLines
+import com.cosmotune.ui.live.stripDescription
+import com.cosmotune.ui.live.stripLine
+import com.cosmotune.ui.live.surname
 import com.cosmotune.ui.live.watchLine
-import com.cosmotune.ui.live.watchNames
+import com.cosmotune.watch.live.SpotlightClock
+import com.cosmotune.watch.model.CricketDetail
+import com.cosmotune.watch.model.LineupPlayer
+import com.cosmotune.watch.model.Lineup
 import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.LiveEventKind
 import com.cosmotune.watch.model.LiveEventStatus
 import com.cosmotune.watch.model.LiveTeam
+import com.cosmotune.watch.model.StatPair
+import com.cosmotune.watch.model.TimelineEntry
+import com.cosmotune.watch.model.TimelineKind
 
 /*
- * The "Live now" pieces of the Orbit kit (Canvas repo, design/cosmotune/live-strip/board.html): the Live pill of every mode's top bar,
- * the colour card of the top event in its teams' colours (Watch in its bite only when a free stream carries it), an event as an
- * Orbit row, and a "Coming up" row with its Remind chip. The pill's red is "on air", apart from peach, which stays "playing now".
+ * The Spotlight's pieces of the Orbit kit (Canvas repo, design/cosmotune/search-spotlight/board.html, section 4): the strip of every
+ * mode, a match as a card (football with crests, score, scorers and cards; cricket with each side's runs and overs), a story as a row
+ * with its picture and outlets, a coming match or event as a row with Remind, and a match's detail (timeline, stats, line-ups,
+ * scorecard). The live red is "on air" and only a match in play wears it; a story never does.
  */
 
-/** The board's on-air red (`--live`), its dark ground and the pale red of the pill's words in dark. */
-internal val ON_AIR = Color(0xFFFF6A5A)
-private val ON_AIR_GROUND = Color(0xFF2A1416)
-private val ON_AIR_TEXT = Color(0xFFFFB3A8)
-private val ON_AIR_INK_LIGHT = Color(0xFFB8322A)
-private val ON_AIR_GROUND_LIGHT = Color(0xFFFBE3DE)
+/** The board's on-air red (`--live`), deep for light ink and pale in dark. */
+private val LIVE_DARK = Color(0xFFFF6B55)
+private val LIVE_LIGHT = Color(0xFFC8341F)
+private val YELLOW_CARD = Color(0xFFF2C230)
+private val RED_CARD = Color(0xFFD7301F)
 
-/** The colours teams wear, by short name or country, deepened for light ink ([vivid]); anything else by its name. */
-private val TEAM_COLOURS = mapOf(
-    // internationals, by country
-    "in" to 0xFF123A8A, "au" to 0xFFB08A10, "gb" to 0xFF1D2F6A, "en" to 0xFF1D2F6A, "pk" to 0xFF0F6A2A, "za" to 0xFF0E6A4A, "nz" to 0xFF2A2A2A,
-    "lk" to 0xFF1F3F8A, "bd" to 0xFF0F6A3A, "af" to 0xFF1F4FA0,
-    // IPL
-    "CSK" to 0xFFD8A80E, "MI" to 0xFF0B4DA2, "RCB" to 0xFFB0151E, "KKR" to 0xFF3A225D, "SRH" to 0xFFE2591E, "DC" to 0xFF1F3A93,
-    "RR" to 0xFFDB2A85, "PBKS" to 0xFFC8102E, "GT" to 0xFF1B2D53, "LSG" to 0xFF2D6CB5,
-    // football
-    "ARS" to 0xFFDB0007, "CHE" to 0xFF034694, "MCI" to 0xFF4C8FD0, "MUN" to 0xFFDA291C, "LIV" to 0xFFC8102E, "TOT" to 0xFF132257,
-    "RMA" to 0xFF3A3A8A, "BAR" to 0xFFA50044, "BFC" to 0xFF0A3A8A, "CFC" to 0xFF1A5FB4, "MBSG" to 0xFF1A7A3A, "KBFC" to 0xFFE0A010,
-).mapValues { Color(it.value) }
+private fun spotlightRed(look: OrbitLook): Color = if (look.dark) LIVE_DARK else LIVE_LIGHT
 
-/** The deep colour of [team] (its country's or its club's), or a stand-in picked by [key] when it has none known. */
-fun liveTeamFill(team: LiveTeam?, key: String): Color {
-    val known = team?.let { t -> TEAM_COLOURS[t.shortName?.uppercase().orEmpty()] ?: TEAM_COLOURS[t.country.orEmpty()] }
-    return vivid((known ?: STAND_INS[Math.floorMod((team?.name ?: key).hashCode(), STAND_INS.size)]).toArgb()).fill
+/** The card's ground of the board (`.match`): a quiet fill with a hairline edge, radius 18. */
+private fun Modifier.spotlightCard(look: OrbitLook): Modifier {
+    val shape = RoundedCornerShape(18.dp)
+    return clip(shape).background(look.row).border(1.dp, look.ink.copy(alpha = if (look.dark) 0.10f else 0.09f), shape)
 }
 
-/** A flag of three bands for the sides whose flag is three bands; null for the rest (they wear their colour). */
-private fun bands(country: String?): List<Color>? = when (country) {
-    "in" -> listOf(Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808))
-    "ie" -> listOf(Color(0xFF169B62), Color(0xFFFFFFFF), Color(0xFFFF883E))
-    "de" -> listOf(Color(0xFF000000), Color(0xFFDD0000), Color(0xFFFFCE00))
-    else -> null
-}
-
-/** A side's small round mark: its logo when the source gives one, its flag of bands, or its colour. */
+/** The board's live dot: 7 dp of red. */
 @Composable
-fun LiveTeamMark(team: LiveTeam, key: String, size: Dp = 22.dp, modifier: Modifier = Modifier) {
-    val stripes = bands(team.country)
-    val ground = when {
-        stripes != null -> Brush.verticalGradient(0f to stripes[0], 0.333f to stripes[0], 0.334f to stripes[1], 0.666f to stripes[1], 0.667f to stripes[2], 1f to stripes[2])
-        else -> Brush.linearGradient(listOf(liveTeamFill(team, key), liveTeamFill(team, key)))
-    }
-    Box(modifier.size(size).clip(CircleShape).background(ground)) {
-        if (!team.logoUrl.isNullOrBlank()) AsyncImage(team.logoUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
-    }
+fun SpotlightLiveDot(look: OrbitLook, modifier: Modifier = Modifier) {
+    Box(modifier.size(7.dp).clip(CircleShape).background(spotlightRed(look)))
 }
 
-/** The pulsing-free on-air dot of the board (`.dot`): 8 dp of red in a faint ring. */
-@Composable
-fun OnAirDot(modifier: Modifier = Modifier, size: Dp = 8.dp) {
-    Box(modifier.size(size + 8.dp).clip(CircleShape).background(ON_AIR.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(size).clip(CircleShape).background(ON_AIR))
-    }
-}
+// ---- the strip ---------------------------------------------------------------------------------------------------------------
 
 /**
- * The Live pill (board `.livepill`): the on-air dot, the top event's short score ("IND 245/3 38.2 ov vs AUS", "ARS 2–1 CHE 67'", a
- * show's title) and "+n live" for the others. 40 dp high in a top bar; [stretch] fills the width it is given (the phone's, under its
- * top bar), the count then at the far end. Focusable with a ring; [interactionSource] lets a TV host draw its own.
+ * The strip (board `.strip`): one line of the single most important thing now: a match in play with its minute and latest scorer
+ * ("● 67' Arsenal 2–1 Chelsea · Saka 54'"), else the biggest world story ("WORLD Climate talks end without a deal"), and "+n" for
+ * the rest of the sheet. In the accent's tint with its edge; the dot only while a match is in play. [stretch] fills the width it is
+ * given (the phone, under its top bar); the desktop's sits in its top bar at [maxWidth].
  */
 @Composable
-fun OrbitLivePill(
-    event: LiveEvent?,
+fun OrbitSpotlightStrip(
+    item: LiveEvent?,
     more: Int,
+    nowMs: Long,
     fonts: OrbitFonts,
     look: OrbitLook,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     stretch: Boolean = false,
     height: Dp = 40.dp,
+    maxWidth: Dp = 460.dp,
     interactionSource: MutableInteractionSource? = null,
 ) {
     val interaction = interactionSource ?: remember { MutableInteractionSource() }
-    val live = event?.isLive == true
-    val ground = if (!live) look.accent.copy(alpha = 0.12f) else if (look.dark) ON_AIR_GROUND else ON_AIR_GROUND_LIGHT
-    val red = if (!live) look.accent else if (look.dark) ON_AIR_TEXT else ON_AIR_INK_LIGHT
-    val edge = if (live) ON_AIR else look.accent
-    val p = event?.let(::pillScore)
-    val text = fonts.chip.copy(fontSize = 13.5.sp)
+    val line = item?.let { stripLine(it, nowMs) }
+    val accent = look.accent
     Row(
-        modifier.height(height).then(if (interactionSource == null) Modifier.cosmoFocusRing(interaction, height / 2) else Modifier)
-            .clip(CircleShape).background(ground).border(1.dp, edge.copy(alpha = if (look.dark) 0.35f else 0.4f), CircleShape)
+        modifier.height(height).then(if (stretch) Modifier.fillMaxWidth() else Modifier.widthIn(max = maxWidth))
+            .then(if (interactionSource == null) Modifier.cosmoFocusRing(interaction, height / 2) else Modifier)
+            .clip(CircleShape).background(accent.copy(alpha = 0.10f)).border(1.5.dp, accent.copy(alpha = 0.55f), CircleShape)
             .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = event?.let { pillDescription(it, more) } ?: "Open Spotlight" }
-            .padding(start = 10.dp, end = if (more > 0) 6.dp else 16.dp),
+            .semantics { contentDescription = stripDescription(item, more, nowMs) }
+            .padding(start = 12.dp, end = if (more > 0) 8.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (live) OnAirDot()
-        if (!stretch || !live) OrbitLabel(if (live) "Live" else event?.kind?.label() ?: "Spotlight", fonts, red)
-        if (event == null || p == null) {
-            Text("Events and reminders", style = text, color = look.ink, maxLines = 1)
-        } else if (p.title != null) {
-            Text(p.title, style = text, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = if (stretch) 420.dp else 260.dp).then(if (stretch) Modifier.weight(1f, fill = false) else Modifier))
-        } else {
-            p.lead?.let { LiveTeamMark(it, event.id, if (stretch) 20.dp else 22.dp) }
-            Text(
-                buildAnnotatedString {
-                    p.lead?.let { append(it.short()) }
-                    if (p.score.isNotBlank()) {
-                        append(" ")
-                        withStyle(SpanStyle(fontFamily = fonts.narrow, fontWeight = FontWeight(900), fontSize = if (stretch) 17.sp else 18.sp)) { append(p.score) }
-                    }
-                    if (event.kind == LiveEventKind.FOOTBALL) {
-                        p.other?.let { append(" ${it.short()}") }
-                        p.detail?.let { withStyle(SpanStyle(color = look.dim, fontSize = 12.sp)) { append("  $it") } }
-                    } else {
-                        p.detail?.let { withStyle(SpanStyle(color = look.dim, fontSize = if (stretch) 11.sp else 12.sp)) { append(" ${if (stretch) it.removeSuffix(" ov") else it}") } }
-                        p.other?.let { withStyle(SpanStyle(color = look.ink.copy(alpha = 0.6f))) { append("  vs  ") }; append(it.short()) }
-                    }
-                },
-                style = text, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            if (event.kind != LiveEventKind.FOOTBALL) p.other?.let { LiveTeamMark(it, event.id + "b", if (stretch) 20.dp else 22.dp) }
-        }
+        if (line?.inPlay == true) SpotlightLiveDot(look)
+        Text((line?.label ?: "Spotlight").uppercase(), style = fonts.label.copy(fontSize = 10.5.sp), color = accent, maxLines = 1)
+        Text(line?.text ?: "News and scores", style = fonts.chip.copy(fontSize = 13.sp, fontWeight = FontWeight(600)), color = look.ink, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = stretch))
         if (more > 0) {
-            if (stretch) Spacer(Modifier.weight(1f))
-            Box(Modifier.height(height - 12.dp).clip(CircleShape).background(edge.copy(alpha = if (look.dark) 0.18f else 0.14f)).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-                Text(if (stretch || !live) "+$more" else "+$more live", style = fonts.chip.copy(fontSize = 12.sp), color = red, maxLines = 1)
+            Box(Modifier.clip(CircleShape).background(accent.copy(alpha = 0.20f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                Text("+$more", style = fonts.label.copy(fontSize = 11.sp, letterSpacing = 0.5.sp), color = accent, maxLines = 1)
             }
         }
     }
 }
 
-/** The bite of a live card: 36 dp round, its centre 40 dp in from the corner (the board's mask). */
-private val LiveBite = BiteShape(corner = 30.dp, bite = 36.dp, inset = 40.dp)
+// ---- marks ------------------------------------------------------------------------------------------------------------------
+
+/** A side's crest from the source, or its initials on its own colour when there is none. */
+@Composable
+fun SpotlightCrest(team: LiveTeam, key: String, size: Dp = 22.dp, modifier: Modifier = Modifier) {
+    val fill = team.colour?.let { hex -> runCatching { Color(("FF" + hex.removePrefix("#").take(6).padStart(6, '0')).toLong(16)) }.getOrNull() }
+        ?.let { vivid(it.toArgb()).fill }
+        ?: STAND_INS[Math.floorMod((team.name + key).hashCode(), STAND_INS.size)]
+    if (!team.logoUrl.isNullOrBlank()) {
+        Box(modifier.size(size), contentAlignment = Alignment.Center) {
+            AsyncImage(team.logoUrl, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(size))
+        }
+    } else {
+        Box(modifier.size(size).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
+            Text(initials(team).take(3), style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight(800), fontSize = (size.value * 0.36f).sp), color = Color.White, maxLines = 1)
+        }
+    }
+}
+
+/** The minute pill (board `.min`): "● 67'" in the live red while in play; "Half-time", "Full time" quiet. */
+@Composable
+fun SpotlightPill(text: String, inPlay: Boolean, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+    val red = spotlightRed(look)
+    Row(
+        modifier.clip(CircleShape).background(if (inPlay) red.copy(alpha = 0.14f) else look.ink.copy(alpha = 0.08f)).padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        if (inPlay) SpotlightLiveDot(look)
+        Text(text, style = fonts.label.copy(fontSize = 11.sp, letterSpacing = 0.3.sp), color = if (inPlay) red else look.ink, maxLines = 1)
+    }
+}
+
+/** A goal (a ball), a yellow card or a red card, drawn small. */
+@Composable
+private fun IncidentMark(goal: Boolean, red: Boolean, look: OrbitLook) {
+    if (goal) Box(Modifier.size(9.dp).clip(CircleShape).border(1.5.dp, look.ink.copy(alpha = 0.7f), CircleShape))
+    else Box(Modifier.size(width = 7.dp, height = 10.dp).clip(RoundedCornerShape(1.5.dp)).background(if (red) RED_CARD else YELLOW_CARD))
+}
+
+// ---- match cards ------------------------------------------------------------------------------------------------------------
 
 /**
- * The top event as a colour card (board `.card`): flat in its first team's colour running into the second's, the mono label ("● Live ·
- * 2nd T20I · Australia tour of India"), each side with its mark, name and score (the overs dim beside it), then the status line with
- * the free stream that carries it. Watch stands in the bite only when [onWatch] is given (a free official stream); otherwise there is
- * no bite and the card shows the score alone. A show is its title in the wide face.
+ * A match as a card (board `.match`). Football: the competition and the minute pill, each side's crest, full name and score, then
+ * the scorers with their minutes under their side and the cards; a goal that has just come in glows for a moment where it lands.
+ * Cricket: the format and day, each side's runs and wickets with the overs under them, the status line and the batters in. Tap opens
+ * its detail; Watch shows when a free stream carries it.
  */
 @Composable
-fun OrbitLiveCard(event: LiveEvent, fonts: OrbitFonts, look: OrbitLook, onWatch: (() -> Unit)?, modifier: Modifier = Modifier) {
-    val first = liveTeamFill(event.teams.getOrNull(0), event.id)
-    val second = if (event.teams.size > 1) liveTeamFill(event.teams[1], event.id + "b") else first
-    val fill = Brush.horizontalGradient(0f to first, 0.55f to first, 1f to second)
-    val ink = vivid(first.toArgb()).ink
-    val content: @Composable BoxScope.() -> Unit = {
-        Box(Modifier.matchParentSize().background(fill))
-        Column(Modifier.padding(start = 22.dp, top = 20.dp, end = if (onWatch != null) 92.dp else 22.dp, bottom = 22.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (event.isLive) { Box(Modifier.size(7.dp).clip(CircleShape).background(ON_AIR)); Spacer(Modifier.width(8.dp)) }
-                OrbitLabel(cardLabel(event), fonts, ink.copy(alpha = 0.78f))
+fun SpotlightMatchCard(event: LiveEvent, nowMs: Long, fonts: OrbitFonts, look: OrbitLook, onClick: (() -> Unit)?, onWatch: (() -> Unit)?, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    Column(
+        modifier.fillMaxWidth().cosmoFocusRing(interaction, 18.dp).spotlightCard(look)
+            .then(if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = onClick) else Modifier)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val pill = SpotlightClock.pill(event, nowMs) ?: if (event.status == LiveEventStatus.UPCOMING) com.cosmotune.ui.live.startText(event.startMs, nowMs) else null
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val head = if (event.kind == LiveEventKind.CRICKET) listOfNotNull(event.format, event.competition).joinToString(" · ") else event.competition.orEmpty()
+            Text(head, style = fonts.body.copy(fontSize = 11.5.sp, lineHeight = 14.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (pill != null) { Spacer(Modifier.width(8.dp)); SpotlightPill(pill, SpotlightClock.inPlay(event), fonts, look) }
+        }
+        if (event.kind == LiveEventKind.CRICKET) CricketSides(event, fonts, look) else FootballSides(event, fonts, look)
+        val watch = watchLine(event)
+        if (onWatch != null && watch != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                Text(watch, style = fonts.body.copy(fontSize = 12.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(12.dp))
+                WatchCardChip("Watch", look.ink, fonts, onWatch, icon = CosmoIcons.Play, iconGap = 6.dp)
             }
-            Spacer(Modifier.height(12.dp))
-            if (event.teams.isEmpty()) {
-                Text(event.title, style = fonts.section.copy(fontSize = 22.sp, lineHeight = 26.sp), color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    event.teams.take(2).forEachIndexed { i, team ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            LiveTeamMark(team, event.id + if (i == 0) "" else "b", 24.dp)
-                            Spacer(Modifier.width(10.dp))
-                            Text(team.name, style = fonts.title.copy(fontSize = 16.sp), color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                            val score = if (event.kind == LiveEventKind.CRICKET) cricketScore(team.score) else team.score?.let { it to null }
-                            if (score != null) {
-                                Spacer(Modifier.width(12.dp))
-                                Text(score.first, style = fonts.number.copy(fontSize = 30.sp, lineHeight = 30.sp), color = ink, maxLines = 1)
-                                score.second?.let { Text("  $it", style = fonts.body.copy(fontSize = 12.5.sp), color = ink.copy(alpha = 0.7f), maxLines = 1) }
-                            }
-                        }
+        }
+    }
+}
+
+@Composable
+private fun TeamLine(team: LiveTeam, key: String, fonts: OrbitFonts, look: OrbitLook, size: Float = 14f, trailing: @Composable RowScope.() -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        SpotlightCrest(team, key, (size + 8).dp)
+        Spacer(Modifier.width(8.dp))
+        Text(team.name, style = fonts.title.copy(fontSize = size.sp, lineHeight = (size + 4).sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
+        trailing()
+    }
+}
+
+@Composable
+private fun FootballSides(event: LiveEvent, fonts: OrbitFonts, look: OrbitLook, size: Float = 14f) {
+    event.teams.take(2).forEachIndexed { i, team ->
+        TeamLine(team, event.id + i, fonts, look, size) {
+            team.score?.let { Text(it, style = fonts.number.copy(fontSize = (size + 6).sp, lineHeight = (size + 8).sp), color = look.ink, maxLines = 1) }
+        }
+    }
+    ScorerGrid(event, fonts, look)
+}
+
+/** The scorers and cards under a football card in two columns, each side under its own; a line just in glows for four seconds. */
+@Composable
+private fun ScorerGrid(event: LiveEvent, fonts: OrbitFonts, look: OrbitLook) {
+    val lines = scorerLines(event)
+    if (lines.isEmpty()) return
+    val keys = lines.filter { it.goal }.map { "${it.side}|${it.text}" }.toSet()
+    var known by remember(event.id) { mutableStateOf<Set<String>?>(null) }
+    val fresh = known?.let { k -> keys - k }.orEmpty()
+    val glow = remember(event.id) { Animatable(0f) }
+    LaunchedEffect(keys) {
+        if (known != null && fresh.isNotEmpty()) { glow.snapTo(1f); glow.animateTo(0f, tween(4_000)) }
+        known = keys
+    }
+    val style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (side in 0..1) {
+            Column(Modifier.weight(1f), horizontalAlignment = if (side == 0) Alignment.Start else Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                lines.filter { it.side == side }.forEach { l: ScorerLine ->
+                    val lit = "${l.side}|${l.text}" in fresh
+                    Row(
+                        Modifier.clip(RoundedCornerShape(6.dp)).background(look.accent.copy(alpha = if (lit) 0.28f * glow.value else 0f)).padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        if (side == 0) IncidentMark(l.goal, l.red, look)
+                        Text(l.text, style = style, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = if (side == 0) TextAlign.Start else TextAlign.End)
+                        if (side == 1) IncidentMark(l.goal, l.red, look)
                     }
                 }
             }
-            val status = listOfNotNull(event.statusText, watchLine(event)).joinToString(" · ")
-            if (status.isNotBlank()) {
-                Spacer(Modifier.height(10.dp))
-                Text(status, style = fonts.body.copy(fontSize = 13.sp), color = ink.copy(alpha = 0.86f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun CricketSides(event: LiveEvent, fonts: OrbitFonts, look: OrbitLook) {
+    event.teams.take(2).forEachIndexed { i, team ->
+        TeamLine(team, event.id + i, fonts, look) {
+            val innings = team.score?.split(" & ").orEmpty()
+            val now = cricketScore(innings.lastOrNull())
+            if (now != null) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(now.first, style = fonts.title.copy(fontSize = 14.sp), color = if (team.batting || !event.isLive) look.ink else look.ink.copy(alpha = 0.8f), maxLines = 1)
+                    val small = listOfNotNull(now.second, innings.dropLast(1).lastOrNull()?.let { "1st inns $it" }).joinToString(" · ")
+                    if (small.isNotEmpty()) Text(small, style = fonts.body.copy(fontSize = 11.5.sp, lineHeight = 14.sp), color = look.dim, maxLines = 1)
+                }
             }
         }
     }
-    if (onWatch != null) {
-        OrbitBiteCard(Color.Transparent, modifier.fillMaxWidth(), shape = LiveBite, biteInset = 11.dp, onClick = onWatch,
-            bite = { OrbitPlayButton(playing = false, onClick = onWatch, look = look, size = 58.dp, modifier = Modifier.semantics { contentDescription = "Watch ${event.title}" }) },
-        ) { content() }
-    } else {
-        Box(modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))) { content() }
-    }
+    val status = listOfNotNull(event.statusText, event.batting).joinToString(" · ")
+    if (status.isNotBlank()) Text(status, style = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = FontWeight(600)), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
 }
 
-/** The tile at the start of an event's row: "LIVE" in red for a show, the competition's letters ("IPL", "PL") in the first team's colour. */
+// ---- rows -------------------------------------------------------------------------------------------------------------------
+
+/** A story (board `.news`): its picture, the headline, and "5 OUTLETS · BBC · Guardian · Al Jazeera · 40 min". Opens the article. */
 @Composable
-private fun LiveEventTile(event: LiveEvent, fonts: OrbitFonts) {
-    val mark = when (event.kind) {
-        LiveEventKind.SHOW -> "LIVE"
-        else -> event.competition?.let { c ->
-            c.split(' ').firstOrNull { w -> w.length in 2..4 && w.all { it.isUpperCase() || it.isDigit() } && w.any { it.isLetter() } }
-                ?: c.split(' ').filter { it.isNotEmpty() && it.first().isUpperCase() }.joinToString("") { it.take(1) }.take(3)
-        }?.takeIf { it.isNotBlank() } ?: event.teams.firstOrNull()?.short() ?: "LIVE"
+fun SpotlightNewsRow(event: LiveEvent, nowMs: Long, fonts: OrbitFonts, look: OrbitLook, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        modifier.fillMaxWidth().cosmoFocusRing(interaction, 12.dp).clip(RoundedCornerShape(12.dp))
+            .then(if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = onClick) else Modifier)
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(Modifier.size(width = 64.dp, height = 48.dp).clip(RoundedCornerShape(10.dp)).background(look.ink.copy(alpha = 0.10f))) {
+            if (!event.imageUrl.isNullOrBlank()) AsyncImage(event.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(event.title, style = fonts.title.copy(fontSize = 13.5.sp, lineHeight = 17.sp), color = look.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                outletsTag(event)?.let { tag ->
+                    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(look.accent.copy(alpha = 0.16f)).padding(horizontal = 6.dp, vertical = 1.dp)) {
+                        Text(tag, style = fonts.label.copy(fontSize = 10.sp, letterSpacing = 0.8.sp), color = look.accent, maxLines = 1)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(outletsLine(event, nowMs), style = fonts.body.copy(fontSize = 11.5.sp, lineHeight = 14.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
-    val fill = if (event.kind == LiveEventKind.SHOW) Color(0xFFC0302A) else liveTeamFill(event.teams.firstOrNull(), event.id)
-    WatchLogoTile(mark, fill, fonts, logoUrl = event.imageUrl.takeIf { event.kind == LiveEventKind.SHOW })
 }
 
 /**
- * An event as an Orbit row (board `.r`): its tile, the title ("Arsenal 2 – 1 Chelsea"), the line ("● LIVE · 67' · Premier League ·
- * score only", "Full time · La Liga"), and Watch at the end when a free stream carries it.
+ * A coming match or event: the match with its two crests, or the event's day tile; its line ("Champions League · Emirates Stadium ·
+ * Today 20:00 · in 2 h", "Spain · Sun 29 Nov · in 6 days"); Remind for a match (solid once set), an event opens its page.
  */
 @Composable
-fun OrbitLiveRow(event: LiveEvent, fonts: OrbitFonts, look: OrbitLook, onWatch: (() -> Unit)?, modifier: Modifier = Modifier) {
-    WatchRowFrame(look, modifier, height = 64.dp, onClick = onWatch) {
-        LiveEventTile(event, fonts)
-        Column(Modifier.weight(1f)) {
-            Text(rowTitle(event), style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val rest = if (event.status == LiveEventStatus.FEATURED) "${event.kind.label()} · ${event.source}" else listOfNotNull(
-                event.statusText.takeIf { event.kind != LiveEventKind.SHOW },
-                event.competition ?: watchNames(event).ifBlank { null },
-                "score only".takeIf { onWatch == null && event.link == null && event.kind != LiveEventKind.SHOW },
-            ).joinToString(" · ")
-            if (event.status == LiveEventStatus.LIVE) WatchLiveLine(rest.ifBlank { null }, fonts, look)
-            else Text(rest, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+fun SpotlightComingRow(event: LiveEvent, nowMs: Long, reminded: Boolean, onRemind: (() -> Unit)?, onClick: (() -> Unit)?, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+    WatchRowFrame(look, modifier, height = 60.dp, onClick = onClick) {
+        val a = event.teams.getOrNull(0); val b = event.teams.getOrNull(1)
+        Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(look.chip), contentAlignment = Alignment.Center) {
+            if (a != null && b != null) {
+                SpotlightCrest(a, event.id, 20.dp, Modifier.align(Alignment.TopStart).padding(start = 5.dp, top = 5.dp))
+                SpotlightCrest(b, event.id + "b", 20.dp, Modifier.align(Alignment.BottomEnd).padding(end = 5.dp, bottom = 5.dp))
+            } else {
+                val day = event.startMs?.let { com.cosmotune.ui.live.dayText(it).split(' ') }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(day?.getOrNull(1) ?: "?", style = fonts.number.copy(fontSize = 18.sp, lineHeight = 18.sp), color = look.ink)
+                    Text((day?.getOrNull(2) ?: "").uppercase(), style = fonts.label.copy(fontSize = 9.sp), color = look.dim)
+                }
+            }
         }
-        if (onWatch != null) {
-            val opensArticle = event.kind == LiveEventKind.NEWS
-            WatchCardChip(if (opensArticle) "Read" else "Watch", look.ink, fonts, onWatch, icon = CosmoIcons.Play.takeUnless { opensArticle }, iconGap = 6.dp)
-        }
-    }
-}
-
-/** A "Coming up" row: the tile, "CSK v MI", "Tomorrow 19:30 · IPL 2027", and Remind (solid once set, "Reminder on"). */
-@Composable
-fun OrbitLiveComingRow(event: LiveEvent, nowMs: Long, reminded: Boolean, onRemind: (() -> Unit)?, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
-    WatchRowFrame(look, modifier, height = 64.dp) {
-        LiveEventTile(event, fonts)
         Column(Modifier.weight(1f)) {
-            val a = event.teams.getOrNull(0); val b = event.teams.getOrNull(1)
-            Text(if (a != null && b != null) "${a.short()} v ${b.short()}" else event.title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(listOfNotNull(startText(event.startMs, nowMs), event.competition).joinToString(" · "), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp),
-                color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (a != null && b != null) "${a.name} v ${b.name}" else event.title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(comingLine(event, nowMs), style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (onRemind != null) {
             WatchCardChip(if (reminded) "Reminder on" else "Remind", look.ink, fonts, onRemind, icon = if (reminded) CosmoIcons.BellFill else CosmoIcons.Bell,
                 solid = reminded, onSolid = look.ground, iconGap = 6.dp)
         }
+    }
+}
+
+/** A live show (a DD or official YouTube special) as a row: LIVE in red, its title, its channel; Watch when it can be played. */
+@Composable
+fun SpotlightShowRow(event: LiveEvent, fonts: OrbitFonts, look: OrbitLook, onWatch: (() -> Unit)?, modifier: Modifier = Modifier) {
+    WatchRowFrame(look, modifier, height = 60.dp, onClick = onWatch) {
+        WatchLogoTile("LIVE", Color(0xFFC0302A), fonts, logoUrl = event.imageUrl)
+        Column(Modifier.weight(1f)) {
+            Text(event.title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            WatchLiveLine(com.cosmotune.ui.live.watchNames(event).ifBlank { null }, fonts, look)
+        }
+        if (onWatch != null) WatchCardChip("Watch", look.ink, fonts, onWatch, icon = CosmoIcons.Play, iconGap = 6.dp)
+    }
+}
+
+// ---- a match's detail -------------------------------------------------------------------------------------------------------
+
+/** The head of a match's detail (board, third sheet): competition and venue with the pill, then each side bigger. */
+@Composable
+fun SpotlightDetailHead(event: LiveEvent, nowMs: Long, fonts: OrbitFonts, look: OrbitLook) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(listOfNotNull(if (event.kind == LiveEventKind.CRICKET) event.format else null, event.competition, event.venue).joinToString(" · "),
+                style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = look.dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            (SpotlightClock.pill(event, nowMs) ?: com.cosmotune.ui.live.startText(event.startMs, nowMs).takeIf { event.status == LiveEventStatus.UPCOMING })?.let {
+                Spacer(Modifier.width(8.dp)); SpotlightPill(it, SpotlightClock.inPlay(event), fonts, look)
+            }
+        }
+        if (event.kind == LiveEventKind.CRICKET) CricketSides(event, fonts, look) else FootballSides(event, fonts, look, size = 16f)
+    }
+}
+
+/** The timeline (board `.timeline`): minute, then the goal with its assist, the card, the change; HALF-TIME and FULL TIME as dividers. */
+@Composable
+fun SpotlightTimeline(entries: List<TimelineEntry>, teams: List<LiveTeam>, fonts: OrbitFonts, look: OrbitLook) {
+    val style = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 16.sp)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        entries.forEach { e ->
+            if (e.kind == TimelineKind.HALF_TIME || e.kind == TimelineKind.FULL_TIME) {
+                Box(Modifier.fillMaxWidth().padding(top = 2.dp).height(1.dp).background(look.ink.copy(alpha = 0.12f)))
+                Text("${if (e.kind == TimelineKind.HALF_TIME) "HALF-TIME" else "FULL TIME"} ${e.text.orEmpty()}".trim(), style = fonts.label.copy(fontSize = 10.5.sp),
+                    color = look.dim, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                return@forEach
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(e.minute, style = fonts.label.copy(fontSize = 11.sp, letterSpacing = 0.3.sp), color = look.dim, modifier = Modifier.width(44.dp), textAlign = TextAlign.End, maxLines = 1)
+                Spacer(Modifier.width(10.dp))
+                when (e.kind) {
+                    TimelineKind.YELLOW, TimelineKind.RED -> IncidentMark(goal = false, red = e.kind == TimelineKind.RED, look = look)
+                    TimelineKind.SUB -> Text("⇄", style = style, color = look.dim)
+                    else -> IncidentMark(goal = true, red = false, look = look)
+                }
+                Spacer(Modifier.width(8.dp))
+                val side = e.side?.let { teams.getOrNull(it)?.name }
+                val words = when (e.kind) {
+                    TimelineKind.GOAL -> listOfNotNull(e.player?.let(::surname), e.other?.let { "assist ${surname(it)}" }, side).joinToString(" · ")
+                    TimelineKind.PENALTY_GOAL -> listOfNotNull(e.player?.let { "${surname(it)} (penalty)" }, side).joinToString(" · ")
+                    TimelineKind.OWN_GOAL -> listOfNotNull(e.player?.let { "${surname(it)} (own goal)" }, side).joinToString(" · ")
+                    TimelineKind.MISSED_PENALTY -> listOfNotNull(e.player?.let { "${surname(it)} misses a penalty" }, side).joinToString(" · ")
+                    TimelineKind.SUB -> listOfNotNull(e.player?.let { "${surname(it)} on" }, e.other?.let { "${surname(it)} off" }, side).joinToString(" · ")
+                    else -> listOfNotNull(e.player?.let(::surname), side).joinToString(" · ")
+                }
+                Text(words, style = style.copy(fontWeight = if (e.kind == TimelineKind.GOAL || e.kind == TimelineKind.PENALTY_GOAL || e.kind == TimelineKind.OWN_GOAL) FontWeight(700) else FontWeight(500)),
+                    color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** The stats as paired bars (board `.stat`): the label over, each side's figure at its end, the home side's share of the bar in ink. */
+@Composable
+fun SpotlightStatBars(stats: List<StatPair>, fonts: OrbitFonts, look: OrbitLook) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        stats.forEach { s ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(s.label, style = fonts.body.copy(fontSize = 11.sp, lineHeight = 13.sp), color = look.dim, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.home, style = fonts.body.copy(fontSize = 12.sp), color = look.ink, modifier = Modifier.width(40.dp), maxLines = 1)
+                    Row(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(look.ink.copy(alpha = 0.12f))) {
+                        val share = s.homeShare.coerceIn(0f, 1f)
+                        if (share > 0f) Box(Modifier.weight(share).fillMaxHeight().background(look.ink))
+                        if (share < 1f) Spacer(Modifier.weight(1f - share))
+                    }
+                    Text(s.away, style = fonts.body.copy(fontSize = 12.sp), color = look.ink, modifier = Modifier.width(40.dp), textAlign = TextAlign.End, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+/** The line-ups: each side's formation, its starters with their numbers, and those who came on. */
+@Composable
+fun SpotlightLineups(lineups: List<Lineup>, fonts: OrbitFonts, look: OrbitLook) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        lineups.forEach { l ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OrbitLabel(listOfNotNull(l.team, l.formation).joinToString(" · "), fonts, look.dim)
+                Spacer(Modifier.height(4.dp))
+                l.starters.forEach { PlayerLine(it, fonts, look) }
+                val on = l.bench.filter { it.subbedIn }
+                if (on.isNotEmpty()) {
+                    Text("Came on", style = fonts.body.copy(fontSize = 11.5.sp), color = look.dim, modifier = Modifier.padding(top = 6.dp))
+                    on.forEach { PlayerLine(it, fonts, look) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerLine(p: LineupPlayer, fonts: OrbitFonts, look: OrbitLook) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(p.number.orEmpty(), style = fonts.label.copy(fontSize = 11.sp), color = look.dim, modifier = Modifier.width(28.dp), maxLines = 1)
+        Text(p.name, style = fonts.body.copy(fontSize = 13.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        val mark = listOfNotNull(p.position, "off".takeIf { p.subbedOut }).joinToString(" · ")
+        Text(mark, style = fonts.body.copy(fontSize = 11.5.sp), color = look.dim, maxLines = 1)
+    }
+}
+
+/** A cricket scorecard: each innings (latest first) with its batting, bowling and partnerships, then the last balls and the notes. */
+@Composable
+fun SpotlightScorecard(detail: CricketDetail, fonts: OrbitFonts, look: OrbitLook) {
+    val small = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp)
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (detail.recentBalls.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OrbitLabel("Last balls", fonts, look.dim)
+                Spacer(Modifier.height(4.dp))
+                detail.recentBalls.take(8).forEach { Text(it, style = small, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
+        }
+        detail.innings.sortedByDescending { it.number }.forEach { inn ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OrbitLabel(listOfNotNull("Innings ${inn.number}", inn.team.ifBlank { null }, inn.total).joinToString(" · "), fonts, look.dim)
+                if (inn.batting.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    TableRow(listOf("Batting", "R", "B", "4s", "6s"), fonts, look, head = true)
+                    inn.batting.forEach { b ->
+                        TableRow(listOf(b.name + if (b.notOut) "*" else "", b.runs, b.balls, b.fours, b.sixes), fonts, look, sub = b.dismissal.takeUnless { b.notOut || it.isBlank() })
+                    }
+                    inn.extras?.let { Text("Extras $it", style = small, color = look.dim) }
+                }
+                if (inn.bowling.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    TableRow(listOf("Bowling", "O", "M", "R", "W"), fonts, look, head = true)
+                    inn.bowling.forEach { b -> TableRow(listOf(b.name, b.overs, b.maidens, b.runs, b.wickets), fonts, look) }
+                }
+                if (inn.partnerships.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Partnerships", style = small.copy(fontWeight = FontWeight(700)), color = look.ink)
+                    inn.partnerships.forEach { p ->
+                        Text("${p.wicket} · ${p.runs} (${p.overs} ov) · ${p.first}, ${p.second}", style = small, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+        if (detail.notes.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OrbitLabel("Notes", fonts, look.dim)
+                Spacer(Modifier.height(4.dp))
+                detail.notes.takeLast(5).forEach { Text(it, style = small, color = look.dim) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TableRow(cells: List<String>, fonts: OrbitFonts, look: OrbitLook, head: Boolean = false, sub: String? = null) {
+    val style = if (head) fonts.label.copy(fontSize = 10.sp) else fonts.body.copy(fontSize = 12.5.sp, lineHeight = 16.sp)
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(cells.first(), style = style, color = if (head) look.dim else look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            cells.drop(1).forEach { c -> Text(c, style = style, color = if (head) look.dim else look.ink, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.width(34.dp)) }
+        }
+        if (sub != null) Text(sub, style = fonts.body.copy(fontSize = 11.sp, lineHeight = 13.sp), color = look.dim, maxLines = 1)
+    }
+}
+
+/** "Updated 12 s ago" and, when a live match's data is old, "Scores may be behind". */
+@Composable
+fun SpotlightFreshness(updated: String?, behind: Boolean, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        if (updated != null) Text(updated, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = look.dim, maxLines = 1)
+        if (behind) Text("Scores may be behind", style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = look.dim, maxLines = 1)
     }
 }

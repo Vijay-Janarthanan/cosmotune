@@ -1663,9 +1663,9 @@ fun SettingsScreen(
                 ModeLinkRow(AppMode.VIDEO, Icons.Rounded.SmartDisplay, openVideoTitle, openVideoSummary)
             }
         }
-        // ---- Live now: the Live pill of every mode, the sports and the teams it follows (kept on this phone) ----
-        SearchableSettingsGroup(search, category = SettingsCategory.VIDEO, header = "Live now") {
-            row("Live pill", "live", "scores", "cricket", "football", "sports", "teams", summary = "The match or live show you follow, in every mode") {
+        // ---- Spotlight: the strip of every mode, the sports it shows and the teams and competitions followed (kept on this phone) ----
+        SearchableSettingsGroup(search, category = SettingsCategory.VIDEO, header = "Spotlight") {
+            row("Spotlight", "news", "live", "scores", "cricket", "football", "sports", "teams", "follow", summary = "Live scores and the world's main stories, in every mode") {
                 com.cosmotune.ui.live.LiveNowSettingsSection()
             }
         }
