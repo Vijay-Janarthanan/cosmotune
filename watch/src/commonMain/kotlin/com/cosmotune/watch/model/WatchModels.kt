@@ -346,3 +346,26 @@ sealed interface PlayTarget {
     @Serializable
     data class Item(override val key: WatchKey, val pluginId: String, val itemId: String, val name: String) : PlayTarget
 }
+
+/** The genre a guide colours a programme by, read from its XMLTV categories (DVB's content groups and common words). */
+enum class EpgGenre(val label: String, private val words: List<String>) {
+    FILM("Film", listOf("movie", "film", "cinema", "drama", "thriller", "comedy", "romance", "action", "horror")),
+    NEWS("News", listOf("news", "current affairs", "weather", "politic")),
+    SPORT("Sport", listOf("sport", "football", "soccer", "cricket", "tennis", "racing", "motor", "golf", "basketball", "rugby", "boxing", "wrestling", "kabaddi")),
+    KIDS("Kids", listOf("children", "kids", "youth", "cartoon", "animation", "anime")),
+    MUSIC("Music", listOf("music", "ballet", "dance", "concert")),
+    FACTUAL("Factual", listOf("documentary", "education", "science", "factual", "nature", "history", "travel", "cooking", "lifestyle")),
+    SHOW("Show", listOf("show", "entertainment", "game", "reality", "talk", "variety", "serial", "soap", "series", "devotional"));
+
+    companion object {
+        /** The genre of the first category that names one, or null. */
+        fun of(categories: List<String>): EpgGenre? {
+            for (category in categories) {
+                val text = category.lowercase()
+                // Sport before film: "Football drama" is still a match.
+                listOf(SPORT, NEWS, KIDS, MUSIC, FACTUAL, FILM, SHOW).firstOrNull { g -> g.words.any { it in text } }?.let { return it }
+            }
+            return null
+        }
+    }
+}
