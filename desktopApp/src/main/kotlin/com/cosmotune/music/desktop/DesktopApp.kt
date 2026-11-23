@@ -6419,6 +6419,7 @@ private fun DesktopSettingsScreen(
                         val backupScope = rememberCoroutineScope()
                         Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.AUTO_BACKUP_TITLE)) {
                             com.cosmotune.ui.settings.AutoBackupRows(
+                                webDavHost = remember { DesktopNetworkShares.webDav() }.takeIf { it.configured }?.let { com.cosmotune.music.data.webdav.WebDavConfig.hostOf(it.url) },
                                 folderLabel = folder.takeIf { it.isNotBlank() },
                                 last = lastMade.takeIf { it > 0 }?.let { java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it)) },
                                 onChooseFolder = {
@@ -6431,6 +6432,25 @@ private fun DesktopSettingsScreen(
                                         }
                                     }
                                 },
+                            )
+                        }
+                    }
+                    // Likes YouTube lost, found against the likes kept on this computer and liked again on request.
+                    if (settingsRowVisible(com.cosmotune.ui.settings.RESTORE_LIKES_TITLE, com.cosmotune.ui.settings.RESTORE_LIKES_LINE)) {
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.RESTORE_LIKES_TITLE)) {
+                            com.cosmotune.ui.settings.RestoreLikesRows(
+                                signedIn = DesktopYouTubeAuth.isSignedIn,
+                                kept = { DesktopCloud.keptLikes() },
+                                loadLiked = {
+                                    runCatching {
+                                        val first = DesktopSearchClient.browse(com.cosmotune.music.data.YtMusicRepository.LIKED_MUSIC).getOrThrow()
+                                        val all = com.cosmotune.music.data.model.MusicCollectionPages.loadAll(first.songs, first.continuation, first.seenContinuationTokens,
+                                            fetch = { DesktopSearchClient.moreCollectionSongs(it) })
+                                        check(all.error == null) { all.error.orEmpty() }
+                                        all.songs.mapTo(HashSet()) { it.videoId }
+                                    }
+                                },
+                                like = { DesktopSearchClient.rate(it.videoId, LikeStatus.LIKE).isSuccess },
                             )
                         }
                     }

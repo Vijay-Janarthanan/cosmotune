@@ -57,7 +57,18 @@ object AutoBackupScheduler {
         if (Backup.exportTo(context, target).isFailure) return false
         val after = children(context, treeUri)
         AutoBackup.toRemove(after.keys.toList()).forEach { old -> after[old]?.let { runCatching { DocumentsContract.deleteDocument(resolver, it) } } }
+        copyToWebDav(context, target, name)
         return true
+    }
+
+    /** The same file on the listener's WebDAV server too, when they asked for that; a failure there leaves the folder's copy standing. */
+    private suspend fun copyToWebDav(context: Context, written: Uri, name: String) {
+        if (runCatching { com.cosmotune.settings.Extras.settings.backupToWebDav.value }.getOrDefault(false) != true) return
+        val settings = com.cosmotune.music.data.settings.AppSettings
+        val url = settings.webdavUrl.value
+        if (!com.cosmotune.music.data.webdav.WebDavConfig.isConfigured(url)) return
+        val bytes = runCatching { context.contentResolver.openInputStream(written)?.use { it.readBytes() } }.getOrNull() ?: return
+        com.cosmotune.music.data.webdav.WebDavBackup.upload(url, settings.webdavUsername.value, settings.webdavPassword.value, name, bytes)
     }
 
     private fun children(context: Context, tree: Uri): Map<String, Uri> {

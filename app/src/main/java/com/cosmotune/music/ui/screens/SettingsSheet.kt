@@ -1893,6 +1893,17 @@ fun SettingsScreen(
                     folderLabel = folder.takeIf { it.isNotBlank() }?.let { com.cosmotune.music.data.stats.AutoBackupScheduler.folderLabel(it) },
                     last = last,
                     onChooseFolder = { treePicker.launch(null) },
+                    webDavHost = com.cosmotune.music.data.settings.AppSettings.webdavUrl.collectAsStateWithLifecycle().value
+                        .takeIf(com.cosmotune.music.data.webdav.WebDavConfig::isConfigured)?.let(com.cosmotune.music.data.webdav.WebDavConfig::hostOf),
+                )
+            }
+            // Likes YouTube lost, found against the likes Cosmotune keeps and liked again on request.
+            row(com.cosmotune.ui.settings.RESTORE_LIKES_TITLE, "likes", "liked music", "missing", summary = com.cosmotune.ui.settings.RESTORE_LIKES_LINE) {
+                com.cosmotune.ui.settings.RestoreLikesRows(
+                    signedIn = signedIn,
+                    kept = { com.cosmotune.music.data.cloud.AndroidCloud.keptLikes() },
+                    loadLiked = { com.cosmotune.music.data.cloud.AndroidCloud.youTubeLikedIds() },
+                    like = { com.cosmotune.music.data.cloud.AndroidCloud.likeAgain(it) },
                 )
             }
             val importDataTitle = stringResource(R.string.import_data)

@@ -42,6 +42,12 @@ internal object DesktopAutoBackup {
             if (target.exists()) target.delete()
             check(partial.renameTo(target))
             AutoBackup.toRemove(folder.list()?.toList().orEmpty()).forEach { File(folder, it).delete() }
+            // The same file on the listener's WebDAV server too, when they asked for that; a failure there leaves this copy standing.
+            val share = DesktopNetworkShares.webDav()
+            if (com.cosmotune.settings.Extras.settings.backupToWebDav.value && share.configured) {
+                com.cosmotune.music.data.webdav.WebDavBackup.upload(share.url, share.username, share.password, target.name, text.toByteArray(Charsets.UTF_8))
+                    .onFailure { DesktopTrackLog.log("backup: the WebDAV copy failed: ${it.message}") }
+            }
             true
         }.getOrDefault(false)
     }

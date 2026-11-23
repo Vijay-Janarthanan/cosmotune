@@ -27,7 +27,7 @@ const val AUTO_BACKUP_LINE = "A backup every day or week in a folder you choose;
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AutoBackupRows(folderLabel: String?, last: String?, onChooseFolder: () -> Unit) {
+fun AutoBackupRows(folderLabel: String?, last: String?, onChooseFolder: () -> Unit, webDavHost: String? = null) {
     val look = rememberCosmoLookSettings()
     val fonts = orbitFonts()
     val ink = orbitLook()
@@ -49,6 +49,17 @@ fun AutoBackupRows(folderLabel: String?, last: String?, onChooseFolder: () -> Un
                 style = fonts.body, color = ink.dim, modifier = Modifier.padding(top = 4.dp),
             )
             OrbitActionPill(if (folderLabel == null) "Choose a folder" else "Change folder", onChooseFolder, fonts, ink, Modifier.padding(top = 4.dp))
+        }
+        // A copy on the listener's own WebDAV server too, once one is set up (Settings, WebDAV).
+        if (webDavHost != null && days > 0) {
+            val toWebDav by com.cosmotune.settings.Extras.settings.backupToWebDav.collectAsState()
+            com.cosmotune.ui.orbit.OrbitSwitchRow(
+                title = "Also keep a copy on your WebDAV server",
+                checked = toWebDav,
+                onChange = com.cosmotune.settings.Extras.settings::setBackupToWebDav,
+                detail = "In ${com.cosmotune.music.data.webdav.WebDavBackup.FOLDER} on $webDavHost; the newest ${AutoBackup.KEEP} are kept there too",
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

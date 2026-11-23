@@ -122,6 +122,9 @@ internal object DesktopCloud {
     @Volatile private var lastSeenLikes: Map<String, JsonObject>? = null
     @Volatile private var lastSeenArtists: Map<String, JsonObject>? = null
 
+    /** Every like kept on this computer (the liked ids, with what each looked like where known), for Restore lost likes. */
+    fun keptLikes(): Map<String, JsonObject> = SyncLikes.snapshot(persistence.likedIds(), likeDetails.likes.value)
+
     private fun likeSnapshot(likedIds: Collection<String>) = SyncLikes.snapshot(likedIds, likeDetails.likes.value)
 
     private fun artistSnapshot(): Map<String, JsonObject> =

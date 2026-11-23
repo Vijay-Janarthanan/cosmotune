@@ -218,6 +218,25 @@ object AndroidCloud {
         if (!value) autoSync.stopped()
     }
 
+    /** Every like kept here, for Restore lost likes. */
+    fun keptLikes(): Map<String, JsonObject> = if (this::app.isInitialized) likes.likes.value else emptyMap()
+
+    /** The ids on the account's whole Liked music list, every page of it. */
+    suspend fun youTubeLikedIds(): Result<Set<String>> = runCatching {
+        val first = com.cosmotune.music.data.YtMusicRepository.browseSongs(com.cosmotune.music.data.YtMusicRepository.LIKED_MUSIC).getOrThrow()
+        val all = com.cosmotune.music.data.model.MusicCollectionPages.loadAll(first.songs, first.continuation, emptySet(),
+            fetch = { token -> com.cosmotune.music.data.YtMusicRepository.moreSongs(token).map { it.songs to it.continuation } })
+        check(all.error == null) { all.error.orEmpty() }
+        all.songs.mapTo(HashSet()) { it.videoId }
+    }
+
+    /** Likes a lost song again on YouTube, and paints its heart. */
+    suspend fun likeAgain(song: com.cosmotune.cloud.LostLikes.Lost): Boolean {
+        val ok = com.cosmotune.music.data.YtMusicRepository.rate(song.videoId, LikeStatus.LIKE).isSuccess
+        if (ok) com.cosmotune.music.data.LikeState.set(song.videoId, LikeStatus.LIKE)
+        return ok
+    }
+
     /**
      * A rating YouTube accepted, from [com.cosmotune.music.ui.MainViewModel.setLike]. A like is kept for the sync; any other rating
      * takes the song out of the likes (a dislike itself does not travel). Source ratings and local files are not synced.

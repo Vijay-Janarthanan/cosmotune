@@ -272,6 +272,12 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putString(KEY_VIDEO_TIMINGS, com.cosmotune.listening.VideoTimings.encode(next))
     }
 
+    private val backupToWebDavFlow = MutableStateFlow(store.getBoolean(KEY_BACKUP_TO_WEBDAV, false))
+
+    /** Automatic backups also go to the listener's WebDAV server; see [com.cosmotune.music.data.webdav.WebDavBackup]. */
+    val backupToWebDav: StateFlow<Boolean> = backupToWebDavFlow.asStateFlow()
+    fun setBackupToWebDav(value: Boolean) { backupToWebDavFlow.value = value; store.putBoolean(KEY_BACKUP_TO_WEBDAV, value) }
+
     private val notificationSleepFlow = MutableStateFlow(store.getBoolean(KEY_NOTIFICATION_SLEEP, false))
 
     /** The phone notification's second button is the sleep timer instead of Repeat. Off until turned on. */
@@ -312,6 +318,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_LIST_ORDERS = "extras_list_orders"
         const val KEY_VIDEO_TIMINGS = "extras_video_timings"
         const val KEY_DOWNLOAD_HISTORY = "extras_download_history"
+        const val KEY_BACKUP_TO_WEBDAV = "extras_backup_to_webdav"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"
