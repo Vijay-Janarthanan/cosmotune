@@ -8147,6 +8147,8 @@ class PlaybackService : MediaLibraryService() {
         val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return
         val lines = serviceLyrics
         val pos = exoPlayer.currentPosition
+        // The lyrics widget follows the same line (it draws nothing unless one is placed).
+        com.cosmotune.music.widget.LyricWidget.show(this, com.cosmotune.music.data.lyrics.LyricWidgetState.at(currentSong.title, currentSong.artist, lines, pos))
         val subtitleText = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
             val idx = lines.indexOfLast { it.timeMs <= pos }
             val currentLine = lines.getOrNull(idx)
