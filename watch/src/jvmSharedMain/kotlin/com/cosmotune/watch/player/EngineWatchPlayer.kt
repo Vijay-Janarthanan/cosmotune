@@ -103,6 +103,7 @@ class EngineWatchPlayer(
         job?.cancel(); ticker?.cancel(); releasePlayback()
         engine.unload()
         tried.clear(); external = emptyList(); added.clear(); countdownCancelled = false; autoNextDone = false
+        preloadJob?.cancel(); preloadJob = null
         val muted = state.value.muted
         mutable.value = WatchPlayerState(WatchPlayerStatus.RESOLVING, target, summary, subtitleLine(target), isLive = target is PlayTarget.Live, muted = muted)
         job = scope.launch {
@@ -255,12 +256,11 @@ class EngineWatchPlayer(
             thumbnailUrl = current.summary?.posterUrl ?: (target as? PlayTarget.Live)?.channel?.logoUrl,
         ))
         engine.setMuted(state.value.muted)
-        engine.play()
         engine.setAudioMix(soundMix)
         engine.setSoftwareDecoding(softwareDecoding)
+        engine.play()
     }
 
-    private fun startTicker() {
     @Volatile private var soundMix = com.cosmotune.video.player.AudioMix.NORMAL
 
     @Volatile private var softwareDecoding = false
@@ -279,6 +279,7 @@ class EngineWatchPlayer(
         engine.setAudioMix(mix)
     }
 
+    private fun startTicker() {
         ticker?.cancel()
         ticker = scope.launch {
             while (isActive) {
@@ -324,6 +325,7 @@ class EngineWatchPlayer(
         }
         val remaining = duration - position
         val next = s.nextEpisode
+        if (next != null && !s.isLive && duration > 0 && remaining in 0..PRELOAD_MS && preloadJob == null) preload(s, next)
         val countdown = if (next != null && !countdownCancelled && !s.isLive && duration > 0 && remaining in 0..countdownMs) remaining else null
         val note = if (s.isLive) null else com.cosmotune.watch.WatchRoom.lengthNote(roomDurationMs, snap.durationMs.takeIf { it > 0 })
         mutable.update { it.copy(status = status, durationMs = duration, nextEpisodeInMs = countdown, lengthNote = note,
@@ -402,10 +404,33 @@ class EngineWatchPlayer(
         val next = s.nextEpisode ?: return
         val current = s.target as? PlayTarget.EpisodeOf ?: return
         saveNow(ended = true)
-        val target = current.copy(key = next.key, season = next.season, episode = next.number, episodeIds = next.ids, episodeName = next.name)
+        val target = nextTarget(current, next)
         // The same release family plays the next episode (Stremio's binge group, the same plugin).
-        val hint = s.stream?.let { StreamHint(pluginId = it.source.pluginId, bingeGroup = it.bingeGroup) }
-        open(target, s.summary, startMs = 0, hint = hint)
+        val hint = hintAfter(s)
+        // The copy found while this one was ending starts at once; the full list still fills in behind it.
+        val ready = preloaded?.takeIf { it.first == target.key }?.second
+        preloaded = null
+        open(target, s.summary, stream = ready, startMs = 0, hint = hint)
+    }
+
+    private fun nextTarget(current: PlayTarget.EpisodeOf, next: com.cosmotune.watch.model.Episode) =
+        current.copy(key = next.key, season = next.season, episode = next.number, episodeIds = next.ids, episodeName = next.name)
+
+    private fun hintAfter(s: WatchPlayerState) = s.stream?.let { StreamHint(pluginId = it.source.pluginId, bingeGroup = it.bingeGroup) }
+
+    /** The next episode's best copy, looked up in the last [PRELOAD_MS] so it starts without the wait for sources. */
+    @Volatile private var preloaded: Pair<com.cosmotune.watch.model.WatchKey, Stream>? = null
+    private var preloadJob: Job? = null
+
+    private fun preload(s: WatchPlayerState, next: com.cosmotune.watch.model.Episode) {
+        val current = s.target as? PlayTarget.EpisodeOf ?: return
+        val target = nextTarget(current, next)
+        val hint = hintAfter(s)
+        preloadJob = scope.launch {
+            val best = runCatching { repository.sourcesNow(target, hint).best }.getOrNull()
+            // Torrents are left to start when chosen: looking one up starts its engine.
+            if (best != null && best.isPlayable && !best.isTorrent) preloaded = target.key to best
+        }
     }
 
     override fun cancelNextEpisode() {
@@ -474,6 +499,8 @@ class EngineWatchPlayer(
     }
 
     companion object {
+        /** How long before the end the next episode's copy is looked up. */
+        const val PRELOAD_MS = 120_000L
         fun kindOf(protocol: StreamProtocol) = when (protocol) {
             StreamProtocol.HLS -> UrlKind.HLS
             StreamProtocol.DASH -> UrlKind.DASH

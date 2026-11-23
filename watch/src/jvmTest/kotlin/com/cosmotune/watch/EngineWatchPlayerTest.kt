@@ -197,4 +197,32 @@ class EngineWatchPlayerTest {
         assertEquals("abc123" to 5_000L, handed)
         assertEquals(null, engine.lastRequest)
     }
+
+    @Test fun theNextEpisodesCopyIsFoundBeforeTheEndAndPlaysAtOnce() = runBlocking<Unit> {
+        val series = WatchKey.tmdbSeries(9)
+        val first = PlayTarget.EpisodeOf(WatchKey.tmdbEpisode(9, 1, 1), ExternalIds(tmdb = 9), "Harbour Town", 1, 1)
+        val second = com.cosmotune.watch.model.Episode(WatchKey.tmdbEpisode(9, 1, 2), series, 1, 2, "The Pier")
+        val asked = java.util.concurrent.CopyOnWriteArrayList<WatchKey>()
+        val repo = object : WatchRepository by FakeWatchRepository() {
+            override fun sources(target: PlayTarget, hint: StreamHint?): Flow<SourcesState> =
+                flowOf(SourcesState(target, listOf(stream("p", "https://cdn/${target.key.value}.mkv")), emptySet()))
+            override suspend fun sourcesNow(target: PlayTarget, hint: StreamHint?): SourcesState {
+                asked += target.key
+                return SourcesState(target, listOf(stream("p", "https://cdn/${target.key.value}.mkv")), emptySet())
+            }
+            override suspend fun nextEpisode(episode: WatchKey) = if (episode == first.key) second else null
+            override suspend fun progress(key: WatchKey): WatchProgress? = null
+            override suspend fun saveProgress(progress: WatchProgress) {}
+        }
+        val engine = FakeVideoPlayerEngine()
+        val player = EngineWatchPlayer(repo, engine, scope = CoroutineScope(SupervisorJob() + Dispatchers.Default), settleMs = 0, tickMs = 20)
+        player.open(first, TitleSummary(series, TitleType.SERIES, "Harbour Town"))
+        until("the first episode plays") { engine.lastRequest != null && player.state.value.nextEpisode == second }
+        engine.play()
+        engine.seekTo(engine.snapshot.value.durationMs - 30_000)
+        until("the next episode's copy is looked up before the end") { second.key in asked }
+        player.playNextEpisode()
+        until("the found copy plays") { (engine.lastRequest?.input as? com.cosmotune.video.player.MediaInput.Url)?.url == "https://cdn/${second.key.value}.mkv" }
+        player.stop()
+    }
 }
