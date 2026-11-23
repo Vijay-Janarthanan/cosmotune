@@ -33,7 +33,7 @@ import org.bytedeco.ffmpeg.global.avutil.av_frame_alloc
 import org.bytedeco.ffmpeg.global.avutil.av_frame_free
 import org.bytedeco.ffmpeg.global.avutil.av_image_fill_arrays
 import org.bytedeco.ffmpeg.global.avutil.av_image_get_buffer_size
-import org.bytedeco.ffmpeg.global.swscale.SWS_BILINEAR
+import org.bytedeco.ffmpeg.global.swscale.SWS_BICUBIC
 import org.bytedeco.ffmpeg.global.swscale.sws_freeContext
 import org.bytedeco.ffmpeg.global.swscale.sws_getContext
 import org.bytedeco.ffmpeg.global.swscale.sws_scale
@@ -71,6 +71,9 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
         private set
 
     /** The clip's own shape, width over height; 0 while nothing is open. */
+    /** The stream's own picture size, 0 before it is open. */
+    val sourceSize: Pair<Int, Int> get() = sourceWidth to sourceHeight
+
     val sourceAspect: Float get() = if (sourceHeight > 0) sourceWidth.toFloat() / sourceHeight else 0f
     private var streamIndex = -1
     private val artworkPacer = if (decorative) DesktopArtworkFramePacer() else null
@@ -386,7 +389,8 @@ internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
         val built = sws_getContext(
             fromWidth, fromHeight, pixelFormat,
             width, height, AV_PIX_FMT_BGRA,
-            SWS_BILINEAR, null, null, null as DoublePointer?,
+            // Bicubic, as FFmpeg's own tools scale: a 1080p picture brought down to the box stays sharp, where bilinear left it soft.
+            SWS_BICUBIC, null, null, null as DoublePointer?,
         )
         if (built == null) {
             DesktopTrackLog.log("canvas: no converter for pixel format $pixelFormat")

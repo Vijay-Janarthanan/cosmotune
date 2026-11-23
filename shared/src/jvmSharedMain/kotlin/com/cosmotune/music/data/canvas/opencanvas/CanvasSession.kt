@@ -81,13 +81,16 @@ internal class Environment(val config: OpenCanvasConfig) {
         listOfNotNull(instantBackend, backend).firstNotNullOfOrNull { tryOrNull { it.resolveAudio(videoId) } }
 
     /**
-     * Whether [videoId] is a still picture by its preview frames ([com.opencanvas.core.stream.PreviewFrames]); null when no backend has its storyboard,
-     * the platform cannot open it, or there are too few frames to tell.
+     * What [videoId]'s preview frames say ([com.opencanvas.core.stream.PreviewFrames]): whether it is a still picture, and how much
+     * its frames are one picture; null when no backend has its storyboard or the platform cannot open it.
      */
-    suspend fun previewStill(videoId: String): Boolean? {
+    suspend fun preview(videoId: String): com.opencanvas.core.stream.PreviewFrames.Verdict? {
         val spec = listOfNotNull(instantBackend, backend).firstNotNullOfOrNull { tryOrNull { it.storyboardSpec(videoId) } } ?: return null
-        return com.opencanvas.core.stream.PreviewFrames.isStill(config.httpClient, spec)
+        return com.opencanvas.core.stream.PreviewFrames.read(config.httpClient, spec)
     }
+
+    /** Drops what the backends keep for [videoId] (its addresses), so it is asked afresh next time. */
+    fun forget(videoId: String) = listOfNotNull(instantBackend, backend).forEach { it.forget(videoId) }
 
     /** The same file through each backend on its own, in the order tried: one can hand out a file whose tables are unreadable where the other's is fine. */
     suspend fun syncSourcesByBackend(videoId: String): List<AudioStream?> =
@@ -119,6 +122,19 @@ internal class CanvasSession(
     fun promote() {
         priority.value = true
     }
+
+    /**
+     * Set when the session ended while its song was still only queued (a prefetch). Its "no video" was found by a look that
+     * yields to the playing song and runs before the song is heard, so the song's own start asks once more ([isStale]).
+     */
+    @Volatile var endedInBackground = false
+        private set
+
+    /**
+     * Set when the song's own audio could not be read: nothing could be lined up, so a session that ends without a map has
+     * not learnt that none of the candidates is the video, and is not kept as the answer.
+     */
+    @Volatile private var songUnreadable = false
 
     /**
      * Set when a search went unanswered (a timeout, a dropped connection, a captcha). A session that then ends without
@@ -164,9 +180,13 @@ internal class CanvasSession(
     }
 
     /** Retry failed results or refresh completed streams whose signed address no longer stands. */
-    fun isStale(nowMs: Long = System.currentTimeMillis()): Boolean {
+    fun isStale(nowMs: Long = System.currentTimeMillis(), forPlayingSong: Boolean = false): Boolean {
         val current = state.value
         return job.isCancelled ||
+            // The early look (a prefetch) found no video: the song that has now started looks again, once; that look's own
+            // answer then stands for RETRY_AFTER_MS like any other.
+            (forPlayingSong && current.done && endedInBackground && current.track?.syncStage != SyncStage.MEASURED) ||
+            (current.done && songUnreadable && current.track?.syncStage != SyncStage.MEASURED) ||
             (current.done && current.track == null) ||
             // A network failure is not "no video": only a search that was answered is believed for a while.
             (current.done && searchUnanswered && current.track?.syncStage != SyncStage.MEASURED) ||
@@ -289,6 +309,15 @@ internal class CanvasSession(
         var ranked: List<VideoCandidate> = chosenVideoId?.let { listOf(chosenCandidate ?: candidate(it)) } ?: emptyList()
         if (ranked.isEmpty()) {
             ranked = search?.await().orEmpty()
+            // Nothing eligible in the first search is not the last word: the wider queries (the film's songs, the video song
+            // without catalogue noise) are asked before the song is given up on, as they are when no candidate lines up.
+            if (ranked.isEmpty() && search != null && request.videoId == null) {
+                log("no candidate video in the first search; searching wider")
+                val spent = if (searchStartedAt == 0L) 0L else System.currentTimeMillis() - searchStartedAt
+                ranked = searchOutcome(env.search.findOutcome(request.title, request.artist, request.durationSec,
+                    limit = 10, album = request.album, exhaustive = true, foreground = priority,
+                    budgetMs = maxOf(SEARCH_BUDGET_MS - spent, EXPANDED_MIN_BUDGET_MS), alreadyAsked = askedQueries.toSet()))
+            }
             if (ranked.isEmpty()) {
                 log(if (searchUnanswered) "no candidate video: the search got no answer, so this is not remembered as a song without one"
                     else "no candidate video for the song")
@@ -323,7 +352,22 @@ internal class CanvasSession(
      */
     private suspend fun verify(id: String, ranked: List<VideoCandidate>, songSource: Deferred<AudioStream?>, started: Long, songVideoId: String?,
         realigning: Boolean = false) = coroutineScope {
-        val track = songSource.await()
+        // The song's own file is what every candidate is lined up against: without it each one would read "not readable" and
+        // the song would look like one without a video. A failed lookup of it is asked once more before giving up.
+        val track = songSource.await() ?: request.song?.let { song ->
+            log("the song's own audio could not be read; asking again")
+            if (song is SongAudio.YouTube) env.forget(song.videoId)
+            delay(SONG_SOURCE_RETRY_MS)
+            songSource(song)
+        }
+        if (track == null) {
+            songUnreadable = true
+            log("no map: the song's own audio could not be read, so none of ${ranked.size} candidate video(s) could be lined up " +
+                "with it (not remembered as a song without a video)")
+            sync = SyncView(SyncStage.NONE)
+            publish()
+            return@coroutineScope
+        }
         // Three candidates at a time: the usual case is decided by the first batch, and a song whose
         // official video sits further down the results still gets found.
         var winner: Pick? = null
@@ -405,11 +449,11 @@ internal class CanvasSession(
     private class Pick(val candidate: VideoCandidate, val result: AlignResult, val score: Double, val partial: Boolean)
 
     private suspend fun bestOf(batch: List<VideoCandidate>, rankBase: Int, track: AudioStream?, songVideoId: String?): Pick? = coroutineScope {
-        val arrivals = Channel<Triple<Int, VideoCandidate, Pair<Measurement?, Boolean?>>>(batch.size)
+        val arrivals = Channel<Triple<Int, VideoCandidate, Pair<Measurement?, com.opencanvas.core.stream.PreviewFrames.Verdict?>>>(batch.size)
         batch.forEachIndexed { index, candidate ->
             launch {
                 // The preview frames are read while the audio is measured: a small image, ready long before the map.
-                val preview = async { if (request.videoId == null) env.previewStill(candidate.videoId) else null }
+                val preview = async { if (request.videoId == null) env.preview(candidate.videoId) else null }
                 // Shared with any other lookup of the same song: a second lookup (the song's stream id changed) takes the
                 // measurement the first made, or waits for the one it is making, instead of measuring the video again beside it.
                 val measured = env.measurements.measure(MeasurementShare.key(request.identity, request.song?.cacheId, candidate.videoId)) {
@@ -435,12 +479,17 @@ internal class CanvasSession(
                 continue
             }
             val (rank, candidate, both) = next
-            val (measured, previewStill) = both
+            val (measured, preview) = both
+            val previewStill = preview?.still
             arrived++
             val result = measured?.align
+            // Preview frames that change can still be one picture: a poster whose colours pulse or flash, with a slow zoom,
+            // particles or visualiser bars. Its shapes stay put and its file barely moves; a video song's scenes change both.
+            val poster = measured != null && request.videoId == null && previewStill != true &&
+                com.opencanvas.core.stream.PreviewFrames.isPosterWithEffects(preview?.sameness, measured.videoMotion)
             // The preview frames decide when they could be read: the frame sizes of the file cannot tell a full-HD poster with an
             // animated intro from a video, nor a re-upload with even keyframes from a poster. Without them, the sizes decide.
-            val still = measured != null && (previewStill ?:
+            val still = measured != null && (poster || previewStill ?:
                 (measured.videoKbps in 0.01..STILL_PICTURE_KBPS || measured.videoMotion < STILL_PICTURE_MOTION ||
                     (request.videoId == null && measured.keyIrregularity?.let { it < 0.01 } == true &&
                         (!VideoMatcher.advertisesVideo(candidate.title) ||
@@ -453,7 +502,9 @@ internal class CanvasSession(
                 VideoMatcher.alignedButWrong(candidate, request.title, request.artist, songSec, result.segments, result.coverage, request.album) else null
             log("candidate ${candidate.videoId} \"${candidate.title.take(48)}\" by ${candidate.channelTitle} (${candidate.durationSec}s): " +
                 when {
-                    result == null -> "not readable"
+                    result == null -> "not readable (${unreadable[candidate.videoId] ?: "no reason given"})"
+                    poster -> "a still poster with effects (its preview frames are one picture, sameness " +
+                        "${"%.2f".format(preview?.sameness ?: 0.0)}, motion ${"%.2f".format(measured.videoMotion)}), not a music video"
                     still && previewStill == true -> "a still picture (its preview frames do not change), not a music video"
                     still -> "a still picture (${measured.videoKbps.toInt()} kbit/s, motion ${"%.2f".format(measured.videoMotion)}), not a music video"
                     result.error != null -> result.error
@@ -461,7 +512,8 @@ internal class CanvasSession(
                     else -> "confidence ${"%.2f".format(result.confidence)}, ${result.segments.size} segment(s), ${(result.coverage * 100).toInt()}% of the song" +
                         if (candidate.filmChannel) ", from the film's channel" else ""
                 } + (measured?.let { m -> if (m.videoKbps > 0.0) "; picture ${m.videoKbps.toInt()} kbit/s, motion ${"%.2f".format(m.videoMotion)}" else "; no picture measured" } ?: "") +
-                    when (previewStill) { true -> "; preview frames: still"; false -> "; preview frames: moving"; null -> "; preview frames: not read" })
+                    when (previewStill) { true -> "; preview frames: still"; false -> "; preview frames: moving"; null -> "; preview frames: not read" } +
+                    (preview?.sameness?.let { ", sameness ${"%.2f".format(it)}" } ?: ""))
             if (result != null && !still && wrong == null && result.error == null && result.confidence >= YouTubeStreamResolver.MIN_SYNC_CONFIDENCE && result.segments.isNotEmpty()) {
                 // The ranking is the main evidence, the match quality settles close calls: a version of the
                 // video that is the same recording as the song lines up cleanly, a different cut needs an
@@ -483,9 +535,19 @@ internal class CanvasSession(
         winner
     }
 
+    /** Why a candidate's measuring came back with nothing, by video id, for its log line. */
+    private val unreadable = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     private suspend fun measureOne(track: AudioStream?, video: String, songVideoId: String?): Measurement? {
+        if (track == null) {
+            unreadable[video] = "the song's own audio could not be read"
+            return null
+        }
         val picture = env.syncSource(video)
-        if (track == null || picture == null) return null
+        if (picture == null) {
+            unreadable[video] = "no stream of the video could be resolved"
+            return null
+        }
         val first = measure(track, picture, video)
         var best = first
         if (best?.isAligned() == true) return best
@@ -520,6 +582,9 @@ internal class CanvasSession(
     } catch (failure: Exception) {
         if (failure is CancellationException) throw failure
         log("measuring $video failed: ${failure.javaClass.simpleName}: ${failure.message}")
+        unreadable[video] = failure.message ?: failure.javaClass.simpleName
+        // A refused range is that address's, not the video's: the next lookup of it asks for a new one.
+        if (failure.message?.contains("HTTP 403") == true) env.forget(video)
         null
     }
 
@@ -540,7 +605,11 @@ internal class CanvasSession(
             foreground = priority, budgetMs = SEARCH_BUDGET_MS))
     }
 
+    /** Every query this session's searches sent. */
+    private val askedQueries = java.util.concurrent.ConcurrentLinkedQueue<String>()
+
     private fun searchOutcome(outcome: com.opencanvas.core.stream.VideoSearchOutcome): List<VideoCandidate> {
+        askedQueries += outcome.queries
         if (!outcome.complete) searchUnanswered = true
         return outcome.candidates
     }
@@ -618,6 +687,7 @@ internal class CanvasSession(
 
     @Synchronized
     private fun finish() {
+        endedInBackground = !priority.value
         state.value = state.value.copy(done = true)
     }
 
@@ -647,5 +717,7 @@ internal class CanvasSession(
         const val STILL_PICTURE_KBPS = 40.0
         const val STILL_PICTURE_MOTION = 0.12
         const val CONFIDENT_FIRST_CHOICE = 0.85
+        /** How long a failed lookup of the song's own file waits before it is asked once more. */
+        const val SONG_SOURCE_RETRY_MS = 1_500L
     }
 }

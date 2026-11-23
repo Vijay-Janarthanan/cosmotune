@@ -86,11 +86,27 @@ object VideoMatcher {
     private val PUBLISHER_ROLES = listOf("music", "records", "labels", "films", "movies", "vevo", "entertainment",
         "tv", "series", "pictures", "studios", "cinemas")
 
+    /**
+     * The song's name without its last word, for a title of four words or more: catalogue tags carry a stray word at the end
+     * ("Song Name Pon" for the film song "Song Name", the first word of the next line), and every upload of the video then
+     * names the song without it. A last word that only says what the tag is ("Song", "Revival", "Remastered") comes off a
+     * shorter title too. Null otherwise, where one word less would name another song.
+     */
+    fun shortenedTitle(title: String): String? {
+        val words = searchTitleVariants(title).last().trim().split(Regex("\\s+")).filter(String::isNotEmpty)
+        val generic = words.size >= 2 && words.last().lowercase().filter(Char::isLetter) in TAG_WORDS
+        if (words.size < 4 && !generic) return null
+        return words.dropLast(1).joinToString(" ").takeIf { short -> short.count { it.isLetterOrDigit() } >= 6 }
+    }
+
+    /** Last words of a catalogue tag that describe the upload, not the song. */
+    private val TAG_WORDS = setOf("song", "songs", "revival", "remastered", "remaster", "original", "hd")
+
     /** Whether the video's title names the song itself (a search variant, or its transliteration), not only its film. */
     fun namesSong(candidate: VideoCandidate, title: String): Boolean {
         val name = compact(candidate.title)
         val loose = looseKey(candidate.title)
-        return searchTitleVariants(title).any { variant ->
+        return (searchTitleVariants(title) + listOfNotNull(shortenedTitle(title))).any { variant ->
             compact(variant).let { it.length >= 3 && name.contains(it) } || looseKey(variant).let { it.length >= 3 && loose.contains(it) }
         }
     }

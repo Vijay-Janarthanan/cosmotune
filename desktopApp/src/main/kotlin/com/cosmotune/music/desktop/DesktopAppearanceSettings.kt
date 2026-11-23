@@ -36,7 +36,8 @@ internal object DesktopAppearanceSettings {
 
     private val _openCanvasEnabled = flag(KEY_OPENCANVAS_ENABLED, true)
     private val _openCanvasResolution = MutableStateFlow(
-        DesktopPersistence().string(KEY_OPENCANVAS_RESOLUTION, "720p")
+        // A desktop window is large: a fresh install plays Full HD, which the player only asks for when the box needs it.
+        DesktopPersistence().string(KEY_OPENCANVAS_RESOLUTION, "1080p")
     )
 
     /** Enables OpenCanvas dynamic video canvas streaming. */

@@ -91,4 +91,10 @@ interface StreamBackend {
 
     /** YouTube's storyboard spec for [videoId] (where its seek-bar preview frames are), or null when the backend has none. */
     suspend fun storyboardSpec(videoId: String): String? = null
+
+    /**
+     * Drops whatever is kept for [videoId], so the next [resolveVideo] asks afresh: a player whose stream stopped (its signed
+     * address refused, HTTP 403) needs a new address, not the kept one. Does nothing by default.
+     */
+    fun forget(videoId: String) = Unit
 }

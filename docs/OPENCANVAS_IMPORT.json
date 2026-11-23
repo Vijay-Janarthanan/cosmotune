@@ -53,8 +53,8 @@
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
       "upstreamSha256": "0167082df0251875fe56f3ee30211c1d2cc85eb5f82183ba3d97f30d9b212e61",
-      "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches; compare song and film names across English spellings of Indian-language words (th/dh, t/d, y/i, c/s, doubled letters). Measure a song's uploads that say they are the video song before a publisher's plain \"Song\" upload. Recognise the film's own channel, verified or not, by its other songs of the film in the same results.",
-      "sha256": "7e4ca7833e38779303c919d2a2541061817d6d81552a80fc6eaf4693ea058c26"
+      "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches; compare song and film names across English spellings of Indian-language words (th/dh, t/d, y/i, c/s, doubled letters). Measure a song's uploads that say they are the video song before a publisher's plain \"Song\" upload. Recognise the film's own channel, verified or not, by its other songs of the film in the same results. A catalogue tag's stray last word (\"Song Name Pon\") or a last word that only names the tag (\"Song\", \"Revival\") does not stop an upload from naming the song.",
+      "sha256": "ebd0ff7dc70cb56cd46b4c9d3e8d3d2d70b9466781a30d9ddbee9823507a8937"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
@@ -102,14 +102,15 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/CanvasSession.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSession.kt",
       "normalizeLf": true,
-      "localAdaptation": "A candidate's preview frames (storyboard) decide whether it is a still picture when they can be read. Show someone else's upload that matches only part of the song only when no other candidate matches more of it; prefer the film's own channel.",
-      "sha256": "0b18de5ee8485b749734bbe285ecf1ee5d0d48b8a14d9b1e348a3f80213836ef"
+      "localAdaptation": "A candidate's preview frames (storyboard) decide whether it is a still picture when they can be read. Show someone else's upload that matches only part of the song only when no other candidate matches more of it; prefer the film's own channel. Search wider when the first search finds nothing eligible; ask once more when the early look (a prefetch) found no video and the song has started; do not remember a song whose own audio could not be read as one without a video, and say why a candidate is not readable; turn down a poster whose colours pulse (its preview frames are one picture, its file barely moves).",
+      "sha256": "e7618b25ecab192e90560b0aa8572d20f5f6594a4cf8b49ff21e3e35513576d4"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/OpenCanvas.kt",
       "normalizeLf": true,
-      "sha256": "6ee5e4eeb10cdf76223489a306144aa452f0d11b367c1f94d9a9eef13a376d28"
+      "sha256": "fc6caa5958fec6fa70c2d9e4cd46f23323768849077f303d5a9603079b6593de",
+      "localAdaptation": "freshVideoStream gives a new stream address for a player whose stream stopped or that wants a taller one."
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvasConfig.kt",
@@ -163,21 +164,22 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/InnerTubeBackend.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/InnerTubeBackend.kt",
       "normalizeLf": true,
-      "localAdaptation": "Keep the storyboard spec of each player answer.",
-      "sha256": "1ae56f922ac39cba1338388ddf6440e49a45103f7b2c85dd4c84c50b607159f7"
+      "localAdaptation": "Keep the storyboard spec of each player answer. Forget a video's kept answer on request.",
+      "sha256": "b60f070d51d44f1b4f1eae8dd89c6a7459a2acef8524b6679cd03928e9e1f594"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
       "normalizeLf": true,
-      "sha256": "8423212caeff975ee6ab6a5c13e520980317ffb561d8e17a70db6dfe91524184",
-      "localAdaptation": "Measure the film's own channel's uploads first; ask an empty search answer once more the other way."
+      "sha256": "16cc122d91370b914eb270fc725f040600a39546e5153ca07c1d0289187dea1b",
+      "localAdaptation": "Measure the film's own channel's uploads first; ask an empty search answer once more the other way. Ask for a tag with a stray last word as its uploads name it (with the film or the singer); say why an answered search found nothing; keep a captcha'd way of searching closed longer each time in a row and say which way is used meanwhile; skip queries a wider search already asked."
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/ProgressiveRangeSource.kt",
       "normalizeLf": true,
-      "sha256": "27359877dd51399f2cc2626ffc52480f50e21e38165bd497aa7c1cdee9d6a19f"
+      "sha256": "099cf5944330dc9482d5b8bf6a9664192579917f94527c041edecbfbed935197",
+      "localAdaptation": "Say why fetching stopped."
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/Retry.kt",
@@ -189,8 +191,8 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/StreamBackend.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/StreamBackend.kt",
       "normalizeLf": true,
-      "localAdaptation": "A backend can give a video's storyboard spec.",
-      "sha256": "9cfae3898f7252ac969756dee47ffcd3c84bba1677eff719045f8f02c1d09e0a"
+      "localAdaptation": "A backend can give a video's storyboard spec. A backend can forget what it keeps for a video.",
+      "sha256": "2d2cefb7fbf244577b87ba4083e1abef9d43b5b51955882bf2b783f21834614f"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/SyncStore.kt",
@@ -209,7 +211,8 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/sync/SyncMeasurer.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SyncMeasurer.kt",
       "normalizeLf": true,
-      "sha256": "d51176b4e1e48c37464c48d8ce4c993c9a511ef5266d0e212dbbbef1db3cd35b"
+      "sha256": "965d25dc6e099414f799793d8379e050b17456b42273e619b4b6ef97bfe0f720",
+      "localAdaptation": "Say which file has no readable audio frame table."
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/resources/models/PROVENANCE.md",
@@ -257,7 +260,8 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoQuery.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoQuery.kt",
       "normalizeLf": true,
-      "sha256": "7270eb6c3595be0caa187af7b1356df24f1bbf89b6d9fb8149864d602658d82a"
+      "sha256": "f3aa814e6d852b5c9ebef8e5c9579a5cc7348fa0e2ffb11dc0a0f58d57fa64e9",
+      "localAdaptation": "Read the film from `Song :From \"Film\"` and drop a (Soundtrack) note."
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/PublisherChannelProof.kt",
@@ -269,7 +273,7 @@
       "source": null,
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/PreviewFrames.kt",
       "normalizeLf": true,
-      "sha256": "29ae88a57069585535e41bc35252addfbbc994f10b391deb8af61dad52323bf7"
+      "sha256": "328779070f4e4b890e7a484f71c6c7a9ce78db97abda7370606de86d5a612fdb"
     },
     {
       "source": null,
@@ -288,8 +292,20 @@
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MeasurementShare.kt",
       "normalizeLf": true,
       "sha256": "837500129009283f1f374f48c93ebba6b4b3097cb3a87365310d6db227eb49f6"
+    },
+    {
+      "source": null,
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasStallWatch.kt",
+      "normalizeLf": true,
+      "sha256": "bb7349f39dfbdf4fec27d2a27a0beeb24b7104b4611efb74d708c60c572c2b1b"
+    },
+    {
+      "source": null,
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasStreamChoice.kt",
+      "normalizeLf": true,
+      "sha256": "e1bd402552273bf1481dd35b5d4a8ae8285488b7366a5be5a12ded4f8c92c0e0"
     }
   ],
   "revisionStatus": "Published base revision; generic subtitle discovery and reciprocal publisher-channel proof staged in standalone checkout pending validation/publication",
-  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing, film abbreviation matching and signed-stream expiry handling are published in standalone OpenCanvas at the recorded revision. Cosmotune additionally retries a stalled search page on a fresh connection with its own request queue and logs each failed try, strips an album's soundtrack note before matching a film, rejects a teaser under half the song's length, and falls back to a full-length upload by anyone when no publisher has the video (the audio check still decides). The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module. Since 1.0.21 Cosmotune also lets a film song's label and TV-channel uploads qualify, refuses reaction, review, cover and podcast videos, searches for the playing song first with a longer wait, keeps a verified video under any track id of the same song (SongIdentity.kt) and does not remember a failed search as no video, lets a publisher's film video song keep its dialogue and scenes, keeps ads and promos out of the search results, and paces its searches (SearchTraffic.kt). SongIdentity.kt and SearchTraffic.kt are Cosmotune's own and have no OpenCanvas source. Since 1.0.31 Cosmotune shares a song's video measurements between its lookups (MeasurementShare.kt, Cosmotune's own, no OpenCanvas source) CanvasSession waits for a measurement another lookup is already making and gives a stalled device its time back, and OpenCanvas.videoChoices lists the search's videos for a song without measuring them, for picking one by hand."
+  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing, film abbreviation matching and signed-stream expiry handling are published in standalone OpenCanvas at the recorded revision. Cosmotune additionally retries a stalled search page on a fresh connection with its own request queue and logs each failed try, strips an album's soundtrack note before matching a film, rejects a teaser under half the song's length, and falls back to a full-length upload by anyone when no publisher has the video (the audio check still decides). The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module. Since 1.0.21 Cosmotune also lets a film song's label and TV-channel uploads qualify, refuses reaction, review, cover and podcast videos, searches for the playing song first with a longer wait, keeps a verified video under any track id of the same song (SongIdentity.kt) and does not remember a failed search as no video, lets a publisher's film video song keep its dialogue and scenes, keeps ads and promos out of the search results, and paces its searches (SearchTraffic.kt). SongIdentity.kt and SearchTraffic.kt are Cosmotune's own and have no OpenCanvas source. Since 1.0.31 Cosmotune shares a song's video measurements between its lookups (MeasurementShare.kt, Cosmotune's own, no OpenCanvas source) CanvasSession waits for a measurement another lookup is already making and gives a stalled device its time back, and OpenCanvas.videoChoices lists the search's videos for a song without measuring them, for picking one by hand. Cosmotune also notices a music video that stops while its song plays on and opens it again at the mapped place (CanvasStallWatch.kt, Cosmotune's own, no OpenCanvas source), and switches to a taller stream when the box needs it (CanvasStreamChoice.kt, Cosmotune's own, no OpenCanvas source)."
 }

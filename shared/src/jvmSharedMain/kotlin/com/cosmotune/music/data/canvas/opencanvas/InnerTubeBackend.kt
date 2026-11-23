@@ -197,6 +197,10 @@ class InnerTubeBackend(
         return storyboards[videoId]
     }
 
+    override fun forget(videoId: String) {
+        answers.remove(videoId)
+    }
+
     /** Opens the connection to YouTube (and gets the visitor token) ahead of the first lookup. */
     override fun warmUp() {
         scope.launch {

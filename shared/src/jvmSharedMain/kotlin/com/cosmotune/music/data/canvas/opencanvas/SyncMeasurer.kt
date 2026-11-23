@@ -28,14 +28,16 @@ internal class Measurement(val align: AlignResult, val videoKbps: Double, val vi
 internal class SyncMeasurer(private val fetcher: AudioFetcher) {
 
     /**
-     * The song-to-video map, or null when either file has no readable audio frame table. The result
-     * itself says whether a trustworthy match was found ([AlignResult.error]).
+     * The song-to-video map. The result itself says whether a trustworthy match was found ([AlignResult.error]).
+     *
+     * @throws java.io.IOException when either file cannot be fetched or has no readable audio frame table, naming which.
      */
     suspend fun measure(song: AudioStream, video: AudioStream): Measurement? = coroutineScope {
         val songFrames = async { Mp4FrameSizes.read(StreamReader(fetcher, song)) }
         val videoFrames = async { Mp4FrameSizes.read(StreamReader(fetcher, video)) }
-        val track = songFrames.await() ?: return@coroutineScope null
-        val picture = videoFrames.await() ?: return@coroutineScope null
+        // Said, not just null: "not readable" alone could not tell the song's file from the video's.
+        val track = songFrames.await() ?: throw java.io.IOException("the song's file has no readable audio frame table")
+        val picture = videoFrames.await() ?: throw java.io.IOException("the video's file has no readable audio frame table")
         val align = withContext(Dispatchers.Default) {
             SyncAligner.align(FrameEnvelope.build(track), FrameEnvelope.build(picture), FrameEnvelope.RATE_HZ)
         }
