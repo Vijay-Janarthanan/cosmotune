@@ -58,6 +58,7 @@ import com.cosmotune.video.ui.shell.rememberKept
 import com.cosmotune.video.feed.StableFeed
 import com.cosmotune.video.ui.blocks.VideoCardBody
 import com.cosmotune.video.ui.blocks.VideoSheetContext
+import com.cosmotune.video.ui.blocks.VideoAction
 import com.cosmotune.video.ui.blocks.uniqueKeys
 import com.cosmotune.video.ui.blocks.videoSolidGround
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
@@ -122,6 +123,7 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     val followsChannels by remember(graph) { graph.library.subscriptions.map { it.isNotEmpty() }.distinctUntilChanged() }
         .collectAsState(graph.library.subscriptions.value.isNotEmpty())
     val downloaded by rememberDownloadedIds()
+    val watchLater by graph.library.watchLater.collectAsState()
 
     // A bounded window of diverse recent watch interests.
     val recent = remember(history, settings.homeHiddenVideos, settings.homeHiddenChannels) {
@@ -277,6 +279,9 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
                 title = shown.title,
                 onPlay = { actions.play(item, stream) },
                 onChannel = item.channelId?.let { id -> { navigator.push(VideoRoute.Channel(id)) } },
+                onWatchLater = { actions.handle(item, VideoAction.WatchLater, VideoSheetContext.DEFAULT, list = stream) },
+                onSave = { actions.handle(item, VideoAction.SaveToPlaylist, VideoSheetContext.DEFAULT, list = stream) },
+                inWatchLater = watchLater.any { it.id == item.id },
                 modifier = modifier,
             )
         }

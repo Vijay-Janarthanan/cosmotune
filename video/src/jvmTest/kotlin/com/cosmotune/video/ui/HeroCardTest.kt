@@ -34,11 +34,21 @@ class HeroCardTest {
     }
 
     @Test fun theCardIsQuietSizedToItsContentAndItsWordsAreWhole() {
-        assertTrue("val fill = look.chip" in hero && "coverFill(" !in hero, "the muted Orbit card ground, not the picture's saturated colour")
+        assertTrue(".background(look.chip)" in hero && "coverFill(" !in hero, "the muted Orbit card ground, not the picture's saturated colour")
         assertTrue("Modifier.wrapContentWidth(Alignment.Start).widthIn(max = HERO_MAX_WIDE)" in hero && "internal val HERO_MAX_WIDE = 760.dp" in hero, "on a wide page the card is as wide as its content")
-        assertTrue("HeroArt(item, Modifier.width(if (wide) 320.dp else 150.dp).aspectRatio(16f / 9f)" in hero, "the picture fills its 16:9 slot")
+        assertTrue("HeroArt(item, Modifier.width(320.dp).aspectRatio(16f / 9f)" in hero && "HeroArt(item, Modifier.fillMaxWidth().aspectRatio(16f / 9f)" in hero, "the picture fills its 16:9 slot, beside the words or above them on a phone")
         assertTrue(".clip(RoundedCornerShape(20.dp)).then(if (onChannel != null) Modifier.clickable(onClick = onChannel) else Modifier) .padding(end = 14.dp)" in hero.replace(Regex("\\s+"), " "),
             "the round end of the channel's pressed shape no longer cuts the last letters of the views and age")
+        val flat = hero.replace(Regex("\\s+"), " ")
+        assertTrue("OrbitBiteCard(" !in hero && flat.substringAfter("val card = ").substringBefore("testTag").let { ".height(" !in it && "heightIn" !in it }, "no fixed height: the card hugs the taller of the picture and the words")
+        val words = flat.substringAfter("private fun ColumnScope.HeroWords")
+        listOf("heroTitle", "Modifier.padding(top = 8.dp).clip(RoundedCornerShape(20.dp))", "item.snippet?.takeIf { it.isNotBlank() }", "maxLines = 2", "OrbitPillButton(play")
+            .fold(0) { from, part -> words.indexOf(part, from).also { assertTrue(it >= 0, "$part follows in order") } }
+        assertTrue("OrbitTooltip(play) { OrbitPillButton(play, onPlay, fonts, look, primary = true" in words, "Play is the main button, with its tooltip")
+        assertTrue("OrbitRoundButton(CosmoIcons.Clock, later" in words && "OrbitRoundButton(VideoIcons.PlaylistAdd, save" in words, "Watch later and Save to a playlist as round buttons (they carry the tooltip)")
+        assertTrue("horizontalArrangement = Arrangement.spacedBy(8.dp)" in words, "8 dp between the actions")
+        val home = VideoSourceContract.code(VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/home/VideoHome.kt"))
+        assertTrue("onWatchLater = { actions.handle(item, VideoAction.WatchLater" in home && "onSave = { actions.handle(item, VideoAction.SaveToPlaylist" in home)
         val art = VideoSourceContract.code(VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/home/HeroArt.kt"))
         assertTrue(".blur(18.dp)" in art && "aspectRatio(9f / 16f)" in art, "a vertical frame stands over a blurred copy of itself, no empty bands")
     }
