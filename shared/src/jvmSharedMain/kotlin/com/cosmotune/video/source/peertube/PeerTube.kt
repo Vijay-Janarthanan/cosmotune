@@ -37,6 +37,18 @@ class PeerTubeClient(http: OkHttpClient = WebServicesHttp.client, private val us
         return get(url)?.let { parseVideos(it, ref) }.orEmpty()
     }
 
+    /**
+     * The PeerTube channels of the creator called [name], found through Sepia Search (the index of every PeerTube site): only those
+     * whose shown name is the same name (case, spaces and marks aside). Empty when there is none or the index does not answer.
+     */
+    suspend fun sameCreator(name: String, index: String = SEPIA): List<PeerChannelRef> {
+        val key = sameName(name)
+        if (key.length < 3) return emptyList()
+        val url = "$index/api/v1/search/video-channels".toHttpUrlOrNull()?.newBuilder()
+            ?.addQueryParameter("search", name)?.addQueryParameter("count", "10")?.build()
+        return get(url)?.let { parseSameCreator(it, key) }.orEmpty()
+    }
+
     /** The address of the file that plays [videoId] (one of this class's ids), or null. */
     suspend fun fileUrl(videoId: String): String? {
         val (host, uuid) = parseId(videoId) ?: return null
@@ -56,6 +68,22 @@ class PeerTubeClient(http: OkHttpClient = WebServicesHttp.client, private val us
     companion object {
         /** What the ids of these videos start with (a local id, so the file player plays them). */
         const val ID_PREFIX = LocalVideo.ID_PREFIX + "peertube/"
+
+        /** Sepia Search, run by the makers of PeerTube. */
+        const val SEPIA = "https://sepiasearch.org"
+
+        /** A name as the same-creator match reads it: letters and digits only, lower case. */
+        fun sameName(name: String): String = name.lowercase().filter { it.isLetterOrDigit() }
+
+        internal fun parseSameCreator(page: JsonObject, key: String): List<PeerChannelRef> =
+            (page["data"] as? JsonArray).orEmpty().mapNotNull { element ->
+                val c = element as? JsonObject ?: return@mapNotNull null
+                val shown = displayNameOf(c) ?: return@mapNotNull null
+                if (sameName(shown) != key) return@mapNotNull null
+                val host = c.str("host") ?: c.str("url")?.toHttpUrlOrNull()?.host ?: return@mapNotNull null
+                val handle = c.str("name") ?: return@mapNotNull null
+                PeerChannelRef(host.lowercase(), handle)
+            }.distinct()
 
         fun isPeerTube(videoId: String?): Boolean = videoId != null && videoId.startsWith(ID_PREFIX)
 

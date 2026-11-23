@@ -54,7 +54,7 @@ class ChannelPlaylistStructureTest {
     private val briefs = listOf("channel/ChannelPage", "channel/ChannelHeader", "channel/ChannelAbout", "playlist/PlaylistPage", "playlist/PlaylistHeader")
     private val helpers = listOf(
         "channel/ChannelModel", "channel/PageItems", "channel/Branded", "channel/ShareLinks", "channel/ChannelExtrasItems",
-        "playlist/PlaylistModel", "playlist/PlaylistReorder", "playlist/PlaylistDialogs", "playlist/PlaylistExporter",
+        "playlist/PlaylistModel", "playlist/PlaylistReorder", "playlist/PlaylistDialogs", "playlist/PlaylistExporter", "channel/ChannelElsewhere",
     )
     private val all = briefs + helpers
 

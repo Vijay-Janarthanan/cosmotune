@@ -319,6 +319,7 @@ private fun HeaderParts(ui: ChannelUi, line: PageLine) {
             onPlayLatest = latest?.let { first -> { ui.actions.play(first, uploads) } },
             bell = ui.bell, onBell = ui.onBell,
         )
+        ChannelElsewhere(ui.page.channel.name, line.own)
         ChannelTabChips(ui.sections, ui.section, ui.onSelect, line.fit(Modifier.padding(top = 16.dp, bottom = 8.dp)))
     }
 }

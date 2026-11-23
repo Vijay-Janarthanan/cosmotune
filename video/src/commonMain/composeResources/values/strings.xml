@@ -265,6 +265,9 @@
     <string name="video_playlist_save_csv">Save as a CSV file</string>
     <string name="video_file_saved">Saved</string>
     <string name="video_file_not_saved">Could not save the file</string>
+    <string name="video_elsewhere_title">Also on PeerTube</string>
+    <string name="video_elsewhere_follow">Follow there</string>
+    <string name="video_elsewhere_following">Following</string>
     <string name="video_other_title">Channels on other sites</string>
     <string name="video_other_note">Follow a PeerTube channel by its address, such as https://site/c/name, or name@site.</string>
     <string name="video_other_hint">https://site/c/name</string>

@@ -46,4 +46,14 @@ class PeerTubeTest {
         assertEquals("https://x/1080.mp4", PeerTubeClient.bestFile(video))
         assertNull(PeerTubeClient.bestFile(Json.parseToJsonElement("""{"files":[]}""") as JsonObject))
     }
+
+    @Test fun theSameCreatorIsTheSameNameOnly() {
+        val page = Json.parseToJsonElement(
+            """{"total":3,"data":[{"name":"deskl","displayName":"Desk Lab","host":"tube.example.org"},
+              {"name":"desklab_fans","displayName":"Desk Lab Fans","host":"other.example"},
+              {"name":"dl","displayName":"desk-lab","url":"https://third.example/c/dl"}]}""",
+        ) as JsonObject
+        val found = PeerTubeClient.parseSameCreator(page, PeerTubeClient.sameName("Desk Lab"))
+        assertEquals(listOf(PeerChannelRef("tube.example.org", "deskl"), PeerChannelRef("third.example", "dl")), found)
+    }
 }
