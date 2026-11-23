@@ -4453,6 +4453,7 @@ private fun CosmotuneApp(
                 // drops it for a local file via `isOffline`, this catches
                 // the rest.
                 onShare = share.takeIf { song.videoId.isNotBlank() },
+                onSongInfo = { songActions = null; com.cosmotune.ui.sheets.SongInfo.open(song) }.takeIf { song.videoId.isNotBlank() },
                 onCopyLog = if (fromPlayer) {
                     {
                         songActions = null
@@ -4618,6 +4619,9 @@ private fun CosmotuneApp(
                 )
             }
         }
+
+        // Song info, asked for from a song's menu (its credits are looked up as it opens).
+        com.cosmotune.ui.sheets.SongInfoHost()
 
         // ---- Album / playlist actions ----
         // Opened by holding a card on any tab, or from the release page's own

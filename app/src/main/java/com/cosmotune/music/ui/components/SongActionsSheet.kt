@@ -175,6 +175,8 @@ fun SongActionsSheet(
     /** Which cut is playing now, so the row can offer the other one. */
     isAudioVersion: Boolean = false,
     onShare: (() -> Unit)? = null,
+    /** Opens Song info: the album, the length and the song's credits (upstream 1.10). */
+    onSongInfo: (() -> Unit)? = null,
     /**
      * Copies what the app logged while starting this track. Null everywhere
      * except the player, where "this track" means something.
@@ -389,6 +391,7 @@ fun SongActionsSheet(
                 ActionRow(Icons.Rounded.Share, stringResource(R.string.share), accent = palette.accent, onClick = it)
             }
         }
+        onSongInfo?.let { ActionRow(Icons.Rounded.Info, "Song info", accent = palette.accent, onClick = it) }
         // Last, and only from the player: it is about the track playing right
         // now rather than about the song as a thing in a library, and it is
         // the one row here nobody reaches for by accident.
