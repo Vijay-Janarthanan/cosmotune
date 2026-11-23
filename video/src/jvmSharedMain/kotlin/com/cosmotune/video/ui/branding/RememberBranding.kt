@@ -19,7 +19,7 @@ import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.media.segments.Branding
 import com.cosmotune.media.segments.BrandingProvider
-import com.cosmotune.media.segments.DeArrowTitles
+import com.cosmotune.video.segments.DeArrowTitles
 import com.cosmotune.media.segments.TtlCache
 import com.cosmotune.video.settings.TitleCase
 import kotlinx.coroutines.CancellationException

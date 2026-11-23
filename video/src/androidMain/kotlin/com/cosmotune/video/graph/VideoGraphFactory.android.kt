@@ -23,7 +23,7 @@ import com.cosmotune.video.player.android.VideoPlaybackService
 import com.cosmotune.video.player.controller.VideoPlayerController
 import com.cosmotune.media.segments.DeArrowClient
 import com.cosmotune.media.segments.RydClient
-import com.cosmotune.media.segments.SegmentPolicy
+import com.cosmotune.video.segments.SegmentPolicy
 import com.cosmotune.media.segments.SponsorBlockClient
 import com.cosmotune.media.segments.WebServicesHttp
 import com.cosmotune.video.select.StreamSelector

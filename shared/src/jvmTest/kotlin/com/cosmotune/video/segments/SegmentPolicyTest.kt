@@ -1,4 +1,6 @@
-package com.cosmotune.media.segments
+package com.cosmotune.video.segments
+
+import com.cosmotune.media.segments.*
 
 import com.cosmotune.video.player.SegmentDecider
 import com.cosmotune.video.player.SegmentDecision

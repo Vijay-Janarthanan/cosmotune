@@ -16,7 +16,7 @@ import com.cosmotune.video.resources.video_whole_sponsor
 import com.cosmotune.media.segments.SegmentCategory
 import com.cosmotune.media.segments.SegmentProvider
 import com.cosmotune.media.segments.TtlCache
-import com.cosmotune.media.segments.WholeVideoLabel
+import com.cosmotune.video.segments.WholeVideoLabel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore

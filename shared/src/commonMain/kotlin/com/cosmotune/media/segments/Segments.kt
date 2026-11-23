@@ -1,9 +1,11 @@
 package com.cosmotune.media.segments
 
-import com.cosmotune.video.settings.SegmentBehaviour
 
 /** SponsorBlock's action types (spec 7.1: `actionTypes=["skip","mute","poi","full"]`, plus chapters). */
 enum class SegmentAction { SKIP, MUTE, FULL, POI, CHAPTER }
+
+/** What happens with a SponsorBlock category (spec 5.11, 7.1): skip, mute, ask with a pill, show on the bar only, or off. */
+enum class SegmentBehaviour { SKIP, MUTE, ASK, SHOW, OFF }
 
 /**
  * SponsorBlock's categories (spec 7.1): the API name, the default behaviour, the actions the category allows and the

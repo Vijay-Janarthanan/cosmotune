@@ -5,7 +5,7 @@ import com.cosmotune.media.segments.SegmentCategory
 import kotlinx.coroutines.flow.StateFlow
 
 /** What happens with a SponsorBlock category (spec 5.11, 7.1): skip, mute, ask with a pill, show on the bar only, or off. */
-enum class SegmentBehaviour { SKIP, MUTE, ASK, SHOW, OFF }
+typealias SegmentBehaviour = com.cosmotune.media.segments.SegmentBehaviour
 
 /** The preferred codec (spec 5.11, 6.4: Auto, AV1, VP9, H.264; it overrides when the device can decode it). */
 enum class CodecPreference { AUTO, AV1, VP9, H264 }

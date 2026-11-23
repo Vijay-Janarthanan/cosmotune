@@ -1,6 +1,5 @@
 package com.cosmotune.media.segments
 
-import com.cosmotune.video.settings.SegmentBehaviour
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

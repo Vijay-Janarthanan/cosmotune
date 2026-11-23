@@ -1,6 +1,5 @@
 package com.cosmotune.media.segments
 
-import com.cosmotune.video.settings.SegmentBehaviour
 
 /**
  * The pure clean-up of a video's SponsorBlock segments (spec 7.1, "Policy (pure)"). Nothing here reads a clock or a

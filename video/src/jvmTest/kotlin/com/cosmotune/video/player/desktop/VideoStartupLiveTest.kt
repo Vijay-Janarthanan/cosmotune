@@ -7,7 +7,7 @@ import com.cosmotune.video.player.StartupTrace
 import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.player.controller.VideoPlayerController
 import com.cosmotune.media.segments.SegmentCategory
-import com.cosmotune.media.segments.SegmentPolicy
+import com.cosmotune.video.segments.SegmentPolicy
 import com.cosmotune.media.segments.SegmentProvider
 import com.cosmotune.media.segments.SkipSegment
 import com.cosmotune.video.select.StreamSelector

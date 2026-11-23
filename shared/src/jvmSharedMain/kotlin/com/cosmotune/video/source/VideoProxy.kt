@@ -41,6 +41,9 @@ object VideoProxy {
         override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: IOException?) = Unit
     }
 
+    // The shared segment services (SponsorBlock, DeArrow, Return YouTube Dislike) go through the same proxy.
+    init { com.cosmotune.media.segments.WebServicesHttp.proxy = selector }
+
     /** The proxy for mpv's own requests (its `http-proxy` takes only an HTTP proxy), or "" for none. */
     fun mpvHttpProxy(): String {
         val p = current

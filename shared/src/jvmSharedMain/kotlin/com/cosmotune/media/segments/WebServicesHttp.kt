@@ -36,12 +36,21 @@ object WebServicesHttp {
 
     private const val DEFAULT_VERSION = "1.0.0"
 
+    /** The proxy these requests go through, asked at each request: Video mode's proxy setting once Video sets it, else none. */
+    @Volatile var proxy: java.net.ProxySelector? = null
+    private val proxySelector = object : java.net.ProxySelector() {
+        override fun select(uri: java.net.URI?): List<java.net.Proxy> = proxy?.select(uri) ?: listOf(java.net.Proxy.NO_PROXY)
+        override fun connectFailed(uri: java.net.URI?, address: java.net.SocketAddress?, failure: java.io.IOException?) {
+            proxy?.connectFailed(uri, address, failure)
+        }
+    }
+
     /** The client the clients use unless given another: a fresh `OkHttpClient.Builder()`, no cookie jar, 10 s timeouts. */
     val client: OkHttpClient by lazy { tuned(OkHttpClient.Builder().build()) }
 
     /** [http] with the timeouts and the empty cookie jar of this task, sharing its connection pool and dispatcher. */
     fun tuned(http: OkHttpClient): OkHttpClient = http.newBuilder()
-        .proxySelector(com.cosmotune.video.source.VideoProxy.selector)
+        .proxySelector(proxySelector)
         .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
