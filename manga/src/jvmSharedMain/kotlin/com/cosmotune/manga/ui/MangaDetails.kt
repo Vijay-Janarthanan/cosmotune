@@ -207,8 +207,10 @@ private fun SeriesCard(scope: MangaScope, book: MangaBook, cover: Any?, saved: B
         chips = { colors ->
             if (!saved) OrbitCardChip(mangaText("Library"), colors, onClick = { scope.action { repository.store.save(book) } }, icon = CosmoIcons.Heart)
             else MangaCollectionAssignment(repository, book.id, colors)
-            val pending = if (book.sourceId == "local") emptyList() else book.listedChapters().filter { it.id !in state.readChapters && !state.downloads.containsKey(it.id) }
-            if (pending.isNotEmpty() && !scope.transfer.active) OrbitCardChip(mangaText("Download") + if (pending.size > 1) " · ${pending.size}" else "", colors,
+            if (book.sourceId != "local") MangaTrackChip(scope, book, colors)
+            val queue by repository.downloads.state.collectAsState()
+            val pending = if (book.sourceId == "local") emptyList() else book.listedChapters().filter { it.id !in state.readChapters && !state.downloads.containsKey(it.id) && !queue.has(it.id) }
+            if (pending.isNotEmpty()) OrbitCardChip(mangaText("Download") + if (pending.size > 1) " · ${pending.size}" else "", colors,
                 onClick = { mangaDownload(scope, book, pending) }, icon = CosmoIcons.Download)
         },
     )

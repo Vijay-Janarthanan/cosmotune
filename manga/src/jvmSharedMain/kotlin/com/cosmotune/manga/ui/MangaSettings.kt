@@ -125,6 +125,8 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
                     } })
                 }
             }
+            MangaSuwayomiControls(repository, onError = { error = it })
+            MangaTrackingSettings(repository)
             MangaExtensionControls(repository, onError = { error = it })
             MangaTemplateControls(repository)
             MangaVerificationSourcePicker(repository)

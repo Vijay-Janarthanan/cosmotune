@@ -46,6 +46,8 @@ class MangaRepository(val store: MangaStore,
     internal val kotatsuParser: ((MangaSourceConfig, ParserContext) -> org.koitharu.kotatsu.parsers.MangaParser)? = null,
     private val platformSource: ((MangaSourceConfig, ParserContext) -> MangaSource)? = null) {
     val context = ParserContext(store.root, store.protection) { store.state.value.sources }
+    /** The reading lists (MangaUpdates) and Komga's read marks, sent on when a chapter is finished. */
+    val tracking = MangaTracking(store, context.httpClient)
     private val sources = LinkedHashMap<String, Pair<MangaSourceConfig, MangaSource>>()
     private val verificationConfigs = HashMap<String, MangaSourceConfig>()
     private val transfers = Mutex()
@@ -56,7 +58,12 @@ class MangaRepository(val store: MangaStore,
     private val changes = MutableStateFlow(0L)
     val sourceChanges = changes.asStateFlow()
     private val parserScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    /** Chapters waiting to be downloaded, one at a time, and the automatic download rules. */
+    val downloads = MangaDownloadQueue(store, parserScope, { chapter, progress -> download(chapter, progress) },
+        { ids -> takeOutDownloads(ids); trimDownloads() })
     init {
+        tracking.watch(parserScope)
+        downloads.watch()
         parserScope.observeParserBundleChanges(context.parserUpdates.bundle) {
             synchronized(this@MangaRepository) {
                 sources.entries.removeAll { it.value.first.kind == "kotatsu" }
@@ -119,6 +126,7 @@ class MangaRepository(val store: MangaStore,
         val source = sourceApi { when (config.kind) {
             "kotatsu" -> KotatsuSource(config, context, kotatsuParser?.invoke(config, context))
             "komga" -> KomgaSource(config, context.httpClient)
+            "suwayomi" -> SuwayomiSource(config, context.httpClient)
             "template" -> TemplateMangaSource(config, context.httpClient)
             "mihon" -> platformSource?.invoke(config, context) ?: error("APK extension sources require the Android app")
             else -> error("Unknown manga source type: ${config.kind}")

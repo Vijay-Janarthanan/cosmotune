@@ -158,6 +158,16 @@ object AndroidCloud {
             }
         }
         scope.launch { com.cosmotune.watch.WatchSyncSignals.changes.collect { autoSync.changed() } }
+        // Manga's library is opened for this only once sync is on; a finished chapter or a new series is worth a sync, a page turn is not.
+        scope.launch {
+            _enabled.first { it }
+            var previous: Map<String, JsonObject>? = null
+            com.cosmotune.manga.ui.AndroidMangaSync.store(app).state.collect { state ->
+                val current = com.cosmotune.manga.data.SyncMangaLibrary.changeSignal(state)
+                if (previous != null && previous != current) autoSync.changed()
+                previous = current
+            }
+        }
         SyncLikes.sourceTrack = SourceLibraryStore::ownsTrack
         scope.launch {
             _enabled.value = flags.getBoolean(KEY_ENABLED, false)

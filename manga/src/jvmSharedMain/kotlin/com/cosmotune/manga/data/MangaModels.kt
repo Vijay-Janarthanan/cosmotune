@@ -123,6 +123,47 @@ data class MangaLibraryState(
     val readerKeepScreenOn: Boolean = true,
     /** Show "6 / 22" at the foot of the page while the reader's card is hidden. */
     val readerPageNumber: Boolean = true,
+    /** Cut the plain white or black margins off each page. */
+    val readerCrop: Boolean = false,
+    /** Turn a wide page sideways so it fills a tall screen. */
+    val readerRotateWide: Boolean = false,
+    /** Two pages side by side in the paged modes when the window is wider than tall; [readerCoverAlone] keeps the first page alone. */
+    val readerSpread: Boolean = false,
+    val readerCoverAlone: Boolean = true,
+    /** A colour filter over the pages: none, grey, inverted or sepia. */
+    val readerFilter: MangaReaderFilter = MangaReaderFilter.NONE,
+    /** What shows around a page that does not fill the screen. */
+    val readerBackground: MangaReaderBackground = MangaReaderBackground.BLACK,
+    /** Where a tap on a page turns it, and whether back and on are swapped. */
+    val readerTapZones: MangaTapZones = MangaTapZones.THIRDS,
+    val readerTapInvert: Boolean = false,
+    /** The volume keys turn pages while reading. */
+    val readerVolumeKeys: Boolean = false,
+    /** Incognito: reading saves no place, no history and no read marks, and nothing is sent to reading lists. */
+    val incognito: Boolean = false,
+    /** Library updates skip series that are finished and fully read. */
+    val updateSkipFinished: Boolean = true,
+    /** Reading lists signed in to, by service ([MangaTrackers]). */
+    val trackerAccounts: Map<String, MangaTrackerAccount> = emptyMap(),
+    /** The reading-list entries each series is linked to, by series id. */
+    val tracks: Map<String, List<MangaTrack>> = emptyMap(),
+    /** Series whose last finished chapter could not be sent to a reading list or to Komga. */
+    val trackFailures: Set<String> = emptySet(),
+    /** Browse's feed: the sources' order, and the sources whose shelf is hidden. */
+    val feedOrder: List<String> = emptyList(),
+    val feedHidden: Set<String> = emptySet(),
+    /** Series marked "Not interested": never suggested again in For you. */
+    val notInterested: Set<String> = emptySet(),
+    /** Read chapters that came from another device for a series whose chapter list this device has not loaded yet. */
+    val syncedRead: Map<String, Set<String>> = emptyMap(),
+    /** New chapters found by an update are downloaded at once. */
+    val autoDownloadNew: Boolean = false,
+    /** How many chapters ahead of the one being read are downloaded (0 is off). */
+    val downloadAhead: Int = 0,
+    /** A downloaded chapter is removed from the device once it is read. */
+    val deleteAfterRead: Boolean = false,
+    /** Finished Komga chapters are marked read on the Komga server too. */
+    val serverWriteBack: Boolean = true,
 )
 
 @Serializable data class MangaCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())

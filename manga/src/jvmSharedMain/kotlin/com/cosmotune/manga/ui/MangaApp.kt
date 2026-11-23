@@ -259,7 +259,7 @@ internal fun androidx.compose.foundation.layout.RowScope.MangaRootActions(scope:
 /** The cover of a series: its address, the first page of a local comic, or a signed cover fetched through its source. */
 @Composable
 internal fun rememberMangaCover(repository: MangaRepository, book: MangaBook): Any? {
-    val signedCover = book.sourceId.startsWith("template:") || book.sourceId.startsWith("komga:")
+    val signedCover = book.sourceId.startsWith("template:") || book.sourceId.startsWith("komga:") || book.sourceId.startsWith("suwayomi:")
     var cover by remember(book.id, book.coverUrl) { mutableStateOf<Any?>(book.coverUrl.takeUnless { signedCover }) }
     LaunchedEffect(book.id, book.coverUrl) {
         if (book.sourceId == "local") runCatching {
@@ -273,7 +273,7 @@ internal fun rememberMangaCover(repository: MangaRepository, book: MangaBook): A
 }
 
 /** The address of a series' cover when it is a plain one, for the colour of its card. */
-internal fun MangaBook.colourUrl(): String? = coverUrl?.takeIf { it.startsWith("http") && !sourceId.startsWith("template:") && !sourceId.startsWith("komga:") }
+internal fun MangaBook.colourUrl(): String? = coverUrl?.takeIf { it.startsWith("http") && !sourceId.startsWith("template:") && !sourceId.startsWith("komga:") && !sourceId.startsWith("suwayomi:") }
 
 /**
  * A series as a tall cover. In the library ([inLibrary]) its corner carries the unread chapters (in peach) and the downloaded ones

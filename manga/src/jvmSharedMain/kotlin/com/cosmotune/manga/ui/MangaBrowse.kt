@@ -236,7 +236,7 @@ private fun MangaSourceRow(source: MangaSourceConfig, modifier: Modifier = Modif
     val look = orbitLook()
     OrbitSongRow(
         title = source.name, cover = null, fonts = fonts, look = look, onClick = onClick, modifier = modifier.fillMaxWidth(),
-        subtitle = listOf(languageName(source.language), when (source.kind) { "komga" -> "Komga"; "template" -> "Website"; "mihon" -> "Extension"; else -> "Source" }).joinToString(" · "),
+        subtitle = listOf(languageName(source.language), when (source.kind) { "komga" -> "Komga"; "suwayomi" -> "Suwayomi"; "template" -> "Website"; "mihon" -> "Extension"; else -> "Source" }).joinToString(" · "),
         discContent = {
             Box(Modifier.size(com.cosmotune.ui.orbit.orbitRowDisc()).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
                 Text(titleInitials(source.name), style = fonts.label, color = look.ink)
