@@ -1865,7 +1865,8 @@ class PlaybackService : MediaLibraryService() {
         // DsdExtractorsFactory: the stock extractors plus DSF/DFF, which Media3
         // cannot open at all. A DSD file leaves the extractor as float PCM.
         mediaSourceFactory = DefaultMediaSourceFactory(
-            AudioCache.playbackFactory(defaultDataSourceFactory),
+            // A Podio station's bytes also reach its recording, when one runs (no second connection).
+            AudioCache.playbackFactory(com.cosmotune.podio.PodioTapDataSource.Factory(defaultDataSourceFactory)),
             DsdExtractorsFactory(),
         )
             .setLoadErrorHandlingPolicy(PermanentAwareLoadErrorPolicy())

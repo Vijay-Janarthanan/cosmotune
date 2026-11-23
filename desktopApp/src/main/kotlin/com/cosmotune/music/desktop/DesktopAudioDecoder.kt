@@ -151,6 +151,8 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
         windowed: Boolean = false,
         /** Explicit demuxer for an extensionless add-on manifest. */
         transport: String? = null,
+        /** A Podio station read by the app itself ([DesktopLiveStream]), so a recording can take its bytes. */
+        live: Boolean = false,
     ): Result<Unit> = runCatching {
         av_log_set_level(AV_LOG_ERROR)
         ensureNetwork()
@@ -171,14 +173,19 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
         av_dict_set(options, "reconnect_delay_max", "5", 0)
         av_dict_set(options, "rw_timeout", "15000000", 0)
 
-        val opened = if (windowed) windowedContext(url, headers) else AVFormatContext(null)
+        val ownReads = live && !windowed && transport == null && DesktopLiveStream.suits(url)
+        val opened = when {
+            windowed -> windowedContext(url, headers)
+            ownReads -> liveContext(url, headers)
+            else -> AVFormatContext(null)
+        }
         // The code matters.
         val inputFormat: AVInputFormat? = when (transport?.lowercase()) {
             DesktopAddonStream.HLS -> av_find_input_format("hls")
             DesktopAddonStream.DASH -> av_find_input_format("dash")
             else -> null
         }
-        val status = avformat_open_input(opened, if (windowed) null as String? else url, inputFormat, options)
+        val status = avformat_open_input(opened, if (windowed || ownReads) null as String? else url, inputFormat, options)
         if (status < 0) {
             // Typed, so the player can tell a connection that is down, or a link that has expired,
             // from a stream nothing can read.
@@ -294,6 +301,27 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
      * A format context reading through [DesktopRangeStream] rather than through FFmpeg's own HTTP
      * client.
      */
+    private var liveSource: DesktopLiveStream? = null
+
+    /** A station read by the app ([DesktopLiveStream]) through DesktopAvio's callbacks, as [windowedContext] does for files. */
+    private fun liveContext(url: String, headers: Map<String, String>): AVFormatContext {
+        val source = DesktopLiveStream(url, headers).also { it.open() }
+        val io = DesktopAvio.open(
+            object : DesktopAvioSource {
+                override fun read(into: ByteArray, count: Int): Int = source.read(into, count)
+                override fun seek(position: Long) = source.seek(position)
+                override fun position(): Long = source.position()
+                override fun length(): Long = -1
+            },
+            IO_BUFFER_BYTES,
+        )
+        avio = io
+        liveSource = source
+        val context = avformat_alloc_context()
+        context.pb(io.context)
+        return context
+    }
+
     private fun windowedContext(url: String, headers: Map<String, String>): AVFormatContext {
         val source = DesktopRangeStream(url, headers)
         // Through DesktopAvio's callbacks, so neither a failing fetch nor anything else the stream
@@ -525,6 +553,8 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
         avio?.close()
         avio = null
         rangeSource = null
+        liveSource?.close()
+        liveSource = null
     }
 
     internal companion object {

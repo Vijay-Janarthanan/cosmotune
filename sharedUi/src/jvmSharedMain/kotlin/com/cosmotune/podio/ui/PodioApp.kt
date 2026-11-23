@@ -211,6 +211,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             delay(30_000)
         }
     }
+    // The recorder follows what plays: a recording ends when another station or an episode comes on.
+    LaunchedEffect(playback.id, playingStation?.id) { if (playback.id != null) PodioRecorder.playing(playingStation) }
     val nowArt = m.lastPlayed?.takeIf { it.id == playback.id }?.artwork
     // The episode on, as a bookmark keeps it.
     val playingItem = if (episodeOn) m.lastPlayed?.takeIf { it.id == playback.id } ?: playingEntry?.item() else null

@@ -565,6 +565,7 @@ class DesktopPlaybackEngine(
                 requested = DesktopPcmFormat(44_100, 2, bytesPerSample = 4, isFloat = true),
                 windowed = stream.windowedReads,
                 transport = stream.transport,
+                live = song.videoId.startsWith("podio:radio:"),
             ).map {
                 if (startAtMs > 0) decoder.seek(startAtMs * 1_000)
                 // From here the decoder belongs to its own read-ahead thread: the audio thread only

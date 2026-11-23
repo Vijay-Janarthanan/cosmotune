@@ -377,7 +377,7 @@ internal class PodioModel(
     }
 
     fun playStation(station: RadioStation) {
-        selected = station; play(station.item())
+        selected = station; PodioRecorder.playing(station); play(station.item())
         save { PodioHistory.played(it, station) }
         scope.launch { catalogue.stationPlayed(station.id) }
     }
@@ -638,6 +638,8 @@ internal class PodioModel(
 
     fun startRecording(station: RadioStation) {
         val folder = recordingsFolder ?: return
+        // The recording is what the player reads, so the station plays first.
+        if (lastPlayed?.id != station.item().id) playStation(station)
         PodioRecorder.start(station, folder, split = library.state.value.recordBySong)
         notice = if (library.state.value.recordBySong) "Recording ${station.name}: each song is saved as its own file in Downloads." else "Recording ${station.name} to Downloads."
     }

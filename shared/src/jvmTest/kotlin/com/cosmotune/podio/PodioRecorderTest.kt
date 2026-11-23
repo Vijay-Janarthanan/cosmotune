@@ -44,6 +44,26 @@ class PodioRecorderTest {
         assertTrue(listed.item().id.startsWith("podio:episode:recording-"))
     }
 
+    @Test fun theRecorderSavesWhatThePlayerReadsOneFileASong() {
+        val dir = Files.createTempDirectory("podio-tap").toFile()
+        val station = RadioStation("s", "Radio X", "https://radio.example/live")
+        val other = RadioStation("o", "Other", "https://other.example/live")
+        PodioRecorder.playing(station)
+        assertNull(PodioRecorder.tap(other.url, "audio/mpeg", null), "only the station that plays")
+        PodioRecorder.start(station, dir, split = true, nowMs = { 0L })
+        val tap = assertNotNull(PodioRecorder.tap("https://radio.example/live/", "audio/mpeg", 64 * 1024))
+        val song = ByteArray(64 * 1024) { 7 }
+        // The first title comes after the first block of audio, then each block is one song.
+        val stream = song + meta("A - One") + song + meta("B - Two") + song + byteArrayOf(0)
+        stream.toList().chunked(5000).forEach { part -> val bytes = part.toByteArray(); tap.write(bytes, 0, bytes.size) }
+        assertEquals("B - Two", PodioRecorder.state.value?.title)
+        PodioRecorder.playing(other)
+        assertNull(PodioRecorder.state.value, "another station stops the recording")
+        val names = dir.listFiles().orEmpty().map { it.name }.sorted()
+        assertEquals(listOf("Radio X – A - One.mp3", "Radio X – B - Two.mp3"), names, "the part before the first title is too short to keep")
+        assertTrue(dir.listFiles()!!.all { it.length() == 64 * 1024L })
+    }
+
     @Test fun onlyPlainAudioIsSaved() {
         assertEquals("mp3", PodioRecorder.extensionOf("audio/mpeg", "https://s.example/live"))
         assertEquals("aac", PodioRecorder.extensionOf("audio/aacp; charset=x", "https://s.example/live"))
