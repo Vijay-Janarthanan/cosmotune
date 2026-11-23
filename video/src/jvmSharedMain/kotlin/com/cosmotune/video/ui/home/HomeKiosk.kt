@@ -153,7 +153,11 @@ internal class HomeModel(
     var moreError by mutableStateOf(false); private set
     var repeatedPage by mutableStateOf(false); private set
     val hasMore get() = next != null && items.size < MAX_ITEMS
-    val exhausted get() = phase == KioskPhase.READY && !hasMore
+    /** Every page of the selected kiosk is in and there were cards: the end-of-list note. */
+    val exhausted get() = phase == KioskPhase.READY && items.isNotEmpty() && !hasMore
+
+    /** The selected kiosk answered with no cards at all: the empty state with "Try again", never the end-of-list note. */
+    val empty get() = phase == KioskPhase.READY && items.isEmpty() && !hasMore
     private val consumed = HashSet<String>()
     private var emptyPages = 0
 
@@ -207,7 +211,7 @@ internal class HomeModel(
         val known = cache.kiosks
         if (known != null) {
             kiosks = known
-            select(pick(known, preferredId))
+            select(pick(known, preferredId), fallback = true)
             return
         }
         kiosks = null
@@ -220,7 +224,7 @@ internal class HomeModel(
             cache.restoreSaved(regionKey)
             cache.kiosks?.let { saved ->
                 kiosks = saved
-                select(pick(saved, preferredId))
+                select(pick(saved, preferredId), fallback = true)
                 return@launch
             }
             val offered = attempt { source.kiosks() }
@@ -233,41 +237,58 @@ internal class HomeModel(
             kiosks = cache.kiosks
             val id = pick(requireNotNull(cache.kiosks), preferredId)
             selectedId = id
-            loadFirstPage(id)
+            loadFirstPage(id, fallback = true)
         }
     }
 
-    /** Shows kiosk [id] (a chip was tapped): its cached pages when they are fresh, else its first page from the source. */
-    fun select(id: String) {
+    /**
+     * Shows kiosk [id] (a chip was tapped): its cached pages when they are fresh, else its first page from the source. With
+     * [fallback] (Home opening, not a chip) a kiosk that came back empty gives way to the next one that has videos.
+     */
+    fun select(id: String, fallback: Boolean = false) {
         job?.cancel()
         cancelMore()
         selectedId = id
         initialError = false; moreError = false; repeatedPage = false; emptyPages = 0; consumed.clear()
-        val cached = cache.pages[id]
+        val cached = cache.pages[id]?.takeUnless { fallback && it.items.isEmpty() && it.next == null }
         if (cached != null) {
             items = cached.items
             next = cached.next
             consumed.addAll(cached.consumed)
             phase = KioskPhase.READY
             // Past its ten minutes the list stays on screen while its first page is fetched again, then swapped in.
-            if (freshPages(id) == null) job = scope.launch { loadFirstPage(id) }
+            if (freshPages(id) == null) job = scope.launch { loadFirstPage(id, fallback) }
             return
         }
         items = emptyList()
         next = null
         phase = KioskPhase.LOADING
-        job = scope.launch { loadFirstPage(id) }
+        job = scope.launch { loadFirstPage(id, fallback) }
     }
 
-    /** "Try again": the kiosks again when they never came, else the selected kiosk's first page again. */
-    fun retry() {
+    /**
+     * Back to All from a topic's chip: when that topic is empty, All draws on the next kiosk that has videos (its fresh pages at
+     * once, else from the source), as when Home opens.
+     */
+    fun showAll() {
+        val offered = kiosks ?: return
+        val id = selectedId ?: return
+        if (!empty) return
+        select(pick(offered, id), fallback = true)
+    }
+
+    /**
+     * "Try again": the kiosks again when they never came, else the selected kiosk's first page again (with [fallback], on to the
+     * next kiosk that has videos when it is empty, as when Home opens).
+     */
+    fun retry(fallback: Boolean = false) {
         val id = selectedId
         if (kiosks == null || id == null) {
             start(lastRegionKey, lastPreferred)
         } else {
             job?.cancel(); cancelMore(); initialError = false; moreError = false; repeatedPage = false
             if (items.isEmpty()) phase = KioskPhase.LOADING
-            job = scope.launch { loadFirstPage(id) }
+            job = scope.launch { loadFirstPage(id, fallback) }
         }
     }
 
@@ -336,25 +357,45 @@ internal class HomeModel(
     private fun knownRelated(ids: List<String>): Map<String, List<ListItem>> =
         ids.mapNotNull { id -> cache.related[id]?.let { id to it } }.toMap()
 
-    private suspend fun loadFirstPage(id: String) {
-        val page = attempt { source.kiosk(id, null) }
-        val cards = page?.items?.distinctBy { it.id }?.take(MAX_ITEMS).orEmpty()
-        if (page == null) {
-            initialError = true
-            phase = if (items.isEmpty()) KioskPhase.FAILED else KioskPhase.READY
+    /**
+     * The first page of kiosk [id]. With [fallback], a kiosk that answers with no videos and no next page (the site stopped filling
+     * that chart: YouTube's Music and Movies charts come back empty) hands over to the next offered kiosk, and the first one with
+     * videos becomes the selected one, so Home never opens blank while another chart has videos. A failure stops there.
+     */
+    private suspend fun loadFirstPage(id: String, fallback: Boolean = false) {
+        val candidates = if (fallback) listOf(id) + kiosks.orEmpty().map { it.id }.filter { it != id } else listOf(id)
+        for ((index, candidate) in candidates.withIndex()) {
+            val page = attempt { source.kiosk(candidate, null) }
+            if (page == null) {
+                initialError = true
+                phase = if (items.isEmpty()) KioskPhase.FAILED else KioskPhase.READY
+                return
+            }
+            val cards = page.items.distinctBy { it.id }.take(MAX_ITEMS)
+            cache.pages[candidate] = KioskPages(cards, page.next, clock())
+            if (cards.isEmpty() && page.next == null && index < candidates.lastIndex) continue
+            initialError = false; consumed.clear(); emptyPages = 0
+            trimPages(candidate)
+            cache.save()
+            // When every kiosk was empty the one asked for stays selected.
+            selectedId = if (cards.isNotEmpty() || page.next != null) candidate else id
+            items = cards
+            next = page.next
+            phase = KioskPhase.READY
             return
         }
-        initialError = false; consumed.clear(); emptyPages = 0
-        cache.pages[id] = KioskPages(cards, page.next, clock())
-        trimPages(id)
-        cache.save()
-        items = cards
-        next = page.next
-        phase = KioskPhase.READY
     }
 
-    private fun pick(offered: List<Kiosk>, preferredId: String): String =
-        (offered.firstOrNull { it.id == preferredId } ?: offered.first()).id
+    /**
+     * [preferredId] when it is offered (else the first kiosk), unless its fresh pages are known to be empty while another kiosk's
+     * fresh pages have videos: a return to Home then shows that one at once instead of a blank page.
+     */
+    private fun pick(offered: List<Kiosk>, preferredId: String): String {
+        val wanted = (offered.firstOrNull { it.id == preferredId } ?: offered.first()).id
+        val known = freshPages(wanted) ?: return wanted
+        if (known.items.isNotEmpty() || known.next != null) return wanted
+        return offered.firstOrNull { freshPages(it.id)?.items?.isNotEmpty() == true }?.id ?: wanted
+    }
 
     private fun trimPages(currentId: String) {
         while (cache.pages.size > 8) cache.pages.keys.firstOrNull { it != currentId }?.let { cache.pages.remove(it) } ?: break

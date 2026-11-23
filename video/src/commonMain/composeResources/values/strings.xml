@@ -551,6 +551,7 @@
     <string name="video_home_kiosk_next_failed">More source-topic videos could not load. Retry without clearing the feed.</string>
     <string name="video_home_repeated">The source repeated a page. Paging has stopped; refresh for a new list.</string>
     <string name="video_home_exhausted">You have reached the available suggestions. Refresh or choose another topic.</string>
+    <string name="video_home_empty">No videos to show right now. Try again or pick another topic.</string>
     <string name="video_home_not_interested">Not interested in this video</string>
     <string name="video_home_hide_channel">Show less from this channel</string>
     <string name="video_home_why">Why this video?</string>

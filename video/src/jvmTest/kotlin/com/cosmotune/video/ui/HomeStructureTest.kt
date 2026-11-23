@@ -11,6 +11,7 @@ import com.cosmotune.video.source.VideoSourceError
 import com.cosmotune.video.ui.home.HomeCache
 import com.cosmotune.video.ui.home.HomeModel
 import com.cosmotune.video.ui.home.KioskPhase
+import com.cosmotune.video.ui.home.KioskPages
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -75,7 +76,7 @@ class HomeStructureTest {
 
     @Test fun theTrendingKioskIsNeverNamedOrRequestedById() {
         for ((name, text) in all) assertFalse("trending" in text.lowercase(), "$name names a kiosk: the source offers the kiosks, by its own ids")
-        assertTrue("source.kiosks()" in code("HomeKiosk") && "source.kiosk(id, null)" in code("HomeKiosk") && "source.kiosk(id, token)" in code("HomeKiosk"))
+        assertTrue("source.kiosks()" in code("HomeKiosk") && "source.kiosk(candidate, null)" in code("HomeKiosk") && "source.kiosk(id, token)" in code("HomeKiosk"))
         assertTrue("graph.settings.update { it.copy(homeKiosk = kiosk.id) }" in screen, "the choice is remembered in the settings")
     }
 
@@ -162,7 +163,10 @@ class HomeStructureTest {
         assertTrue("KioskPhase.LOADING ->" in screen && "KioskPhase.FAILED ->" in screen && "KioskPhase.READY ->" in screen)
         assertTrue("CosmoEmptyState(message = errorText, actionLabel = retryText, onAction = onRetry)" in screen)
         assertTrue("Res.string.video_list_error" in screen && "Res.string.video_retry" in screen)
-        assertTrue("titleError, titleRetry, model::retry" in screen, "Try again asks the model again")
+        assertTrue("titleError, titleRetry, retryHome" in screen && "val retryHome: () -> Unit = { model.retry(fallback = all) }" in screen, "Try again asks the model again")
+        assertTrue("if (feed.empty) item(key = \"empty\"" in screen && "CosmoEmptyState(message = feed.emptyText, actionLabel = retryText, onAction = onRetry)" in screen,
+            "a page with nothing on it is the empty state with Try again")
+        assertTrue("exhausted = phase == KioskPhase.READY && stream.isNotEmpty()" in screen, "the end-of-list note only follows cards")
     }
 
     @Test fun theKioskLoadsMoreThreeCardsBeforeTheEnd() {
@@ -448,7 +452,55 @@ class HomeStructureTest {
         model.start("|", "live")
         runCurrent()
         assertEquals(KioskPhase.READY, model.phase)
-        assertTrue(model.exhausted)
+        assertTrue(model.empty, "nothing came: the empty state")
+        assertFalse(model.exhausted, "never the end-of-list note on an empty page")
+        assertEquals("live", model.selectedId, "when every chart is empty the one asked for stays")
+    }
+
+    @Test fun anEmptyChartGivesWayToTheNextOneWithVideos() = runTest {
+        val source = ScriptedSource()
+        // The site's Music and Movies charts come back with nothing and no next page.
+        source.kioskScript = { id, page -> if (id == "music" || id == "movies") Page(emptyList(), null) else source.inner.kiosk(id, page) }
+        val model = HomeModel(source, backgroundScope, HomeCache(), clockOf(longArrayOf(1_000)))
+        model.start("|", "music")
+        runCurrent()
+        assertEquals(KioskPhase.READY, model.phase)
+        assertEquals("gaming", model.selectedId, "Home opens on the next chart that has videos")
+        assertTrue(model.items.isNotEmpty())
+        assertFalse(model.empty)
+        assertEquals(listOf("music@null", "gaming@null"), source.kioskCalls)
+        // A chip asks for its own chart only: Music stays empty and says so.
+        model.select("music")
+        runCurrent()
+        assertEquals("music", model.selectedId)
+        assertTrue(model.empty)
+        // Back to All: it draws on the chart that has videos again, from what is already loaded.
+        model.showAll()
+        runCurrent()
+        assertEquals("gaming", model.selectedId)
+        assertFalse(model.empty)
+        assertEquals(listOf("music@null", "gaming@null"), source.kioskCalls, "both answers were kept: nothing is asked again")
+        // Coming back to Home shows the chart that has videos at once.
+        val cache = HomeCache().apply {
+            reset("|"); kiosks = FakeVideoSource.KIOSKS
+            pages["music"] = KioskPages(emptyList(), null, 1_000)
+            pages["gaming"] = KioskPages(FakeVideoSource.videos.take(3), null, 1_000)
+        }
+        val again = HomeModel(source, backgroundScope, cache, clockOf(longArrayOf(2_000)))
+        again.restore("|", "music", emptyList())
+        assertEquals("gaming", again.selectedId)
+        assertEquals(3, again.items.size)
+    }
+
+    @Test fun aFailedChartIsAnErrorNotAFallback() = runTest {
+        val source = ScriptedSource()
+        source.kioskScript = { _, _ -> throw VideoSourceError.Network("offline", null) }
+        val model = HomeModel(source, backgroundScope, HomeCache(), clockOf(longArrayOf(1_000)))
+        model.start("|", "music")
+        runCurrent()
+        assertEquals(KioskPhase.FAILED, model.phase)
+        assertEquals(listOf("music@null"), source.kioskCalls, "a failure does not walk every chart")
+        assertFalse(model.empty)
     }
 
     @Test fun repeatedKioskTokenStopsAndARefreshFailureKeepsLoadedCards() = runTest {
