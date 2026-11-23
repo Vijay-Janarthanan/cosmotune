@@ -237,6 +237,12 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putString(KEY_SONG_TAGS, com.cosmotune.listening.SongTags.encode(value))
     }
 
+    private val notificationSleepFlow = MutableStateFlow(store.getBoolean(KEY_NOTIFICATION_SLEEP, false))
+
+    /** The phone notification's second button is the sleep timer instead of Repeat. Off until turned on. */
+    val notificationSleep: StateFlow<Boolean> = notificationSleepFlow.asStateFlow()
+    fun setNotificationSleep(value: Boolean) { notificationSleepFlow.value = value; store.putBoolean(KEY_NOTIFICATION_SLEEP, value) }
+
     private val nowPlayingWebhookFlow = MutableStateFlow(store.getString(KEY_NOW_PLAYING_WEBHOOK, ""))
     private val nowPlayingBroadcastFlow = MutableStateFlow(store.getBoolean(KEY_NOW_PLAYING_BROADCAST, false))
     private val nowPlayingFileFlow = MutableStateFlow(store.getBoolean(KEY_NOW_PLAYING_FILE, false))
@@ -267,6 +273,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_NOW_PLAYING_WEBHOOK = "extras_now_playing_webhook"
         const val KEY_NOW_PLAYING_BROADCAST = "extras_now_playing_broadcast"
         const val KEY_NOW_PLAYING_FILE = "extras_now_playing_file"
+        const val KEY_NOTIFICATION_SLEEP = "extras_notification_sleep"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"

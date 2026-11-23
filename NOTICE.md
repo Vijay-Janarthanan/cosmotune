@@ -307,4 +307,6 @@ These follow ideas seen in other players and are written for Cosmotune without t
 OuterTune) and the MusicBrainz part of Song info (`RecordingFacts.kt`, the idea from Kreate, GPL-3.0); the lyrics home-screen widget
 (`LyricWidget.kt`, the idea from Gramophone, GPL-3.0); ratings, moods and tags with their own pages (`SongTags.kt`, the idea from Namida, whose
 code may not be used); Now playing for other apps, a webhook and the music broadcasts (`NowPlayingOut.kt`, the idea from Namida) and
-the now-playing file for OBS (th-ch YouTube Music, MIT); DNS over HTTPS (`PrivateDns.kt`, the idea from RiMusic and Kreate, GPL-3.0).
+the now-playing file for OBS (th-ch YouTube Music, MIT); DNS over HTTPS (`PrivateDns.kt`, the idea from RiMusic and Kreate, GPL-3.0); from Kreate
+as well, the history by days, weeks or months with source chips, Replay's weekday chart and time per source (`ListeningActivity.kt`),
+and the sleep timer button on the notification (`SleepButtonCycle.kt`).

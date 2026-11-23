@@ -32,6 +32,8 @@ object PlayerExtrasText {
     const val SCREEN_ON_LINE = "The lyrics and videos always keep it on. Choose to keep it on while the player is open, or whenever music plays."
     const val BEST_PART = "Best part button"
     const val BEST_PART_LINE = "A button on the player that skips to the part of the song people replay most, or else to the chorus in its lyrics."
+    const val NOTIFICATION_SLEEP = "Sleep timer on the notification"
+    const val NOTIFICATION_SLEEP_LINE = "The notification's second button sets the sleep timer instead of Repeat: each tap goes 15, 30, 60 minutes, then off."
     const val WAVEFORM = "Waveform seek line"
     const val WAVEFORM_LINE = "The seek line shows how loud the song gets once you have heard it, with dots where listeners left a comment about a moment."
 }
@@ -55,6 +57,13 @@ fun SleepFadeOutRow(settings: ExtrasSettings = Extras.settings) {
 fun BestPartRow(settings: ExtrasSettings = Extras.settings) {
     val on by settings.bestPart.collectAsState()
     ExtrasSwitchRow(Icons.Rounded.Whatshot, PlayerExtrasText.BEST_PART, PlayerExtrasText.BEST_PART_LINE, on, settings::setBestPart)
+}
+
+/** The sleep timer in place of Repeat on the phone notification ([ExtrasSettings.notificationSleep]); off until turned on. */
+@Composable
+fun NotificationSleepRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.notificationSleep.collectAsState()
+    ExtrasSwitchRow(Icons.Rounded.Bedtime, PlayerExtrasText.NOTIFICATION_SLEEP, PlayerExtrasText.NOTIFICATION_SLEEP_LINE, on, settings::setNotificationSleep)
 }
 
 /** The waveform seek line with timed comments ([ExtrasSettings.waveformSeek]); on until turned off. */

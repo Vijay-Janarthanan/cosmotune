@@ -226,6 +226,7 @@ const val ACTION_TOGGLE_SHUFFLE = "com.cosmotune.music.action.TOGGLE_SHUFFLE"
 
 /** Session command used by the media notification's Repeat button: off → all → one → off. */
 const val ACTION_CYCLE_REPEAT = "com.cosmotune.music.action.CYCLE_REPEAT"
+const val ACTION_CYCLE_SLEEP = "com.cosmotune.music.action.CYCLE_SLEEP"
 
 /** Session actions exposed to Android Auto for the track that is playing. */
 const val ACTION_START_STATION = "com.cosmotune.music.action.START_STATION"
@@ -925,6 +926,7 @@ class PlaybackService : MediaLibraryService() {
     private val autoplayCommand = SessionCommand(ACTION_TOGGLE_AUTOPLAY, Bundle.EMPTY)
     private val shuffleCommand = SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
     private val repeatCommand = SessionCommand(ACTION_CYCLE_REPEAT, Bundle.EMPTY)
+    private val sleepCommand = SessionCommand(ACTION_CYCLE_SLEEP, Bundle.EMPTY)
     private val startStationCommand = SessionCommand(ACTION_START_STATION, Bundle.EMPTY)
     private val revertToOriginalCommand = SessionCommand(ACTION_REVERT_TO_ORIGINAL, Bundle.EMPTY)
     private val swapToVersionCommand = SessionCommand(ACTION_SWAP_TO_VERSION, Bundle.EMPTY)
@@ -1529,6 +1531,12 @@ class PlaybackService : MediaLibraryService() {
                 )
             }
         }
+        // The sleep button follows the timer, whoever set it, and the setting that shows it.
+        scope.launch {
+            kotlinx.coroutines.flow.combine(SleepTimer.deadline, com.cosmotune.settings.Extras.settings.notificationSleep) { deadline, on -> (deadline != null) to on }
+                .distinctUntilChanged()
+                .collectLatest { refreshCustomLayouts() }
+        }
         // Signing in or out adds or removes Like everywhere at once.
         scope.launch {
             SignedIn.state(this@PlaybackService)
@@ -2115,7 +2123,23 @@ class PlaybackService : MediaLibraryService() {
         )
 
     /** Like and Repeat, or Shuffle and Repeat: the two actions of Cosmotune's own on the phone notification. See [NotificationButtons]. */
-    private fun notificationButtons(): List<CommandButton> = buttons(NotificationButtons.pick(canLike(player?.currentMediaItem)))
+    private fun notificationButtons(): List<CommandButton> = buttons(
+        NotificationButtons.pick(canLike(player?.currentMediaItem), com.cosmotune.settings.Extras.settings.notificationSleep.value),
+    )
+
+    /** Minutes left on a timed sleep timer, rounded up, or null while none runs (an "end of song" timer counts as none). */
+    private fun sleepMinutesLeft(): Int? = SleepTimer.deadline.value?.let { deadline ->
+        (((deadline - SleepTimer.clock()).coerceAtLeast(0) + 59_999) / 60_000).toInt()
+    }
+
+    /** The notification's sleep button: the next length in [com.cosmotune.listening.SleepButtonCycle], or off. */
+    private fun cycleSleepFromSession() {
+        when (val next = com.cosmotune.listening.SleepButtonCycle.next(sleepMinutesLeft())) {
+            null -> SleepTimer.cancel()
+            else -> SleepTimer.start(next)
+        }
+        refreshCustomLayouts()
+    }
 
     private fun buttons(kinds: List<NotificationButtons.Kind>): List<CommandButton> =
         kinds.map { kind ->
@@ -2135,6 +2159,14 @@ class PlaybackService : MediaLibraryService() {
                     CommandButton.Builder(if (shuffleEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF)
                         .setSessionCommand(shuffleCommand)
                         .setDisplayName(if (shuffleEnabled) "Shuffle off" else "Shuffle on")
+                        .build()
+                }
+                NotificationButtons.Kind.SLEEP -> {
+                    val left = sleepMinutesLeft()
+                    CommandButton.Builder(CommandButton.ICON_UNDEFINED)
+                        .setCustomIconResId(if (left == null) R.drawable.ic_notification_sleep else R.drawable.ic_notification_sleep_on)
+                        .setSessionCommand(sleepCommand)
+                        .setDisplayName(com.cosmotune.listening.SleepButtonCycle.label(left))
                         .build()
                 }
                 NotificationButtons.Kind.REPEAT -> {
@@ -8723,6 +8755,7 @@ class PlaybackService : MediaLibraryService() {
                 .add(autoplayCommand)
                 .add(shuffleCommand)
                 .add(repeatCommand)
+                .add(sleepCommand)
                 .add(startStationCommand)
                 .add(revertToOriginalCommand)
                 .add(swapToVersionCommand)
@@ -8761,6 +8794,7 @@ class PlaybackService : MediaLibraryService() {
                 ACTION_TOGGLE_AUTOPLAY -> toggleAutoplayFromNotification()
                 ACTION_TOGGLE_SHUFFLE -> toggleShuffleFromSession()
                 ACTION_CYCLE_REPEAT -> cycleRepeatFromSession()
+                ACTION_CYCLE_SLEEP -> cycleSleepFromSession()
                 ACTION_START_STATION -> startStationFromSession()
                 ACTION_REVERT_TO_ORIGINAL -> revertCurrentToOriginal()
                 ACTION_SWAP_TO_VERSION -> swapCurrentToVersion(args)

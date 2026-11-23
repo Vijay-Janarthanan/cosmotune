@@ -857,6 +857,9 @@ fun SettingsScreen(
             row(com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE, "sleep", "timer", "fade", summary = com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE_LINE) {
                 com.cosmotune.ui.settings.SleepFadeOutRow()
             }
+            row(com.cosmotune.ui.settings.PlayerExtrasText.NOTIFICATION_SLEEP, "sleep", "timer", "notification", "lock screen", summary = com.cosmotune.ui.settings.PlayerExtrasText.NOTIFICATION_SLEEP_LINE) {
+                com.cosmotune.ui.settings.NotificationSleepRow()
+            }
             row(com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM, "premium", "opus", "quality", "256", summary = com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM_LINE) {
                 com.cosmotune.ui.settings.PremiumAudioRow()
             }
