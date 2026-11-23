@@ -125,7 +125,7 @@ class LibraryContractTest {
 
     // ---- the rules ----------------------------------------------------------------------------------------------------
 
-    private val pages = listOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves")
+    private val pages = listOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves", "PlaylistFolderParts")
 
     /** The text before the `{` of every block that encloses [index], innermost first. */
     private fun enclosingHeads(code: String, index: Int): List<String> {
@@ -301,6 +301,16 @@ class LibraryContractTest {
             }
         }
         val files = File(SourceContract.root, library).listFiles { f -> f.extension == "kt" }.orEmpty().map { it.nameWithoutExtension }.toSet()
-        assertEquals(setOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves"), files, "the files of the library package")
+        assertEquals(setOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves", "PlaylistFolderParts"), files, "the files of the library package")
+    }
+
+    @Test fun playlistFoldersSitAboveTheLoosePlaylistsAndOpenWithAWayBack() {
+        val code = SourceContract.code(lib("CosmoLibrary"))
+        val parts = SourceContract.code(lib("PlaylistFolderParts"))
+        assertTrue("Extras.settings.playlistFolders" in code && "PlaylistFolders.loose(all, folders.folders)" in code, "filed playlists leave the top of the page")
+        assertTrue("PlayerBackHandler(enabled = openFolder != null" in code, "back closes an open folder")
+        assertTrue("\"New folder\"" in code, "a chip makes a folder")
+        assertTrue("CosmoIconButton(CosmoIcons.ArrowLeft, \"All playlists\"" in parts && "CosmoIconButton(CosmoIcons.MoreVertical" in parts, "the folder's icon buttons carry tooltips")
+        assertTrue("\"Rename folder\"" in parts && "\"Delete folder\"" in parts && "\"Choose playlists\"" in parts)
     }
 }

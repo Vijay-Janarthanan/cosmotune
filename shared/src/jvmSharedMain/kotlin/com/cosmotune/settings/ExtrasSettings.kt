@@ -209,6 +209,15 @@ class ExtrasSettings(private val store: KeyValueStore) {
     val screenOn: StateFlow<ScreenOnPolicy> = screenOnFlow.asStateFlow()
     fun setScreenOn(value: ScreenOnPolicy) { screenOnFlow.value = value; store.putString(KEY_SCREEN_ON, value.name) }
 
+    private val playlistFoldersFlow = MutableStateFlow(com.cosmotune.listening.PlaylistFolders.decode(store.getString(KEY_PLAYLIST_FOLDERS, "")))
+
+    /** The folders the listener sorted their playlists into (Library, Playlists); see [com.cosmotune.listening.PlaylistFolders]. */
+    val playlistFolders: StateFlow<List<com.cosmotune.listening.PlaylistFolder>> = playlistFoldersFlow.asStateFlow()
+    fun setPlaylistFolders(value: List<com.cosmotune.listening.PlaylistFolder>) {
+        playlistFoldersFlow.value = value
+        store.putString(KEY_PLAYLIST_FOLDERS, com.cosmotune.listening.PlaylistFolders.encode(value))
+    }
+
     companion object {
         const val KEY_SONG_PLAYBACK="extras_song_playback"
         const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
@@ -217,6 +226,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_SCREEN_ON = "extras_screen_on"
         const val KEY_WAVEFORM_SEEK = "extras_waveform_seek"
         const val KEY_EQ_USER_PRESETS = "extras_eq_user_presets"
+        const val KEY_PLAYLIST_FOLDERS = "extras_playlist_folders"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"

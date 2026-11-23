@@ -299,3 +299,8 @@ Find a playlist (`sharedUi/.../ui/sheets/PlaylistFind.kt`, from `1b637f66f4`), a
 `7f15a6fec6`), appended playlist pages (`888dd735a7`), the notification's reserved Back and Next slots (`4a22733653`), the Quick
 Settings tile (`9ffffa6261`), YouTube Premium's Opus ask (`a2d886e693`), remote-speaker listening in Replay (`ffe87cbd38`) and the
 imported-playlist edits (`fee962bf28`). Their tests are adapted the same way.
+
+## Music ideas from other players (November 2026)
+
+These follow ideas seen in other players and are written for Cosmotune without taking their code: playlist folders in Library
+(`PlaylistFolders.kt`, the idea from OuterTune, GPL-3.0).
