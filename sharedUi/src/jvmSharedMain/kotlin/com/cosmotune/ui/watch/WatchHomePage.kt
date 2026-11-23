@@ -191,7 +191,7 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                         Column {
                             Row(Modifier.fillMaxWidth().padding(end = side), verticalAlignment = Alignment.Bottom) {
                                 Section("Live now", null, fonts, look, side, Modifier.weight(1f))
-                                WatchCardChip("See all", look.ink, fonts, onClick = { WatchNav.go(WatchTab.LIVE) }, modifier = Modifier.padding(bottom = 6.dp))
+                                WatchCardChip("Show all", look.ink, fonts, onClick = { WatchNav.go(WatchTab.LIVE) }, modifier = Modifier.padding(bottom = 6.dp))
                             }
                             LiveNow(data.liveNow, frame.wide, fonts, look, actions, clock, Modifier.padding(horizontal = side))
                         }

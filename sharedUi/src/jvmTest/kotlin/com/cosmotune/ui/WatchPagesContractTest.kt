@@ -130,7 +130,7 @@ class WatchPagesContractTest {
         assertTrue(home.indexOf("item(key = \"watch:continue\")") in 0 until home.indexOf("item(key = \"watch:featured\")"), "Continue watching before the featured card")
         assertTrue("height(if (wide) 250.dp else 220.dp)" in home, "the featured card is about 220 dp on a phone")
         assertFalse("WatchCardChip(if (inList)" in home, "My list is a round action, not a chip")
-        assertTrue("WatchNav.go(WatchTab.LIVE)" in home && "items.take(if (wide) 6 else 3)" in home, "Live now: three rows and See all")
+        assertTrue("WatchNav.go(WatchTab.LIVE)" in home && "items.take(if (wide) 6 else 3)" in home, "Live now: three rows and Show all")
         assertTrue("progress = watched[s.key]" in home, "posters in the rows show how far they were watched")
     }
 

@@ -120,7 +120,7 @@ fun KitPill(text: String, modifier: Modifier = Modifier, icon: ImageVector? = nu
 }
 
 /**
- * A text-only button ("See all", "Retry") in Orbit: the words in the chip face and the accent, as a page section's "Show all"
+ * A text-only button ("Show all", "Retry") in Orbit: the words in the chip face and the accent, as a page section's "Show all"
  * ([com.cosmotune.ui.orbit.OrbitPageSection]); a 48 dp target; disabled at 40 %.
  */
 @Composable

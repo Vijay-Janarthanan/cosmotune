@@ -191,7 +191,7 @@ class KitbaseVisualReviewTest {
                         KitButton("Retry", {}, kind = KitButtonKind.PRIMARY, dense = true)
                         KitButton("Tonal", {}, kind = KitButtonKind.TONAL, dense = true)
                         KitButton("Quiet", {}, kind = KitButtonKind.QUIET, dense = true, enabled = false)
-                        KitTextButton("See all", {})
+                        KitTextButton("Show all", {})
                     }
                     Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         CosmoIconButton(CosmoIcons.Shuffle, "Shuffle", {}, on = true)
