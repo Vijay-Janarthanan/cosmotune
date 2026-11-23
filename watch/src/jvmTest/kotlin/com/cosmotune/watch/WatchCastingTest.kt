@@ -78,7 +78,7 @@ class WatchCastingTest {
     private fun playing(stream: Stream = copy) =
         WatchPlayerState(WatchPlayerStatus.PLAYING, film, summary, stream = stream, streams = listOf(copy, otherCopy), durationMs = 5_400_000)
 
-    private fun casting(player: Player, repository: Repository) = WatchCasting(player, repository, receiverOf = { DlnaRenderer(it, pollMs = 40) })
+    private fun casting(player: Player, repository: Repository) = WatchCasting(player, repository, receiverOf = { DlnaWatchReceiver(DlnaRenderer(it, pollMs = 40)) })
 
     @Test fun stopCastingSavesWhereTheReceiverGotAndResumesThere() = runBlocking {
         Tv().use { tv ->
@@ -176,5 +176,46 @@ class WatchCastingTest {
             casting.disconnect()
             casting.close()
         }
+    }
+
+    /** A receiver that is not DLNA (Google Cast on phones) and cannot fetch through this device. */
+    private class Stick : WatchReceiver {
+        override val id = "stick"
+        override val name = "Bedroom stick"
+        val mutable = MutableStateFlow(com.cosmotune.music.data.cast.dlna.DlnaState())
+        override val state: StateFlow<com.cosmotune.music.data.cast.dlna.DlnaState> = mutable
+        override val relayHost: String? = null
+        val loaded = CopyOnWriteArrayList<String>()
+        @Volatile var closed: Boolean? = null
+        override suspend fun connect() {}
+        override suspend fun load(media: com.cosmotune.music.data.cast.dlna.DlnaMedia, startMs: Long) { loaded += media.url }
+        override suspend fun play() {}
+        override suspend fun pause() {}
+        override suspend fun seek(positionMs: Long) {}
+        override suspend fun setVolume(volume: Float) {}
+        override suspend fun close(stopPlayback: Boolean) { closed = stopPlayback }
+    }
+
+    @Test fun anotherKindOfReceiverPlaysTheCopyAndStopsWhenAsked() = runBlocking {
+        val player = Player(playing())
+        val stick = Stick()
+        val casting = casting(player, Repository())
+        casting.connect(stick)
+        assertEquals(listOf(copy.url), stick.loaded.toList())
+        assertEquals("Bedroom stick", casting.renderer.value?.name)
+        stick.mutable.update { it.copy(playing = true, positionMs = 30_000, durationMs = 5_400_000) }
+        casting.disconnect()
+        assertEquals(true, stick.closed)
+        assertEquals(false, player.remote.last())
+        casting.close()
+    }
+
+    @Test fun aReceiverWithoutRelayRefusesAFileThatNeedsHeaders() = runBlocking {
+        val player = Player(playing(copy.copy(headers = mapOf("Referer" to "https://example.invalid"))))
+        val stick = Stick()
+        val casting = casting(player, Repository())
+        assertFailsWith<IllegalArgumentException> { casting.connect(stick) }
+        assertTrue(stick.loaded.isEmpty())
+        casting.close()
     }
 }

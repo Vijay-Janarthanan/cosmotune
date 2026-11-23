@@ -53,6 +53,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         }
         if (android.os.Build.VERSION.SDK_INT >= 28 && Application.getProcessName().let { it.endsWith(":provider_auth") || it.endsWith(":mangaverification") }) return
         com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
+        // Watch's Play on a TV lists Google Cast devices next to DLNA ones.
+        com.cosmotune.watch.WatchReceiverFinders.googleCast = com.cosmotune.music.playback.cast.GoogleCastWatchFinder(this)
         com.cosmotune.music.data.cast.dlna.DlnaDiscovery.multicastHold = {
             val lock = applicationContext.getSystemService(android.net.wifi.WifiManager::class.java)
                 .createMulticastLock("cosmotune-dlna").apply { setReferenceCounted(false); acquire() }
