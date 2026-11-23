@@ -1970,6 +1970,8 @@ class PlaybackService : MediaLibraryService() {
         )
             .setId(SESSION_ID)
             .setSessionActivity(sessionActivity())
+            // Back and Next keep their slots, so Like never lands where Next was ([NotificationButtons.reservedSlots]).
+            .setSessionExtras(android.os.Bundle().apply { NotificationButtons.reservedSlots.forEach { putBoolean(it, true) } })
             .build()
         refreshCustomLayouts()
 

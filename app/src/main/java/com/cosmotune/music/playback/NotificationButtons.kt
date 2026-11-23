@@ -1,6 +1,7 @@
 package com.cosmotune.music.playback
 
 import androidx.media3.common.Player
+import androidx.media3.session.MediaConstants
 
 /**
  * The two buttons of Cosmotune's own on the phone's notification and lock screen, next to back, play and next. Android
@@ -9,6 +10,14 @@ import androidx.media3.common.Player
  */
 internal object NotificationButtons {
     enum class Kind { LIKE, SHUFFLE, REPEAT }
+
+    /**
+     * The session extras that keep Back and Next in their places while there is nowhere to go. Without them Media3 moves the first
+     * of these buttons (Like) into Next's slot on the last song of a queue or a single song opened from a link, and a panel that
+     * keeps its button positions turned a tap on Next into a Like. With them an unavailable Back or Next leaves its slot empty.
+     * From upstream 1.10 (GPL-3.0).
+     */
+    val reservedSlots = listOf(MediaConstants.EXTRAS_KEY_SLOT_RESERVATION_SEEK_TO_PREV, MediaConstants.EXTRAS_KEY_SLOT_RESERVATION_SEEK_TO_NEXT)
 
     fun pick(canLike: Boolean): List<Kind> = listOf(if (canLike) Kind.LIKE else Kind.SHUFFLE, Kind.REPEAT)
 
