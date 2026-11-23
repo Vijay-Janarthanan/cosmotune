@@ -139,6 +139,9 @@ internal object DesktopCloud {
                     // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
                     com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
                     com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
+                    // Manga: series, read chapters, places and collections; never source keys, reading-list sessions or local comics.
+                    com.cosmotune.manga.data.SyncMangaLibrary.KIND ->
+                        com.cosmotune.manga.data.SyncMangaLibrary.snapshot(com.cosmotune.manga.ui.DesktopMangaLibrary.repository.store.state.value)
                     else -> emptyMap()
                 }
             }
@@ -166,6 +169,8 @@ internal object DesktopCloud {
                             com.cosmotune.desktop.DesktopWatch.store.update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
                         com.cosmotune.watch.SyncWatchLibrary.KIND ->
                             com.cosmotune.desktop.DesktopWatch.store.update { com.cosmotune.watch.SyncWatchLibrary.apply(it, upserts, deletes) }
+                        com.cosmotune.manga.data.SyncMangaLibrary.KIND ->
+                            com.cosmotune.manga.ui.DesktopMangaLibrary.repository.store.update { com.cosmotune.manga.data.SyncMangaLibrary.apply(it, upserts, deletes) }
                     }
                 }
             }
@@ -205,7 +210,7 @@ internal object DesktopCloud {
             CosmotuneFirebase.config, Http.client, sessionStore, source, marks,
             listOf(
                 SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND,
-                SyncPlaylistCovers.KIND,
+                SyncPlaylistCovers.KIND, com.cosmotune.manga.data.SyncMangaLibrary.KIND,
             ),
             scope,
             log = { DesktopTrackLog.log(it) },
@@ -257,6 +262,16 @@ internal object DesktopCloud {
             }
         }
         scope.launch { com.cosmotune.watch.WatchSyncSignals.changes.collect { autoSync.changed() } }
+        // Manga's library is opened for this only once sync is on; a finished chapter or a new series is worth a sync, a page turn is not.
+        scope.launch {
+            enabledState.first { it }
+            var previous: Map<String, JsonObject>? = null
+            com.cosmotune.manga.ui.DesktopMangaLibrary.repository.store.state.collect { state ->
+                val current = com.cosmotune.manga.data.SyncMangaLibrary.changeSignal(state)
+                if (previous != null && previous != current) autoSync.changed()
+                previous = current
+            }
+        }
         // A cover picked (or put back to the automatic one) on this computer; the sync's own write of another device's is not one.
         if (directory != null) scope.launch {
             val covers = coverStore()

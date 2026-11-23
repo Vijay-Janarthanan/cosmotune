@@ -438,7 +438,7 @@ private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: S
         else if (fitWidth) Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxSize()
     Box(frame, contentAlignment = if (fitWidth && !webtoon) Alignment.TopCenter else Alignment.Center) {
         if (file != null) AsyncImage(
-            model = file, contentDescription = "Manga page", contentScale = if (tall) ContentScale.FillWidth else ContentScale.Fit,
+            model = file, contentDescription = "Manga page", contentScale = if (tall) ContentScale.FillWidth else ContentScale.Fit, colorFilter = filter,
             modifier = (if (tall) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
                 .semantics { stateDescription = "Zoom ${(scale * 100).roundToInt()}%" }
                 .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }

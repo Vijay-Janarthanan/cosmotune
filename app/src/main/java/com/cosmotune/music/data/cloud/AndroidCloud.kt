@@ -104,7 +104,7 @@ object AndroidCloud {
             marks = FileSyncMarks(File(folder, "marks.json")),
             kinds = listOf(
                 SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND,
-                SyncPlaylistCovers.KIND,
+                SyncPlaylistCovers.KIND, com.cosmotune.manga.data.SyncMangaLibrary.KIND,
             ),
             scope = scope,
             log = { android.util.Log.i("Cosmotune", it) },
@@ -337,6 +337,8 @@ object AndroidCloud {
             // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
             com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
             com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
+            // Manga: series, read chapters, places and collections; never source keys, reading-list sessions or local comics.
+            com.cosmotune.manga.data.SyncMangaLibrary.KIND -> com.cosmotune.manga.data.SyncMangaLibrary.snapshot(com.cosmotune.manga.ui.AndroidMangaSync.store(app).state.value)
             else -> emptyMap()
         }
 
@@ -357,6 +359,8 @@ object AndroidCloud {
                     com.cosmotune.music.watch.AndroidWatch.store(app).update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
                 com.cosmotune.watch.SyncWatchLibrary.KIND ->
                     com.cosmotune.music.watch.AndroidWatch.store(app).update { com.cosmotune.watch.SyncWatchLibrary.apply(it, upserts, deletes) }
+                com.cosmotune.manga.data.SyncMangaLibrary.KIND ->
+                    com.cosmotune.manga.ui.AndroidMangaSync.store(app).update { com.cosmotune.manga.data.SyncMangaLibrary.apply(it, upserts, deletes) }
             }
         }
     }

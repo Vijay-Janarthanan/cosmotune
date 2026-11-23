@@ -113,9 +113,9 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
             val previous = old.books.find { it.id == detail.id } ?: return@update old
             // A series whose chapters were never loaded has nothing to compare: its first list is not "new".
             val known = previous.chapters.map { it.id }.toSet()
-            val fresh = if (known.isEmpty()) emptyList() else detail.chapters.map { it.id }.filter { it !in known && it !in old.readChapters }
+            val fresh = if (known.isEmpty()) emptyList() else detail.chapters.map { it.id }.filter { it !in known && it !in old.readChapters && it !in old.syncedRead[detail.id].orEmpty() }
             found = fresh.size
-            old.copy(books = old.books.map { if (it.id == detail.id) detail.copy(addedAtMs = previous.addedAtMs) else it },
+            old.settledSyncedRead(detail).copy(books = old.books.map { if (it.id == detail.id) detail.copy(addedAtMs = previous.addedAtMs) else it },
                 newChapters = (old.newChapters + fresh).let { if (it.size > MAX_NEW_CHAPTERS) it.toList().takeLast(MAX_NEW_CHAPTERS).toSet() else it })
         }
         return found
@@ -202,6 +202,16 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
     /** Removal changes only subscriptions; previously trusted installed sources remain usable. */
     suspend fun removeExtensionStore(indexUrl: String) = update { old ->
         old.copy(extensionStores = old.extensionStores.filterNot { it.indexUrl == indexUrl })
+    }
+
+    /** Read marks that came from another device before [book]'s chapters were known become real read marks once they are. */
+    private fun MangaLibraryState.settledSyncedRead(book: MangaBook): MangaLibraryState {
+        val waiting = syncedRead[book.id] ?: return this
+        val listed = book.chapters.map { it.id }.toSet()
+        val found = waiting.intersect(listed)
+        if (found.isEmpty()) return this
+        val left = waiting - found
+        return copy(readChapters = readChapters + found, syncedRead = if (left.isEmpty()) syncedRead - book.id else syncedRead + (book.id to left))
     }
 
     companion object {
