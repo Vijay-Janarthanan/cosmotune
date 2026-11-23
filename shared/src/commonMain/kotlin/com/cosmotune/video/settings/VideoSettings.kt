@@ -42,6 +42,14 @@ data class VideoSettings(
     val captionsTop: Boolean = false,
     /** Members-only and paid videos are left out of every list. */
     val hidePaid: Boolean = false,
+    /** YouTube's Restricted Mode for every request, and no comments or live chat. */
+    val familyFriendly: Boolean = false,
+    /** The watch page leaves out the comments. */
+    val hideComments: Boolean = false,
+    /** The watch page leaves out Up next (autoplay still plays the next video). */
+    val hideUpNext: Boolean = false,
+    /** The watch page leaves out the live chat. */
+    val hideLiveChat: Boolean = false,
     val sponsorBlock: Boolean = true,
     val segmentBehaviours: Map<SegmentCategory, SegmentBehaviour> = SegmentCategory.defaults(),
     val segmentsOnBar: Boolean = true,

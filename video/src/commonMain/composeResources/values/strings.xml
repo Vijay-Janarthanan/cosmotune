@@ -420,6 +420,13 @@
     <string name="video_open_elsewhere_none">No other player found</string>
     <string name="video_set_hide_paid">Hide members-only videos</string>
     <string name="video_set_hide_paid_note">Also hides videos you have to buy.</string>
+    <string name="video_set_family">Family-friendly only</string>
+    <string name="video_set_family_note">Uses YouTube's Restricted Mode and hides comments and live chat.</string>
+    <string name="video_set_focus">Fewer distractions</string>
+    <string name="video_set_hide_comments">Hide comments</string>
+    <string name="video_set_hide_up_next">Hide Up next</string>
+    <string name="video_set_hide_up_next_note">Autoplay still plays the next video.</string>
+    <string name="video_set_hide_chat">Hide live chat</string>
     <string name="video_set_using_sponsorblock">(Using SponsorBlock)</string>
     <string name="video_set_dearrow">Titles and thumbnails</string>
     <string name="video_set_dearrow_titles">Better titles (DeArrow)</string>

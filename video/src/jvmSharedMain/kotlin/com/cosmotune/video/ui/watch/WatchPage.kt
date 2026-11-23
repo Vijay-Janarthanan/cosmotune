@@ -271,14 +271,16 @@ private fun rememberWatchView(videoId: String, state: PlaybackUiState, settings:
         originalTitle = item?.title?.takeIf { it != title },
         description = details?.description?.takeIf { it.text.isNotBlank() },
         chapters = chapters,
-        related = if (offline) emptyList() else related,
+        related = if (offline || settings.hideUpNext) emptyList() else related,
         offline = offline,
         autoplay = settings.autoplay,
-        commentsShown = !offline,
+        commentsShown = !offline && !settings.hideComments && !settings.familyFriendly,
         subtitles = if (offline) emptyList() else details?.subtitles.orEmpty(),
-        chatShown = !offline && (details?.kind == StreamKind.LIVE || details?.kind == StreamKind.POST_LIVE || item?.isLive == true),
+        chatShown = !offline && !settings.hideLiveChat && !settings.familyFriendly &&
+            (details?.kind == StreamKind.LIVE || details?.kind == StreamKind.POST_LIVE || item?.isLive == true),
         loading = item == null && state.error == null,
-        upNext = WatchRules.upNext(related, offline, hasDetails = details != null, failed = state.error != null, state = state.relatedState),
+        upNext = if (settings.hideUpNext) UpNextShow.NONE
+        else WatchRules.upNext(related, offline, hasDetails = details != null, failed = state.error != null, state = state.relatedState),
     )
 }
 

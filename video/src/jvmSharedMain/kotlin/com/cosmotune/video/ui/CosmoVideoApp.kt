@@ -107,6 +107,7 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
     VideoBackHandler(enabled = navigator.canPop) { navigator.pop() }
     OpenPendingVideo(host, navigator)
     com.cosmotune.video.ui.cast.PhoneCastReceiver(navigator)
+    com.cosmotune.video.ui.settings.FamilyFriendlyGate()
     com.cosmotune.video.ui.branding.WholeVideoGate()
 
     val pip = com.cosmotune.video.player.rememberPictureInPicture().active

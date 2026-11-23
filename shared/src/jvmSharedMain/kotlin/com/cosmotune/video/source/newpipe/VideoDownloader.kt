@@ -44,6 +44,7 @@ internal class VideoDownloader(private val client: OkHttpClient = newClient()) :
             }
         }
         if (!hasUserAgent) builder.header("User-Agent", DEFAULT_USER_AGENT)
+        if (VideoRestrict.applies(request.url().toHttpUrlOrNull()?.host)) builder.header(VideoRestrict.HEADER, "Strict")
 
         val label = "${request.httpMethod()} ${hostAndPath(request.url())}"
         val started = System.nanoTime()

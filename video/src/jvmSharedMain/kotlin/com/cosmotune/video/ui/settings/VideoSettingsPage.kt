@@ -127,6 +127,13 @@ import com.cosmotune.video.resources.video_home_use_account
 import com.cosmotune.video.resources.video_set_resume_short
 import com.cosmotune.video.resources.video_set_seconds
 import com.cosmotune.video.resources.video_set_speed
+import com.cosmotune.video.resources.video_set_family
+import com.cosmotune.video.resources.video_set_family_note
+import com.cosmotune.video.resources.video_set_focus
+import com.cosmotune.video.resources.video_set_hide_comments
+import com.cosmotune.video.resources.video_set_hide_up_next
+import com.cosmotune.video.resources.video_set_hide_up_next_note
+import com.cosmotune.video.resources.video_set_hide_chat
 import com.cosmotune.video.resources.video_set_hide_paid
 import com.cosmotune.video.resources.video_set_hide_paid_note
 import com.cosmotune.video.resources.video_set_captions_color
@@ -219,6 +226,7 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
             TitleSettings(settings, update) { choice = it }
             DislikeSettings(settings, update)
             ContentSettings(settings, update, locale) { choice = it }
+            FocusSettings(settings, update)
             LibrarySettings(historyPaused, graph.library::setHistoryPaused, { confirm = it }, { navigator.push(VideoRoute.Import) }, settings.autoBackupDays) { choice = SettingsChoice.AUTO_BACKUP }
             DownloadSettings(settings, update, platform, locale)
             AboutSettings()
@@ -425,6 +433,17 @@ private fun DislikeSettings(settings: VideoSettings, update: SettingsUpdate) {
     AttributionLink(text = stringResource(Res.string.video_set_dislikes_credit), url = DISLIKES_URL)
 }
 
+// ---- Distraction-free ------------------------------------------------------------------------------------------------------------------
+
+@Composable
+private fun FocusSettings(settings: VideoSettings, update: SettingsUpdate) {
+    CosmoSettingsGroup(header = stringResource(Res.string.video_set_focus)) {
+        SwitchRow(VideoIcons.Comment, stringResource(Res.string.video_set_hide_comments), settings.hideComments) { value -> update { it.copy(hideComments = value) } }
+        SwitchRow(CosmoIcons.Queue, stringResource(Res.string.video_set_hide_up_next), settings.hideUpNext, subtitle = stringResource(Res.string.video_set_hide_up_next_note)) { value -> update { it.copy(hideUpNext = value) } }
+        SwitchRow(VideoIcons.Live, stringResource(Res.string.video_set_hide_chat), settings.hideLiveChat) { value -> update { it.copy(hideLiveChat = value) } }
+    }
+}
+
 // ---- Content and library ---------------------------------------------------------------------------------------------------------------
 
 @Composable
@@ -434,6 +453,7 @@ private fun ContentSettings(settings: VideoSettings, update: SettingsUpdate, loc
         SwitchRow(CosmoIcons.User, stringResource(Res.string.video_home_use_account), settings.homeAccountEnabled) { value -> update { it.copy(homeAccountEnabled = value) } }
         SwitchRow(VideoIcons.Shorts, stringResource(Res.string.video_set_hide_shorts), settings.hideShorts) { value -> update { it.copy(hideShorts = value) } }
         SwitchRow(VideoIcons.Lock, stringResource(Res.string.video_set_hide_paid), settings.hidePaid, subtitle = stringResource(Res.string.video_set_hide_paid_note)) { value -> update { it.copy(hidePaid = value) } }
+        SwitchRow(CosmoIcons.User, stringResource(Res.string.video_set_family), settings.familyFriendly, subtitle = stringResource(Res.string.video_set_family_note)) { value -> update { it.copy(familyFriendly = value) } }
         val hidden = settings.hiddenWords.size + settings.hiddenChannels.size
         CosmoSettingsRow(
             icon = CosmoIcons.Sort,

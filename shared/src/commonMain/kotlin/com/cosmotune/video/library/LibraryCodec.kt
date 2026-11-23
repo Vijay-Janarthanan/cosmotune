@@ -378,6 +378,10 @@ internal data class SettingsDocument(
     val captionsColor: String = DEFAULTS.captionsColor.name,
     val captionsTop: Boolean = false,
     val hidePaid: Boolean = false,
+    val familyFriendly: Boolean = false,
+    val hideComments: Boolean = false,
+    val hideUpNext: Boolean = false,
+    val hideLiveChat: Boolean = false,
     val smoothness: SmoothnessDto = SmoothnessDto(),
 )
 
@@ -464,6 +468,10 @@ internal fun VideoSettings.toDocument() = SettingsDocument(
     captionsColor = captionsColor.name,
     captionsTop = captionsTop,
     hidePaid = hidePaid,
+    familyFriendly = familyFriendly,
+    hideComments = hideComments,
+    hideUpNext = hideUpNext,
+    hideLiveChat = hideLiveChat,
     smoothness = smoothness.toDto(),
 )
 
@@ -534,6 +542,10 @@ internal fun SettingsDocument.toSettings(): VideoSettings {
         captionsColor = com.cosmotune.video.settings.CaptionColor.entries.firstOrNull { it.name == captionsColor } ?: DEFAULTS.captionsColor,
         captionsTop = captionsTop,
         hidePaid = hidePaid,
+        familyFriendly = familyFriendly,
+        hideComments = hideComments,
+        hideUpNext = hideUpNext,
+        hideLiveChat = hideLiveChat,
         smoothness = smoothness.toDomain(),
     )
 }
