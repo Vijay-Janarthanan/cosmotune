@@ -199,8 +199,8 @@ enum class DesktopLibraryView {
 }
 
 fun List<Song>.sortedForDesktopLibrary(sort: DesktopLibrarySort): List<Song> = when (sort) {
-    DesktopLibrarySort.TITLE_ASC -> sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, Song::title))
-    DesktopLibrarySort.TITLE_DESC -> sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER, Song::title))
+    DesktopLibrarySort.TITLE_ASC -> sortedWith(compareBy(com.cosmotune.listening.NaturalOrder, Song::title))
+    DesktopLibrarySort.TITLE_DESC -> sortedWith(compareByDescending(com.cosmotune.listening.NaturalOrder, Song::title))
     DesktopLibrarySort.DATE_ADDED -> sortedWith(
         compareByDescending<Song> { it.localDateAddedSeconds ?: Long.MIN_VALUE }
             .thenBy(String.CASE_INSENSITIVE_ORDER, Song::title),

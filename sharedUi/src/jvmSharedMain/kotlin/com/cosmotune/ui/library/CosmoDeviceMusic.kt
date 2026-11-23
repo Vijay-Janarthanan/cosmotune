@@ -67,7 +67,7 @@ import kotlinx.coroutines.withContext
 /*
  * Downloads and Local Music in Orbit (Canvas repo, design/cosmotune/batch-a/board.html, section 1), one page for both hosts and both
  * folders: the heading with a mono count, one quiet stat card (Downloads: the space they take with its peach bar and what is left on
- * the disk), the search pill, chips for Songs, Artists and Albums and the sort, and under them the chip's page: songs as Home's rows,
+ * the disk), the search pill, chips for Songs, Artists, Albums and Folders (the device's music only) and the sort, and under them the chip's page: songs as Home's rows,
  * artists as portraits, albums (the releases downloaded whole first) as records. An artist or an album opens its songs in place.
  * Holding a song in Downloads selects it (when the host can delete): a bar of chips then deletes, uploads or lets go of the chosen.
  */
@@ -83,7 +83,7 @@ data class DeviceCollection(
     val playlist: Boolean = false,
 )
 
-private enum class DeviceChip(val label: String) { SONGS("Songs"), ARTISTS("Artists"), ALBUMS("Albums") }
+private enum class DeviceChip(val label: String) { SONGS("Songs"), ARTISTS("Artists"), ALBUMS("Albums"), FOLDERS("Folders") }
 
 /** An artist or an album opened in place: its name, its picture and its songs. */
 private class DeviceGroup(val key: String, val title: String, val subtitle: String, val cover: String?, val songs: List<Song>, val playlist: Boolean = false)
@@ -140,11 +140,20 @@ fun CosmoDeviceMusic(
     val artists = remember(songs, query) {
         songs.groupBy { it.artist.ifBlank { "Unknown artist" } }.entries
             .filter { query.isBlank() || it.key.contains(query, ignoreCase = true) }
-            .sortedBy { it.key.lowercase(Locale.ROOT) }
+            .sortedWith(compareBy(com.cosmotune.listening.NaturalOrder) { it.key })
             .map { (name, rows) -> DeviceGroup("artist:$name", name, "${rows.size} ${if (rows.size == 1) "song" else "songs"}", rows.firstOrNull()?.thumbnailUrl, rows) }
     }
     val albums = remember(songs, collections, query) {
         deviceAlbums(songs, collections).filter { query.isBlank() || it.title.contains(query, ignoreCase = true) || it.subtitle.contains(query, ignoreCase = true) }
+    }
+    // The folders the files sit in, for the Folders chip: each opens with its songs in file-name order, as a file manager lists them.
+    val folders = remember(songs, query) {
+        com.cosmotune.listening.LocalFolders.of(songs)
+            .filter { query.isBlank() || it.path.contains(query, ignoreCase = true) }
+            .map { folder ->
+                val count = "${folder.songs.size} ${if (folder.songs.size == 1) "song" else "songs"}"
+                DeviceGroup("folder:${folder.path}", folder.label, count, folder.songs.firstOrNull { it.thumbnailUrl != null }?.thumbnailUrl, folder.songs)
+            }
     }
     val storage by produceState<DeviceStorage?>(null, songs) { value = withContext(Dispatchers.IO) { runCatching { deviceStorage(songs) }.getOrNull() } }
 
@@ -237,7 +246,8 @@ fun CosmoDeviceMusic(
                         )
                     } else {
                         OrbitChipRow(side) {
-                            DeviceChip.entries.forEach { c ->
+                            // Downloads all sit in one folder of the app's own, so only the device's music has folders to show.
+                            DeviceChip.entries.filter { it != DeviceChip.FOLDERS || !isDownloads }.forEach { c ->
                                 OrbitSelectChip(c.label, chip == c, fonts, look, { chip = c }, Modifier.testTag("device:chip:${c.name}"))
                             }
                             if (sortLabels.isNotEmpty()) {
@@ -268,6 +278,22 @@ fun CosmoDeviceMusic(
                                 row.forEach { artist ->
                                     OrbitPortrait(artist.title, artist.cover, cell, fonts, look, onClick = { open = artist },
                                         onLongClick = onCollectionLongPress?.let { more -> { more(artist.title, artist.songs) } })
+                                }
+                            }
+                        }
+                    }
+                    DeviceChip.FOLDERS -> {
+                        if (folders.isEmpty()) item(key = "device:none") { NoMatch(fonts, look, side) }
+                        items(folders.chunked(perRow), key = { "device:folders:${it.first().key}" }) { row ->
+                            Row(Modifier.padding(horizontal = side, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                                row.forEach { folder ->
+                                    OrbitRecord(
+                                        folder.title, folder.subtitle, folder.cover, fonts, look,
+                                        onClick = { open = folder },
+                                        onPlay = { if (folder.songs.isNotEmpty()) onSongClick(folder.songs, 0) },
+                                        onLongClick = onCollectionLongPress?.let { more -> { more(folder.title, folder.songs) } },
+                                        size = cell,
+                                    )
                                 }
                             }
                         }
