@@ -341,7 +341,8 @@ private fun desktopMain() = application {
             com.cosmotune.ui.shell.LocalWindowCaptionArea provides { modifier, content ->
                 val fullscreen by DesktopWindowMode.fullScreen.collectAsState()
                 if (fullscreen) androidx.compose.foundation.layout.Box(modifier) { content() }
-                else DesktopTitleBarDragArea(modifier, content)
+                // A caption row at the window's top end (the player's) keeps clear of Windows' caption buttons there.
+                else DesktopTitleBarDragArea(modifier) { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.desktopCaptionClearance()) { content() } }
             },
         ) {
             CosmotuneDesktopApp()

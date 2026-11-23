@@ -5488,6 +5488,8 @@ private fun DesktopFrame(
                     overlay()
                 }
             }
+            // Windows' minimise, maximise and close over the top end corner, above every page and the player (none on macOS or Linux).
+            DesktopCaptionOverlay(Modifier.align(Alignment.TopEnd))
         }
     }
 }

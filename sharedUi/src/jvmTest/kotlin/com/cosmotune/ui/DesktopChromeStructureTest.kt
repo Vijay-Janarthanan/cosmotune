@@ -140,13 +140,24 @@ class DesktopChromeStructureTest {
         assertEquals(listOf("compact", "canGoBack", "onBack", "accountAvatar", "onOpenAccounts", "accountName", "entries", "onSearch"), parameterNames(signature(text, "CosmoDesktopTopBar")))
         assertTrue("accountName: String? = null" in text && "entries: List<CosmoDrawerEntry> = emptyList()" in text && "onSearch: (() -> Unit)? = null" in text, "the new parameters have defaults, so a call of the first five still compiles")
         assertTrue("DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT))" in text && "TOP_BAR_HEIGHT: Dp = 56.dp" in text, "a 56 dp drag area")
-        assertTrue("compact && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled" in text, "the old bar's rule for the window buttons in a compact window")
+        assertTrue("compact && DesktopPlatform.isMac && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled" in text, "the traffic lights start a compact window's bar on macOS only")
+        assertTrue("Row(Modifier.fillMaxSize().desktopCaptionClearance()" in text, "the bar's end keeps clear of Windows' caption buttons")
         assertTrue("painterResource(Res.drawable.logo_mark)" in text && "Modifier.size(width = 28.dp, height = 18.dp)" in text, "the mark at 28 x 18 dp")
         assertTrue("colorFilter = if (com.cosmotune.ui.theme.LocalCosmoColors.current.dark) null" in text, "untinted (apricot) on the dark theme, the brand's ink on the light one")
         assertTrue("CosmoIcons.ChevronLeft" in text && "CosmoIconButtonStyle.TONAL" in text && "enabled = backEnabled" in text, "a tonal back button")
         // Y-3: the button is enabled by `backEnabled`, which is canGoBack in Music and Video's own back in Video.
         assertTrue("val backEnabled = if (video) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack" in text, "Music's rule is the else branch")
         assertTrue("AVATAR_SIZE: Dp = 36.dp" in text, "a 36 dp avatar")
+    }
+
+    @Test fun windowsHasItsOwnCaptionButtonsAndMacOSItsTrafficLights() {
+        val frame = read("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopWindowChrome.kt")
+        assertTrue("if (!DesktopPlatform.drawsOwnWindowFrame || !DesktopPlatform.isMac) return" in frame, "the coloured dots are drawn on macOS only")
+        val buttons = SourceContract.functionBody(frame, "WindowsCaptionButtons")
+        for (name in listOf("\"Minimize\"", "if (maximized) \"Restore\" else \"Maximize\"", "\"Close\"")) assertTrue(name in buttons, "Windows' $name button")
+        assertTrue("OrbitTooltip(label)" in SourceContract.functionBody(frame, "WindowsCaptionButton"), "each names itself in a tooltip")
+        assertTrue("DesktopCaptionOverlay(Modifier.align(Alignment.TopEnd))" in read("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"), "over the window's top end corner")
+        assertTrue("Modifier.desktopCaptionClearance()" in read("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/Main.kt"), "the player's caption row keeps clear of them")
     }
 
     @Test fun theHostPlacesTheBarClearOfTheSidebarAndTheColumn() {

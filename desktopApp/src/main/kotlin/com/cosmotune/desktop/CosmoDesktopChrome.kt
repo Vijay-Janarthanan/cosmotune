@@ -37,6 +37,7 @@ import com.cosmotune.music.desktop.DesktopStrings
 import com.cosmotune.music.desktop.DesktopTitleBarDragArea
 import com.cosmotune.music.desktop.DesktopTitleBarSetting
 import com.cosmotune.music.desktop.DesktopWindowButtons
+import com.cosmotune.music.desktop.desktopCaptionClearance
 import org.jetbrains.compose.resources.painterResource
 
 /**
@@ -68,12 +69,13 @@ internal fun CosmoDesktopTopBar(
     onSearch: (() -> Unit)? = null,
 ) {
     val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
-    val inlineCaption = compact && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
+    // The traffic lights start the bar on macOS; Windows' caption buttons stand over the bar's end ([desktopCaptionClearance]).
+    val inlineCaption = compact && DesktopPlatform.isMac && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
     val video = com.cosmotune.video.host.desktopVideoShown()
     val backEnabled = if (video) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack
     val back: () -> Unit = if (video) ({ com.cosmotune.video.ui.desktop.VideoDesktopBack.goBack() }) else onBack
     DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT)) {
-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxSize().desktopCaptionClearance(), verticalAlignment = Alignment.CenterVertically) {
             if (inlineCaption) {
                 Box(Modifier.fillMaxHeight().padding(start = if (DesktopPlatform.isMac) 16.dp else 10.dp), contentAlignment = Alignment.CenterStart) {
                     DesktopWindowButtons()
