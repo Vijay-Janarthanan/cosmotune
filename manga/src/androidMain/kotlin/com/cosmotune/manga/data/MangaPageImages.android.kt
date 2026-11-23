@@ -25,7 +25,8 @@ actual object MangaPageImages {
                 bounds = MangaPageBounds((found.left * scale).coerceAtMost(full.width - 1), (found.top * scale).coerceAtMost(full.height - 1),
                     (found.right * scale).coerceIn(1, full.width), (found.bottom * scale).coerceIn(1, full.height))
             }
-            val turn = treatment.rotateWide && bounds.width > bounds.height
+            bounds = bounds.half(treatment.half)
+            val turn = treatment.rotateWide && treatment.half == 0 && bounds.width > bounds.height
             if (bounds == MangaPageBounds(0, 0, full.width, full.height) && !turn) return false
             val matrix = Matrix().apply { if (turn) postRotate(90f) }
             val out = Bitmap.createBitmap(full, bounds.left, bounds.top, bounds.width, bounds.height, matrix, true)
@@ -34,5 +35,11 @@ actual object MangaPageImages {
             if (out !== full) out.recycle()
             return temporary.renameTo(target) || run { target.delete(); temporary.renameTo(target) }
         } finally { full.recycle() }
+    }
+
+    actual fun size(file: File): Pair<Int, Int>? {
+        val probe = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, probe)
+        return if (probe.outWidth > 0 && probe.outHeight > 0) probe.outWidth to probe.outHeight else null
     }
 }

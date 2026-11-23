@@ -31,7 +31,8 @@ actual object MangaPageImages {
                 bounds = MangaPageBounds((found.left * scale).coerceAtMost(image.width - 1), (found.top * scale).coerceAtMost(image.height - 1),
                     (found.right * scale).coerceIn(1, image.width), (found.bottom * scale).coerceIn(1, image.height))
             }
-            val turn = treatment.rotateWide && bounds.width > bounds.height
+            bounds = bounds.half(treatment.half)
+            val turn = treatment.rotateWide && treatment.half == 0 && bounds.width > bounds.height
             if (bounds == MangaPageBounds(0, 0, image.width, image.height) && !turn) return false
             val outW = if (turn) bounds.height else bounds.width
             val outH = if (turn) bounds.width else bounds.height
@@ -49,4 +50,9 @@ actual object MangaPageImages {
             } finally { surface.close() }
         } finally { image.close() }
     }
+
+    actual fun size(file: File): Pair<Int, Int>? = runCatching {
+        val codec = org.jetbrains.skia.Codec.makeFromData(org.jetbrains.skia.Data.makeFromBytes(file.readBytes()))
+        try { codec.width to codec.height } finally { codec.close() }
+    }.getOrNull()
 }

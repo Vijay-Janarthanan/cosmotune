@@ -217,20 +217,30 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     var held by remember { mutableStateOf<File?>(null) }
     // Two pages side by side only in the paged modes and only while the window is wider than tall.
     var wide by remember { mutableStateOf(false) }
-    val spreads = remember(pages.size, library.readerSpread, library.readerCoverAlone, wide, mode) {
-        if (library.readerSpread && wide && mode != MangaReaderMode.WEBTOON) mangaSpreads(pages.size, library.readerCoverAlone) else pages.indices.map { listOf(it) }
+    // Each view is a page index × 4 plus its part (0 whole, 1 left half, 2 right half) so a split wide page is two views.
+    val widePages = remember { mutableStateMapOf<Int, Boolean>() }
+    val twoUp = library.readerSpread && wide && mode != MangaReaderMode.WEBTOON
+    val splitting = library.readerSplitWide && !twoUp && mode != MangaReaderMode.WEBTOON
+    val spreads = remember(pages.size, twoUp, library.readerCoverAlone, splitting, mode, widePages.toMap()) {
+        when {
+            twoUp -> mangaSpreads(pages.size, library.readerCoverAlone).map { spread -> spread.map { it * 4 } }
+            splitting -> mangaSplitViews(pages.size, { widePages[it] == true }, mode == MangaReaderMode.PAGES_RTL)
+            else -> pages.indices.map { listOf(it * 4) }
+        }
     }
-    fun spreadOf(index: Int): Int = spreads.indexOfFirst { index in it }.coerceAtLeast(0)
+    fun spreadOf(index: Int): Int = spreads.indexOfFirst { views -> views.any { it / 4 == index } }.coerceAtLeast(0)
+    // Which pages are wide is learnt as each page's file arrives.
+    fun learnSize(index: Int, file: File) { if (splitting && index !in widePages) MangaPageImages.size(file)?.let { (w, h) -> widePages[index] = w > h * 1.1f } }
     val pager = rememberPagerState(initialPage = spreadOf(initial)) { spreads.size }
     // When the spreads change (the window turned, the setting changed) the reader stays on the same page.
     var shownPage by remember { mutableIntStateOf(initial) }
     LaunchedEffect(spreads) { val target = spreadOf(shownPage); if (target != pager.currentPage) pager.scrollToPage(target) }
-    val treatment = MangaPageTreatment(library.readerCrop, library.readerRotateWide && !(library.readerSpread && wide))
+    val treatment = MangaPageTreatment(library.readerCrop, library.readerRotateWide && !(library.readerSpread && wide) && !library.readerSplitWide)
     val scroll = rememberLazyListState(initialFirstVisibleItemIndex = initial)
     var restorePending by remember { mutableStateOf(mode == MangaReaderMode.WEBTOON && initialOffset > 0) }
     var previousMode by remember { mutableStateOf(mode) }
     val scope = rememberCoroutineScope()
-    val page = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemIndex.coerceAtMost(pages.lastIndex) else spreads.getOrNull(pager.settledPage)?.first() ?: 0
+    val page = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemIndex.coerceAtMost(pages.lastIndex) else (spreads.getOrNull(pager.settledPage)?.first() ?: 0) / 4
     SideEffect { shownPage = page }
     val lastShown = mode != MangaReaderMode.WEBTOON && pager.settledPage >= spreads.lastIndex
     val readyImages = remember { mutableStateMapOf<Int, Boolean>() }
@@ -243,7 +253,7 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
         // Fetch the next two pages ahead of the reader; failures stay silent here and surface when the page itself is shown.
         kotlinx.coroutines.delay(150)
         for (index in page + 1..minOf(page + PREFETCH_PAGES, pages.lastIndex)) {
-            try { repository.pageFile(pages[index], chapter.sourceId) }
+            try { repository.pageFile(pages[index], chapter.sourceId).let { file -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { learnSize(index, file) } } }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { }
         }
@@ -272,7 +282,7 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     }
     LaunchedEffect(mode) {
         if (mode != previousMode) {
-            if (mode == MangaReaderMode.WEBTOON) scroll.scrollToItem(spreads.getOrNull(pager.currentPage)?.first() ?: 0)
+            if (mode == MangaReaderMode.WEBTOON) scroll.scrollToItem((spreads.getOrNull(pager.currentPage)?.first() ?: 0) / 4)
             else if (previousMode == MangaReaderMode.WEBTOON) pager.scrollToPage(spreadOf(scroll.firstVisibleItemIndex))
             previousMode = mode
         }
@@ -290,9 +300,9 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
     LaunchedEffect(mode, progressRetry) {
         fun current(): Triple<Int, Int, Boolean> {
             val spread = spreads.getOrNull(pager.settledPage)
-            val index = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemIndex.coerceAtMost(pages.lastIndex) else spread?.first() ?: 0
+            val index = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemIndex.coerceAtMost(pages.lastIndex) else (spread?.first() ?: 0) / 4
             val offset = if (mode == MangaReaderMode.WEBTOON) scroll.firstVisibleItemScrollOffset else 0
-            return Triple(index, offset, if (mode == MangaReaderMode.WEBTOON) webtoonFinished else spread?.contains(pages.lastIndex) == true)
+            return Triple(index, offset, if (mode == MangaReaderMode.WEBTOON) webtoonFinished else pager.settledPage >= spreads.lastIndex)
         }
         try {
             snapshotFlow { if (restorePending) null else current() }.filterNotNull().distinctUntilChanged().debounce(200).collect { (index, offset, finished) ->
@@ -369,13 +379,14 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
         } else HorizontalPager(pager, reverseLayout = mode == MangaReaderMode.PAGES_RTL, beyondViewportPageCount = 0, modifier = Modifier.fillMaxSize()) { index ->
             val spread = spreads[index]
             if (spread.size == 1) {
-                val item = pages[spread.single()]
+                val view = spread.single()
+                val item = pages[view / 4]
                 MangaImage(repository, item, chapter.sourceId, webtoon = false, fitWidth = fit == MangaReaderFit.WIDTH, zoom[item.id] ?: 1f, { zoom[item.id] = it }, onTap,
-                    treatment = treatment, filter = filter, onHold = { held = it })
+                    treatment = treatment.copy(half = view % 4), filter = filter, onHold = { held = it }, onFile = { learnSize(view / 4, it) })
             } else Row(Modifier.fillMaxSize().testTag("manga:spread")) {
                 // Right to left reads the right-hand page first.
-                (if (mode == MangaReaderMode.PAGES_RTL) spread.reversed() else spread).forEachIndexed { side, pageIndex ->
-                    val item = pages[pageIndex]
+                (if (mode == MangaReaderMode.PAGES_RTL) spread.reversed() else spread).forEachIndexed { side, view ->
+                    val item = pages[view / 4]
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = if (side == 0) Alignment.CenterEnd else Alignment.CenterStart) {
                         MangaImage(repository, item, chapter.sourceId, webtoon = false, fitWidth = false, zoom[item.id] ?: 1f, { zoom[item.id] = it },
                             { x, y, width, height -> onTap(x + side * width, y, width * 2, height) }, treatment = treatment, filter = filter, onHold = { held = it })
@@ -456,7 +467,7 @@ internal fun readerFilter(filter: MangaReaderFilter): androidx.compose.ui.graphi
 @Composable
 private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: String, webtoon: Boolean, fitWidth: Boolean, scale: Float,
     onScale: (Float) -> Unit, onTap: (Float, Float, Float, Float) -> Unit, onReady: (Boolean) -> Unit = {}, treatment: MangaPageTreatment = MangaPageTreatment(),
-    filter: androidx.compose.ui.graphics.ColorFilter? = null, onHold: (File) -> Unit = {}) {
+    filter: androidx.compose.ui.graphics.ColorFilter? = null, onHold: (File) -> Unit = {}, onFile: (File) -> Unit = {}) {
     val latestHold = rememberUpdatedState(onHold)
     var file by remember(page.id) { mutableStateOf<File?>(null) }
     val latestReady = rememberUpdatedState(onReady)
@@ -469,7 +480,7 @@ private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: S
     if (scale == 1f && offset != Offset.Zero) offset = Offset.Zero
     LaunchedEffect(page.id, retry, treatment) {
         failure = null
-        try { file = repository.pageFile(page, sourceId).let { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { mangaTreatedPage(it, treatment) } } }
+        try { file = repository.pageFile(page, sourceId).let { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { onFile(it); mangaTreatedPage(it, treatment) } } }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) { failure = error.message ?: "Page could not be loaded" }
     }

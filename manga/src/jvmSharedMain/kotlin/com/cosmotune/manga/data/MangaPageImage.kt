@@ -37,9 +37,16 @@ fun mangaContentBounds(pixels: IntArray, width: Int, height: Int, tolerance: Int
 }
 
 /** How a page is prepared before it is shown: its margins cut, and a wide page turned to stand upright on a tall screen. */
-data class MangaPageTreatment(val crop: Boolean = false, val rotateWide: Boolean = false) {
-    val none: Boolean get() = !crop && !rotateWide
-    val suffix: String get() = (if (crop) "c" else "") + (if (rotateWide) "r" else "")
+data class MangaPageTreatment(val crop: Boolean = false, val rotateWide: Boolean = false, /** 1 the left half, 2 the right half, 0 all of it. */ val half: Int = 0) {
+    val none: Boolean get() = !crop && !rotateWide && half == 0
+    val suffix: String get() = (if (crop) "c" else "") + (if (rotateWide && half == 0) "r" else "") + (if (half != 0) "h$half" else "")
+}
+
+/** [bounds] narrowed to its left (1) or right (2) half for a split wide page; as it is for 0. */
+fun MangaPageBounds.half(half: Int): MangaPageBounds = when (half) {
+    1 -> copy(right = left + width / 2)
+    2 -> copy(left = left + width / 2)
+    else -> this
 }
 
 /**
@@ -58,4 +65,7 @@ fun mangaTreatedPage(source: File, treatment: MangaPageTreatment): File {
 expect object MangaPageImages {
     /** Writes [source] prepared under [treatment] to [target]; false when there was nothing to change or it could not be read. */
     fun treat(source: File, target: File, treatment: MangaPageTreatment): Boolean
+
+    /** The width and height of the image in [file], without decoding all of it where the platform allows; null if unreadable. */
+    fun size(file: File): Pair<Int, Int>?
 }

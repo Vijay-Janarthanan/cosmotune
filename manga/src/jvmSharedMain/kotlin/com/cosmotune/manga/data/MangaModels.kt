@@ -82,6 +82,15 @@ fun mangaSpreads(count: Int, coverAlone: Boolean): List<List<Int>> {
     return result
 }
 
+/**
+ * The pages of a chapter as the reader shows them one at a time when wide pages are split (Mihon's split double pages): each view
+ * is page index × 4 plus its part, 0 for the whole page, 1 its left half, 2 its right half. A wide page gives two views, its
+ * right half first when reading right to left. [wide] says which pages are known to be wider than tall.
+ */
+fun mangaSplitViews(count: Int, wide: (Int) -> Boolean, rightToLeft: Boolean): List<List<Int>> = (0 until count).flatMap { index ->
+    if (!wide(index)) listOf(listOf(index * 4)) else if (rightToLeft) listOf(listOf(index * 4 + 2), listOf(index * 4 + 1)) else listOf(listOf(index * 4 + 1), listOf(index * 4 + 2))
+}
+
 @Serializable
 data class MangaProgress(
     val bookId: String,
@@ -147,6 +156,8 @@ data class MangaLibraryState(
     /** Two pages side by side in the paged modes when the window is wider than tall; [readerCoverAlone] keeps the first page alone. */
     val readerSpread: Boolean = false,
     val readerCoverAlone: Boolean = true,
+    /** A wide (double) page shows as two pages, one half after the other. */
+    val readerSplitWide: Boolean = false,
     /** A colour filter over the pages: none, grey, inverted or sepia. */
     val readerFilter: MangaReaderFilter = MangaReaderFilter.NONE,
     /** What shows around a page that does not fill the screen. */

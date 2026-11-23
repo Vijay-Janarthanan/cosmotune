@@ -27,6 +27,8 @@ internal fun MangaReaderImageOptions(state: MangaLibraryState, modifier: Modifie
             detail = mangaText("Cuts the plain margins off each page"))
         OrbitSwitchRow(mangaText("Turn wide pages"), state.readerRotateWide, { on -> change { it.copy(readerRotateWide = on) } }, plain = true,
             detail = mangaText("A double page turns sideways to fill a tall screen"))
+        OrbitSwitchRow(mangaText("Split double pages"), state.readerSplitWide, { on -> change { it.copy(readerSplitWide = on) } }, plain = true,
+            detail = mangaText("A wide page shows as two pages, one half after the other"))
         OrbitSwitchRow(mangaText("Two pages side by side"), state.readerSpread, { on -> change { it.copy(readerSpread = on) } }, plain = true,
             detail = mangaText("When the window is wider than tall"))
         if (state.readerSpread) OrbitSwitchRow(mangaText("First page alone"), state.readerCoverAlone, { on -> change { it.copy(readerCoverAlone = on) } }, plain = true,
