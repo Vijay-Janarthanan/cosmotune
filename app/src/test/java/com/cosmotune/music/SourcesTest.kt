@@ -1866,4 +1866,43 @@ class SourcesTest {
         assertEquals("flac", chosen?.second?.format?.codec)
     }
 
+    // ── A song whose upload is gone ─────────────────────────────────────────
+
+    /** The removed row: a compilation credits a duet to one singer. */
+    private fun goneTarget() = TrackMatcher.Target("Kaala Megam Megam", "R. K. Sundaramoorthy", durationSec = 306, videoId = "dead0000000")
+
+    private fun filmRow(id: String, title: String, artist: String, duration: String) =
+        Song(videoId = id, title = title, artist = artist, thumbnailUrl = null, durationText = duration)
+
+    @Test fun `a gone upload is played from the film recording filed under its other singers`() = runBlocking {
+        val catalogue = FakeSource("JioSaavn", 5, StreamFormat("mp4", kbps = 320), candidates = listOf(
+            filmRow("other-film", "Kaala Megam Megam", "Ravi, M.S.Lata", "4:18"),
+            filmRow("film", "Kaala Megam Megam (From &quot;Thozhilaali&quot;)", "Ravi, M. S. Latha", "5:05"),
+        ))
+        // While YouTube still has it, the different credit keeps the catalogue out of the way.
+        assertNull(SourceResolver.bestAcross(listOf(catalogue), goneTarget(), StreamRequest.Best))
+        // Once it is gone, the same title a second apart is the same master.
+        val (_, stream) = SourceResolver.bestAcross(listOf(catalogue), goneTarget(), StreamRequest.Best, standIn = true)!!
+        assertEquals("https://JioSaavn/film", stream.url)
+    }
+
+    @Test fun `a gone upload never stands in with a different song sharing its opening words`() = runBlocking {
+        val catalogue = FakeSource("JioSaavn", 5, StreamFormat("mp4", kbps = 320), candidates = listOf(
+            filmRow("drama", "Kaala Megam Megam Vaanam", "Village Drama Studioz", "5:06"),
+            filmRow("remix", "Kaala Megam Megam (Remix)", "R. K. Sundaramoorthy", "5:06"),
+        ))
+        assertNull(SourceResolver.bestAcross(listOf(catalogue), goneTarget(), StreamRequest.Best, standIn = true))
+    }
+
+    @Test fun `with no catalogue copy another upload naming the singer plays`() = runBlocking {
+        val youtube = FakeSource("YouTube", 5, StreamFormat("opus", kbps = 160), kind = SourceKind.YOUTUBE)
+        val uploads = listOf(
+            filmRow("lyrics", "Kaala Megam Megam Lyrics | R. K. Sundaramoorthy", "Lyric Tamil", "5:06").copy(isVideo = true),
+            filmRow("drama", "Kaala Megam Megam vaanam | Drama Song", "Village Drama Studioz", "5:06").copy(isVideo = true),
+            filmRow("named", "Kaala Megam Megam | R. K. Sundaramoorthy | Tamil Hits", "Melody Music", "5:08").copy(isVideo = true),
+        )
+        val stream = SourceResolver.standInUpload(goneTarget(), youtube, StreamRequest.Best) { uploads }
+        assertEquals("https://YouTube/named", stream?.url)
+        assertNull(SourceResolver.standInUpload(goneTarget(), youtube, StreamRequest.Best) { uploads.take(2) })
+    }
 }
