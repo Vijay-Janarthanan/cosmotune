@@ -368,6 +368,8 @@ private fun BookLibrary(scope: ReadScope) {
     // Nearby: the books to send (none when it was opened to receive), or null while it is closed.
     var nearby by remember { mutableStateOf<List<ReadingBook>?>(null) }
     nearby?.let { BookNearbySheet(scope, it, onDismiss = { nearby = null }) }
+    var fromCalibre by remember { mutableStateOf(false) }
+    if (fromCalibre) BookCalibreSheet(scope, onDismiss = { fromCalibre = false })
     if (bulkTagging) BulkTagsSheet(state.books.filter { it.id in chosen }, tags, onSave = { add, remove ->
         scope.action { scope.repository.editTags(chosen, add, remove) }
     }, onDismiss = { bulkTagging = false })
@@ -390,6 +392,7 @@ private fun BookLibrary(scope: ReadScope) {
                         com.cosmotune.ui.orbit.OrbitMenuItem("Save a web page", detail = "An article's text and pictures, to read later", icon = CosmoIcons.Explore) { clipping = "page" },
                         com.cosmotune.ui.orbit.OrbitMenuItem("Paste text", detail = "Text you copied becomes a book", icon = CosmoIcons.List) { clipping = "text" },
                         com.cosmotune.ui.orbit.OrbitMenuItem("Send or receive nearby", detail = "Between your devices on the same Wi-Fi, or LocalSend", icon = CosmoIcons.Devices) { nearby = emptyList() },
+                        com.cosmotune.ui.orbit.OrbitMenuItem("Receive from calibre", detail = "calibre's wireless device connection", icon = CosmoIcons.Download) { fromCalibre = true },
                     ), orbitFonts(), orbitLook(), header = "Add books")
                 }
                 ReadRootActions(scope)
