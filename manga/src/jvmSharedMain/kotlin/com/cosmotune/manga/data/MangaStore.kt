@@ -77,12 +77,16 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
 
     suspend fun save(book: MangaBook) = update { old ->
         val previous = old.books.find { it.id == book.id }
-        old.copy(books = old.books.filterNot { it.id == book.id } + book.copy(addedAtMs = previous?.addedAtMs ?: book.addedAtMs))
+        val book = old.titleEdits[book.id]?.let { book.copy(title = it) } ?: book
+        // A new series joins the default collection, when there is one.
+        val collections = if (previous == null && old.defaultCollection.isNotBlank()) old.collections.map { if (it.id == old.defaultCollection) it.copy(bookIds = it.bookIds + book.id) else it }
+            else old.collections
+        old.copy(books = old.books.filterNot { it.id == book.id } + book.copy(addedAtMs = previous?.addedAtMs ?: book.addedAtMs), collections = collections).settledSyncedRead(book)
     }
 
     suspend fun remove(bookId: String) = update { old ->
         val chapterIds = old.books.find { it.id == bookId }?.chapters.orEmpty().map { it.id }.toSet()
-        old.copy(books = old.books.filterNot { it.id == bookId }, progress = old.progress - bookId,
+        old.copy(books = old.books.filterNot { it.id == bookId }, progress = old.progress - bookId, notes = old.notes - bookId, bookmarks = old.bookmarks - chapterIds, seriesMode = old.seriesMode - bookId, seriesFit = old.seriesFit - bookId, customCovers = old.customCovers - bookId, titleEdits = old.titleEdits - bookId, updateFailures = old.updateFailures - bookId, tracks = old.tracks - bookId, syncedRead = old.syncedRead - bookId, trackFailures = old.trackFailures - bookId,
             collections = old.collections.map { it.copy(bookIds = it.bookIds - bookId) },
             downloads = old.downloads.filterKeys { it !in chapterIds }, readChapters = old.readChapters - chapterIds,
             newChapters = old.newChapters - chapterIds,
@@ -90,14 +94,18 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
             activeChapterId = old.activeChapterId.takeUnless { it in chapterIds })
     }
 
-    suspend fun progress(value: MangaProgress) {
+    /** Keeps where [value]'s chapter was left; [keepMode] leaves the default reading direction alone (a text chapter has none). */
+    suspend fun progress(value: MangaProgress, keepMode: Boolean = false) {
         require(value.pageCount > 0 && value.page in 0 until value.pageCount && value.pageOffsetPx in 0..10_000_000)
-        update { it.copy(progress = it.progress + (value.bookId to value), readerMode = value.mode, newChapters = it.newChapters - value.chapterId,
-            readChapters = if (value.finished) it.readChapters + value.chapterId else it.readChapters) }
+        if (state.value.incognito) return
+        update { it.copy(progress = it.progress + (value.bookId to value), readerMode = if (keepMode) it.readerMode else value.mode, newChapters = it.newChapters - value.chapterId,
+            readChapters = if (value.finished) it.readChapters + value.chapterId else it.readChapters,
+            readLog = if (value.finished && value.chapterId !in it.readLog) logged(it.readLog, value.chapterId) else it.readLog) }
     }
 
     suspend fun markRead(chapter: MangaChapter, read: Boolean) = update {
         it.copy(readChapters = if (read) it.readChapters + chapter.id else it.readChapters - chapter.id, newChapters = it.newChapters - chapter.id,
+            readLog = if (read && chapter.id !in it.readLog) logged(it.readLog, chapter.id) else if (!read) it.readLog - chapter.id else it.readLog,
             progress = if (!read && it.progress[chapter.bookId]?.chapterId == chapter.id) it.progress - chapter.bookId else it.progress)
     }
 
@@ -113,9 +121,9 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
             val previous = old.books.find { it.id == detail.id } ?: return@update old
             // A series whose chapters were never loaded has nothing to compare: its first list is not "new".
             val known = previous.chapters.map { it.id }.toSet()
-            val fresh = if (known.isEmpty()) emptyList() else detail.chapters.map { it.id }.filter { it !in known && it !in old.readChapters }
+            val fresh = if (known.isEmpty()) emptyList() else detail.chapters.map { it.id }.filter { it !in known && it !in old.readChapters && it !in old.syncedRead[detail.id].orEmpty() }
             found = fresh.size
-            old.copy(books = old.books.map { if (it.id == detail.id) detail.copy(addedAtMs = previous.addedAtMs) else it },
+            old.settledSyncedRead(detail).copy(books = old.books.map { if (it.id == detail.id) detail.copy(addedAtMs = previous.addedAtMs, title = old.titleEdits[detail.id] ?: detail.title) else it },
                 newChapters = (old.newChapters + fresh).let { if (it.size > MAX_NEW_CHAPTERS) it.toList().takeLast(MAX_NEW_CHAPTERS).toSet() else it })
         }
         return found
@@ -151,7 +159,30 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
         old.copy(collections = old.collections.map { if (it.id == id) it.copy(name = title) else it })
     }
 
-    suspend fun deleteCollection(id: String) = update { old -> old.copy(collections = old.collections.filterNot { it.id == id }) }
+    suspend fun deleteCollection(id: String) = update { old -> old.copy(collections = old.collections.filterNot { it.id == id },
+        defaultCollection = old.defaultCollection.takeUnless { it == id }.orEmpty()) }
+
+    /** Sets the page in [image] as [bookId]'s cover (a copy in the covers folder); null puts the source's cover back. */
+    suspend fun cover(bookId: String, image: File?) {
+        val folder = File(root, "covers").apply { mkdirs() }
+        val target = File(folder, java.security.MessageDigest.getInstance("SHA-256").digest(bookId.toByteArray()).take(12).joinToString("") { "%02x".format(it) } + ".jpg")
+        if (image != null) withContext(Dispatchers.IO) { image.copyTo(target, overwrite = true) }
+        update { old -> old.copy(customCovers = if (image == null) old.customCovers - bookId else old.customCovers + (bookId to target.path)) }
+        if (image == null) withContext(Dispatchers.IO) { target.delete() }
+    }
+
+    /** Renames a series for this library ([title] blank puts the source's name back on the next refresh). */
+    suspend fun retitle(bookId: String, title: String) = update { old ->
+        val name = title.trim().take(300)
+        require(name.none(Char::isISOControl)) { "Use a title without control characters" }
+        old.copy(titleEdits = if (name.isBlank()) old.titleEdits - bookId else old.titleEdits + (bookId to name),
+            books = if (name.isBlank()) old.books else old.books.map { if (it.id == bookId) it.copy(title = name) else it })
+    }
+
+    suspend fun hideCollection(id: String, hidden: Boolean) = update { old -> old.copy(collections = old.collections.map { if (it.id == id) it.copy(hidden = hidden) else it }) }
+
+    /** New series join [id] ("" for none). */
+    suspend fun defaultCollection(id: String) = update { old -> old.copy(defaultCollection = id.takeIf { value -> old.collections.any { it.id == value } }.orEmpty()) }
 
     suspend fun assignCollection(bookId: String, collectionId: String, included: Boolean) = update { old ->
         require(old.books.any { it.id == bookId } && old.collections.any { it.id == collectionId }) { "Save the series and collection first" }
@@ -202,6 +233,29 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
     /** Removal changes only subscriptions; previously trusted installed sources remain usable. */
     suspend fun removeExtensionStore(indexUrl: String) = update { old ->
         old.copy(extensionStores = old.extensionStores.filterNot { it.indexUrl == indexUrl })
+    }
+
+    private fun logged(log: Map<String, Long>, chapterId: String): Map<String, Long> {
+        val next = log + (chapterId to System.currentTimeMillis())
+        return if (next.size <= 20_000) next else next.entries.sortedBy { it.value }.drop(next.size - 20_000).associate { it.key to it.value }
+    }
+
+    /** Adds [ms] of reading to today's total (not while incognito); the last 400 days are kept. */
+    suspend fun addReadingTime(ms: Long) {
+        if (ms <= 0 || state.value.incognito) return
+        val day = java.time.LocalDate.now().toString()
+        update { old -> old.copy(readingTime = (old.readingTime + (day to (old.readingTime[day] ?: 0L) + ms.coerceAtMost(3_600_000L))).let { times ->
+            if (times.size > 400) times.toSortedMap().entries.drop(times.size - 400).associate { it.key to it.value } else times }) }
+    }
+
+    /** Read marks that came from another device before [book]'s chapters were known become real read marks once they are. */
+    private fun MangaLibraryState.settledSyncedRead(book: MangaBook): MangaLibraryState {
+        val waiting = syncedRead[book.id] ?: return this
+        val listed = book.chapters.map { it.id }.toSet()
+        val found = waiting.intersect(listed)
+        if (found.isEmpty()) return this
+        val left = waiting - found
+        return copy(readChapters = readChapters + found, syncedRead = if (left.isEmpty()) syncedRead - book.id else syncedRead + (book.id to left))
     }
 
     companion object {

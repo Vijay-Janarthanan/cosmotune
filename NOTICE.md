@@ -109,6 +109,13 @@ no code, assets or copy taken from them:
   top and bottom chrome with the page slider.
 - **Kotatsu** and **Tsuki** (GPLv3): the series header (cover beside the title, status and source, one Continue button), the
   filter chips and the reading-mode sheet, and the tablet layout with the tabs on a rail.
+- Manga features modelled on **Mihon** and **Komikku** (Apache-2.0) and **Kotatsu** (GPLv3), with Cosmotune's own code:
+  reading Mihon/Tachiyomi backups (`MihonBackup.kt` uses the field numbers of Mihon's backup models), moving a series to
+  another source (Mihon's migration, Kotatsu's alternatives), reading-list tracking (MangaUpdates, Komga read marks), the
+  download queue and its automatic rules, the reader's crop borders, two-page spreads, colour filters and tap-zone layouts,
+  library filters and incognito, Komikku's Feed and suggestions, and Kotatsu's Explore top lists.
+- **Suwayomi-Server** (MPL-2.0): Cosmotune talks to a listener's own server through its public GraphQL API (`SuwayomiSource.kt`);
+  no Suwayomi code is included.
 - **Librum** (GPLv3), **Kavita** (GPLv3) and **Booklore** (AGPL-3.0): the book library grid, the book page with its actions
   under the header, the typography settings and the Home shelves (continue reading, recently added, discover).
 

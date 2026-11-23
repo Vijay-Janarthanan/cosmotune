@@ -104,7 +104,7 @@ object AndroidCloud {
             marks = FileSyncMarks(File(folder, "marks.json")),
             kinds = listOf(
                 SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND,
-                SyncPlaylistCovers.KIND, com.cosmotune.podio.SyncPodio.KIND,
+                SyncPlaylistCovers.KIND, com.cosmotune.podio.SyncPodio.KIND, com.cosmotune.manga.data.SyncMangaLibrary.KIND,
             ),
             scope = scope,
             log = { android.util.Log.i("Cosmotune", it) },
@@ -162,6 +162,16 @@ object AndroidCloud {
             var previous: Map<String, JsonObject>? = null
             podioLibrary().state.collect { saved ->
                 val current = com.cosmotune.podio.SyncPodio.changeSignal(saved)
+                if (previous != null && previous != current) autoSync.changed()
+                previous = current
+            }
+        }
+        // Manga's library is opened for this only once sync is on; a finished chapter or a new series is worth a sync, a page turn is not.
+        scope.launch {
+            _enabled.first { it }
+            var previous: Map<String, JsonObject>? = null
+            com.cosmotune.manga.ui.AndroidMangaSync.store(app).state.collect { state ->
+                val current = com.cosmotune.manga.data.SyncMangaLibrary.changeSignal(state)
                 if (previous != null && previous != current) autoSync.changed()
                 previous = current
             }
@@ -340,6 +350,8 @@ object AndroidCloud {
             com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
             // Podio's follows, saved stations and where episodes were left.
             com.cosmotune.podio.SyncPodio.KIND -> com.cosmotune.podio.SyncPodio.snapshot(podioLibrary().state.value)
+            // Manga: series, read chapters, places and collections; never source keys, reading-list sessions or local comics.
+            com.cosmotune.manga.data.SyncMangaLibrary.KIND -> com.cosmotune.manga.data.SyncMangaLibrary.snapshot(com.cosmotune.manga.ui.AndroidMangaSync.store(app).state.value)
             else -> emptyMap()
         }
 
@@ -361,6 +373,8 @@ object AndroidCloud {
                 com.cosmotune.watch.SyncWatchLibrary.KIND ->
                     com.cosmotune.music.watch.AndroidWatch.store(app).update { com.cosmotune.watch.SyncWatchLibrary.apply(it, upserts, deletes) }
                 com.cosmotune.podio.SyncPodio.KIND -> podioLibrary().update { com.cosmotune.podio.SyncPodio.apply(it, upserts, deletes) }
+                com.cosmotune.manga.data.SyncMangaLibrary.KIND ->
+                    com.cosmotune.manga.ui.AndroidMangaSync.store(app).update { com.cosmotune.manga.data.SyncMangaLibrary.apply(it, upserts, deletes) }
             }
         }
     }

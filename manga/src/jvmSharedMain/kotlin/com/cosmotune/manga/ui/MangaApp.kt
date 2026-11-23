@@ -4,6 +4,8 @@ package com.cosmotune.manga.ui
 import com.cosmotune.ui.orbit.LocalOrbitUndo
 import com.cosmotune.ui.orbit.OrbitUndoState
 import com.cosmotune.ui.orbit.removeAfterUndo
+import com.cosmotune.ui.orbit.showThen
+import androidx.compose.foundation.layout.heightIn
 import com.cosmotune.cache.PageCache
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,14 +46,23 @@ import com.cosmotune.ui.orbit.OrbitCardColors
 import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 
 /**
  * The Manga mode (Canvas repo, design/cosmotune/batch-be/board.html, section D): Library, Updates, Browse, Sources and History as
@@ -81,22 +92,24 @@ fun MangaApp(
     } else {
         // The app's repository keeps its catalogue pages for the process and on the disk; one handed in (a test's) keeps its own.
         val pages = remember(ready, repository) { if (repository == null) PageCache.shared else PageCache.of(ready, persistent = false) }
-        androidx.compose.runtime.CompositionLocalProvider(LocalMangaPages provides pages) {
-            MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
+        val locks by ready.store.state.collectAsState()
+        MangaSecureScreen(locks.secureScreen)
+        MangaWebDavAutoSync(ready)
+        LaunchedEffect(ready) {
+            // Mihon's clear chapter cache on launch: once a run, when it is on.
+            if (ready.store.state.value.clearCacheOnStart && MangaStartCleanup.pending) { MangaStartCleanup.pending = false; runCatching { ready.clearCache() } }
+        }
+        val lockScope = rememberCoroutineScope()
+        MangaLockGate(locks.lockManga, locks.lockPin, { change -> lockScope.launch { ready.store.update(change) } }) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalMangaPages provides pages) {
+                MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
+            }
         }
     }
 }
 
 /** Where Manga's catalogue pages are kept between visits; null: a memory-only cache of the repository's own. */
 internal val LocalMangaPages = androidx.compose.runtime.staticCompositionLocalOf<PageCache?> { null }
-
-/** A download in progress: which chapters it covers and what it has done so far. */
-internal class MangaTransfer {
-    var job by mutableStateOf<Job?>(null)
-    var progress by mutableStateOf("")
-    var chapters by mutableStateOf(emptySet<String>())
-    val active: Boolean get() = job?.isActive == true
-}
 
 /** Where the mode is: its tab, and what is pushed over it (a catalogue, a page, a series, a chapter). */
 internal class MangaNavigation(tab: String, book: MangaBook?, chapter: MangaChapter?) {
@@ -138,7 +151,6 @@ internal object MangaPages {
 internal class MangaScope(
     val repository: MangaRepository,
     val navigation: MangaNavigation,
-    val transfer: MangaTransfer,
     val updates: MangaUpdateCheck,
     val onMusic: (() -> Unit)?,
     val showAccount: Boolean,
@@ -150,7 +162,7 @@ internal class MangaScope(
     /** Opens [book] at the chapter it continues with (the reader), or its page while its chapters are not known yet. */
     fun continueReading(book: MangaBook, state: MangaLibraryState) {
         val target = mangaContinue(book, state).chapter
-        if (target == null) openBook(book)
+        if (target == null || book.unlinkedSourceName() != null) openBook(book)
         else action { repository.store.save(book); navigation.book = book; navigation.chapter = target }
     }
 }
@@ -187,7 +199,6 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
     }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(repository.store.recoveryMessage) }
-    val transfer = remember { MangaTransfer() }
     val updates = remember { MangaUpdateCheck() }
     fun action(block: suspend () -> Unit): Job = scope.launch {
         error = null
@@ -217,6 +228,8 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
     }
     fun openBook(item: MangaBook) {
         navigation.book = state.books.find { it.id == item.id } ?: item
+        // A series from a Mihon backup has no source to refresh from until it is found on one.
+        if (item.unlinkedSourceName() != null) return
         scope.launch {
             busy = true; error = null
             try { val detail = repository.chapters(item); if (navigation.book?.id == item.id) navigation.book = detail }
@@ -232,9 +245,11 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
     val current = navigation.chapter
     if (current != null) {
         val book = navigation.book
-        val next = book?.nextChapter(current)
+        val next = book?.nextChapter(current, state.readChapters + current.id, state.skipReadChapters)
         Box(Modifier.fillMaxSize().testTag("manga:root")) {
-            MangaReader(repository, current, book = book, hasNext = next != null, onBack = { navigation.chapter = null }, onNext = { navigation.chapter = next },
+            if (current.text) MangaNovelReader(repository, current, book = book, hasNext = next != null, onBack = { navigation.chapter = null },
+                onNext = { navigation.chapter = next }, onChapter = { navigation.chapter = it })
+            else MangaReader(repository, current, book = book, hasNext = next != null, onBack = { navigation.chapter = null }, onNext = { navigation.chapter = next },
                 onChapter = { navigation.chapter = it })
         }
         return
@@ -249,8 +264,11 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
         modifier = Modifier.testTag("manga:root").padding(top = contentPadding.calculateTopPadding()),
         search = com.cosmotune.ui.shell.CosmoNavSearch("Search", selected = navigation.searching, onClick = navigation::tapSearch)) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
-        val pageScope = MangaScope(repository, navigation, transfer, updates, onMusic, showAccount, bottom, ::action, ::openBook) { error = it }
-        Column(Modifier.fillMaxSize()) {
+        val pageScope = MangaScope(repository, navigation, updates, onMusic, showAccount, bottom, ::action, ::openBook) { error = it }
+        val picking = remember { MangaPicking() }
+        LaunchedEffect(navigation.tab, navigation.source, navigation.page, navigation.book?.id) { picking.clear() }
+        MangaBackHandler(picking.active) { picking.clear() }
+        androidx.compose.runtime.CompositionLocalProvider(LocalMangaPicking provides picking) { Box(Modifier.fillMaxSize()) { Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.padding(top = 8.dp), onDismiss = { error = null }) }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = orbitLook().accent)
             Box(Modifier.weight(1f)) {
@@ -268,6 +286,8 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
                 }
             }
         }
+        if (picking.active) MangaPickBar(pageScope, picking, Modifier.align(Alignment.BottomCenter).padding(bottom = bottom))
+        } }
     }
     }
 }
@@ -283,7 +303,10 @@ internal fun mangaMenuEntries(navigation: MangaNavigation): List<com.cosmotune.u
 /** The cover of a series: its address, the first page of a local comic, or a signed cover fetched through its source. */
 @Composable
 internal fun rememberMangaCover(repository: MangaRepository, book: MangaBook): Any? {
-    val signedCover = book.sourceId.startsWith("template:") || book.sourceId.startsWith("komga:")
+    // A cover the listener chose (a page set as cover) comes first.
+    val chosen = repository.store.state.collectAsState().value.customCovers[book.id]?.let { java.io.File(it) }?.takeIf { it.isFile }
+    if (chosen != null) return chosen
+    val signedCover = book.sourceId.startsWith("template:") || book.sourceId.startsWith("komga:") || book.sourceId.startsWith("suwayomi:")
     var cover by remember(book.id, book.coverUrl) { mutableStateOf<Any?>(book.coverUrl.takeUnless { signedCover }) }
     LaunchedEffect(book.id, book.coverUrl) {
         if (book.sourceId == "local") runCatching {
@@ -297,7 +320,7 @@ internal fun rememberMangaCover(repository: MangaRepository, book: MangaBook): A
 }
 
 /** The address of a series' cover when it is a plain one, for the colour of its card. */
-internal fun MangaBook.colourUrl(): String? = coverUrl?.takeIf { it.startsWith("http") && !sourceId.startsWith("template:") && !sourceId.startsWith("komga:") }
+internal fun MangaBook.colourUrl(): String? = coverUrl?.takeIf { it.startsWith("http") && !sourceId.startsWith("template:") && !sourceId.startsWith("komga:") && !sourceId.startsWith("suwayomi:") }
 
 /**
  * A series as a tall cover. In the library ([inLibrary]) its corner carries the unread chapters (in peach) and the downloaded ones
@@ -310,9 +333,15 @@ internal fun MangaBookCard(scope: MangaScope, book: MangaBook, meta: String?, mo
     val cover = rememberMangaCover(scope.repository, book)
     val progress = if (inLibrary) state.progress[book.id]?.takeIf { !it.finished && it.pageCount > 0 }?.let { (it.page + 1f) / it.pageCount } else null
     val counts = if (inLibrary) mangaCoverCounts(book, state) else null
-    Box(modifier) {
-        ReadCoverCard(book.title, meta, cover, onClick = { scope.openBook(book) }, width = width, progress = progress, key = book.id,
-            onContinue = if (inLibrary && book.chapters.isNotEmpty()) ({ scope.continueReading(book, state) }) else null)
+    // Holding a cover chooses it (Komikku's bulk favourite); while some are chosen a tap chooses too. The mark sits in the line under it.
+    val picking = LocalMangaPicking.current
+    val chosen = picking?.has(book) == true
+    val undo = LocalOrbitUndo.current
+    Box(modifier.semantics { if (chosen) stateDescription = "Chosen" }) {
+        ReadCoverCard(book.title, if (chosen) "✓ " + mangaText("Chosen") else meta, cover, width = width, progress = progress, key = book.id,
+            onClick = { if (picking?.active == true) picking.toggle(book) else scope.openBook(book) },
+            onContinue = if (inLibrary && book.chapters.isNotEmpty() && picking?.active != true) ({ scope.continueReading(book, state) }) else null,
+            onLongClick = { if (picking != null) picking.toggle(book) else mangaSetInLibrary(scope, undo, listOf(book), add = state.books.none { it.id == book.id }) })
         if (counts != null && (counts.unread > 0 || counts.downloaded > 0)) Row(Modifier.align(Alignment.TopStart).padding(6.dp).testTag("manga:badges:${book.id}"),
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (counts.unread > 0) MangaCountBadge(counts.unread, peach = true, label = "${counts.unread} unread")
@@ -348,7 +377,8 @@ internal fun MangaUpdateRow(scope: MangaScope, entry: MangaUpdateEntry) {
 @Composable
 internal fun MangaDownloadButton(scope: MangaScope, book: MangaBook, chapter: MangaChapter, state: MangaLibraryState) {
     val undo = LocalOrbitUndo.current
-    ReadDownloadButton(mangaDownloadState(scope, chapter, state)) {
+    val queue by scope.repository.downloads.state.collectAsState()
+    ReadDownloadButton(mangaDownloadState(chapter, state, queue)) {
         if (state.downloads.containsKey(chapter.id)) mangaRemoveDownloads(scope, undo, listOf(chapter), chapter.title) else mangaDownload(scope, book, listOf(chapter))
     }
 }
@@ -365,27 +395,17 @@ internal fun mangaRemoveDownloads(scope: MangaScope, undo: OrbitUndoState?, chap
     }
 }
 
-internal fun mangaDownloadState(scope: MangaScope, chapter: MangaChapter, state: MangaLibraryState): ReadDownload = when {
+internal fun mangaDownloadState(chapter: MangaChapter, state: MangaLibraryState, queue: MangaQueueState): ReadDownload = when {
     chapter.sourceId == "local" -> ReadDownload.NONE
     state.downloads.containsKey(chapter.id) -> ReadDownload.DONE
-    scope.transfer.active && chapter.id in scope.transfer.chapters -> ReadDownload.RUNNING
+    queue.has(chapter.id) -> ReadDownload.RUNNING
     else -> ReadDownload.AVAILABLE
 }
 
-/** Downloads [chapters] of [book] one after another (the series is saved first, so a download adds it to the library). */
+/** Puts [chapters] of [book] in the download queue (the series is saved first, so a download adds it to the library). */
 internal fun mangaDownload(scope: MangaScope, book: MangaBook, chapters: List<MangaChapter>) {
-    if (scope.transfer.active || chapters.isEmpty()) return
-    scope.transfer.chapters = chapters.map { it.id }.toSet()
-    scope.transfer.job = scope.action {
-        try {
-            scope.repository.store.save(book)
-            chapters.forEachIndexed { index, item ->
-                scope.repository.download(item) { done, total ->
-                    scope.transfer.progress = if (chapters.size == 1) "${item.title}: $done / $total pages" else "Chapter ${index + 1} of ${chapters.size} · ${item.title}: $done / $total pages"
-                }
-            }
-        } finally { scope.transfer.chapters = emptySet(); scope.transfer.progress = "" }
-    }
+    if (chapters.isEmpty()) return
+    scope.action { scope.repository.store.save(book); scope.repository.downloads.enqueue(book, chapters) }
 }
 
 /** The mono line of a series' card: "MANGA · 142 CHAPTERS · ONGOING". */
@@ -407,8 +427,12 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
     val grid = rememberLazyGridState()
     var collection by rememberSaveable { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf("recent") }
-    var unreadOnly by rememberSaveable { mutableStateOf(false) }
+    var filters by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var genres by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var types by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var options by remember { mutableStateOf(false) }
+    var dupes by remember { mutableStateOf(false) }
+    var stats by remember { mutableStateOf(false) }
     val pick = rememberMangaImport { name, open ->
         scope.action { onBusy(true); try { repository.store.save(repository.store.archives.import(name, open)) } finally { onBusy(false) } }
     }
@@ -418,7 +442,8 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
             try { repository.store.save(repository.store.archives.importImages(folder.name, folder.images)) } finally { onBusy(false) }
         } }, onFailure = { scope.onError(it.message ?: "Folder could not be opened") })
     }
-    val books = mangaLibraryOrder(state.collectionBooks(collection).filter { !unreadOnly || it.chapters.any { chapter -> chapter.id !in state.readChapters } }, sort, state)
+    val books = mangaLibraryOrder(mangaGenreFilter(mangaLibraryFilter(state.collectionBooks(collection), filters.toSet(), state), genres.toSet(), types.toSet()), sort, state)
+        .filterNot { it.id in MangaPendingRemovals.ids }
     val reading = state.books.filter { book -> state.progress[book.id]?.let { !it.finished || mangaContinue(book, state).resumes } == true }
         .maxByOrNull { state.progress[it.id]?.updatedAtMs ?: 0L }
     val discovery = state.sources.firstOrNull { it.enabled && MangaSourcePolicy.allowed(it) }
@@ -428,6 +453,9 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
         horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {
             ReadPageHead(mangaText("Library"), if (state.books.isEmpty()) mangaText("Your series") else "${state.books.size} series · $unread unread", Modifier.readBleed()) {
+                // While incognito the heading says so, and a tap turns it off.
+                if (state.incognito) ReadIconButton(CosmoIcons.Close, "Incognito is on. Turn it off", { scope.action { repository.store.update { it.copy(incognito = false) } } },
+                    Modifier.testTag("manga:incognito"), on = true)
                 ReadIconButton(Icons.Rounded.Tune, "Library options", { options = true }, Modifier.testTag("manga:options"))
             }
         }
@@ -445,28 +473,131 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
             if (reading != null) item(key = "continue:${reading.id}", span = { GridItemSpan(maxLineSpan) }) { MangaContinueRow(scope, reading, state) }
             if (books.isEmpty()) item(key = "none", span = { GridItemSpan(maxLineSpan) }) {
                 Column(Modifier.readBleed()) {
-                    ReadEmpty("Nothing here", if (unreadOnly) "Every series in this view is read." else "No series in this collection yet.")
+                    val filtered = filters.isNotEmpty() || genres.isNotEmpty() || types.isNotEmpty()
+                    ReadEmpty("Nothing here", if (filtered) "No series match these filters." else "No series in this collection yet.",
+                        actionLabel = if (filtered) "Clear filters" else null, onAction = { filters = emptyList(); genres = emptyList(); types = emptyList() })
                 }
             }
         }
-        items(books, key = { it.id }) { book -> MangaBookCard(scope, book, null, inLibrary = true) }
+        items(books, key = { it.id }) { book -> MangaBookCard(scope, book, if (state.libraryCardSource) mangaSourceLine(book, state) else null, inLibrary = true) }
     }
+    if (dupes) MangaDuplicatesSheet(scope) { dupes = false }
+    if (stats) MangaStatsSheet(scope) { stats = false }
     if (options) KitSheet(onDismiss = { options = false }, title = mangaText("Library")) {
         ReadSheetRow(mangaText("Import comic"), CosmoIcons.Plus, { options = false; pick() }, enabled = !busy)
         ReadSheetRow(mangaText("Image folder"), Icons.Rounded.Folder, { options = false; pickFolder() }, enabled = !busy)
         ReadSheetRow(mangaText("Downloads"), CosmoIcons.Downloaded, { options = false; scope.navigation.page = MangaPages.DOWNLOADS }, Modifier.testTag("manga:downloads"))
         ReadSheetRow(mangaText("Manage sources"), CosmoIcons.Settings, { options = false; scope.navigation.select(MangaTabs.SOURCES) })
+        ReadSheetRow(mangaText("Statistics"), CosmoIcons.List, { options = false; stats = true }, Modifier.testTag("manga:stats"))
+        val duplicates = remember(state.books) { mangaDuplicates(state) }
+        if (duplicates.isNotEmpty()) ReadSheetRow(mangaText("Duplicates") + " · ${duplicates.size}", CosmoIcons.List, { options = false; dupes = true }, Modifier.testTag("manga:duplicates"))
         ReadSheetSection(mangaText("Sort by")) {
             ReadChipRow(inset = 0.dp) {
-                listOf("recent", "title", "added", "unread").forEach { value -> ReadChip(mangaText(sortLabel(value)), sort == value, { sort = value }) }
+                listOf("recent", "title", "added", "unread", "latest", "chapters").forEach { value -> ReadChip(mangaText(sortLabel(value)), sort == value, { sort = value }) }
             }
         }
-        ReadSheetSection(mangaText("Filter")) { ReadChip(mangaText("Unread only"), unreadOnly, { unreadOnly = !unreadOnly }) }
+        ReadSheetSection(mangaText("Filter")) {
+            ReadChipRow(inset = 0.dp) {
+                MangaLibraryFilters.all.forEach { filter ->
+                    ReadChip(mangaText(MangaLibraryFilters.label(filter)), filter in filters, { filters = if (filter in filters) filters - filter else filters + filter },
+                        Modifier.testTag("manga:filter:$filter"))
+                }
+            }
+        }
+        val kinds = remember(state.books) { state.books.mapNotNull(::mangaType).distinct().sorted() }
+        if (kinds.size > 1) ReadSheetSection(mangaText("Type")) {
+            ReadChipRow(inset = 0.dp) {
+                kinds.forEach { kind -> ReadChip(mangaText(kind), kind in types, { types = if (kind in types) types - kind else types + kind }, Modifier.testTag("manga:type:$kind")) }
+            }
+        }
+        val genreChips = remember(state.books) { mangaLibraryGenres(state.books) }
+        if (genreChips.isNotEmpty()) ReadSheetSection(mangaText("Genre")) {
+            ReadChipRow(inset = 0.dp) {
+                genreChips.forEach { genre -> ReadChip(genre, genre in genres, { genres = if (genre in genres) genres - genre else genres + genre }, Modifier.testTag("manga:genre:$genre")) }
+            }
+        }
+        com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Source and language on cards"), state.libraryCardSource, { on -> scope.action { repository.store.update { it.copy(libraryCardSource = on) } } },
+            Modifier.padding(horizontal = 20.dp, vertical = 4.dp).testTag("manga:card-source"), detail = mangaText("In the line under each cover"))
+        com.cosmotune.ui.orbit.OrbitSwitchRow(mangaText("Incognito"), state.incognito, { on -> scope.action { repository.store.update { it.copy(incognito = on) } } },
+            Modifier.padding(horizontal = 20.dp, vertical = 4.dp), detail = mangaText("Reading leaves no history, place or read marks"))
         Spacer(Modifier.height(16.dp))
     }
 }
 
-private fun sortLabel(sort: String): String = when (sort) { "title" -> "Title"; "added" -> "Added"; "unread" -> "Unread"; else -> "Last read" }
+/**
+ * The library's duplicates: each group of series that look the same, with Keep on each one. Keeping one merges the others into it
+ * (read chapters, place, collections and reading-list links) and removes them; Undo puts the library back.
+ */
+@Composable
+private fun MangaDuplicatesSheet(scope: MangaScope, onDismiss: () -> Unit) {
+    val state by scope.repository.store.state.collectAsState()
+    val groups = mangaDuplicates(state)
+    val undo = LocalOrbitUndo.current
+    val words = mangaText("Series merged")
+    KitSheet(onDismiss = onDismiss) {
+        ReadSheetHeader(mangaText("Duplicates"), onDone = onDismiss)
+        androidx.compose.material3.Text(mangaText("These look like the same series twice. Keep one: the others' read chapters, place and collections move to it."),
+            style = ReadType.meta(), color = orbitLook().dim, modifier = Modifier.padding(horizontal = 20.dp))
+        if (groups.isEmpty()) ReadEmpty(mangaText("No duplicates"), mangaText("Every series in your library is there once."))
+        androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
+            groups.forEachIndexed { index, group ->
+                item(key = "group:$index") { ReadOverline(group.first().title) }
+                items(group, key = { "dupe:${it.id}" }) { book ->
+                    val cover = rememberMangaCover(scope.repository, book)
+                    val source = state.sources.find { it.id == book.sourceId }?.name ?: if (book.sourceId == "local") "On this device" else book.unlinkedSourceName() ?: book.sourceId
+                    val read = book.chapters.count { it.id in state.readChapters }
+                    ReadCoverRow(book.title, "$source · $read read", cover, key = book.id, modifier = Modifier.padding(horizontal = ReadMargin).testTag("manga:dupe:${book.id}"),
+                        onClick = { onDismiss(); scope.openBook(book) }) {
+                        ReadTextButton(mangaText("Keep"), { scope.action {
+                            val before = scope.repository.store.state.value
+                            scope.repository.store.update { it.merged(book, group) }
+                            undo.showThen(words) { scope.repository.store.update { before } }
+                        } }, Modifier.testTag("manga:dupe:keep:${book.id}"))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** Statistics: series, chapters read and time spent reading, all time and in the last seven days, and the series read most. */
+@Composable
+private fun MangaStatsSheet(scope: MangaScope, onDismiss: () -> Unit) {
+    val state by scope.repository.store.state.collectAsState()
+    val stats = remember(state) { mangaStats(state) }
+    val look = orbitLook()
+    KitSheet(onDismiss = onDismiss) {
+        ReadSheetHeader(mangaText("Statistics"), onDone = onDismiss)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).testTag("manga:stats:sheet"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                mangaText("Series in your library") to stats.series.toString(),
+                mangaText("Chapters read") to stats.chapters.toString(),
+                mangaText("Chapters read this week") to stats.chaptersWeek.toString(),
+                mangaText("Time reading") to mangaDuration(stats.timeMs),
+                mangaText("Time reading this week") to mangaDuration(stats.timeWeekMs),
+                mangaText("Days you read") to stats.daysRead.toString(),
+            ).forEach { (label, value) ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.compose.material3.Text(label, style = ReadType.body(), color = look.dim, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.Text(value, style = ReadType.rowTitle(), color = look.ink)
+                }
+            }
+            if (stats.top.isNotEmpty()) ReadOverline(mangaText("Read most"), Modifier.padding(top = 8.dp), inset = 0.dp)
+            stats.top.forEach { (book, count) ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.compose.material3.Text(book.title, style = ReadType.body(), color = look.ink, maxLines = 1, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.Text(if (count == 1) "1 chapter" else "$count chapters", style = ReadType.meta(), color = look.dim)
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+private fun sortLabel(sort: String): String = when (sort) {
+    "title" -> "Title"; "added" -> "Added"; "unread" -> "Unread"; "latest" -> "Latest chapter"; "chapters" -> "Chapters"; else -> "Last read"
+}
 
 /**
  * The series being read as one row over the grid (board frame 10): its cover, its title, where the reader stands ("Chapter 9 ·
@@ -500,3 +631,116 @@ internal fun MangaDiscoverShelf(scope: MangaScope, source: MangaSourceConfig) {
         }
     }
 }
+
+/**
+ * "Forgot PIN?" on the locked page: [plan] says whether the computer's own sign-in ([signIn]) vouches for the listener or the
+ * reset has to clear what the lock guards. [update] changes the library; [onDone] opens Manga.
+ */
+internal class MangaForgotPin(
+    val plan: MangaPinReset,
+    val signIn: suspend () -> Boolean,
+    val update: ((MangaLibraryState) -> MangaLibraryState) -> Unit,
+    val onDone: () -> Unit,
+)
+
+/**
+ * What Manga shows while its lock waits: the mode's name and Unlock. With [onPin] (Manga's own PIN) it has a PIN field; [onPin]
+ * answers whether the PIN was right. [onUnlock] null leaves only the PIN. [forgot] adds "Forgot PIN?" under the PIN.
+ */
+@Composable
+internal fun MangaLockedPage(onUnlock: (() -> Unit)?, onPin: ((String) -> Boolean)? = null, forgot: MangaForgotPin? = null) {
+    var pin by remember { mutableStateOf("") }
+    var wrong by remember { mutableStateOf(false) }
+    var flow by remember { mutableStateOf(MangaPinRecoveryFlow()) }
+    val scope = rememberCoroutineScope()
+    fun tryPin() { if (onPin != null && pin.isNotEmpty()) { wrong = !onPin(pin); pin = "" } }
+    Column(Modifier.fillMaxSize().padding(24.dp).testTag("manga:locked"), verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        if (forgot != null && flow.step != MangaPinStep.ENTER) {
+            MangaForgotPinSteps(forgot, flow, onFlow = { flow = it }, onConfirm = {
+                val next = flow.confirm(forgot.plan)
+                flow = next
+                when (next.step) {
+                    MangaPinStep.CHECKING -> scope.launch { flow = flow.checked(runCatching { forgot.signIn() }.getOrDefault(false)) }
+                    MangaPinStep.CLEARED -> { forgot.update(MangaPinRecovery::afterClear); forgot.onDone() }
+                    else -> Unit
+                }
+            })
+            return@Column
+        }
+        androidx.compose.material3.Text(mangaText("Manga is locked"), style = ReadType.titleLarge(), color = orbitLook().ink)
+        if (onPin != null) Column(Modifier.widthIn(max = 280.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.cosmotune.ui.orbit.OrbitInputField(pin, { typed -> pin = typed.filter(Char::isDigit).take(12); wrong = false }, mangaText("Manga PIN"), secret = true,
+                error = wrong, modifier = Modifier.fillMaxWidth().testTag("manga:lock:pin").onPreviewKeyEvent { event ->
+                    if (event.key == androidx.compose.ui.input.key.Key.Enter && event.type == androidx.compose.ui.input.key.KeyEventType.KeyUp) { tryPin(); true } else false
+                })
+            if (wrong) androidx.compose.material3.Text(mangaText("That PIN is not right"), style = ReadType.meta(), color = orbitLook().dim)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (onPin != null) ReadButton(mangaText("Unlock"), ::tryPin, enabled = pin.length >= 4, modifier = Modifier.testTag("manga:unlock:pin"))
+            if (onUnlock != null) ReadButton(mangaText(if (onPin != null) "Use system sign-in" else "Unlock"), onUnlock,
+                kind = if (onPin != null) ReadKind.TONAL else ReadKind.FILLED, modifier = Modifier.testTag("manga:unlock"))
+        }
+        if (onPin != null && forgot != null) ReadTextButton(mangaText("Forgot PIN?"), { flow = flow.forgot() }, modifier = Modifier.testTag("manga:lock:forgot"))
+    }
+}
+
+/** The steps after "Forgot PIN?": what the reset does, the computer's sign-in running, then a new PIN. */
+@Composable
+private fun MangaForgotPinSteps(forgot: MangaForgotPin, flow: MangaPinRecoveryFlow, onFlow: (MangaPinRecoveryFlow) -> Unit, onConfirm: () -> Unit) {
+    val look = orbitLook()
+    val signIn = forgot.plan as? MangaPinReset.SignIn
+    Column(Modifier.widthIn(max = 360.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        when (flow.step) {
+            MangaPinStep.NEW_PIN -> {
+                var pin by remember { mutableStateOf("") }
+                val problem = pin.takeIf { it.isNotEmpty() }?.let(MangaLockPin::problem)
+                androidx.compose.material3.Text(mangaText("Choose a new Manga PIN"), style = ReadType.titleLarge(), color = look.ink)
+                com.cosmotune.ui.orbit.OrbitInputField(pin, { typed -> pin = typed.filter(Char::isDigit).take(12) }, mangaText("New Manga PIN"), secret = true,
+                    error = problem != null, modifier = Modifier.fillMaxWidth().testTag("manga:lock:reset:newpin"))
+                androidx.compose.material3.Text(mangaText(problem ?: "4 to 12 digits"), style = ReadType.meta(), color = look.dim)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReadButton(mangaText("Save PIN"), {
+                        val hashed = MangaLockPin.hash(pin)
+                        forgot.update { MangaPinRecovery.afterSignIn(it, hashed) }
+                        forgot.onDone()
+                    }, enabled = pin.isNotEmpty() && problem == null, modifier = Modifier.testTag("manga:lock:reset:save"))
+                    ReadTextButton(mangaText("Turn lock off"), { forgot.update { MangaPinRecovery.afterSignIn(it, null) }; forgot.onDone() },
+                        modifier = Modifier.testTag("manga:lock:reset:off"))
+                }
+            }
+            MangaPinStep.CHECKING -> {
+                androidx.compose.material3.Text(mangaText("Forgot your Manga PIN?"), style = ReadType.titleLarge(), color = look.ink)
+                androidx.compose.material3.Text(mangaText("Waiting for ") + (signIn?.prompt ?: mangaText("your sign-in")), style = ReadType.meta(), color = look.dim)
+            }
+            else -> {
+                androidx.compose.material3.Text(mangaText("Forgot your Manga PIN?"), style = ReadType.titleLarge(), color = look.ink)
+                androidx.compose.material3.Text(mangaText(MangaPinRecovery.explanation(forgot.plan)), style = ReadType.meta(), color = look.dim)
+                flow.message?.let { androidx.compose.material3.Text(mangaText(it), style = ReadType.meta(), color = look.ink) }
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReadButton(mangaText(if (signIn != null) "Sign in" else "Reset lock"), onConfirm, modifier = Modifier.testTag("manga:lock:reset"))
+                    ReadTextButton(mangaText("Cancel"), { onFlow(flow.cancel()) }, modifier = Modifier.testTag("manga:lock:reset:cancel"))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * While Manga is open and a WebDAV folder is set: syncs once on opening, then 20 s after the library last changed in a way worth
+ * syncing (a page turn is not; a finished chapter is). A failure shows under WebDAV sync in Settings › Manga.
+ */
+@Composable
+internal fun MangaWebDavAutoSync(repository: MangaRepository) {
+    val connected = repository.store.state.collectAsState().value.webDav != null
+    if (!connected) return
+    LaunchedEffect(repository) {
+        @OptIn(kotlinx.coroutines.FlowPreview::class)
+        repository.store.state.map { com.cosmotune.manga.data.SyncMangaLibrary.changeSignal(it) }.distinctUntilChanged().drop(1)
+            .debounce(20_000L).collect { runCatching { repository.syncWebDav() } }
+    }
+    LaunchedEffect(repository) { runCatching { repository.syncWebDav() } }
+}
+
+/** Whether this run has not cleared page storage yet. */
+internal object MangaStartCleanup { @Volatile var pending = true }

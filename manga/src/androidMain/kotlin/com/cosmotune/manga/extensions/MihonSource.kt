@@ -5,7 +5,6 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.online.HttpSource
-import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -23,6 +22,14 @@ class MihonSource(override val config: MangaSourceConfig, private val source: So
         val result = if (query.isBlank()) source.getPopularManga(page) else source.getSearchManga(page, query, source.getFilterList())
         MangaBrowsePage(result.mangas.map(::convert), if (result.hasNextPage) offset + 1 else null)
     }
+    override val orders: Set<MangaListOrder> get() = if (runCatching { source.supportsLatest }.getOrDefault(false)) setOf(MangaListOrder.LATEST, MangaListOrder.POPULAR) else setOf(MangaListOrder.POPULAR)
+
+    override suspend fun catalogue(order: MangaListOrder, offset: Int): MangaBrowsePage =
+        if (order != MangaListOrder.LATEST || MangaListOrder.LATEST !in orders) browse("", offset) else withContext(Dispatchers.IO) {
+            val result = source.getLatestUpdates(offset + 1)
+            MangaBrowsePage(result.mangas.map(::convert), if (result.hasNextPage) offset + 1 else null)
+        }
+
     override suspend fun details(book: MangaBook): MangaBook = withContext(Dispatchers.IO) {
         val manga = SManga.create().apply {
             url = book.url; title = book.title; author = book.authors.firstOrNull(); thumbnail_url = book.coverUrl
@@ -59,5 +66,5 @@ class MihonSource(override val config: MangaSourceConfig, private val source: So
     }
     private fun convert(raw: SManga) = MangaBook("${config.id}:series:${hash(raw.url)}", config.id, raw.title, raw.url, raw.thumbnail_url,
         listOfNotNull(raw.author, raw.artist).distinct(), raw.description.orEmpty(), raw.getGenres().orEmpty(), config.language, sourceMemo = raw.memo)
-    private fun hash(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).take(16).joinToString("") { "%02x".format(it) }
+    private fun hash(value: String) = MihonIds.key(value)
 }

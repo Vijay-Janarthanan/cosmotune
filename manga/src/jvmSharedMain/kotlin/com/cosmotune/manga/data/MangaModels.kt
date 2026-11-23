@@ -45,6 +45,8 @@ data class MangaChapter(
     val uploadDate: Long = 0,
     val branch: String? = null,
     val sourceMemo: JsonObject = JsonObject(emptyMap()),
+    /** A text chapter (a novel's): the reader lays out its words ([MangaTextSource]) instead of showing page images. */
+    val text: Boolean = false,
 )
 
 @Serializable
@@ -59,11 +61,38 @@ data class MangaPage(
 )
 
 @Serializable
-enum class MangaReaderMode { PAGES_LTR, PAGES_RTL, WEBTOON }
+/** Paged left to right or right to left, paged top to bottom (Mihon's vertical pager), or one long strip. Added values go last. */
+enum class MangaReaderMode { PAGES_LTR, PAGES_RTL, WEBTOON, PAGES_VERTICAL }
 
 /** How a page fills the reader in the paged modes: whole page on screen, or full width with the rest scrolled. Webtoon always fits width. */
 @Serializable
 enum class MangaReaderFit { PAGE, WIDTH }
+
+@Serializable enum class MangaReaderFilter { NONE, GREY, INVERT, SEPIA }
+@Serializable enum class MangaTapZones { THIRDS, L_SHAPED, KINDLE, EDGE, OFF }
+@Serializable enum class MangaReaderBackground { BLACK, GREY, WHITE }
+
+/**
+ * The spreads of a chapter of [count] pages read two at a time: pairs of page indices, the first page alone when [coverAlone]
+ * (a cover is a single page), and a last page without a partner alone.
+ */
+fun mangaSpreads(count: Int, coverAlone: Boolean): List<List<Int>> {
+    if (count <= 0) return emptyList()
+    val result = ArrayList<List<Int>>()
+    var index = 0
+    if (coverAlone) { result += listOf(0); index = 1 }
+    while (index < count) { result += if (index + 1 < count) listOf(index, index + 1) else listOf(index); index += 2 }
+    return result
+}
+
+/**
+ * The pages of a chapter as the reader shows them one at a time when wide pages are split (Mihon's split double pages): each view
+ * is page index × 4 plus its part, 0 for the whole page, 1 its left half, 2 its right half. A wide page gives two views, its
+ * right half first when reading right to left. [wide] says which pages are known to be wider than tall.
+ */
+fun mangaSplitViews(count: Int, wide: (Int) -> Boolean, rightToLeft: Boolean): List<List<Int>> = (0 until count).flatMap { index ->
+    if (!wide(index)) listOf(listOf(index * 4)) else if (rightToLeft) listOf(listOf(index * 4 + 2), listOf(index * 4 + 1)) else listOf(listOf(index * 4 + 1), listOf(index * 4 + 2))
+}
 
 @Serializable
 data class MangaProgress(
@@ -123,18 +152,157 @@ data class MangaLibraryState(
     val readerKeepScreenOn: Boolean = true,
     /** Show "6 / 22" at the foot of the page while the reader's card is hidden. */
     val readerPageNumber: Boolean = true,
+    /** Cut the plain white or black margins off each page. */
+    val readerCrop: Boolean = false,
+    /** Turn a wide page sideways so it fills a tall screen. */
+    val readerRotateWide: Boolean = false,
+    /** Two pages side by side in the paged modes when the window is wider than tall; [readerCoverAlone] keeps the first page alone. */
+    val readerSpread: Boolean = false,
+    val readerCoverAlone: Boolean = true,
+    /** Manga asks for the device's screen lock (PIN, pattern or fingerprint) when it opens, where the device has one. */
+    val lockManga: Boolean = false,
+    /** Manga's screens are kept out of screenshots, screen recording and the recent-apps preview. */
+    val secureScreen: Boolean = false,
+    /** Manga's own PIN for the lock where the computer has no sign-in prompt to ask for ([MangaLockPin]'s salted hash). */
+    val lockPin: String? = null,
+    /** The listener's own WebDAV folder the library syncs with ([MangaWebDavSync]), or null. */
+    val webDav: MangaWebDav? = null,
+    /** How text chapters look and turn ([MangaNovelStyle]). */
+    val novelStyle: MangaNovelStyle = MangaNovelStyle(),
+    /** Page images blanked out in the reader, by their content ([MangaHiddenImages]). */
+    val hiddenImages: Map<String, MangaHiddenImage> = emptyMap(),
+    /** Mihon's continuous vertical: the webtoon strip with a gap between pages. */
+    val readerWebtoonGaps: Boolean = false,
+    /** Pages the reader fetches ahead of the one shown (Mihon's preload): 0, 2, 4 or 8. */
+    val readerPreloadPages: Int = 2,
+    /** Pages ahead and chapters ahead are fetched only on Wi-Fi or another unmetered network. */
+    val aheadOnWifiOnly: Boolean = false,
+    /** Each finished download is also written as a CBZ archive in [cbzFolder] (or the platform's Manga folder) ([MangaCbz]). */
+    val saveCbz: Boolean = false,
+    val cbzSplitTall: Boolean = false,
+    val cbzFolder: String? = null,
+    /** Page storage is emptied each time Manga starts (Mihon's clear chapter cache on launch); downloads stay. */
+    val clearCacheOnStart: Boolean = false,
+    /** Library cards name their source and language in the line under the cover (Komikku's source and language badges). */
+    val libraryCardSource: Boolean = false,
+    /** Sources pinned to the top of Browse, in the order they were pinned. */
+    val pinnedSources: List<String> = emptyList(),
+    /** Searches kept for each source, newest first, shown as chips under its search field. */
+    val savedSearches: Map<String, List<String>> = emptyMap(),
+    /** A computer shares its downloaded chapters as an OPDS catalogue on the home network; [opdsKey] is the address's secret part. */
+    val opdsServer: Boolean = false,
+    val opdsKey: String? = null,
+    /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
+    val readLog: Map<String, Long> = emptyMap(),
+    /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */
+    val readingTime: Map<String, Long> = emptyMap(),
+    /** E-ink screens (Kotatsu's E-Ink settings): pages turn at once with no sliding, in high contrast, with a black flash between them when [readerEInkFlash]. */
+    val readerEInk: Boolean = false,
+    val readerEInkFlash: Boolean = false,
+    /** A wide (double) page shows as two pages, one half after the other. */
+    val readerSplitWide: Boolean = false,
+    /** A colour filter over the pages: none, grey, inverted or sepia. */
+    val readerFilter: MangaReaderFilter = MangaReaderFilter.NONE,
+    /** What shows around a page that does not fill the screen. */
+    val readerBackground: MangaReaderBackground = MangaReaderBackground.BLACK,
+    /** Where a tap on a page turns it, and whether back and on are swapped. */
+    val readerTapZones: MangaTapZones = MangaTapZones.THIRDS,
+    val readerTapInvert: Boolean = false,
+    /** The volume keys turn pages while reading. */
+    val readerVolumeKeys: Boolean = false,
+    /** The reading direction and scale chosen in the reader for one series (Mihon's per-series reader settings), by series id. */
+    val seriesMode: Map<String, MangaReaderMode> = emptyMap(),
+    val seriesFit: Map<String, MangaReaderFit> = emptyMap(),
+    /** The listener's own note on a series, by series id. */
+    val notes: Map<String, String> = emptyMap(),
+    /** Chapters the listener bookmarked. */
+    val bookmarks: Set<String> = emptySet(),
+    /** Going on to the next chapter skips chapters already read. */
+    val skipReadChapters: Boolean = false,
+    /** Covers the listener chose for a series (a page set as cover), by series id: a file in the library's covers folder. */
+    val customCovers: Map<String, String> = emptyMap(),
+    /** Titles the listener gave a series, kept over the source's when the series refreshes. */
+    val titleEdits: Map<String, String> = emptyMap(),
+    /** The collection a series joins when it is added to the library ("" for none). */
+    val defaultCollection: String = "",
+    /** The series the last library update could not check, with the reason (Komikku's update errors). */
+    val updateFailures: Map<String, String> = emptyMap(),
+    /** Incognito: reading saves no place, no history and no read marks, and nothing is sent to reading lists. */
+    val incognito: Boolean = false,
+    /** Library updates skip series that are finished and fully read. */
+    val updateSkipFinished: Boolean = true,
+    /** Reading lists signed in to, by service ([MangaTrackers]). */
+    val trackerAccounts: Map<String, MangaTrackerAccount> = emptyMap(),
+    /** The reading-list entries each series is linked to, by series id. */
+    val tracks: Map<String, List<MangaTrack>> = emptyMap(),
+    /** Series whose last finished chapter could not be sent to a reading list or to Komga. */
+    val trackFailures: Set<String> = emptySet(),
+    /** Browse's feed: the sources' order, and the sources whose shelf is hidden. */
+    val feedOrder: List<String> = emptyList(),
+    val feedHidden: Set<String> = emptySet(),
+    /** Series marked "Not interested": never suggested again in For you. */
+    val notInterested: Set<String> = emptySet(),
+    /** Read chapters that came from another device for a series whose chapter list this device has not loaded yet. */
+    val syncedRead: Map<String, Set<String>> = emptyMap(),
+    /** New chapters found by an update are downloaded at once. */
+    val autoDownloadNew: Boolean = false,
+    /** How many chapters ahead of the one being read are downloaded (0 is off). */
+    val downloadAhead: Int = 0,
+    /** A downloaded chapter is removed from the device once it is read. */
+    val deleteAfterRead: Boolean = false,
+    /** Finished Komga chapters are marked read on the Komga server too. */
+    val serverWriteBack: Boolean = true,
 )
 
-@Serializable data class MangaCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())
+/** A collection (Mihon's category); a [hidden] one keeps its series out of All, and shows them only when it is chosen. */
+@Serializable data class MangaCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet(), val hidden: Boolean = false)
 
 fun MangaLibraryState.collectionBooks(selection: String): List<MangaBook> = when (selection) {
-    "" -> books
+    "" -> books.filter { book -> collections.none { it.hidden && book.id in it.bookIds } }
     "unassigned" -> books.filter { book -> collections.none { book.id in it.bookIds } }
     else -> books.filter { it.id in collections.find { collection -> collection.id == selection }?.bookIds.orEmpty() }
 }
 
+/** Reading statistics (Mihon's and Readest's): totals, the last seven days, and the series read most. */
+data class MangaStats(val series: Int, val chapters: Int, val chaptersWeek: Int, val timeMs: Long, val timeWeekMs: Long, val daysRead: Int,
+    val top: List<Pair<MangaBook, Int>>)
+
+fun mangaStats(state: MangaLibraryState, nowMs: Long = System.currentTimeMillis(), zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): MangaStats {
+    val weekAgo = nowMs - 7L * 86_400_000L
+    val today = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+    val week = (0..6).map { today.minusDays(it.toLong()).toString() }.toSet()
+    val byBook = state.books.map { book -> book to book.chapters.count { it.id in state.readChapters } }.filter { it.second > 0 }
+    return MangaStats(
+        series = state.books.size,
+        chapters = state.readChapters.size,
+        chaptersWeek = state.readLog.values.count { it >= weekAgo },
+        timeMs = state.readingTime.values.sum(),
+        timeWeekMs = state.readingTime.filterKeys { it in week }.values.sum(),
+        daysRead = state.readingTime.count { it.value > 0 },
+        top = byBook.sortedByDescending { it.second }.take(5),
+    )
+}
+
+/** "3 h 20 min", "45 min", "under a minute": a reading time for Statistics. */
+fun mangaDuration(ms: Long): String {
+    val minutes = ms / 60_000
+    return when { minutes < 1 -> "under a minute"; minutes < 60 -> "$minutes min"; else -> "${minutes / 60} h" + if (minutes % 60 > 0) " ${minutes % 60} min" else "" }
+}
+
 /** The result of a library update check so far: [failures] maps a series id to the reason its source could not be checked. */
 data class MangaUpdateReport(val checked: Int, val total: Int, val newChapters: Int, val updatedSeries: Int, val failures: Map<String, String>)
+
+/**
+ * The chapter the reader goes on to after [current] (Mihon's skip rules): the next of the same edition, past chapters with the
+ * same number as one already passed (a second upload of it), and past read ones when [skipRead] is on.
+ */
+fun MangaBook.nextChapter(current: MangaChapter, read: Set<String>, skipRead: Boolean): MangaChapter? {
+    val edition = chapters.filter { it.language == current.language && it.branch == current.branch && it.scanlator == current.scanlator }
+        .sortedWith(compareBy({ it.volume }, { it.number }))
+    val index = edition.indexOfFirst { it.id == current.id }
+    if (index < 0) return null
+    return edition.drop(index + 1).firstOrNull { (current.number <= 0f || it.number != current.number) && (!skipRead || it.id !in read) }
+}
 
 /** Continue the same edition without jumping to another translation or restarting a missing chapter. */
 fun MangaBook.nextChapter(current: MangaChapter): MangaChapter? {
@@ -159,7 +327,16 @@ interface MangaSource {
     suspend fun pages(chapter: MangaChapter): List<MangaPage>
     /** Catalogue languages a multi-language source can filter by (BCP 47 tags); the choice is [MANGA_LANGUAGE_SETTING]. */
     suspend fun languages(): List<String> = emptyList()
+    /** Series the source itself suggests next to [book] ("Related"); empty where it has no such list. */
+    suspend fun related(book: MangaBook): List<MangaBook> = emptyList()
+    /** The orders this source can list its catalogue in besides its default; see [catalogue]. */
+    val orders: Set<MangaListOrder> get() = emptySet()
+    /** The catalogue in [order] (newest updates, most popular, top of the day, week or month); [browse] is the default order. */
+    suspend fun catalogue(order: MangaListOrder, offset: Int = 0): MangaBrowsePage = browse("", offset)
 }
+
+/** The orders a catalogue can be listed in for Browse's feed and its top lists. */
+enum class MangaListOrder { LATEST, POPULAR, TOP_DAY, TOP_WEEK, TOP_MONTH }
 
 /** Source setting holding the chosen catalogue language of a multi-language source; blank means the source's default. */
 const val MANGA_LANGUAGE_SETTING = "cosmotune.locale"
@@ -179,4 +356,12 @@ fun MangaBook.listedChapters(edition: String = "", newestFirst: Boolean = false,
     return (if (newestFirst) ordered.reversed() else ordered)
         .filter { edition.isBlank() || it.edition == edition }
         .filter { !unreadOnly || it.id !in read }
+}
+
+/** Whether the device is on a metered network (mobile data, a hotspot); the phone sets it, a computer never is. */
+object MangaNetwork {
+    @Volatile var metered: () -> Boolean = { false }
+
+    /** True when fetching ahead is allowed under [MangaLibraryState.aheadOnWifiOnly]. */
+    fun aheadAllowed(state: MangaLibraryState): Boolean = !state.aheadOnWifiOnly || !runCatching { metered() }.getOrDefault(false)
 }

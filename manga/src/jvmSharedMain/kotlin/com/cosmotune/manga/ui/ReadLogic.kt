@@ -1,11 +1,17 @@
 package com.cosmotune.manga.ui
 
+import kotlin.math.roundToInt
+
 import com.cosmotune.manga.data.MangaBook
 import com.cosmotune.manga.data.MangaChapter
 import com.cosmotune.manga.data.MangaLibraryState
 import com.cosmotune.manga.data.MangaProgress
 import com.cosmotune.manga.data.MangaReaderMode
+import com.cosmotune.manga.data.MangaTapZones
+import com.cosmotune.manga.data.MangaQueued
+import com.cosmotune.manga.data.MangaQueueState
 import com.cosmotune.manga.data.listedChapters
+import com.cosmotune.manga.data.unlinkedSourceName
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -68,17 +74,14 @@ internal const val MANGA_SCOPE_SOURCES = "sources"
 internal val MANGA_STATUSES = listOf("ONGOING" to "Ongoing", "FINISHED" to "Finished", "PAUSED" to "On hold")
 
 /**
- * The series of the library that match [query] (the title, another title or an author), with [genre] among their own genres (any
+ * The series of the library that match [query] (the title, another title or an author, in Mihon's search syntax), with [genre] among their own genres (any
  * case) and [status] as their source states it; blank filters keep everything. Nothing typed matches nothing.
  */
-internal fun mangaLibrarySearch(books: List<MangaBook>, query: String, genre: String, status: String): List<MangaBook> {
-    val term = query.trim()
-    if (term.isEmpty()) return emptyList()
-    return books.filter { book ->
-        val names = sequenceOf(book.title) + book.parserData?.alternateTitles.orEmpty().asSequence() + book.authors.asSequence()
-        names.any { it.contains(term, ignoreCase = true) } &&
-            (genre.isBlank() || book.tags.any { it.equals(genre, ignoreCase = true) }) &&
-            (status.isBlank() || book.parserData?.state == status)
+internal fun mangaLibrarySearch(books: List<MangaBook>, query: String, genre: String, status: String, sourceNames: Map<String, String> = emptyMap()): List<MangaBook> {
+    if (query.isBlank()) return emptyList()
+    // Mihon's search syntax ([com.cosmotune.manga.data.MangaLibraryQuery]); plain words match the title, alternate titles and authors.
+    return com.cosmotune.manga.data.MangaLibraryQuery.parse(query).filter(books, sourceNames).filter { book ->
+        (genre.isBlank() || book.tags.any { it.equals(genre, ignoreCase = true) }) && (status.isBlank() || book.parserData?.state == status)
     }
 }
 
@@ -132,7 +135,7 @@ internal fun chapterNumber(chapter: MangaChapter, fallback: Int): String = when 
 
 /** The line under a chapter's title: the reading position, else the upload date, the scanlator and the edition. */
 internal fun chapterSubtitle(chapter: MangaChapter, progress: MangaProgress?, read: Boolean, zone: ZoneId = ZoneId.systemDefault()): String {
-    val position = progress?.takeIf { it.chapterId == chapter.id && !read && it.pageCount > 0 }?.let { "Page ${it.page + 1} of ${it.pageCount}" }
+    val position = progress?.takeIf { it.chapterId == chapter.id && !read && it.pageCount > 0 }?.let { mangaPlace(it, chapter.text) }
     val date = chapter.uploadDate.takeIf { it > 0 }?.let { DATE.format(Instant.ofEpochMilli(it).atZone(zone)) }
     return listOfNotNull(position, date, chapter.scanlator?.takeIf { it.isNotBlank() }, chapter.language.takeIf { it.isNotBlank() }).joinToString(" · ")
 }
@@ -153,6 +156,42 @@ internal fun mangaUpdateDays(state: MangaLibraryState, nowMs: Long = System.curr
     return mangaUpdates(state).groupBy { entry ->
         entry.chapter.uploadDate.takeIf { it > 0 }?.let { dayLabel(Instant.ofEpochMilli(it).atZone(zone).toLocalDate(), today) } ?: "Earlier"
     }.map { (label, entries) -> MangaUpdateDay(label, entries) }
+}
+
+/** The Updates tab's series view (Komikku's grouped updates): each series with its new chapters, the newest upload first. */
+internal fun mangaUpdatesBySeries(state: MangaLibraryState): List<Pair<MangaBook, List<MangaUpdateEntry>>> =
+    mangaUpdates(state).groupBy { it.book.id }.values.map { it.first().book to it }
+        .sortedByDescending { (_, entries) -> entries.maxOf { it.chapter.uploadDate } }
+
+/**
+ * When the next chapter of [book] can be expected (Mihon's release estimate): the last upload plus the middle gap between its
+ * last uploads. Null for a finished series, or one with fewer than three dated chapters or no steady rhythm (gaps over 60 days).
+ */
+internal fun mangaNextRelease(book: MangaBook): Long? {
+    if (book.parserData?.state == "FINISHED") return null
+    val dates = book.chapters.map { it.uploadDate }.filter { it > 0 }.distinct().sorted().takeLast(8)
+    if (dates.size < 3) return null
+    val gaps = dates.zipWithNext { a, b -> b - a }.sorted()
+    val middle = gaps[gaps.size / 2]
+    if (middle <= 0 || middle > 60L * 86_400_000L) return null
+    return dates.last() + middle
+}
+
+/** The coming chapters for Updates' Upcoming list: series with an estimate within [daysAhead] days of [nowMs], soonest first. */
+internal fun mangaUpcoming(state: MangaLibraryState, nowMs: Long = System.currentTimeMillis(), daysAhead: Int = 30): List<Pair<MangaBook, Long>> =
+    state.books.filter { it.sourceId != "local" }.mapNotNull { book -> mangaNextRelease(book)?.let { book to it } }
+        .filter { (_, at) -> at in (nowMs - 7L * 86_400_000L)..(nowMs + daysAhead * 86_400_000L) }.sortedBy { it.second }
+
+/** "Expected today", "Expected in 3 days", "Expected 2 days ago" (late): the line under an upcoming series. */
+internal fun expectedLabel(atMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+    val days = Math.round((atMs - nowMs) / 86_400_000.0).toInt()
+    return when {
+        days == 0 -> "Expected today"
+        days == 1 -> "Expected tomorrow"
+        days > 1 -> "Expected in $days days"
+        days == -1 -> "Expected yesterday"
+        else -> "Expected ${-days} days ago"
+    }
 }
 
 /** "just now", "12 min ago", "3 h ago", "2 days ago": how long ago [thenMs] was, for "Library last updated …". */
@@ -182,6 +221,13 @@ internal fun mangaHistory(state: MangaLibraryState, nowMs: Long = System.current
         .map { (label, entries) -> MangaHistoryDay(label, entries) }
 }
 
+/** Whether a History row matches [query]: its series, its alternate titles or its chapter title contain it, ignoring case. */
+internal fun mangaHistoryMatches(entry: MangaHistoryEntry, query: String): Boolean {
+    val term = query.trim()
+    if (term.isEmpty()) return true
+    return (listOf(entry.book.title) + entry.book.parserData?.alternateTitles.orEmpty() + listOfNotNull(entry.chapter?.title)).any { it.contains(term, ignoreCase = true) }
+}
+
 internal fun dayLabel(day: LocalDate, today: LocalDate): String = when (day) {
     today -> "Today"
     today.minusDays(1) -> "Yesterday"
@@ -204,12 +250,69 @@ internal fun mangaCoverCounts(book: MangaBook, state: MangaLibraryState): MangaC
     downloaded = if (book.sourceId == "local") 0 else book.chapters.count { state.downloads.containsKey(it.id) },
 )
 
-/** The library in the order its options sheet chose: last read (the default), title, added, or the most unread first. */
+/**
+ * The library in the order its options sheet chose: last read (the default), title, added, the most unread first, the newest
+ * chapter first (by upload date), or the most chapters first.
+ */
 internal fun mangaLibraryOrder(books: List<MangaBook>, sort: String, state: MangaLibraryState): List<MangaBook> = when (sort) {
     "title" -> books.sortedBy { it.title.lowercase() }
     "added" -> books.sortedByDescending { it.addedAtMs }
     "unread" -> books.sortedByDescending { book -> book.chapters.count { it.id !in state.readChapters } }
+    "latest" -> books.sortedByDescending { book -> book.chapters.maxOfOrNull { it.uploadDate } ?: 0L }
+    "chapters" -> books.sortedByDescending { it.chapters.size }
     else -> books.sortedByDescending { state.progress[it.id]?.updatedAtMs ?: it.addedAtMs }
+}
+
+/** The library's filters (Mihon's): each one on keeps only the series that match it; several on keep the series matching all. */
+internal object MangaLibraryFilters {
+    const val UNREAD = "unread"; const val DOWNLOADED = "downloaded"; const val STARTED = "started"; const val COMPLETED = "completed"; const val TRACKED = "tracked"
+    const val BOOKMARKED = "bookmarked"
+    val all = listOf(UNREAD, DOWNLOADED, STARTED, COMPLETED, TRACKED, BOOKMARKED)
+    fun label(filter: String): String = when (filter) {
+        UNREAD -> "Unread"; DOWNLOADED -> "Downloaded"; STARTED -> "Started"; COMPLETED -> "Finished"; BOOKMARKED -> "Bookmarked"; else -> "Tracked"
+    }
+}
+
+/**
+ * What kind of comic a series is, for the library's Type filter: what its genres say (manhwa, manhua, webtoon, comic), else the
+ * language it is in (Korean manhwa, Chinese manhua, Japanese manga); null when nothing says.
+ */
+internal fun mangaType(book: MangaBook): String? {
+    val words = book.tags.map { it.lowercase() }
+    return when {
+        words.any { "manhwa" in it } -> "Manhwa"
+        words.any { "manhua" in it } -> "Manhua"
+        words.any { "webtoon" in it } -> "Webtoon"
+        words.any { it == "comic" || it == "comics" || "western" in it } -> "Comic"
+        words.any { it == "manga" || "japanese" in it } -> "Manga"
+        book.language.startsWith("ko") -> "Manhwa"
+        book.language.startsWith("zh") -> "Manhua"
+        book.language.startsWith("ja") -> "Manga"
+        else -> null
+    }
+}
+
+/** The genres worth a chip in the library's options: the most common ones across the library, at most [limit]. */
+internal fun mangaLibraryGenres(books: List<MangaBook>, limit: Int = 16): List<String> =
+    books.flatMap { book -> book.tags.map { it.trim() }.filter { it.isNotBlank() }.distinctBy { it.lowercase() } }
+        .groupingBy { it.lowercase() }.eachCount().entries.sortedByDescending { it.value }.take(limit)
+        .map { entry -> books.flatMap { it.tags }.first { it.trim().lowercase() == entry.key }.trim() }
+
+/** Keeps the series with any of [genres] (all when empty) and of any of [types] (all when empty). */
+internal fun mangaGenreFilter(books: List<MangaBook>, genres: Set<String>, types: Set<String>): List<MangaBook> = books.filter { book ->
+    (genres.isEmpty() || book.tags.any { tag -> genres.any { it.equals(tag.trim(), true) } }) && (types.isEmpty() || mangaType(book) in types)
+}
+
+internal fun mangaLibraryFilter(books: List<MangaBook>, filters: Set<String>, state: MangaLibraryState): List<MangaBook> = books.filter { book ->
+    filters.all { filter -> when (filter) {
+        MangaLibraryFilters.UNREAD -> book.chapters.any { it.id !in state.readChapters }
+        MangaLibraryFilters.DOWNLOADED -> book.sourceId == "local" || book.chapters.any { state.downloads.containsKey(it.id) }
+        MangaLibraryFilters.STARTED -> book.chapters.any { it.id in state.readChapters } || state.progress.containsKey(book.id)
+        MangaLibraryFilters.COMPLETED -> book.parserData?.state == "FINISHED"
+        MangaLibraryFilters.TRACKED -> state.tracks[book.id].orEmpty().isNotEmpty()
+        MangaLibraryFilters.BOOKMARKED -> book.chapters.any { it.id in state.bookmarks }
+        else -> true
+    } }
 }
 
 /** The Continue row's line: "Chapter 9 · Page 6 of 22" while a chapter is open, else "Next: Chapter 10". */
@@ -217,11 +320,30 @@ internal fun mangaContinueLine(book: MangaBook, state: MangaLibraryState): Strin
     val chapter = mangaContinue(book, state).chapter ?: return null
     val name = chapterName(chapter).takeIf { it != "reading" }?.replaceFirstChar(Char::uppercase) ?: chapter.title
     val progress = state.progress[book.id]?.takeIf { it.chapterId == chapter.id && !it.finished && it.pageCount > 0 }
-    return if (progress != null) "$name · Page ${progress.page + 1} of ${progress.pageCount}" else "Next: $name"
+    return if (progress != null) "$name · " + mangaPlace(progress, chapter.text) else "Next: $name"
 }
+
+/** Where a chapter was left: "Page 6 of 22", or for a text chapter how far through it is ("40% read"). */
+internal fun mangaPlace(progress: MangaProgress, text: Boolean): String =
+    if (text) "${((progress.page + 1) * 100 / progress.pageCount.coerceAtLeast(1)).coerceIn(1, 100)}% read" else "Page ${progress.page + 1} of ${progress.pageCount}"
 
 /** How many new chapters [days] hold in all, for the Updates tab's count and the mode switcher's line. */
 internal fun mangaNewCount(state: MangaLibraryState): Int = mangaUpdates(state).size
+
+/**
+ * The line a download queue shows for [items] (all of it, or one series' part): the chapter being fetched and its pages, how many
+ * more wait, and how many failed; "Paused" while the queue is held.
+ */
+internal fun mangaQueueLine(items: List<MangaQueued>, queue: MangaQueueState): String {
+    val running = items.find { it.chapter.id == queue.running }
+    val waiting = items.count { it.error == null && it.chapter.id != queue.running }
+    val failed = items.count { it.error != null }
+    return listOfNotNull(
+        if (queue.paused) "Paused" else running?.let { "Downloading " + it.chapter.title + if (it.total > 0) ": ${it.done} of ${it.total} pages" else "" },
+        waiting.takeIf { it > 0 }?.let { if (running != null && !queue.paused) "$it more waiting" else "$it waiting" },
+        failed.takeIf { it > 0 }?.let { "$it failed" },
+    ).joinToString(" · ")
+}
 
 /** What a tap on a page does: turn back, turn forward, or show and hide the reader's chrome. */
 internal enum class ReaderTap { PREVIOUS, NEXT, MENU }
@@ -230,23 +352,35 @@ internal enum class ReaderTap { PREVIOUS, NEXT, MENU }
  * The reader's tap zones (Mihon's default for paged reading): the outer thirds turn the page, the middle third shows or hides
  * the chrome. In right-to-left reading the left edge goes forward. A webtoon scrolls, so every tap shows or hides the chrome.
  */
-internal fun readerTap(x: Float, width: Float, mode: MangaReaderMode): ReaderTap {
-    if (mode == MangaReaderMode.WEBTOON || width <= 0f) return ReaderTap.MENU
-    val fraction = x / width
-    val edge = when {
-        fraction < 1f / 3f -> -1
-        fraction > 2f / 3f -> 1
-        else -> 0
+internal fun readerTap(x: Float, width: Float, mode: MangaReaderMode): ReaderTap = readerTap(x, 0.5f, width, 1f, mode, MangaTapZones.THIRDS, false)
+
+/**
+ * The reader's tap zones in the layout the listener chose (Mihon's layouts): [MangaTapZones.THIRDS], the outer thirds turn the
+ * page; [MangaTapZones.L_SHAPED], the top band and the left side go back, the bottom band and the right side go on;
+ * [MangaTapZones.KINDLE], the left strip goes back and the rest under the top band goes on; [MangaTapZones.EDGE], both sides go
+ * on and the bottom middle goes back; [MangaTapZones.OFF], every tap shows or hides the chrome. The middle always shows the
+ * chrome. Right to left mirrors the layout; [invert] swaps back and on. A webtoon scrolls, so in it every tap is the chrome's.
+ */
+internal fun readerTap(x: Float, y: Float, width: Float, height: Float, mode: MangaReaderMode, zones: MangaTapZones, invert: Boolean): ReaderTap {
+    if (mode == MangaReaderMode.WEBTOON || width <= 0f || height <= 0f || zones == MangaTapZones.OFF) return ReaderTap.MENU
+    val fx = (x / width).let { if (mode == MangaReaderMode.PAGES_RTL) 1f - it else it }
+    val fy = y / height
+    val left = fx < 1f / 3f; val right = fx > 2f / 3f; val top = fy < 1f / 3f; val bottom = fy > 2f / 3f
+    val forward: Boolean? = when (zones) {
+        MangaTapZones.THIRDS -> if (left) false else if (right) true else null
+        MangaTapZones.L_SHAPED -> when { top || (left && !bottom) -> false; bottom || right -> true; else -> null }
+        MangaTapZones.KINDLE -> when { top -> null; left -> false; else -> true }
+        MangaTapZones.EDGE -> when { left || right -> true; bottom -> false; else -> null }
+        MangaTapZones.OFF -> null
     }
-    if (edge == 0) return ReaderTap.MENU
-    val forward = if (mode == MangaReaderMode.PAGES_RTL) edge < 0 else edge > 0
-    return if (forward) ReaderTap.NEXT else ReaderTap.PREVIOUS
+    return when (forward) { null -> ReaderTap.MENU; true -> if (invert) ReaderTap.PREVIOUS else ReaderTap.NEXT; false -> if (invert) ReaderTap.NEXT else ReaderTap.PREVIOUS }
 }
 
 /** The name of a reading mode, as the reading-mode sheet lists it. */
 internal fun readerModeLabel(mode: MangaReaderMode): String = when (mode) {
     MangaReaderMode.PAGES_LTR -> "Left to right"
     MangaReaderMode.PAGES_RTL -> "Right to left"
+    MangaReaderMode.PAGES_VERTICAL -> "Top to bottom"
     MangaReaderMode.WEBTOON -> "Webtoon"
 }
 
@@ -256,3 +390,41 @@ internal fun titleInitials(title: String): String =
 
 private val DATE = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 private val SHORT_DAY = DateTimeFormatter.ofPattern("EEEE, d MMM", Locale.getDefault())
+
+/** The page a vertical slider of [height] points at, [y] from its top: the top is the first page and the foot the last. */
+internal fun readerSeekPage(y: Float, height: Float, count: Int): Int =
+    if (count <= 1 || height <= 0f) 0 else ((y / height).coerceIn(0f, 1f) * (count - 1)).roundToInt()
+
+/**
+ * A hold while choosing chapters: with nothing chosen, or on a chosen one, it toggles that one; otherwise it adds every chapter
+ * from [anchor] (the last one chosen) to [held] in the list's order.
+ */
+internal fun mangaHoldSelect(selection: Set<String>, order: List<String>, anchor: String?, held: String): Set<String> {
+    if (selection.isEmpty() || held in selection || anchor == null || anchor !in selection) return if (held in selection) selection - held else selection + held
+    val from = order.indexOf(anchor); val to = order.indexOf(held)
+    if (from < 0 || to < 0) return selection + held
+    return selection + order.subList(minOf(from, to), maxOf(from, to) + 1)
+}
+
+/** "MangaDex · EN": a series' source and language for its card's line; a comic imported from a file says Imported. */
+internal fun mangaSourceLine(book: MangaBook, state: com.cosmotune.manga.data.MangaLibraryState): String {
+    val source = if (book.sourceId == "local") "Imported" else state.sources.find { it.id == book.sourceId }?.name ?: book.unlinkedSourceName() ?: book.sourceId.substringAfter(':')
+    val language = book.language.takeIf { it.isNotBlank() && it != "multi" }?.uppercase()
+    return listOfNotNull(source, language).joinToString(" · ")
+}
+
+/** Browse's sources with the pinned ones first, in the order they were pinned, then the rest in [rest]'s order. */
+internal fun mangaPinnedFirst(sources: List<com.cosmotune.manga.data.MangaSourceConfig>, pinned: List<String>): List<com.cosmotune.manga.data.MangaSourceConfig> =
+    pinned.mapNotNull { id -> sources.find { it.id == id } } + sources.filter { it.id !in pinned }
+
+/** Pins [sourceId], or unpins it when it is pinned. */
+internal fun mangaTogglePin(pinned: List<String>, sourceId: String): List<String> = if (sourceId in pinned) pinned - sourceId else pinned + sourceId
+
+/** Keeps [query] for [sourceId] (newest first, up to 20), or forgets it when it is kept already. */
+internal fun mangaToggleSavedSearch(saved: Map<String, List<String>>, sourceId: String, query: String): Map<String, List<String>> {
+    val text = query.trim().take(200)
+    if (text.isEmpty()) return saved
+    val current = saved[sourceId].orEmpty()
+    val next = if (current.any { it.equals(text, true) }) current.filterNot { it.equals(text, true) } else (listOf(text) + current).take(20)
+    return if (next.isEmpty()) saved - sourceId else saved + (sourceId to next)
+}

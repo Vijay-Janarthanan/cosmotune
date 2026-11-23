@@ -65,24 +65,55 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
         Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(mangaText("Direction for new series"), style = ReadType.rowTitle(), color = look.ink)
             ReadChipRow(inset = 0.dp) {
-                MangaReaderMode.entries.forEach { item -> ReadChip(mangaText(readerModeLabel(item)), state.readerMode == item, { action { repository.store.update { it.copy(readerMode = item) } } }) }
+                readerModeOrder.forEach { item -> ReadChip(mangaText(readerModeLabel(item)), state.readerMode == item, { action { repository.store.update { it.copy(readerMode = item) } } }) }
             }
             Text(mangaText("Scale"), style = ReadType.rowTitle(), color = look.ink)
             ReadChipRow(inset = 0.dp) {
                 ReadChip(mangaText("Fit page"), state.readerFit == MangaReaderFit.PAGE, { action { repository.store.update { it.copy(readerFit = MangaReaderFit.PAGE) } } })
                 ReadChip(mangaText("Fit width"), state.readerFit == MangaReaderFit.WIDTH, { action { repository.store.update { it.copy(readerFit = MangaReaderFit.WIDTH) } } })
             }
+            MangaReaderImageOptions(state) { block -> action { repository.store.update(block) } }
+            if (mangaLockAvailable()) MangaLockSettings(state) { block -> action { repository.store.update(block) } }
+            mangaHideDetail()?.let { hideDetail ->
+                OrbitSwitchRow(mangaText("Hide from screenshots"), state.secureScreen, { on -> action { repository.store.update { it.copy(secureScreen = on) } } },
+                    plain = true, detail = mangaText(hideDetail))
+            }
             OrbitSwitchRow(mangaText("Keep screen on while reading"), state.readerKeepScreenOn, { on -> action { repository.store.update { it.copy(readerKeepScreenOn = on) } } }, plain = true)
             OrbitSwitchRow(mangaText("Page number at the foot"), state.readerPageNumber, { on -> action { repository.store.update { it.copy(readerPageNumber = on) } } }, plain = true,
                 detail = mangaText("While the reader's card is hidden"))
         }
+        Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReadOverline(mangaText("Downloads"), inset = 0.dp)
+            OrbitSwitchRow(mangaText("Download new chapters"), state.autoDownloadNew, { on -> action { repository.store.update { it.copy(autoDownloadNew = on) } } }, plain = true,
+                detail = mangaText("When an update finds them"))
+            Text(mangaText("Download ahead while reading"), style = ReadType.rowTitle(), color = look.ink)
+            ReadChipRow(inset = 0.dp) {
+                listOf(0 to "Off", 2 to "Next 2", 5 to "Next 5", 10 to "Next 10").forEach { (count, label) ->
+                    ReadChip(mangaText(label), state.downloadAhead == count, { action { repository.store.update { it.copy(downloadAhead = count) } } }, Modifier.testTag("manga:ahead:$count"))
+                }
+            }
+            Text(mangaText("Pages loaded ahead in the reader"), style = ReadType.rowTitle(), color = look.ink)
+            ReadChipRow(inset = 0.dp) {
+                listOf(0 to "None", 2 to "2", 4 to "4", 8 to "8").forEach { (count, label) ->
+                    ReadChip(mangaText(label), state.readerPreloadPages == count, { action { repository.store.update { it.copy(readerPreloadPages = count) } } }, Modifier.testTag("manga:preload:$count"))
+                }
+            }
+            OrbitSwitchRow(mangaText("Load ahead only on Wi-Fi"), state.aheadOnWifiOnly, { on -> action { repository.store.update { it.copy(aheadOnWifiOnly = on) } } }, plain = true,
+                detail = mangaText("Pages and chapters ahead wait while you are on mobile data"))
+            MangaCbzSettings(state) { block -> action { repository.store.update(block) } }
+            OrbitSwitchRow(mangaText("Remove chapters once read"), state.deleteAfterRead, { on -> action { repository.store.update { it.copy(deleteAfterRead = on) } } }, plain = true,
+                detail = mangaText("Frees space after you finish a downloaded chapter"))
+        }
         Column(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             error?.let { Text(it, style = ReadType.body(), color = Color(palette.danger)) }
+            MangaHiddenImagesSettings(state) { block -> action { repository.store.update(block) } }
             ReadOverline(mangaText("Storage"), inset = 0.dp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${state.cacheLimitBytes / (1024 * 1024)} MB page storage", style = ReadType.rowTitle(), color = Color(palette.textPrimary), modifier = Modifier.weight(1f).padding(end = 12.dp))
                 ReadTextButton(mangaText("Clear cache"), { action { repository.clearCache() } })
             }
+            OrbitSwitchRow(mangaText("Clear page storage when Manga starts"), state.clearCacheOnStart, { on -> action { repository.store.update { it.copy(clearCacheOnStart = on) } } },
+                plain = true, detail = mangaText("Downloads stay"))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(128L, 256L, 512L, 1024L).forEach { mb ->
                     ReadChip("$mb", state.cacheLimitBytes == mb * 1024 * 1024, { action { repository.store.update { it.copy(cacheLimitBytes = mb * 1024 * 1024) } } })
@@ -125,6 +156,10 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
                     } })
                 }
             }
+            MangaSuwayomiControls(repository, onError = { error = it })
+            MangaWebDavSettings(repository)
+            MangaOpdsControls(state) { block -> action { repository.store.update(block) } }
+            MangaTrackingSettings(repository)
             MangaExtensionControls(repository, onError = { error = it })
             MangaTemplateControls(repository)
             MangaVerificationSourcePicker(repository)
@@ -146,4 +181,137 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
             MangaLibraryTools(repository)
         }
     }
+}
+
+/** Lock Manga, with what it asks for; where only Manga's own PIN can lock it, the PIN is set here first. */
+@Composable
+private fun MangaLockSettings(state: MangaLibraryState, update: ((MangaLibraryState) -> MangaLibraryState) -> Unit) {
+    val prompt = rememberMangaLockPrompt()
+    val pinOnly = prompt == null
+    var pin by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf(false) }
+    val problem = pin.takeIf { it.isNotEmpty() }?.let(MangaLockPin::problem)
+    val detail = when {
+        prompt == "" -> "Asks for your sign-in when Manga opens"
+        !pinOnly -> "Asks for $prompt when Manga opens"
+        state.lockPin == null -> "Set a Manga PIN first"
+        else -> "Asks for your Manga PIN when Manga opens"
+    }
+    OrbitSwitchRow(mangaText("Lock Manga"), state.lockManga, { on -> update { it.copy(lockManga = on) } }, plain = true, detail = mangaText(detail),
+        enabled = !pinOnly || state.lockPin != null || state.lockManga)
+    if (!pinOnly) return
+    if (state.lockPin != null && !editing) {
+        ReadTextButton(mangaText("Change Manga PIN"), { editing = true }, modifier = Modifier.testTag("manga:lock:change"))
+        return
+    }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OrbitInputField(pin, { typed -> pin = typed.filter(Char::isDigit).take(12) }, mangaText(if (state.lockPin == null) "New Manga PIN" else "New PIN"), secret = true,
+            error = problem != null, modifier = Modifier.fillMaxWidth().testTag("manga:lock:newpin"))
+        Text(mangaText(problem ?: "4 to 12 digits. This computer has no sign-in prompt Manga can ask for."), style = ReadType.meta(), color = orbitLook().dim)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReadButton(mangaText("Save PIN"), { val hashed = MangaLockPin.hash(pin); update { it.copy(lockPin = hashed) }; pin = ""; editing = false },
+                enabled = pin.isNotEmpty() && problem == null, modifier = Modifier.testTag("manga:lock:save"))
+            if (editing) ReadTextButton(mangaText("Cancel"), { pin = ""; editing = false })
+        }
+    }
+}
+
+/** Komikku's WebDAV sync: the listener's own server folder, Sync now and Disconnect, and when it last synced. */
+@Composable
+private fun MangaWebDavSettings(repository: MangaRepository) {
+    val state by repository.store.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    val look = orbitLook()
+    var open by remember { mutableStateOf(false) }
+    var url by remember { mutableStateOf("") }
+    var user by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var failure by remember { mutableStateOf<String?>(null) }
+    fun run(account: MangaWebDav?) = scope.launch {
+        busy = true; failure = null
+        try {
+            if (account != null && state.webDav == null) { repository.syncWebDav(account); repository.store.update { it.copy(webDav = it.webDav ?: account) } }
+            else repository.syncWebDav()
+            password = ""; open = false
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (problem: Exception) { failure = problem.message ?: "Your server could not be reached" }
+        finally { busy = false }
+    }
+    val account = state.webDav
+    if (account == null) {
+        ReadButton(mangaText("Sync with WebDAV"), { open = !open }, kind = ReadKind.TONAL, modifier = Modifier.testTag("manga:webdav:open"))
+        if (!open) return
+        Text(mangaText("Your library, read chapters and places in one file on your own server (Nextcloud, a NAS)."), style = ReadType.meta(), color = look.dim)
+        OrbitInputField(url, { url = it.take(2_048) }, mangaText("Folder address"), modifier = Modifier.fillMaxWidth().testTag("manga:webdav:url"))
+        OrbitInputField(user, { user = it.take(256) }, mangaText("User name"), modifier = Modifier.fillMaxWidth())
+        OrbitInputField(password, { password = it.take(512) }, mangaText("Password"), secret = true, modifier = Modifier.fillMaxWidth())
+        failure?.let { Text(it, style = ReadType.meta(), color = Color(LocalCosmoColors.current.palette.danger)) }
+        ReadButton(mangaText(if (busy) "Syncing…" else "Connect and sync"), { run(MangaWebDav(url.trim(), user.trim(), password)) },
+            enabled = !busy && url.isNotBlank(), modifier = Modifier.testTag("manga:webdav:connect"))
+        return
+    }
+    Row(Modifier.fillMaxWidth().testTag("manga:webdav"), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(mangaText("WebDAV sync"), style = ReadType.rowTitle(), color = look.ink)
+            val line = failure ?: account.lastError ?: if (account.lastSyncMs > 0) "Synced " + mangaAgo(account.lastSyncMs) else "Not synced yet"
+            Text(line, style = ReadType.meta(), color = look.dim, maxLines = 2)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReadTextButton(mangaText(if (busy) "Syncing…" else "Sync now"), { run(null) }, enabled = !busy, modifier = Modifier.testTag("manga:webdav:sync"))
+            ReadTextButton(mangaText("Disconnect"), { scope.launch { repository.store.update { it.copy(webDav = null) } } })
+        }
+    }
+}
+
+/** "just now", "5 min ago", "3 h ago", "2 days ago". */
+internal fun mangaAgo(atMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+    val minutes = ((nowMs - atMs) / 60_000L).coerceAtLeast(0)
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "$minutes min ago"
+        minutes < 48 * 60 -> "${minutes / 60} h ago"
+        else -> "${minutes / (24 * 60)} days ago"
+    }
+}
+
+/** The images blanked out in the reader, newest first, each with Show; Show all clears them. */
+@Composable
+private fun MangaHiddenImagesSettings(state: MangaLibraryState, update: ((MangaLibraryState) -> MangaLibraryState) -> Unit) {
+    val look = orbitLook()
+    var all by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().testTag("manga:hidden-images"), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(mangaText("Hidden images"), style = ReadType.rowTitle(), color = look.ink)
+            Text(if (state.hiddenImages.isEmpty()) mangaText("None. Hold a page in the reader and choose Hide this image.")
+                else "${state.hiddenImages.size} " + mangaText(if (state.hiddenImages.size == 1) "image stays blank in the reader" else "images stay blank in the reader"),
+                style = ReadType.meta(), color = look.dim)
+        }
+        if (state.hiddenImages.isNotEmpty()) ReadTextButton(mangaText("Show all"), { update { it.copy(hiddenImages = emptyMap()) } })
+    }
+    val listed = state.hiddenImages.entries.sortedByDescending { it.value.hiddenAtMs }
+    (if (all) listed else listed.take(5)).forEach { (mark, image) ->
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(mangaText("From") + " ${image.series} · " + mangaAgo(image.hiddenAtMs), style = ReadType.meta(), color = look.dim, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 12.dp))
+            ReadTextButton(mangaText("Show"), { update { MangaHiddenImages.show(it, mark) } })
+        }
+    }
+    if (!all && listed.size > 5) ReadTextButton(mangaText("See all") + " ${listed.size}", { all = true })
+}
+
+/** Save downloads as CBZ files, where they go (a computer can choose the folder), and Split tall pages. */
+@Composable
+private fun MangaCbzSettings(state: MangaLibraryState, update: ((MangaLibraryState) -> MangaLibraryState) -> Unit) {
+    val pick = rememberMangaFolderPicker { folder -> update { it.copy(cbzFolder = folder) } }
+    val folder = remember(state.cbzFolder) { MangaCbz.folder(state)?.path }
+    OrbitSwitchRow(mangaText("Save downloads as CBZ files"), state.saveCbz, { on -> update { it.copy(saveCbz = on) } }, plain = true,
+        detail = folder?.let { mangaText("Also writes each downloaded chapter to") + " $it" } ?: mangaText("Also writes each downloaded chapter as a comic archive"))
+    if (!state.saveCbz) return
+    if (pick != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ReadTextButton(mangaText("Change folder"), pick, modifier = Modifier.testTag("manga:cbz:folder"))
+        if (state.cbzFolder != null) ReadTextButton(mangaText("Use the usual folder"), { update { it.copy(cbzFolder = null) } })
+    }
+    OrbitSwitchRow(mangaText("Split tall pages"), state.cbzSplitTall, { on -> update { it.copy(cbzSplitTall = on) } }, plain = true,
+        detail = mangaText("Long webtoon pages go into the archive in pieces"))
 }

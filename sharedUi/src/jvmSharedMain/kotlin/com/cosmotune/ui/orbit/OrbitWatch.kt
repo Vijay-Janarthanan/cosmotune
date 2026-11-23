@@ -2,6 +2,7 @@ package com.cosmotune.ui.orbit
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
@@ -261,11 +262,13 @@ fun WatchCard(
     wide: Boolean = false,
     progress: Float? = null,
     onPlay: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     Column(
         modifier.then(if (width != null) Modifier.width(width * LocalWatchCardScale.current) else Modifier.fillMaxWidth()).cosmoFocusRing(interaction, 22.dp)
-            .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick),
+            .then(if (onLongClick == null) Modifier.clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
+                else Modifier.combinedClickable(interactionSource = interaction, indication = null, role = Role.Button, onLongClick = onLongClick, onClick = onClick)),
     ) {
         // The moon hangs 10 dp past the picture: the column leaves it room at the end and under it.
         Box(Modifier.padding(end = if (onPlay != null) 10.dp else 0.dp).fillMaxWidth().aspectRatio(if (wide) 16f / 9f else 2f / 3f)) {

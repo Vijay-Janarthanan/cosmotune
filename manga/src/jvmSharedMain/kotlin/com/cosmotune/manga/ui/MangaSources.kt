@@ -48,7 +48,8 @@ internal fun MangaSources(repository: MangaRepository, bottom: androidx.compose.
     val palette = LocalCosmoColors.current.palette
     val scope = rememberCoroutineScope()
     val activeParsers by repository.context.parserUpdates.bundle.collectAsState()
-    val catalogue = remember(activeParsers) { KotatsuSource.catalogue(activeParsers) }
+    // Novels from Wikisource stand in the same list as the manga sources; their chapters open in the text reader.
+    val catalogue = remember(activeParsers) { WikisourceNovelSource.descriptors + KotatsuSource.catalogue(activeParsers) }
     val list = rememberLazyListState()
     val look = orbitLook()
     var query by remember { mutableStateOf("") }
@@ -84,12 +85,13 @@ internal fun MangaSources(repository: MangaRepository, bottom: androidx.compose.
                     .testTag("manga:source:${source.id}")
                     .toggleable(value = enabled, role = Role.Switch, onValueChange = { value -> action {
                         val previous = state.sources.find { it.id == source.id }
-                        repository.store.source(previous?.copy(enabled = value) ?: MangaSourceConfig(source.id, name = source.title, language = source.language, enabled = value))
+                        repository.store.source(previous?.copy(enabled = value) ?: (if (source.kind == WikisourceNovelSource.KIND) WikisourceNovelSource.config(source.language).copy(enabled = value)
+                            else MangaSourceConfig(source.id, name = source.title, language = source.language, enabled = value)))
                     } }).semantics(mergeDescendants = true) { contentDescription = "${source.title} (${source.language})" }
                     .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(source.title, style = ReadType.rowTitle(), color = look.ink)
-                        Text(languageName(source.language), style = ReadType.meta(), color = look.dim)
+                        Text(languageName(source.language) + if (source.kind == WikisourceNovelSource.KIND) " · " + mangaText("Novels") else "", style = ReadType.meta(), color = look.dim)
                     }
                     Box(Modifier.clearAndSetSemantics { }) { OrbitSwitch(enabled, onChange = {}, look = look, label = source.title, enabled = false) }
                 }

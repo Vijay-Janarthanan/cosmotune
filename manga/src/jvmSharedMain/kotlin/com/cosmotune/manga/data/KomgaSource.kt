@@ -8,6 +8,8 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * A user-configured Komga library. Authentication (an API key, or a user name and password) is added only to requests for that
@@ -53,6 +55,15 @@ class KomgaSource(override val config: MangaSourceConfig, client: OkHttpClient) 
             throw MangaSourceFailure("This device only connects to Komga over HTTPS. Use the server's https:// address.", blocked)
         }
     }
+    /** Marks the Komga book [bookId] (a chapter's address here) read on the server, for the listener's other Komga readers. */
+    fun markRead(bookId: String) {
+        require(bookId.matches(Regex("[A-Za-z0-9_-]{1,64}"))) { "This is not a Komga book" }
+        val url = base.newBuilder().addPathSegments("api/v1/books/$bookId/read-progress").build()
+        val body = "{\"completed\":true}".toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(url).patch(body).apply { authorization?.let { (key, value) -> header(key, value) } }.build()
+        imageClient.newCall(request).execute().use { response -> check(response.isSuccessful) { "Komga returned HTTP ${response.code}" } }
+    }
+
     override suspend fun browse(query: String, offset: Int): MangaBrowsePage {
         val root = get("series", mapOf("search" to query, "page" to (offset / 40).toString(), "size" to "40", "sort" to "metadata.titleSort,asc")).jsonObject
         val books = root["content"]?.jsonArray.orEmpty().map { convert(it.jsonObject) }

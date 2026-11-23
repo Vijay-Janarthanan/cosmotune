@@ -143,6 +143,9 @@ internal object DesktopCloud {
                     com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
                     // Podio's follows, saved stations and where episodes were left.
                     com.cosmotune.podio.SyncPodio.KIND -> com.cosmotune.podio.SyncPodio.snapshot(podioLibrary.state.value)
+                    // Manga: series, read chapters, places and collections; never source keys, reading-list sessions or local comics.
+                    com.cosmotune.manga.data.SyncMangaLibrary.KIND ->
+                        com.cosmotune.manga.data.SyncMangaLibrary.snapshot(com.cosmotune.manga.ui.DesktopMangaLibrary.repository.store.state.value)
                     else -> emptyMap()
                 }
             }
@@ -171,6 +174,8 @@ internal object DesktopCloud {
                         com.cosmotune.watch.SyncWatchLibrary.KIND ->
                             com.cosmotune.desktop.DesktopWatch.store.update { com.cosmotune.watch.SyncWatchLibrary.apply(it, upserts, deletes) }
                         com.cosmotune.podio.SyncPodio.KIND -> podioLibrary.update { com.cosmotune.podio.SyncPodio.apply(it, upserts, deletes) }
+                        com.cosmotune.manga.data.SyncMangaLibrary.KIND ->
+                            com.cosmotune.manga.ui.DesktopMangaLibrary.repository.store.update { com.cosmotune.manga.data.SyncMangaLibrary.apply(it, upserts, deletes) }
                     }
                 }
             }
@@ -210,7 +215,7 @@ internal object DesktopCloud {
             CosmotuneFirebase.config, Http.client, sessionStore, source, marks,
             listOf(
                 SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND,
-                SyncPlaylistCovers.KIND, com.cosmotune.podio.SyncPodio.KIND,
+                SyncPlaylistCovers.KIND, com.cosmotune.podio.SyncPodio.KIND, com.cosmotune.manga.data.SyncMangaLibrary.KIND,
             ),
             scope,
             log = { DesktopTrackLog.log(it) },
@@ -266,6 +271,16 @@ internal object DesktopCloud {
             var previous: Map<String, JsonObject>? = null
             podioLibrary.state.collect { saved ->
                 val current = com.cosmotune.podio.SyncPodio.changeSignal(saved)
+                if (previous != null && previous != current) autoSync.changed()
+                previous = current
+            }
+        }
+        // Manga's library is opened for this only once sync is on; a finished chapter or a new series is worth a sync, a page turn is not.
+        scope.launch {
+            enabledState.first { it }
+            var previous: Map<String, JsonObject>? = null
+            com.cosmotune.manga.ui.DesktopMangaLibrary.repository.store.state.collect { state ->
+                val current = com.cosmotune.manga.data.SyncMangaLibrary.changeSignal(state)
                 if (previous != null && previous != current) autoSync.changed()
                 previous = current
             }

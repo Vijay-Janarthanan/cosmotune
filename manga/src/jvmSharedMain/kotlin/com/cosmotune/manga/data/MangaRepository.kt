@@ -41,11 +41,28 @@ internal fun kotlinx.coroutines.CoroutineScope.observeParserBundleChanges(
     }
 }
 
+/**
+ * The series a library update checks (Mihon's smart update): those on an enabled network source, without the finished ones whose
+ * every chapter is read when [MangaLibraryState.updateSkipFinished] is on; taken a source at a time in turn, so the checks
+ * running together are on different sources and no one website is asked for everything at once.
+ */
+fun mangaSeriesToUpdate(state: MangaLibraryState, enabled: Set<String>): List<MangaBook> {
+    val wanted = state.books.filter { it.sourceId != "local" && it.sourceId in enabled }.filterNot { book ->
+        state.updateSkipFinished && book.parserData?.state == "FINISHED" && book.chapters.isNotEmpty() && book.chapters.all { it.id in state.readChapters }
+    }
+    val bySource = wanted.groupBy { it.sourceId }.values.sortedByDescending { it.size }.map { it.iterator() }
+    val result = ArrayList<MangaBook>(wanted.size)
+    while (result.size < wanted.size) bySource.forEach { if (it.hasNext()) result += it.next() }
+    return result
+}
+
 class MangaRepository(val store: MangaStore,
     /** Offline tests only: a parser in place of the pinned catalogue's. */
     internal val kotatsuParser: ((MangaSourceConfig, ParserContext) -> org.koitharu.kotatsu.parsers.MangaParser)? = null,
     private val platformSource: ((MangaSourceConfig, ParserContext) -> MangaSource)? = null) {
     val context = ParserContext(store.root, store.protection) { store.state.value.sources }
+    /** The reading lists (MangaUpdates) and Komga's read marks, sent on when a chapter is finished. */
+    val tracking = MangaTracking(store, context.httpClient)
     private val sources = LinkedHashMap<String, Pair<MangaSourceConfig, MangaSource>>()
     private val verificationConfigs = HashMap<String, MangaSourceConfig>()
     private val transfers = Mutex()
@@ -56,7 +73,12 @@ class MangaRepository(val store: MangaStore,
     private val changes = MutableStateFlow(0L)
     val sourceChanges = changes.asStateFlow()
     private val parserScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    /** Chapters waiting to be downloaded, one at a time, and the automatic download rules. */
+    val downloads = MangaDownloadQueue(store, parserScope, { chapter, progress -> download(chapter, progress) },
+        { ids -> takeOutDownloads(ids); trimDownloads() })
     init {
+        tracking.watch(parserScope)
+        downloads.watch()
         parserScope.observeParserBundleChanges(context.parserUpdates.bundle) {
             synchronized(this@MangaRepository) {
                 sources.entries.removeAll { it.value.first.kind == "kotatsu" }
@@ -119,7 +141,9 @@ class MangaRepository(val store: MangaStore,
         val source = sourceApi { when (config.kind) {
             "kotatsu" -> KotatsuSource(config, context, kotatsuParser?.invoke(config, context))
             "komga" -> KomgaSource(config, context.httpClient)
+            "suwayomi" -> SuwayomiSource(config, context.httpClient)
             "template" -> TemplateMangaSource(config, context.httpClient)
+            WikisourceNovelSource.KIND -> WikisourceNovelSource(config, context.httpClient)
             "mihon" -> platformSource?.invoke(config, context) ?: error("APK extension sources require the Android app")
             else -> error("Unknown manga source type: ${config.kind}")
         } }
@@ -147,12 +171,58 @@ class MangaRepository(val store: MangaStore,
         }
     }
 
+    /**
+     * The words of a text chapter: a download first, then the copy kept from the last read (a week), then the source. The copy
+     * lives with the page storage, so it follows its limit and Clear page storage.
+     */
+    suspend fun chapterText(chapter: MangaChapter, refresh: Boolean = false): MangaNovelChapter = withContext(Dispatchers.IO) {
+        require(chapter.text) { "This chapter is pages, not text" }
+        store.state.value.downloads[chapter.id]?.firstNotNullOfOrNull { page -> page.localFile?.let(::File)?.takeIf { it.isFile } }?.let { file ->
+            runCatching { return@withContext MangaNovelText.decode(file.readText()) }
+        }
+        val file = textFile(chapter)
+        if (!refresh && file.isFile && cacheClock() - file.lastModified() in 0 until TEXT_TTL_MS)
+            runCatching { return@withContext MangaNovelText.decode(file.readText()).also { file.setLastModified(cacheClock()) } }
+        val config = enabledConfig(chapter.sourceId)
+        val text = parserRequest(chapter.sourceId) { sourceApi {
+            (source(chapter.sourceId) as? MangaTextSource ?: error("This source has no text chapters")).chapterText(chapter)
+        } }
+        check(enabledConfig(chapter.sourceId) == config) { "The source settings changed. Reload the chapter." }
+        val encoded = MangaNovelText.encode(text)
+        transfers.withLock {
+            trimCache(encoded.length.toLong(), setOf(file.path))
+            val temporary = File.createTempFile("text-", ".part", pageCache)
+            try { temporary.writeText(encoded); MangaArchive.move(temporary, file); file.setLastModified(cacheClock()) } finally { temporary.delete() }
+        }
+        text
+    }
+
+    private fun textFile(chapter: MangaChapter): File = File(pageCache, MessageDigest.getInstance("SHA-256")
+        .digest((chapter.sourceId + "\ntext\n" + chapter.id).toByteArray()).joinToString("") { "%02x".format(it) } + ".text")
+
     suspend fun browse(sourceId: String, query: String, offset: Int): MangaBrowsePage = withContext(Dispatchers.IO) {
         val config = enabledConfig(sourceId)
         catalogues.get(BrowseKey(config, query, offset, sourceChanges.value)) {
             val result = parserRequest(sourceId) { sourceApi { source(sourceId).browse(query, offset) } }
             check(enabledConfig(sourceId) == config) { "The source settings changed. Reload the catalogue." }
             result
+        }
+    }
+
+    /** The series [book]'s source suggests beside it (the series page's Related row); empty when it suggests none. */
+    suspend fun related(book: MangaBook): List<MangaBook> = withContext(Dispatchers.IO) {
+        if (book.sourceId == "local" || store.state.value.sources.none { it.id == book.sourceId && it.enabled }) emptyList()
+        else parserRequest(book.sourceId) { sourceApi { source(book.sourceId).related(book) } }
+    }
+
+    /** The orders [sourceId] lists its catalogue in, for Browse's feed and its top lists. */
+    suspend fun orders(sourceId: String): Set<MangaListOrder> = withContext(Dispatchers.IO) { runCatching { source(sourceId).orders }.getOrDefault(emptySet()) }
+
+    /** A source's catalogue in [order], cached like [browse]. */
+    suspend fun catalogue(sourceId: String, order: MangaListOrder, offset: Int = 0): MangaBrowsePage = withContext(Dispatchers.IO) {
+        val config = enabledConfig(sourceId)
+        catalogues.get(BrowseKey(config, "order:" + order.name, offset, sourceChanges.value)) {
+            parserRequest(sourceId) { sourceApi { source(sourceId).catalogue(order, offset) } }
         }
     }
 
@@ -235,14 +305,15 @@ class MangaRepository(val store: MangaStore,
     private suspend fun performUpdate(onProgress: (MangaUpdateReport) -> Unit, now: Long = System.currentTimeMillis()): MangaUpdateReport {
         store.update { it.copy(lastUpdateAttemptMs = now) }
         val report = withTimeout(8 * 60_000L) { scanForUpdates(onProgress) }
-        store.update { it.copy(lastUpdateCompletedMs = now, lastUpdateNewChapters = report.newChapters, lastUpdateFailures = report.failures.size) }
+        store.update { it.copy(lastUpdateCompletedMs = now, lastUpdateNewChapters = report.newChapters, lastUpdateFailures = report.failures.size,
+            updateFailures = report.failures.mapValues { (_, reason) -> reason.take(200) }.entries.take(500).associate { it.key to it.value }) }
         return report
     }
 
     private suspend fun scanForUpdates(onProgress: (MangaUpdateReport) -> Unit): MangaUpdateReport = coroutineScope {
         val state = store.state.value
         val enabled = state.sources.filter { it.enabled }.map { it.id }.toSet()
-        val books = state.books.filter { it.sourceId != "local" && it.sourceId in enabled }
+        val books = mangaSeriesToUpdate(state, enabled)
         val gate = Semaphore(UPDATE_PARALLELISM)
         val lock = Mutex()
         var report = MangaUpdateReport(0, books.size, 0, 0, emptyMap())
@@ -271,6 +342,16 @@ class MangaRepository(val store: MangaStore,
     /** Files already fetched have stable names, so retrying a cancelled download resumes without refetching them. */
     suspend fun download(chapter: MangaChapter, onProgress: (Int, Int) -> Unit) {
         require(chapter.sourceId != "local") { "Imported comics are already available offline" }
+        if (chapter.text) {
+            // A text chapter downloads as its words: one kept file, read by [chapterText].
+            onProgress(0, 1)
+            chapterText(chapter, refresh = true)
+            val file = textFile(chapter)
+            require(file.isFile) { "The chapter's text could not be kept" }
+            store.update { it.copy(downloads = it.downloads - "pending:${chapter.id}" + (chapter.id to listOf(MangaPage("${chapter.id}:text", localFile = file.path)))) }
+            onProgress(1, 1)
+            return
+        }
         val pages = pages(chapter)
         require(pages.isNotEmpty()) { "This chapter contains no pages" }
         val downloaded = ArrayList<MangaPage>()
@@ -285,8 +366,24 @@ class MangaRepository(val store: MangaStore,
                 onProgress(index + 1, pages.size)
             }
             store.update { it.copy(downloads = it.downloads - "pending:${chapter.id}" + (chapter.id to downloaded.toList())) }
+            saveCbz(chapter, downloaded)
         } finally {
             withContext(NonCancellable) { transfers.withLock { inFlightPins.remove(chapter.id) } }
+        }
+    }
+
+    /** Writes a finished download as `Series/Chapter.cbz` when Save as CBZ is on; a failure leaves the download as it is. */
+    private suspend fun saveCbz(chapter: MangaChapter, pages: List<MangaPage>) {
+        val state = store.state.value
+        if (!state.saveCbz) return
+        val folder = MangaCbz.folder(state) ?: return
+        val series = state.books.find { it.id == chapter.bookId }?.title ?: chapter.bookId
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val files = pages.mapNotNull { page -> page.localFile?.let(::File)?.takeIf { it.isFile } }
+                MangaCbz.write(File(File(folder, MangaCbz.safeName(series)), MangaCbz.safeName(chapter.title) + ".cbz"), files, state.cbzSplitTall,
+                    sizeOf = MangaPageImages::size, slice = MangaPageImages::slice)
+            }
         }
     }
 
@@ -316,6 +413,33 @@ class MangaRepository(val store: MangaStore,
     /** Frees the pages of downloads taken out once their Undo has run out (as [removeDownload] does at once). */
     suspend fun trimDownloads() {
         transfers.withLock { withContext(Dispatchers.IO) { trimCache(0, emptySet()) } }
+    }
+
+    /**
+     * Moves [from] onto [target], a series found on another source: its chapters are loaded, then it takes the old series' place
+     * with the read chapters, reading place, collections and reading-list links ([MangaLibraryState.migrated]). Returns it.
+     */
+    suspend fun migrate(from: MangaBook, target: MangaBook): MangaBook {
+        val detail = if (target.chapters.isNotEmpty()) target else withContext(Dispatchers.IO) { parserRequest(target.sourceId) { sourceApi { source(target.sourceId).details(target) } } }
+        check(detail.chapters.isNotEmpty()) { "This series has no chapters on ${store.state.value.sources.find { it.id == target.sourceId }?.name ?: "that source"}. Choose another match." }
+        store.update { it.migrated(from, detail) }
+        transfers.withLock { withContext(Dispatchers.IO) { trimCache(0, emptySet()) } }
+        return store.state.value.books.find { it.id == detail.id } ?: detail
+    }
+
+    /** Syncs the library with the WebDAV folder in Settings › Manga, keeping when it last worked or why it did not. */
+    suspend fun syncWebDav(account: MangaWebDav? = store.state.value.webDav): MangaWebDavSync.Merge? {
+        account ?: return null
+        return try {
+            MangaWebDavSync.sync(store, context.httpClient, account).also { now ->
+                store.update { it.copy(webDav = (it.webDav ?: account).copy(url = account.url, user = account.user, password = account.password, lastSyncMs = System.currentTimeMillis(), lastError = null)) }
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            val reason = failure.message ?: "Your server could not be reached"
+            if (store.state.value.webDav != null) store.update { it.copy(webDav = it.webDav?.copy(lastError = reason)) }
+            throw MangaSourceFailure(reason, failure)
+        }
     }
 
     suspend fun removeBook(bookId: String) {
@@ -361,5 +485,6 @@ class MangaRepository(val store: MangaStore,
         internal const val CATALOGUE_TTL_MS = 60_000L
         internal const val PAGE_LIST_TTL_MS = 60L * 60 * 1000
         internal const val IMAGE_TTL_MS = 24L * 60 * 60 * 1000
+        internal const val TEXT_TTL_MS = 7L * 24 * 60 * 60 * 1000
     }
 }

@@ -13,12 +13,13 @@ object DesktopMangaLibrary {
     val repository: MangaRepository by lazy {
         val home = System.getProperty("user.home")
         val os = System.getProperty("os.name").lowercase()
+        com.cosmotune.manga.data.MangaCbz.defaultFolder = { File(File(home, "Documents"), "Cosmotune Manga") }
         val root = when {
             "win" in os -> File(System.getenv("APPDATA") ?: home, "Cosmotune/manga")
             "mac" in os -> File(home, "Library/Application Support/Cosmotune/manga")
             else -> File(System.getenv("XDG_DATA_HOME") ?: File(home, ".local/share").path, "Cosmotune/manga")
         }
-        MangaRepository(MangaStore(root, platformMangaFileProtection()))
+        MangaRepository(MangaStore(root, platformMangaFileProtection())).also { MangaOpdsServer.follow(it) }
     }
     @Volatile private var scheduler: Job? = null
     @Synchronized fun startUpdates() {
@@ -40,11 +41,11 @@ object DesktopMangaLibrary {
 @Composable internal actual fun rememberMangaBackupTransfer(onImport: (ByteArray) -> Unit, onResult: (Result<Unit>) -> Unit): MangaBackupTransfer {
     val scope = rememberCoroutineScope()
     val imported = rememberUpdatedState(onImport); val result = rememberUpdatedState(onResult)
-    suspend fun choose(save: Boolean): File? = withContext(Dispatchers.IO) {
+    suspend fun choose(save: Boolean, name: String = "cosmotune-manga-library.json"): File? = withContext(Dispatchers.IO) {
         var selected: File? = null
         SwingUtilities.invokeAndWait {
             val dialog = FileDialog(null as Frame?, if (save) "Export Manga library" else "Restore Manga library", if (save) FileDialog.SAVE else FileDialog.LOAD)
-            try { dialog.file = "cosmotune-manga-library.json"; dialog.isVisible = true; dialog.file?.let { selected = File(dialog.directory, it) } }
+            try { dialog.file = name; dialog.isVisible = true; dialog.file?.let { selected = File(dialog.directory, it) } }
             finally { dialog.dispose() }
         }
         selected
@@ -54,5 +55,7 @@ object DesktopMangaLibrary {
     } }, { scope.launch { choose(false)?.let { file ->
         val contents = withContext(Dispatchers.IO) { runCatching { file.inputStream().use { it.readNBytes(MangaLibraryBackup.MAX_BYTES + 1) }.also { require(it.size <= MangaLibraryBackup.MAX_BYTES) { "Library backup exceeds 8 MB" } } } }
         contents.fold(onSuccess = { imported.value(it) }, onFailure = { result.value(Result.failure(it)) })
-    } } })
+    } } }, { bytes -> scope.launch {
+        choose(true, "cosmotune-for-mihon.tachibk")?.let { file -> result.value(withContext(Dispatchers.IO) { runCatching { file.outputStream().use { it.write(bytes) } } }) }
+    } })
 }
