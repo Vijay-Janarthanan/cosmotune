@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.ui.orbit.OrbitBiteCard
 import com.cosmotune.ui.orbit.OrbitPlayButton
-import com.cosmotune.ui.orbit.coverFill
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.video.design.VideoText
@@ -54,7 +53,8 @@ internal fun HomeUpNextCard(
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    val (fill, ink) = coverFill(item.thumbnailUrl, item.id)
+    val fill = look.chip
+    val ink = look.ink
     val label = listOfNotNull(
         stringResource(Res.string.video_home_up_next_for_you),
         item.durationSec?.takeIf { it > 0 && !item.isLive }?.let { VideoText.duration(it) },
@@ -70,7 +70,7 @@ internal fun HomeUpNextCard(
                     ThumbnailFrame(item.thumbnailUrl, Modifier.width(if (wide) 240.dp else 150.dp).aspectRatio(16f / 9f), RoundedCornerShape(14.dp),
                         badge = badgeText(item), badgeLive = item.isLive)
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                        Text(label, style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(label, style = fonts.label, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             title, style = fonts.heroTitle.copy(fontSize = if (wide) 22.sp else 17.sp, lineHeight = if (wide) 26.sp else 21.sp), color = ink,
                             maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp).semantics { heading() },
@@ -88,7 +88,7 @@ internal fun HomeUpNextCard(
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f, fill = false)) {
                             Text(name, style = fonts.title.copy(fontSize = 14.sp), color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (meta.isNotEmpty()) Text(meta, style = fonts.body.copy(fontSize = 12.sp), color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (meta.isNotEmpty()) Text(meta, style = fonts.body.copy(fontSize = 12.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
