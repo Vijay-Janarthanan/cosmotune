@@ -45,6 +45,18 @@ import com.cosmotune.video.nav.VideoRoute
 import com.cosmotune.video.player.QualityOption
 import com.cosmotune.video.player.rememberPictureInPicture
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_set_filters
+import com.cosmotune.video.resources.video_set_remember_speed
+import com.cosmotune.video.resources.video_set_auto_backup
+import com.cosmotune.video.resources.video_set_auto_backup_where
+import com.cosmotune.video.resources.video_set_backup_daily
+import com.cosmotune.video.resources.video_set_backup_weekly
+import com.cosmotune.video.resources.video_set_volume_boost
+import com.cosmotune.video.resources.video_set_voice_boost
+import com.cosmotune.video.resources.video_set_voice_boost_note
+import com.cosmotune.video.resources.video_set_skip_silence
+import com.cosmotune.video.resources.video_set_filters_off
+import com.cosmotune.video.resources.video_set_filters_on
 import com.cosmotune.video.resources.video_case_as_given
 import com.cosmotune.video.resources.video_case_sentence
 import com.cosmotune.video.resources.video_case_title
@@ -54,6 +66,15 @@ import com.cosmotune.video.resources.video_clear_history_confirm
 import com.cosmotune.video.resources.video_disclaimer_text
 import com.cosmotune.video.resources.video_disclaimer_title
 import com.cosmotune.video.resources.video_dl_audio_only
+import com.cosmotune.video.resources.video_set_dl_cut
+import com.cosmotune.video.resources.video_set_keys_seek
+import com.cosmotune.video.resources.video_set_keys_seek_note
+import com.cosmotune.video.resources.video_tvcode_on
+import com.cosmotune.video.resources.video_tvcode_state_off
+import com.cosmotune.video.resources.video_tvcode_title
+import com.cosmotune.video.resources.video_set_dl_cut_summary
+import com.cosmotune.video.resources.video_set_dl_embed
+import com.cosmotune.video.resources.video_set_dl_embed_summary
 import com.cosmotune.video.resources.video_dl_each_original
 import com.cosmotune.video.resources.video_dl_subs_got
 import com.cosmotune.video.resources.video_dl_subs_none
@@ -106,6 +127,56 @@ import com.cosmotune.video.resources.video_home_use_account
 import com.cosmotune.video.resources.video_set_resume_short
 import com.cosmotune.video.resources.video_set_seconds
 import com.cosmotune.video.resources.video_set_speed
+import com.cosmotune.video.resources.video_set_proxy
+import com.cosmotune.video.resources.video_set_proxy_none
+import com.cosmotune.video.resources.video_set_preset
+import com.cosmotune.video.resources.video_preset_custom
+import com.cosmotune.video.resources.video_preset_saver
+import com.cosmotune.video.resources.video_preset_balanced
+import com.cosmotune.video.resources.video_preset_sharp
+import com.cosmotune.video.resources.video_preset_best
+import com.cosmotune.video.resources.video_set_remote
+import com.cosmotune.video.resources.video_set_remote_note
+import com.cosmotune.video.resources.video_remote_channel_up
+import com.cosmotune.video.resources.video_remote_channel_down
+import com.cosmotune.video.resources.video_remote_red
+import com.cosmotune.video.resources.video_remote_green
+import com.cosmotune.video.resources.video_remote_yellow
+import com.cosmotune.video.resources.video_remote_blue
+import com.cosmotune.video.resources.video_remote_ff
+import com.cosmotune.video.resources.video_remote_rewind
+import com.cosmotune.video.resources.video_remote_nothing
+import com.cosmotune.video.resources.video_remote_play_pause
+import com.cosmotune.video.resources.video_remote_skip_forward
+import com.cosmotune.video.resources.video_remote_skip_back
+import com.cosmotune.video.resources.video_remote_next_chapter
+import com.cosmotune.video.resources.video_remote_previous_chapter
+import com.cosmotune.video.resources.video_remote_faster
+import com.cosmotune.video.resources.video_remote_slower
+import com.cosmotune.video.resources.video_remote_captions
+import com.cosmotune.video.resources.video_remote_next_video
+import com.cosmotune.video.resources.video_remote_previous_video
+import com.cosmotune.video.resources.video_set_family
+import com.cosmotune.video.resources.video_set_family_note
+import com.cosmotune.video.resources.video_set_focus
+import com.cosmotune.video.resources.video_set_hide_comments
+import com.cosmotune.video.resources.video_set_hide_up_next
+import com.cosmotune.video.resources.video_set_hide_up_next_note
+import com.cosmotune.video.resources.video_set_hide_chat
+import com.cosmotune.video.resources.video_set_hide_paid
+import com.cosmotune.video.resources.video_set_hide_paid_note
+import com.cosmotune.video.resources.video_set_captions_color
+import com.cosmotune.video.resources.video_set_captions_place
+import com.cosmotune.video.resources.video_captions_bottom
+import com.cosmotune.video.resources.video_captions_top
+import com.cosmotune.video.resources.video_captions_white
+import com.cosmotune.video.resources.video_captions_yellow
+import com.cosmotune.video.resources.video_captions_cyan
+import com.cosmotune.video.resources.video_captions_green
+import com.cosmotune.video.resources.video_set_swipe_speed_note
+import com.cosmotune.video.resources.video_set_swipe_speed
+import com.cosmotune.video.resources.video_set_swipe_edge_value
+import com.cosmotune.video.resources.video_set_swipe_edge
 import com.cosmotune.video.resources.video_set_title_case
 import com.cosmotune.video.resources.video_set_using_dearrow
 import com.cosmotune.video.resources.video_size_large
@@ -116,6 +187,8 @@ import com.cosmotune.video.segments.SegmentCategory
 import com.cosmotune.video.settings.CodecPreference
 import com.cosmotune.video.settings.TitleCase
 import com.cosmotune.video.resources.video_settings_label
+import com.cosmotune.video.settings.CaptionColor
+import com.cosmotune.video.settings.QualityPreset
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.player.SPEEDS
@@ -132,7 +205,7 @@ import androidx.compose.runtime.setValue
 internal typealias SettingsUpdate = ((VideoSettings) -> VideoSettings) -> Unit
 
 /** The choices that open a [ChoiceSheet] (a category of SponsorBlock opens its own, see [CategoryChoiceSheet]). */
-private enum class SettingsChoice { WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE }
+private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP, SWIPE_EDGE, REMOTE, PRESET, PROXY }
 
 /** What the page asks about before it clears something. */
 private enum class Confirm { CLEAR_HISTORY, CLEAR_SEARCHES }
@@ -176,14 +249,15 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
                 .padding(contentPadding),
         ) {
             com.cosmotune.video.ui.blocks.VideoPageHeading(stringResource(Res.string.video_drawer_settings), stringResource(Res.string.video_settings_label))
-            PlaybackSettings(settings, update, pip.supported) { choice = it }
+            PlaybackSettings(settings, update, pip.supported, remember(engine) { engine.capabilities.skipSilence }) { choice = it }
             SmoothnessSettingsGroup(settings.smoothness, update, canSmooth, smoothReadout, smoothExperimental)
             CaptionSettings(settings, update, locale) { choice = it }
             SponsorBlockSettings(settings, update) { category = it }
             TitleSettings(settings, update) { choice = it }
             DislikeSettings(settings, update)
             ContentSettings(settings, update, locale) { choice = it }
-            LibrarySettings(historyPaused, graph.library::setHistoryPaused, { confirm = it }, { navigator.push(VideoRoute.Import) })
+            FocusSettings(settings, update)
+            LibrarySettings(historyPaused, graph.library::setHistoryPaused, { confirm = it }, { navigator.push(VideoRoute.Import) }, settings.autoBackupDays) { choice = SettingsChoice.AUTO_BACKUP }
             DownloadSettings(settings, update, platform, locale)
             AboutSettings()
             Spacer(Modifier.height(PAGE_END))
@@ -214,10 +288,16 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
 // ---- Playback ---------------------------------------------------------------------------------------------------------------------
 
 @Composable
-private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pipSupported: Boolean, open: (SettingsChoice) -> Unit) {
+private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pipSupported: Boolean, skipSilenceSupported: Boolean, open: (SettingsChoice) -> Unit) {
     val auto = stringResource(Res.string.video_quality_auto)
     val codecs = CodecPreference.entries.map { codecLabel(it) }
     CosmoSettingsGroup(header = stringResource(Res.string.video_set_playback)) {
+        CosmoSettingsRow(
+            icon = VideoIcons.Hd,
+            title = stringResource(Res.string.video_set_preset),
+            subtitle = presetLabel(QualityPreset.of(settings)),
+            onClick = { open(SettingsChoice.PRESET) },
+        )
         CosmoSettingsRow(
             icon = VideoIcons.Hd,
             title = stringResource(Res.string.video_set_quality_wifi),
@@ -245,6 +325,17 @@ private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pi
             subtitle = stringResource(Res.string.video_speed_value, speedLabel(settings.defaultSpeed)),
             onClick = { open(SettingsChoice.SPEED) },
         )
+        CosmoSettingsSubRow(
+            title = stringResource(Res.string.video_set_remember_speed),
+            checked = settings.rememberSpeed,
+            onCheckedChange = { value -> update { it.copy(rememberSpeed = value, speedByVideo = if (value) it.speedByVideo else emptyMap()) } },
+        )
+        CosmoSettingsRow(
+            icon = CosmoIcons.Devices,
+            title = stringResource(Res.string.video_tvcode_title),
+            subtitle = stringResource(if (settings.phoneCasting) Res.string.video_tvcode_on else Res.string.video_tvcode_state_off),
+            onClick = { open(SettingsChoice.TV_CODE) },
+        )
         CosmoSettingsRow(
             icon = VideoIcons.Forward,
             title = stringResource(Res.string.video_set_double_tap),
@@ -255,6 +346,37 @@ private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pi
         SwitchRow(CosmoIcons.Next, stringResource(Res.string.video_set_autoplay), settings.autoplay) { value -> update { it.copy(autoplay = value) } }
         SwitchRow(VideoIcons.History, stringResource(Res.string.video_set_resume_short), settings.resume) { value -> update { it.copy(resume = value) } }
         SwitchRow(CosmoIcons.Volume, stringResource(Res.string.video_set_background_short), settings.background) { value -> update { it.copy(background = value) } }
+        CosmoRowDivider()
+        CosmoSettingsRow(
+            icon = CosmoIcons.Volume,
+            title = stringResource(Res.string.video_set_volume_boost),
+            subtitle = boostLabel(settings.volumeBoost),
+            onClick = { open(SettingsChoice.VOLUME_BOOST) },
+        )
+        SwitchRow(CosmoIcons.Waveform, stringResource(Res.string.video_set_voice_boost), settings.voiceBoost, subtitle = stringResource(Res.string.video_set_voice_boost_note)) { value -> update { it.copy(voiceBoost = value) } }
+        if (skipSilenceSupported) {
+            SwitchRow(CosmoIcons.Forward10, stringResource(Res.string.video_set_skip_silence), settings.skipSilence) { value -> update { it.copy(skipSilence = value) } }
+            // the headset keys reach Video through the phone's and the TV's media session only
+            SwitchRow(VideoIcons.Forward, stringResource(Res.string.video_set_keys_seek), settings.mediaKeysSeek, subtitle = stringResource(Res.string.video_set_keys_seek_note)) { value ->
+                update { it.copy(mediaKeysSeek = value) }
+            }
+            // full screen's drags are the touch screen's (the phone's; a TV has none, the row is harmless there)
+            CosmoSettingsRow(
+                icon = CosmoIcons.Brightness,
+                title = stringResource(Res.string.video_set_swipe_edge),
+                subtitle = stringResource(Res.string.video_set_swipe_edge_value, settings.swipeEdgePercent),
+                onClick = { open(SettingsChoice.SWIPE_EDGE) },
+            )
+            SwitchRow(VideoIcons.Speed, stringResource(Res.string.video_set_swipe_speed), settings.swipeSpeed, subtitle = stringResource(Res.string.video_set_swipe_speed_note)) { value ->
+                update { it.copy(swipeSpeed = value) }
+            }
+            CosmoSettingsRow(
+                icon = CosmoIcons.Devices,
+                title = stringResource(Res.string.video_set_remote),
+                subtitle = stringResource(Res.string.video_set_remote_note),
+                onClick = { open(SettingsChoice.REMOTE) },
+            )
+        }
         // Picture in picture is the phone's: the desktop (and a phone without it) is not asked.
         if (pipSupported) {
             SwitchRow(VideoIcons.Pip, stringResource(Res.string.video_pip), settings.autoPip, subtitle = stringResource(Res.string.video_set_pip_when)) { value -> update { it.copy(autoPip = value) } }
@@ -288,6 +410,22 @@ private fun CaptionSettings(settings: VideoSettings, update: SettingsUpdate, loc
             modifier = Modifier.padding(start = CosmoSettingsInsets.textStart, end = CosmoSettingsInsets.side, bottom = SEGMENT_BOTTOM),
             compact = true,
         )
+        CosmoSettingsRow(icon = CosmoIcons.Brightness, title = stringResource(Res.string.video_set_captions_color))
+        CosmoSettingsSegmented(
+            options = CaptionColor.entries.map { captionColorLabel(it) },
+            selectedIndex = settings.captionsColor.ordinal,
+            onSelect = { index -> update { it.copy(captionsColor = CaptionColor.entries[index]) } },
+            modifier = Modifier.padding(start = CosmoSettingsInsets.textStart, end = CosmoSettingsInsets.side, bottom = SEGMENT_BOTTOM),
+            compact = true,
+        )
+        CosmoSettingsRow(icon = CosmoIcons.Sort, title = stringResource(Res.string.video_set_captions_place))
+        CosmoSettingsSegmented(
+            options = listOf(stringResource(Res.string.video_captions_bottom), stringResource(Res.string.video_captions_top)),
+            selectedIndex = if (settings.captionsTop) 1 else 0,
+            onSelect = { index -> update { it.copy(captionsTop = index == 1) } },
+            modifier = Modifier.padding(start = CosmoSettingsInsets.textStart, end = CosmoSettingsInsets.side, bottom = SEGMENT_BOTTOM),
+            compact = true,
+        )
         CosmoSettingsSubRow(
             title = stringResource(Res.string.video_set_captions_background_short),
             checked = settings.captionsBackground,
@@ -295,6 +433,85 @@ private fun CaptionSettings(settings: VideoSettings, update: SettingsUpdate, loc
         )
     }
 }
+
+/** The remote's buttons with what each does; a pick opens the list of what it can do. */
+@Composable
+private fun RemoteButtonsSheets(settings: VideoSettings, update: SettingsUpdate, onDismiss: () -> Unit) {
+    var button by remember { mutableStateOf<com.cosmotune.video.player.RemoteButton?>(null) }
+    var picking by remember { mutableStateOf(true) }
+    val current = button
+    if (picking) {
+        ChoiceSheet(
+            title = stringResource(Res.string.video_set_remote),
+            options = com.cosmotune.video.player.RemoteButton.entries.map { b ->
+                ChoiceOption(b, remoteButtonLabel(b) + " · " + remoteActionLabel(com.cosmotune.video.player.RemoteButtons.actionOf(settings.remoteButtons, b)))
+            },
+            selected = current,
+            onSelect = { button = it },
+            onDismiss = { picking = false; if (button == null) onDismiss() },
+        )
+    } else if (current != null) {
+        ChoiceSheet(
+            title = remoteButtonLabel(current),
+            options = com.cosmotune.video.player.RemoteAction.entries.map { ChoiceOption(it, remoteActionLabel(it)) },
+            selected = com.cosmotune.video.player.RemoteButtons.actionOf(settings.remoteButtons, current),
+            onSelect = { action -> update { it.copy(remoteButtons = com.cosmotune.video.player.RemoteButtons.with(it.remoteButtons, current, action)) } },
+            onDismiss = { button = null; picking = true },
+        )
+    }
+}
+
+@Composable
+private fun remoteButtonLabel(button: com.cosmotune.video.player.RemoteButton): String = stringResource(
+    when (button) {
+        com.cosmotune.video.player.RemoteButton.CHANNEL_UP -> Res.string.video_remote_channel_up
+        com.cosmotune.video.player.RemoteButton.CHANNEL_DOWN -> Res.string.video_remote_channel_down
+        com.cosmotune.video.player.RemoteButton.RED -> Res.string.video_remote_red
+        com.cosmotune.video.player.RemoteButton.GREEN -> Res.string.video_remote_green
+        com.cosmotune.video.player.RemoteButton.YELLOW -> Res.string.video_remote_yellow
+        com.cosmotune.video.player.RemoteButton.BLUE -> Res.string.video_remote_blue
+        com.cosmotune.video.player.RemoteButton.FAST_FORWARD -> Res.string.video_remote_ff
+        com.cosmotune.video.player.RemoteButton.REWIND -> Res.string.video_remote_rewind
+    },
+)
+
+@Composable
+private fun remoteActionLabel(action: com.cosmotune.video.player.RemoteAction): String = stringResource(
+    when (action) {
+        com.cosmotune.video.player.RemoteAction.NONE -> Res.string.video_remote_nothing
+        com.cosmotune.video.player.RemoteAction.PLAY_PAUSE -> Res.string.video_remote_play_pause
+        com.cosmotune.video.player.RemoteAction.SKIP_FORWARD -> Res.string.video_remote_skip_forward
+        com.cosmotune.video.player.RemoteAction.SKIP_BACK -> Res.string.video_remote_skip_back
+        com.cosmotune.video.player.RemoteAction.NEXT_CHAPTER -> Res.string.video_remote_next_chapter
+        com.cosmotune.video.player.RemoteAction.PREVIOUS_CHAPTER -> Res.string.video_remote_previous_chapter
+        com.cosmotune.video.player.RemoteAction.SPEED_UP -> Res.string.video_remote_faster
+        com.cosmotune.video.player.RemoteAction.SPEED_DOWN -> Res.string.video_remote_slower
+        com.cosmotune.video.player.RemoteAction.CAPTIONS -> Res.string.video_remote_captions
+        com.cosmotune.video.player.RemoteAction.NEXT_VIDEO -> Res.string.video_remote_next_video
+        com.cosmotune.video.player.RemoteAction.PREVIOUS_VIDEO -> Res.string.video_remote_previous_video
+    },
+)
+
+/** A preset's name with what it sets ("Balanced · 720p on Wi-Fi, 480p on mobile data"), or Custom. */
+@Composable
+private fun presetLabel(preset: QualityPreset?): String = when (preset) {
+    null -> stringResource(Res.string.video_preset_custom)
+    QualityPreset.DATA_SAVER -> stringResource(Res.string.video_preset_saver)
+    QualityPreset.BALANCED -> stringResource(Res.string.video_preset_balanced)
+    QualityPreset.SHARP -> stringResource(Res.string.video_preset_sharp)
+    QualityPreset.BEST -> stringResource(Res.string.video_preset_best)
+}
+
+/** A caption colour's name. */
+@Composable
+internal fun captionColorLabel(color: CaptionColor): String = stringResource(
+    when (color) {
+        CaptionColor.WHITE -> Res.string.video_captions_white
+        CaptionColor.YELLOW -> Res.string.video_captions_yellow
+        CaptionColor.CYAN -> Res.string.video_captions_cyan
+        CaptionColor.GREEN -> Res.string.video_captions_green
+    },
+)
 
 /** The index in [VideoSettings.CAPTION_SCALES] nearest to [scale], so a stored size between two still shows one chosen. */
 internal fun nearestScale(scale: Float): Int =
@@ -326,6 +543,17 @@ private fun DislikeSettings(settings: VideoSettings, update: SettingsUpdate) {
     AttributionLink(text = stringResource(Res.string.video_set_dislikes_credit), url = DISLIKES_URL)
 }
 
+// ---- Distraction-free ------------------------------------------------------------------------------------------------------------------
+
+@Composable
+private fun FocusSettings(settings: VideoSettings, update: SettingsUpdate) {
+    CosmoSettingsGroup(header = stringResource(Res.string.video_set_focus)) {
+        SwitchRow(VideoIcons.Comment, stringResource(Res.string.video_set_hide_comments), settings.hideComments) { value -> update { it.copy(hideComments = value) } }
+        SwitchRow(CosmoIcons.Queue, stringResource(Res.string.video_set_hide_up_next), settings.hideUpNext, subtitle = stringResource(Res.string.video_set_hide_up_next_note)) { value -> update { it.copy(hideUpNext = value) } }
+        SwitchRow(VideoIcons.Live, stringResource(Res.string.video_set_hide_chat), settings.hideLiveChat) { value -> update { it.copy(hideLiveChat = value) } }
+    }
+}
+
 // ---- Content and library ---------------------------------------------------------------------------------------------------------------
 
 @Composable
@@ -334,6 +562,16 @@ private fun ContentSettings(settings: VideoSettings, update: SettingsUpdate, loc
     CosmoSettingsGroup(header = stringResource(Res.string.video_set_content)) {
         SwitchRow(CosmoIcons.User, stringResource(Res.string.video_home_use_account), settings.homeAccountEnabled) { value -> update { it.copy(homeAccountEnabled = value) } }
         SwitchRow(VideoIcons.Shorts, stringResource(Res.string.video_set_hide_shorts), settings.hideShorts) { value -> update { it.copy(hideShorts = value) } }
+        SwitchRow(VideoIcons.Lock, stringResource(Res.string.video_set_hide_paid), settings.hidePaid, subtitle = stringResource(Res.string.video_set_hide_paid_note)) { value -> update { it.copy(hidePaid = value) } }
+        SwitchRow(CosmoIcons.User, stringResource(Res.string.video_set_family), settings.familyFriendly, subtitle = stringResource(Res.string.video_set_family_note)) { value -> update { it.copy(familyFriendly = value) } }
+        val hidden = settings.hiddenWords.size + settings.hiddenChannels.size
+        CosmoSettingsRow(
+            icon = CosmoIcons.Sort,
+            title = stringResource(Res.string.video_set_filters),
+            subtitle = if (hidden == 0 && settings.commentMinLikes <= 0) stringResource(Res.string.video_set_filters_off)
+            else stringResource(Res.string.video_set_filters_on, settings.hiddenWords.size, settings.hiddenChannels.size),
+            onClick = { open(SettingsChoice.FILTERS) },
+        )
         CosmoRowDivider()
         CosmoSettingsRow(
             icon = CosmoIcons.Pin,
@@ -347,11 +585,17 @@ private fun ContentSettings(settings: VideoSettings, update: SettingsUpdate, loc
             subtitle = settings.contentLanguage?.let { languageName(it, locale) } ?: device,
             onClick = { open(SettingsChoice.CONTENT_LANGUAGE) },
         )
+        CosmoSettingsRow(
+            icon = CosmoIcons.Together,
+            title = stringResource(Res.string.video_set_proxy),
+            subtitle = settings.proxy.ifBlank { stringResource(Res.string.video_set_proxy_none) },
+            onClick = { open(SettingsChoice.PROXY) },
+        )
     }
 }
 
 @Composable
-private fun LibrarySettings(historyPaused: Boolean, setHistoryPaused: (Boolean) -> Unit, ask: (Confirm) -> Unit, openImport: () -> Unit) {
+private fun LibrarySettings(historyPaused: Boolean, setHistoryPaused: (Boolean) -> Unit, ask: (Confirm) -> Unit, openImport: () -> Unit, autoBackupDays: Int = 0, openAutoBackup: () -> Unit = {}) {
     CosmoSettingsGroup(header = stringResource(Res.string.video_set_library)) {
         SwitchRow(
             icon = CosmoIcons.Pause,
@@ -366,6 +610,12 @@ private fun LibrarySettings(historyPaused: Boolean, setHistoryPaused: (Boolean) 
         // Export lives on the Import page, with the importers.
         CosmoSettingsRow(icon = VideoIcons.Upload, title = stringResource(Res.string.video_set_import), onClick = openImport)
         CosmoSettingsRow(icon = CosmoIcons.Download, title = stringResource(Res.string.video_set_export), onClick = openImport)
+        CosmoSettingsRow(
+            icon = CosmoIcons.Clock,
+            title = stringResource(Res.string.video_set_auto_backup),
+            subtitle = backupLabel(autoBackupDays) + " · " + stringResource(Res.string.video_set_auto_backup_where),
+            onClick = openAutoBackup,
+        )
     }
 }
 
@@ -390,6 +640,12 @@ private fun DownloadSettings(settings: VideoSettings, update: SettingsUpdate, pl
             enabled = prefs != DownloadPrefs(),
             onClick = { update { it.copy(downloads = DownloadPrefs()) } },
         )
+        SwitchRow(VideoIcons.Info, stringResource(Res.string.video_set_dl_embed), settings.embedDetails, stringResource(Res.string.video_set_dl_embed_summary)) { value ->
+            update { it.copy(embedDetails = value) }
+        }
+        SwitchRow(VideoIcons.SkipSegment, stringResource(Res.string.video_set_dl_cut), settings.cutSegments, stringResource(Res.string.video_set_dl_cut_summary)) { value ->
+            update { it.copy(cutSegments = value) }
+        }
         CosmoRowDivider()
         // Only on Wi-Fi and the battery hold are the phone's; the folder is the desktop's.
         if (platform.hasMeteredNetwork) {
@@ -447,6 +703,22 @@ private fun AboutSettings() {
 @Composable
 private fun SettingsChoiceSheet(choice: SettingsChoice, settings: VideoSettings, update: SettingsUpdate, locale: Locale, onDismiss: () -> Unit) {
     when (choice) {
+        SettingsChoice.FILTERS -> ContentFilterSheet(settings, update, onDismiss)
+        SettingsChoice.TV_CODE -> TvCodeSheet(settings, update, onDismiss)
+        SettingsChoice.AUTO_BACKUP -> ChoiceSheet(
+            title = stringResource(Res.string.video_set_auto_backup),
+            options = com.cosmotune.video.library.AutoBackup.CHOICES.map { ChoiceOption(it, backupLabel(it)) },
+            selected = settings.autoBackupDays,
+            onSelect = { value -> update { it.copy(autoBackupDays = value) } },
+            onDismiss = onDismiss,
+        )
+        SettingsChoice.VOLUME_BOOST -> ChoiceSheet(
+            title = stringResource(Res.string.video_set_volume_boost),
+            options = VOLUME_BOOSTS.map { ChoiceOption(it, boostLabel(it)) },
+            selected = settings.volumeBoost,
+            onSelect = { value -> update { it.copy(volumeBoost = value) } },
+            onDismiss = onDismiss,
+        )
         SettingsChoice.WIFI_QUALITY -> QualitySheet(stringResource(Res.string.video_set_quality_wifi), settings.wifiQuality, { value -> update { it.copy(wifiQuality = value) } }, onDismiss)
         SettingsChoice.MOBILE_QUALITY -> QualitySheet(stringResource(Res.string.video_set_quality_mobile), settings.meteredQuality, { value -> update { it.copy(meteredQuality = value) } }, onDismiss)
         SettingsChoice.SPEED -> ChoiceSheet(
@@ -454,6 +726,22 @@ private fun SettingsChoiceSheet(choice: SettingsChoice, settings: VideoSettings,
             options = SPEEDS.map { ChoiceOption(it, stringResource(Res.string.video_speed_value, speedLabel(it))) },
             selected = settings.defaultSpeed,
             onSelect = { value -> update { it.copy(defaultSpeed = value) } },
+            onDismiss = onDismiss,
+        )
+        SettingsChoice.REMOTE -> RemoteButtonsSheets(settings, update, onDismiss)
+        SettingsChoice.PROXY -> ProxySheet(settings, update, onDismiss)
+        SettingsChoice.PRESET -> ChoiceSheet(
+            title = stringResource(Res.string.video_set_preset),
+            options = QualityPreset.entries.map { ChoiceOption<QualityPreset?>(it, presetLabel(it)) },
+            selected = QualityPreset.of(settings),
+            onSelect = { preset -> if (preset != null) update { preset.applyTo(it) } },
+            onDismiss = onDismiss,
+        )
+        SettingsChoice.SWIPE_EDGE -> ChoiceSheet(
+            title = stringResource(Res.string.video_set_swipe_edge),
+            options = VideoSettings.SWIPE_EDGE_CHOICES.map { ChoiceOption(it, stringResource(Res.string.video_set_swipe_edge_value, it)) },
+            selected = settings.swipeEdgePercent,
+            onSelect = { value -> update { it.copy(swipeEdgePercent = value) } },
             onDismiss = onDismiss,
         )
         SettingsChoice.DOUBLE_TAP -> ChoiceSheet(
@@ -611,3 +899,18 @@ private val LINK_START = 8.dp
 private val NOTE_BOTTOM = 12.dp
 private const val NOTE_SP = 13f
 private const val NOTE_LINE = 1.35f
+
+/** The volume boost's choices, in percent of the normal level. */
+internal val VOLUME_BOOSTS = listOf(100, 125, 150, 200)
+
+@Composable
+private fun boostLabel(boost: Int): String = if (boost <= 100) stringResource(Res.string.video_off) else "$boost %"
+
+@Composable
+private fun backupLabel(days: Int): String = stringResource(
+    when (days) {
+        1 -> Res.string.video_set_backup_daily
+        7 -> Res.string.video_set_backup_weekly
+        else -> Res.string.video_off
+    },
+)

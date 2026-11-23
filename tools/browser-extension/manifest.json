@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Open in Cosmotune",
+  "version": "1.0",
+  "description": "Opens the YouTube video you are on, or a YouTube link, in Cosmotune on this computer.",
+  "permissions": ["contextMenus", "activeTab"],
+  "background": { "service_worker": "background.js", "scripts": ["background.js"] },
+  "action": { "default_title": "Open in Cosmotune" },
+  "browser_specific_settings": { "gecko": { "id": "open-in@cosmotune.app", "strict_min_version": "121.0" } }
+}

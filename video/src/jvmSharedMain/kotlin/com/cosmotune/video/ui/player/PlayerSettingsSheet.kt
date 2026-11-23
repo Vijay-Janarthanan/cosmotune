@@ -39,13 +39,21 @@ import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.PlayerKeyMap
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_sb_channel_skips
 import com.cosmotune.video.resources.video_audio_descriptive
 import com.cosmotune.video.resources.video_audio_dubbed
 import com.cosmotune.video.resources.video_audio_original
 import com.cosmotune.video.resources.video_audio_track
 import com.cosmotune.video.resources.video_captions
+import com.cosmotune.video.resources.video_captions_bottom
+import com.cosmotune.video.resources.video_captions_top
+import com.cosmotune.video.resources.video_set_captions_color
+import com.cosmotune.video.resources.video_set_captions_place
 import com.cosmotune.video.resources.video_dl_auto_generated
 import com.cosmotune.video.resources.video_loop
+import com.cosmotune.video.resources.video_open_elsewhere
+import com.cosmotune.video.resources.video_open_elsewhere_none
+import com.cosmotune.video.resources.video_mark_title
 import com.cosmotune.video.resources.video_off
 import com.cosmotune.video.resources.video_on
 import com.cosmotune.video.resources.video_quality
@@ -55,12 +63,15 @@ import com.cosmotune.video.resources.video_speed
 import com.cosmotune.video.resources.video_speed_value
 import com.cosmotune.video.resources.video_smooth_title
 import com.cosmotune.video.resources.video_stats
+import com.cosmotune.video.settings.CaptionColor
 import com.cosmotune.video.settings.VideoSettings
+import com.cosmotune.video.ui.settings.captionColorLabel
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.local.LocalAspectPage
 import com.cosmotune.video.ui.local.LocalSettingsPage
 import com.cosmotune.video.ui.local.LocalSettingsRows
 import org.jetbrains.compose.resources.stringResource
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /** The desktop menu (spec 6.5: a C menu, radius 22, 44 dp items) is this wide and scrolls past this height. */
@@ -77,7 +88,7 @@ private const val SLIDER_PAD_DP = 22f
 internal val SPEEDS: List<Float> = (1..16).map { it * PlayerKeyMap.SPEED_STEP }
 
 /** The pages of the settings: the rows, and the list each row opens in the same sheet. */
-internal enum class SettingsPage { MAIN, QUALITY, SPEED, CAPTIONS, AUDIO, SMOOTHNESS, TV }
+internal enum class SettingsPage { MAIN, QUALITY, SPEED, CAPTIONS, AUDIO, SMOOTHNESS, TV, MARK }
 
 /**
  * The phone's player settings (spec 6.5): a C sheet (`CosmoSheetSurface`, through the app's sheet host) with the rows Quality ("Auto ·
@@ -201,6 +212,37 @@ internal fun PlayerSettingsPanel(
                 CosmoActionRow(CosmoIcons.Devices, "Play on a TV", value = tvNow?.device?.name, menu = menu) { page = SettingsPage.TV }
             }
             CosmoActionRow(CosmoIcons.Repeat, stringResource(Res.string.video_loop), value = if (state.loop) on else off, menu = menu) { playback.setLoop(!state.loop) }
+            val channelId = state.item?.channelId
+            if (settings.sponsorBlock && channelId != null && !local) {
+                val skips = channelId !in settings.sponsorBlockExcluded
+                val graph = com.cosmotune.video.graph.LocalVideoGraph.current
+                CosmoActionRow(VideoIcons.SkipSegment, stringResource(Res.string.video_sb_channel_skips), value = if (skips) on else off, menu = menu) {
+                    val name = state.item?.channelName ?: channelId
+                    graph.settings.update {
+                        it.copy(sponsorBlockExcluded = if (skips) it.sponsorBlockExcluded + (channelId to name) else it.sponsorBlockExcluded - channelId)
+                    }
+                }
+            }
+            ScreenshotRow(playback, state, menu)
+            val external = rememberExternalPlayer()
+            val outside = state.details?.streams?.let { com.cosmotune.video.player.ExternalStreams.pick(it, state.live) }
+            if (!local && outside != null) {
+                var openFailed by rememberSaveable { mutableStateOf(false) }
+                CosmoActionRow(
+                    CosmoIcons.Share, stringResource(Res.string.video_open_elsewhere),
+                    value = if (openFailed) stringResource(Res.string.video_open_elsewhere_none) else null, menu = menu,
+                ) {
+                    if (external.open(outside, state.item?.title.orEmpty())) {
+                        if (state.playing) playback.togglePlayPause()
+                        onDone()
+                    } else {
+                        openFailed = true
+                    }
+                }
+            }
+            if (settings.sponsorBlock && !local && !state.live && state.item != null) {
+                CosmoActionRow(CosmoIcons.Plus, stringResource(Res.string.video_mark_title), menu = menu) { page = SettingsPage.MARK }
+            }
             CosmoActionRow(VideoIcons.Info, stringResource(Res.string.video_stats), value = if (statsShown) on else off, menu = menu) { onToggleStats() }
             if (local) LocalSettingsRows(menu, onAspect = { localPage = LocalSettingsPage.ASPECT }, onDone = onDone)
         }
@@ -233,7 +275,19 @@ internal fun PlayerSettingsPanel(
                     onDone()
                 }
             }
+            // The look, changed in place: a tap moves to the next colour, or to the other place.
+            val graph = com.cosmotune.video.graph.LocalVideoGraph.current
+            CosmoActionRow(CosmoIcons.Brightness, stringResource(Res.string.video_set_captions_color), value = captionColorLabel(settings.captionsColor), menu = menu) {
+                graph.settings.update { it.copy(captionsColor = CaptionColor.entries[(it.captionsColor.ordinal + 1) % CaptionColor.entries.size]) }
+            }
+            CosmoActionRow(
+                CosmoIcons.Sort, stringResource(Res.string.video_set_captions_place),
+                value = stringResource(if (settings.captionsTop) Res.string.video_captions_top else Res.string.video_captions_bottom), menu = menu,
+            ) {
+                graph.settings.update { it.copy(captionsTop = !it.captionsTop) }
+            }
         }
+        SettingsPage.MARK -> MarkSegmentRows(playback, state, menu, back = { back(it) })
         SettingsPage.TV -> PlayOnTvRows(playback, menu, back = { page = SettingsPage.MAIN }, done = onDone)
         SettingsPage.SMOOTHNESS -> {
             back(stringResource(Res.string.video_smooth_title))
@@ -291,6 +345,6 @@ private fun trackLabel(track: AudioStream): String = track.trackName ?: track.la
 )
 
 /** The empty icon of a list row that is not the picked one (the picked one shows the check, so the labels line up). */
-private val BlankIcon: ImageVector = ImageVector.Builder(
+internal val BlankIcon: ImageVector = ImageVector.Builder(
     name = "blank", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f,
 ).build()

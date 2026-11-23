@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.subscriptions
 
+import com.cosmotune.video.ui.blocks.rememberContentFilter
+import com.cosmotune.video.feed.FeedChannelGroup
+import com.cosmotune.video.feed.FeedGroups
+
 import com.cosmotune.video.ui.blocks.VideoPageHeading
 import com.cosmotune.video.resources.video_subscriptions_label
 import com.cosmotune.ui.orbit.OrbitSelectChip
@@ -102,6 +106,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.cosmotune.video.feed.OtherSitesFeed
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import java.time.ZoneId
@@ -160,15 +165,35 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
     // The two feeds are merged by date and each grows: what is shown is kept (with the page, for the way back from a video) and new
     // uploads slip in by date without the shown ones changing places.
     val feedKeep = rememberKept("subscriptions-feed") { StableFeed(newestFirst = true) }
-    val items = remember(feedState.items, onAccount.items) { feedKeep.update("feed", AccountLists.mergeFeed(onAccount.items, feedState.items, System.currentTimeMillis())) }
+    val contentFilter = rememberContentFilter()
+    // Channels on other sites (PeerTube) join the one feed by date.
+    val otherChannels by remember(graph.settings) { graph.settings.settings.map { it.otherChannels }.distinctUntilChanged() }
+        .collectAsState(initial = graph.settings.settings.value.otherChannels)
+    val others = rememberOtherSiteVideos(otherChannels)
+    var otherSheet by remember { mutableStateOf(false) }
+    val playOther: (VideoItem) -> Unit = remember(graph, navigator, scope) {
+        { item -> OtherSites.play(item, graph, navigator, scope) { com.cosmotune.video.ui.actions.VideoActionsState.shared.showToast(com.cosmotune.video.ui.actions.ActionToastKind.NOT_PLAYABLE) } }
+    }
+    val items = remember(feedState.items, onAccount.items, contentFilter, others) {
+        contentFilter.filter(OtherSitesFeed.merge(feedKeep.update("feed", AccountLists.mergeFeed(onAccount.items, feedState.items, System.currentTimeMillis())), others)) { it }
+    }
     var filter by rememberSaveable { mutableStateOf(FeedFilter.ALL) }
     val watchedNow = remember(history) { history.associateBy { it.item.id } }
     val clockNow = LocalVideoNowMs.current
-    val shown = remember(items, selectedId, filter, watchedNow, clockNow) {
-        SubscriptionsFeedPlan.filtered(SubscriptionsFeedPlan.forChannel(items, selectedId), filter, watchedNow, FeedDay.startOfToday(clockNow ?: System.currentTimeMillis()))
+    // The listener's channel groups: a picked group keeps the feed and the strip to its channels.
+    val settingsNow by graph.settings.settings.collectAsState()
+    val feedGroups = settingsNow.feedGroups
+    var groupId by rememberSaveable { mutableStateOf<String?>(null) }
+    val group = feedGroups.firstOrNull { it.id == groupId }
+    var editing by remember { mutableStateOf<Pair<FeedChannelGroup, Boolean>?>(null) }
+    val groupItems = remember(items, group) { FeedGroups.itemsOf(items, group) }
+    val shown = remember(groupItems, selectedId, filter, watchedNow, clockNow) {
+        SubscriptionsFeedPlan.filtered(SubscriptionsFeedPlan.forChannel(groupItems, selectedId), filter, watchedNow, FeedDay.startOfToday(clockNow ?: System.currentTimeMillis()))
     }
     val shelf = remember(shown, hideShorts) { SubscriptionsFeedPlan.shelf(shown, hideShorts) }
-    val strip = remember(channels, items) { SubscriptionsFeedPlan.stripOrder(channels, items) }
+    val strip = remember(channels, items, group) {
+        SubscriptionsFeedPlan.stripOrder(if (group == null) channels else channels.filter { it.channelId in group.channelIds }, items)
+    }
     val clock = LocalVideoNowMs.current
     val groups = remember(shown, clock) { SubscriptionsFeedPlan.groups(shown, clock ?: System.currentTimeMillis()) }
     val watched = remember(history) { history.associateBy { it.item.id } }
@@ -208,7 +233,7 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
         PullToRefresh(refreshing = refreshing, onRefresh = refresh, state = pullState) {
             Box(Modifier.fillMaxSize()) {
                 // No channel followed here is an empty page only when the account has no feed either.
-                val noFeed = if (channels.isEmpty()) onAccount.items.isEmpty() else false
+                val noFeed = if (channels.isEmpty() && otherChannels.isEmpty()) onAccount.items.isEmpty() else false
                 if (noFeed) {
                     NoSubscriptions(
                         contentPadding = contentPadding,
@@ -227,6 +252,16 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                                     AccountExpiredNotice(Modifier.padding(horizontal = if (wide) WIDE_INSET else 0.dp))
                                 }
                             }
+                            item(key = KEY_GROUPS, contentType = "groups") {
+                                FeedGroupChips(
+                                    groups = feedGroups,
+                                    selectedId = group?.id,
+                                    onSelect = { groupId = it; picked = null },
+                                    onNew = { editing = FeedChannelGroup(FeedGroups.newId(feedGroups, System.currentTimeMillis()), "", emptySet()) to true },
+                                    onEdit = { editing = it to false },
+                                    inset = if (wide) WIDE_INSET else 0.dp,
+                                )
+                            }
                             feedHead(
                                 model = model,
                                 inset = if (wide) WIDE_INSET else 0.dp,
@@ -240,6 +275,9 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                                 onOpenChannel = { id -> navigator.push(VideoRoute.Channel(id)) },
                                 onViewAll = { navigator.push(VideoRoute.Channels) },
                             )
+                            item(key = KEY_OTHER_SITES, contentType = "other") {
+                                OtherSitesRow(otherChannels.size, onOpen = { otherSheet = true }, modifier = Modifier.padding(horizontal = if (wide) WIDE_INSET else 0.dp))
+                            }
                             if (shown.isEmpty() && filter != FeedFilter.ALL) {
                                 item(key = KEY_FILTER_EMPTY, contentType = "empty") {
                                     KitEmptyState(title = stringResource(Res.string.video_filter_empty), message = "", icon = VideoIcons.Subscriptions)
@@ -254,7 +292,7 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                                             columns = columns,
                                             downloaded = downloaded,
                                             watched = watched,
-                                            onOpen = { openCard(it, shown, navigator, actions, shortsOrigin) },
+                                            onOpen = { openCard(it, shown, navigator, actions, shortsOrigin, playOther) },
                                             onMore = { sheetFor = it },
                                         )
                                     }
@@ -268,7 +306,7 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                                             wide = false,
                                             downloaded = item.id in downloaded,
                                             watchedFraction = watched.watchedFractionOf(item),
-                                            onClick = { openCard(item, shown, navigator, actions, shortsOrigin) },
+                                            onClick = { openCard(item, shown, navigator, actions, shortsOrigin, playOther) },
                                             onMore = { sheetFor = item },
                                         )
                                     }
@@ -287,6 +325,25 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
         }
     }
 
+    editing?.let { (editGroup, isNew) ->
+        FeedGroupSheet(
+            group = editGroup,
+            isNew = isNew,
+            channels = channels.sortedBy { it.name.lowercase() },
+            onSave = { saved ->
+                graph.settings.update { it.copy(feedGroups = FeedGroups.save(it.feedGroups, saved)) }
+                groupId = saved.id
+                editing = null
+            },
+            onDelete = {
+                graph.settings.update { it.copy(feedGroups = FeedGroups.delete(it.feedGroups, editGroup.id)) }
+                groupId = null
+                editing = null
+            },
+            onDismiss = { editing = null },
+        )
+    }
+    if (otherSheet) OtherSitesSheet(graph, otherChannels, onDismiss = { otherSheet = false })
     sheetFor?.let { item ->
         VideoActionsSheet(
             item = item,
@@ -396,12 +453,14 @@ private fun OpenChannelChip(onOpen: () -> Unit, modifier: Modifier = Modifier) {
 
 private const val KEY_TITLE = "feed:title"
 private const val KEY_FILTERS = "feed:filters"
+private const val KEY_GROUPS = "feed:groups"
 private const val KEY_FILTER_EMPTY = "feed:filter-empty"
 private const val KEY_STRIP = "feed:strip"
 private const val KEY_SHORTS = "feed:shorts"
 private const val KEY_STATUS = "feed:status"
 private const val KEY_OPEN_CHANNEL = "feed:open-channel"
 private const val KEY_ACCOUNT = "feed:account"
+private const val KEY_OTHER_SITES = "feed:other-sites"
 
 /** The day overline of a group, one item, keyed by the group. */
 private fun LazyListScope.groupHeader(group: FeedGroup, inset: Dp) {
@@ -411,8 +470,12 @@ private fun LazyListScope.groupHeader(group: FeedGroup, inset: Dp) {
 }
 
 /** A tap on a feed card: a Short opens the pager (with the Shorts of [shown], origin [shortsOrigin]), any other video its watch page and plays. */
-private fun openCard(item: VideoItem, shown: List<VideoItem>, navigator: VideoNavigator, actions: VideoActionHandler, shortsOrigin: ShortsOrigin) {
-    if (item.isShort) navigator.openShort(item, shortsOrigin, shown) else actions.play(item, shown)
+private fun openCard(item: VideoItem, shown: List<VideoItem>, navigator: VideoNavigator, actions: VideoActionHandler, shortsOrigin: ShortsOrigin, playOther: (VideoItem) -> Unit) {
+    when {
+        com.cosmotune.video.source.peertube.PeerTubeClient.isPeerTube(item.id) -> playOther(item)
+        item.isShort -> navigator.openShort(item, shortsOrigin, shown)
+        else -> actions.play(item, shown)
+    }
 }
 
 /** The watched bar of a feed item from the history, or null (no bar). */

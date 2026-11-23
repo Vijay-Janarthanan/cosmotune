@@ -49,6 +49,7 @@ import com.cosmotune.video.resources.*
 import com.cosmotune.video.resources.video_shelf_continue
 import com.cosmotune.video.resources.video_shorts
 import com.cosmotune.video.select.ShortsFilter
+import com.cosmotune.video.select.contentFilter
 import com.cosmotune.video.shorts.ShortsOrigin
 import com.cosmotune.video.ui.actions.rememberDownloadedIds
 import com.cosmotune.video.ui.actions.rememberVideoActions
@@ -173,12 +174,13 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     val kioskVideos = remember(model.items, settings.homeHiddenVideos, settings.homeHiddenChannels) {
         HomePlanner.feedback(model.items.filterNot(ShortsFilter::isShort), settings.homeHiddenVideos, settings.homeHiddenChannels)
     }
-    val shorts = remember(feedItems, related, recentIds, model.items, accountItems, hideShorts, settings.homeHiddenVideos, settings.homeHiddenChannels) {
+    val contentFilter = remember(settings.hiddenWords, settings.hiddenChannels, settings.hidePaid) { settings.contentFilter() }
+    val shorts = remember(feedItems, related, recentIds, model.items, accountItems, hideShorts, settings.homeHiddenVideos, settings.homeHiddenChannels, contentFilter) {
         if (hideShorts) {
             emptyList()
         } else {
             val fromRelated = recentIds.flatMap { id -> related[id].orEmpty().mapNotNull { (it as? ListItem.Video)?.item } }
-            HomePlanner.feedback(HomePlanner.shorts(feedItems, fromRelated + accountItems.filter(ShortsFilter::isShort), model.items), settings.homeHiddenVideos, settings.homeHiddenChannels)
+            contentFilter.filter(HomePlanner.feedback(HomePlanner.shorts(feedItems, fromRelated + accountItems.filter(ShortsFilter::isShort), model.items), settings.homeHiddenVideos, settings.homeHiddenChannels)) { it }
         }
     }
 
@@ -191,9 +193,10 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     // The feed is arranged from several lists that each grow, so a fresh arrangement moves what is already on screen. What is shown is
     // kept instead (and kept with the page, for the way back from a video): a fresh arrangement only adds the cards that are new.
     val homeKeep = rememberKept("home-stream") { StableFeed() }
-    val stream = remember(ranked, all, model.selectedId, settings.homeHiddenVideos, settings.homeHiddenChannels) {
+    val filter = contentFilter
+    val stream = remember(ranked, all, model.selectedId, settings.homeHiddenVideos, settings.homeHiddenChannels, filter) {
         homeKeep.update(if (all) "all" else "kiosk:${model.selectedId}", ranked) {
-            it.id in settings.homeHiddenVideos || (it.channelId != null && it.channelId in settings.homeHiddenChannels)
+            it.id in settings.homeHiddenVideos || (it.channelId != null && it.channelId in settings.homeHiddenChannels) || !filter.keep(it)
         }
     }
     // All leads with the colour card (the feed's first video) and the row of the channels you follow; the feed under them leaves both out.

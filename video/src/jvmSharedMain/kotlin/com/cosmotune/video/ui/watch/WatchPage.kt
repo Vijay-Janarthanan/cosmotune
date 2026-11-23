@@ -58,6 +58,7 @@ import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.ui.blocks.rememberSubscribeToggle
 import com.cosmotune.video.model.ChannelItem
 import com.cosmotune.video.model.Chapter
+import com.cosmotune.video.model.StreamKind
 import com.cosmotune.video.model.Description
 import com.cosmotune.video.model.ListItem
 import com.cosmotune.video.model.VideoDetails
@@ -85,6 +86,8 @@ import com.cosmotune.video.ui.blocks.VideoSheetContext
 import com.cosmotune.video.ui.blocks.rememberNowMs
 import com.cosmotune.video.ui.branding.rememberVideoTitle
 import com.cosmotune.video.ui.comments.CommentsSheet
+import com.cosmotune.video.ui.chat.LiveChatSheet
+import com.cosmotune.video.ui.blocks.rememberContentFilter
 import com.cosmotune.video.ui.comments.CommentsPreviewTile
 import com.cosmotune.video.ui.player.PlayerLayout
 import com.cosmotune.video.ui.player.VideoPlayerBox
@@ -220,6 +223,10 @@ internal data class WatchView(
     val offline: Boolean,
     val autoplay: Boolean,
     val commentsShown: Boolean,
+    /** A live or finished stream: the Chat tab shows its chat or its replay. */
+    val chatShown: Boolean = false,
+    /** The caption tracks the Transcript tab reads (none offline). */
+    val subtitles: List<com.cosmotune.video.model.SubtitleTrack> = emptyList(),
     val loading: Boolean,
     val upNext: UpNextShow = UpNextShow.NONE,
 )
@@ -240,7 +247,10 @@ private fun rememberWatchView(videoId: String, state: PlaybackUiState, settings:
     val subscriptions by graph.library.subscriptions.collectAsState()
     val downloadedLabel by rememberDownloadedLabel(graph.downloads, videoId)
     val title = if (item != null) rememberVideoTitle(item) else ""
-    val related = remember(details?.related, settings.hideShorts) { WatchRules.relatedVideos(details, settings.hideShorts) }
+    val contentFilter = rememberContentFilter()
+    val related = remember(details?.related, settings.hideShorts, contentFilter) {
+        contentFilter.filter(WatchRules.relatedVideos(details, settings.hideShorts)) { it }
+    }
     val chapters = details?.chapters.orEmpty()
     val info = item?.let {
         WatchInfo(
@@ -261,12 +271,16 @@ private fun rememberWatchView(videoId: String, state: PlaybackUiState, settings:
         originalTitle = item?.title?.takeIf { it != title },
         description = details?.description?.takeIf { it.text.isNotBlank() },
         chapters = chapters,
-        related = if (offline) emptyList() else related,
+        related = if (offline || settings.hideUpNext) emptyList() else related,
         offline = offline,
         autoplay = settings.autoplay,
-        commentsShown = !offline,
+        commentsShown = !offline && !settings.hideComments && !settings.familyFriendly,
+        subtitles = if (offline) emptyList() else details?.subtitles.orEmpty(),
+        chatShown = !offline && !settings.hideLiveChat && !settings.familyFriendly &&
+            (details?.kind == StreamKind.LIVE || details?.kind == StreamKind.POST_LIVE || item?.isLive == true),
         loading = item == null && state.error == null,
-        upNext = WatchRules.upNext(related, offline, hasDetails = details != null, failed = state.error != null, state = state.relatedState),
+        upNext = if (settings.hideUpNext) UpNextShow.NONE
+        else WatchRules.upNext(related, offline, hasDetails = details != null, failed = state.error != null, state = state.relatedState),
     )
 }
 
@@ -386,9 +400,11 @@ private fun WatchPagePhone(
 ) {
     var descriptionOpen by rememberSaveable(view.videoId) { mutableStateOf(false) }
     var commentsOpen by rememberSaveable(view.videoId) { mutableStateOf(false) }
-    VideoBackHandler(enabled = descriptionOpen || commentsOpen) {
+    var chatOpen by rememberSaveable(view.videoId) { mutableStateOf(false) }
+    VideoBackHandler(enabled = descriptionOpen || commentsOpen || chatOpen) {
         descriptionOpen = false
         commentsOpen = false
+        chatOpen = false
     }
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -400,9 +416,18 @@ private fun WatchPagePhone(
     val onBounds = remember(pipUpdater) { { rect: Rect -> pipUpdater.bounds(rect) } }
     val info = view.info
     val (ground, _) = coverFill(info?.item?.thumbnailUrl, view.videoId)
-    val segments = remember(view.chapters.isNotEmpty(), view.commentsShown) { wideSegments(view.chapters.isNotEmpty(), view.commentsShown) }
+    val segments = remember(view.chapters.isNotEmpty(), view.commentsShown, view.chatShown, view.subtitles.isNotEmpty()) {
+        wideSegments(view.chapters.isNotEmpty(), view.commentsShown, view.chatShown, view.subtitles.isNotEmpty())
+    }
     var chosen by rememberSaveable(view.videoId) { mutableStateOf(WideSegment.UP_NEXT) }
-    val onChoose: (WideSegment) -> Unit = { segment -> if (segment == WideSegment.COMMENTS) commentsOpen = true else chosen = segment }
+    val transcript = rememberTranscriptIf(chosen == WideSegment.TRANSCRIPT, view)
+    val onChoose: (WideSegment) -> Unit = { segment ->
+        when (segment) {
+            WideSegment.COMMENTS -> commentsOpen = true
+            WideSegment.CHAT -> chatOpen = true
+            else -> chosen = segment
+        }
+    }
     val screen = WatchScreen(
         fill = WatchSession.fill, onFill = { WatchSession.fill = it }, onCinema = onEnterFullscreen,
         theatre = null, onTheatre = {}, onMini = onEnterPip,
@@ -443,6 +468,7 @@ private fun WatchPagePhone(
                     WideSegment.CHAPTERS -> itemsIndexed(view.chapters, key = { index, chapter -> "chapter:$index:${chapter.startMs}" }) { _, chapter ->
                         ChapterRow(chapter, callbacks.onSeek)
                     }
+                    WideSegment.TRANSCRIPT -> transcriptItems(transcript, callbacks.onSeek)
                     else -> upNextSection(view, watched, downloaded, desktop = false, callbacks = callbacks, header = false)
                 }
             }
@@ -478,6 +504,9 @@ private fun WatchPagePhone(
         }
         if (commentsOpen && view.commentsShown) {
             CommentsSheet(videoId = view.videoId, onDismiss = { commentsOpen = false })
+        }
+        if (chatOpen && view.chatShown) {
+            LiveChatSheet(videoId = view.videoId, onDismiss = { chatOpen = false })
         }
     }
 }
@@ -905,4 +934,12 @@ internal class PipUpdater(private val pip: PictureInPictureState) {
         /** The updater that spoke last (main thread, like composition). */
         var last: PipUpdater? = null
     }
+}
+
+/** The transcript once its tab was picked (it is read only then). */
+@Composable
+private fun rememberTranscriptIf(open: Boolean, view: WatchView): TranscriptState {
+    var opened by rememberSaveable(view.videoId) { mutableStateOf(false) }
+    if (open) opened = true
+    return if (opened) rememberTranscript(view.videoId, view.subtitles) else remember(view.videoId) { TranscriptState() }
 }

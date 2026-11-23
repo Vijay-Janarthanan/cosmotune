@@ -59,6 +59,7 @@ object AndroidCapabilities {
             autoCeilingHeight = null,
             frameSmoothing = SmoothingHub.supported(context),
             frameSmoothingExperimental = true,
+            skipSilence = true,
         )
     }
 

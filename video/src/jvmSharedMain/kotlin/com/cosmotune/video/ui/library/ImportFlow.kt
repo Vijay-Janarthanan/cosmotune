@@ -56,6 +56,8 @@ internal enum class ImportKind(val mimeTypes: List<String>) {
         ),
     ),
     OPML(listOf("text/x-opml", "text/xml", "application/xml", "text/plain", "application/octet-stream")),
+    FREETUBE(listOf("application/octet-stream", "application/json", "text/plain")),
+    LIBRETUBE(listOf("application/json", "text/plain", "application/octet-stream")),
     COSMOTUNE(listOf("application/json", "text/plain", "application/octet-stream")),
 }
 
@@ -133,6 +135,8 @@ internal object ImportReader {
         ImportFormat.TAKEOUT_HISTORY_JSON -> TakeoutHistoryImporter.parse(text)
         ImportFormat.TAKEOUT_PLAYLIST_CSV -> TakeoutPlaylistsImporter.parse(name, text, nowMs)
         ImportFormat.OPML -> OpmlImporter.parse(text, nowMs)
+        ImportFormat.FREETUBE -> com.cosmotune.video.importers.ForkBackupImporter.parseFreeTube(text, nowMs)
+        ImportFormat.LIBRETUBE -> com.cosmotune.video.importers.ForkBackupImporter.parseLibreTube(text, nowMs)
         else -> null
     }
 

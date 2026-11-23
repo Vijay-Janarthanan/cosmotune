@@ -1,0 +1,1041 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@TaylorSwift/releases",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+        "params": "EghyZWxlYXNlc_IGBQoDsgEA",
+        "canonicalBaseUrl": "/@TaylorSwift"
+       }
+      },
+      "title": "Releases",
+      "selected": true,
+      "content": {
+       "richGridRenderer": {
+        "contents": [
+         {
+          "richItemRenderer": {
+           "content": {
+            "playlistRenderer": {
+             "playlistId": "OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8",
+             "title": {
+              "simpleText": "Patient Zero"
+             },
+             "thumbnails": [
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/mw3kSNIxjqo/hqdefault.jpg?sqp=-oaymwEXCOADEI4CSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLAFGU5KU7te0mfQrdPkafi1yrzPmg",
+                 "width": 480,
+                 "height": 270
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/mUpb3miOvo0/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/ZnR9AtSBwvk/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              }
+             ],
+             "videoCount": "3",
+             "navigationEndpoint": {
+              "commandMetadata": {
+               "webCommandMetadata": {
+                "url": "/watch?v=mw3kSNIxjqo&list=OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8&pp=0gcJCZAGa94AFGB0",
+                "webPageType": "WEB_PAGE_TYPE_WATCH",
+                "rootVe": 3832
+               }
+              },
+              "watchEndpoint": {
+               "videoId": "mw3kSNIxjqo",
+               "playlistId": "OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8",
+               "params": "OAI%3D",
+               "playerParams": "0gcJCZAGa94AFGB0",
+               "loggingContext": {
+                "vssLoggingContext": {
+                 "serializedContextData": "GilPTEFLNXV5X2tuMkotUF9IMUtNZ1hSZ1BSRGhBZDBYb2lSSGdTM2JLOA%3D%3D"
+                }
+               },
+               "watchEndpointSupportedOnesieConfig": {
+                "html5PlaybackOnesieConfig": {
+                 "commonConfig": {
+                  "url": "https://rr2---sn-5jucgv5qc5oq-h55el.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=9b0de448d2318eaa&ip=REDACTED&initcwndbps=3091875&mt=1795419431&oweuc="
+                 }
+                }
+               }
+              }
+             },
+             "shortBylineText": {
+              "runs": [
+               {
+                "text": "Taylor Swift",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Album",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               }
+              ]
+             },
+             "videos": [
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Taylor Swift - Patient Zero (Official Music Video)"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=mw3kSNIxjqo&list=OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "mw3kSNIxjqo",
+                  "playlistId": "OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GilPTEFLNXV5X2tuMkotUF9IMUtNZ1hSZ1BSRGhBZDBYb2lSSGdTM2JLOA%3D%3D"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr2---sn-5jucgv5qc5oq-h55el.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=9b0de448d2318eaa&ip=REDACTED&initcwndbps=3091875&mt=1795419431&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "5 minutes, 13 seconds"
+                  }
+                 },
+                 "simpleText": "5:13"
+                },
+                "videoId": "mw3kSNIxjqo"
+               }
+              },
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Patient Zero (Piano Version)"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=mUpb3miOvo0&list=OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "mUpb3miOvo0",
+                  "playlistId": "OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GilPTEFLNXV5X2tuMkotUF9IMUtNZ1hSZ1BSRGhBZDBYb2lSSGdTM2JLOA%3D%3D"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr3---sn-5jucgv5qc5oq-h55s.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=994a5bde688ebe8d&ip=REDACTED&initcwndbps=3091875&mt=1795419431&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "3 minutes, 47 seconds"
+                  }
+                 },
+                 "simpleText": "3:47"
+                },
+                "videoId": "mUpb3miOvo0"
+               }
+              }
+             ],
+             "videoCountText": {
+              "runs": [
+               {
+                "text": "3"
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "thumbnailText": {
+              "runs": [
+               {
+                "text": "3",
+                "bold": true
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "longBylineText": {
+              "runs": [
+               {
+                "text": "Taylor Swift",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Album",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               }
+              ]
+             },
+             "thumbnailRenderer": {
+              "playlistCustomThumbnailRenderer": {
+               "thumbnail": {
+                "thumbnails": [
+                 {
+                  "url": "https://i9.ytimg.com/s_p/OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8/mqdefault.jpg?sqp=CPzdj9gGir7X7AMICLPkxtYGEAE=&rs=AOn4CLDNuJHlu9L27PIpApIQ3VxTPMdRsQ&v=1792127539",
+                  "width": 180,
+                  "height": 180
+                 },
+                 {
+                  "url": "https://i9.ytimg.com/s_p/OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8/sddefault.jpg?sqp=CPzdj9gGir7X7AMICLPkxtYGEAE=&rs=AOn4CLCLhXpiKyb99q6GiLKfI46THysnRQ&v=1792127539",
+                  "width": 640,
+                  "height": 640
+                 },
+                 {
+                  "url": "https://i9.ytimg.com/s_p/OLAK5uy_kn2J-P_H1KMgXRgPRDhAd0XoiRHgS3bK8/maxresdefault.jpg?sqp=CPzdj9gGir7X7AMICLPkxtYGEAE=&rs=AOn4CLDWofdN-j476UnGp58xYgS_qm6TGw&v=1792127539",
+                  "width": 1200,
+                  "height": 1200
+                 }
+                ],
+                "sampledThumbnailColor": {
+                 "red": 89,
+                 "green": 65,
+                 "blue": 64
+                },
+                "darkColorPalette": {
+                 "section2Color": 3351844,
+                 "iconInactiveColor": 9664630,
+                 "iconDisabledColor": 5850435
+                },
+                "vibrantColorPalette": {
+                 "iconInactiveColor": 10055790
+                }
+               }
+              }
+             },
+             "thumbnailOverlays": [
+              {
+               "thumbnailOverlayBottomPanelRenderer": {
+                "text": {
+                 "simpleText": "3 songs"
+                },
+                "icon": {
+                 "iconType": "MUSIC"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayHoverTextRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Play all"
+                  }
+                 ]
+                },
+                "icon": {
+                 "iconType": "PLAY_ALL"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayNowPlayingRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Now playing"
+                  }
+                 ]
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         },
+         {
+          "richItemRenderer": {
+           "content": {
+            "playlistRenderer": {
+             "playlistId": "OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU",
+             "title": {
+              "simpleText": "The Life of a Showgirl: The Encore"
+             },
+             "thumbnails": [
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/ko70cExuzZM/hqdefault.jpg?sqp=-oaymwEXCOADEI4CSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLAm0l7ADtDF-t0G1HreXfTPpuUqWg",
+                 "width": 480,
+                 "height": 270
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/4Mg_Qtr6Osg/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/4FUIEcnvT04/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              }
+             ],
+             "videoCount": "16",
+             "navigationEndpoint": {
+              "commandMetadata": {
+               "webCommandMetadata": {
+                "url": "/watch?v=ko70cExuzZM&list=OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU",
+                "webPageType": "WEB_PAGE_TYPE_WATCH",
+                "rootVe": 3832
+               }
+              },
+              "watchEndpoint": {
+               "videoId": "ko70cExuzZM",
+               "playlistId": "OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU",
+               "params": "OAI%3D",
+               "loggingContext": {
+                "vssLoggingContext": {
+                 "serializedContextData": "GilPTEFLNXV5X2xpd0xXRXBXZ3ZUeEdyeFZzOUhEVnZYY1JnVVg5a3NUVQ%3D%3D"
+                }
+               },
+               "watchEndpointSupportedOnesieConfig": {
+                "html5PlaybackOnesieConfig": {
+                 "commonConfig": {
+                  "url": "https://rr8---sn-5jucgv5qc5oq-h55e7.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=928ef4704c6ecd93&ip=REDACTED&initcwndbps=3091875&mt=1795419431&oweuc="
+                 }
+                }
+               }
+              }
+             },
+             "shortBylineText": {
+              "runs": [
+               {
+                "text": "Taylor Swift",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Album",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               }
+              ]
+             },
+             "videos": [
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Taylor Swift - The Fate of Ophelia (Official Music Video)"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=ko70cExuzZM&list=OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "ko70cExuzZM",
+                  "playlistId": "OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GilPTEFLNXV5X2xpd0xXRXBXZ3ZUeEdyeFZzOUhEVnZYY1JnVVg5a3NUVQ%3D%3D"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr8---sn-5jucgv5qc5oq-h55e7.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=928ef4704c6ecd93&ip=REDACTED&initcwndbps=3091875&mt=1795419431&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "3 minutes, 59 seconds"
+                  }
+                 },
+                 "simpleText": "3:59"
+                },
+                "videoId": "ko70cExuzZM"
+               }
+              },
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Taylor Swift - Elizabeth Taylor (Visualizer)"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=4Mg_Qtr6Osg&list=OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "4Mg_Qtr6Osg",
+                  "playlistId": "OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GilPTEFLNXV5X2xpd0xXRXBXZ3ZUeEdyeFZzOUhEVnZYY1JnVVg5a3NUVQ%3D%3D"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr3---sn-5jucgv5qc5oq-h55es.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=e0c83f42dafa3ac8&ip=REDACTED&initcwndbps=3091875&mt=1795419431&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "3 minutes, 32 seconds"
+                  }
+                 },
+                 "simpleText": "3:32"
+                },
+                "videoId": "4Mg_Qtr6Osg"
+               }
+              }
+             ],
+             "videoCountText": {
+              "runs": [
+               {
+                "text": "16"
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "thumbnailText": {
+              "runs": [
+               {
+                "text": "16",
+                "bold": true
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "longBylineText": {
+              "runs": [
+               {
+                "text": "Taylor Swift",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Album",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               }
+              ]
+             },
+             "thumbnailRenderer": {
+              "playlistCustomThumbnailRenderer": {
+               "thumbnail": {
+                "thumbnails": [
+                 {
+                  "url": "https://i9.ytimg.com/s_p/OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU/mqdefault.jpg?sqp=CPzdj9gGir7X7AMICPqVwNYGEAE=&rs=AOn4CLD3mfMdleuFTw5qsgW1J_ySDlb41A&v=1792019194",
+                  "width": 180,
+                  "height": 180
+                 },
+                 {
+                  "url": "https://i9.ytimg.com/s_p/OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU/sddefault.jpg?sqp=CPzdj9gGir7X7AMICPqVwNYGEAE=&rs=AOn4CLC9ZblUbznewPcWewH6PjP_bUW8OQ&v=1792019194",
+                  "width": 640,
+                  "height": 640
+                 },
+                 {
+                  "url": "https://i9.ytimg.com/s_p/OLAK5uy_liwLWEpWgvTxGrxVs9HDVvXcRgUX9ksTU/maxresdefault.jpg?sqp=CPzdj9gGir7X7AMICPqVwNYGEAE=&rs=AOn4CLA4c9y1sNb_Dj8VZm_qyQEgSM7Rcw&v=1792019194",
+                  "width": 1200,
+                  "height": 1200
+                 }
+                ],
+                "sampledThumbnailColor": {
+                 "red": 114,
+                 "green": 17,
+                 "blue": 53
+                },
+                "darkColorPalette": {
+                 "section2Color": 3344151,
+                 "iconInactiveColor": 9664129,
+                 "iconDisabledColor": 6310226
+                },
+                "vibrantColorPalette": {
+                 "iconInactiveColor": 10054524
+                }
+               }
+              }
+             },
+             "thumbnailOverlays": [
+              {
+               "thumbnailOverlayBottomPanelRenderer": {
+                "text": {
+                 "simpleText": "16 songs"
+                },
+                "icon": {
+                 "iconType": "MUSIC"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayHoverTextRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Play all"
+                  }
+                 ]
+                },
+                "icon": {
+                 "iconType": "PLAY_ALL"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayNowPlayingRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Now playing"
+                  }
+                 ]
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         },
+         {
+          "richItemRenderer": {
+           "content": {
+            "playlistRenderer": {
+             "playlistId": "OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8",
+             "title": {
+              "simpleText": "The Life of a Showgirl + Acoustic Collection"
+             },
+             "thumbnails": [
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/ko70cExuzZM/hqdefault.jpg?sqp=-oaymwEXCOADEI4CSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLAm0l7ADtDF-t0G1HreXfTPpuUqWg",
+                 "width": 480,
+                 "height": 270
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/4Mg_Qtr6Osg/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              },
+              {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/4FUIEcnvT04/default.jpg",
+                 "width": 43,
+                 "height": 20
+                }
+               ]
+              }
+             ],
+             "videoCount": "19",
+             "navigationEndpoint": {
+              "commandMetadata": {
+               "webCommandMetadata": {
+                "url": "/watch?v=ko70cExuzZM&list=OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8&pp=0gcJCX0DOCosWNin",
+                "webPageType": "WEB_PAGE_TYPE_WATCH",
+                "rootVe": 3832
+               }
+              },
+              "watchEndpoint": {
+               "videoId": "ko70cExuzZM",
+               "playlistId": "OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8",
+               "params": "OAI%3D",
+               "playerParams": "0gcJCX0DOCosWNin",
+               "loggingContext": {
+                "vssLoggingContext": {
+                 "serializedContextData": "GilPTEFLNXV5X21mY1ZFUDF0REZWakM2X2tFcHZCTUVORlRadjFxcWVYOA%3D%3D"
+                }
+               },
+               "watchEndpointSupportedOnesieConfig": {
+                "html5PlaybackOnesieConfig": {
+                 "commonConfig": {
+                  "url": "https://rr8---sn-5jucgv5qc5oq-h55e7.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=928ef4704c6ecd93&ip=REDACTED&initcwndbps=3091875&mt=1795419431&oweuc="
+                 }
+                }
+               }
+              }
+             },
+             "shortBylineText": {
+              "runs": [
+               {
+                "text": "Taylor Swift",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Album",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               }
+              ]
+             },
+             "videos": [
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Taylor Swift - The Fate of Ophelia (Official Music Video)"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=ko70cExuzZM&list=OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "ko70cExuzZM",
+                  "playlistId": "OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GilPTEFLNXV5X21mY1ZFUDF0REZWakM2X2tFcHZCTUVORlRadjFxcWVYOA%3D%3D"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr8---sn-5jucgv5qc5oq-h55e7.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=928ef4704c6ecd93&ip=REDACTED&initcwndbps=3091875&mt=1795419431&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "3 minutes, 59 seconds"
+                  }
+                 },
+                 "simpleText": "3:59"
+                },
+                "videoId": "ko70cExuzZM"
+               }
+              },
+              {
+               "childVideoRenderer": {
+                "title": {
+                 "simpleText": "Taylor Swift - Elizabeth Taylor (Visualizer)"
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=4Mg_Qtr6Osg&list=OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8&pp=0gcJCRYF0aJEHMZM",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "4Mg_Qtr6Osg",
+                  "playlistId": "OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8",
+                  "playerParams": "0gcJCRYF0aJEHMZM",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GilPTEFLNXV5X21mY1ZFUDF0REZWakM2X2tFcHZCTUVORlRadjFxcWVYOA%3D%3D"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr3---sn-5jucgv5qc5oq-h55es.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=e0c83f42dafa3ac8&ip=REDACTED&initcwndbps=3091875&mt=1795419431&oweuc="
+                    }
+                   }
+                  }
+                 }
+                },
+                "lengthText": {
+                 "accessibility": {
+                  "accessibilityData": {
+                   "label": "3 minutes, 32 seconds"
+                  }
+                 },
+                 "simpleText": "3:32"
+                },
+                "videoId": "4Mg_Qtr6Osg"
+               }
+              }
+             ],
+             "videoCountText": {
+              "runs": [
+               {
+                "text": "19"
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "thumbnailText": {
+              "runs": [
+               {
+                "text": "19",
+                "bold": true
+               },
+               {
+                "text": " videos"
+               }
+              ]
+             },
+             "longBylineText": {
+              "runs": [
+               {
+                "text": "Taylor Swift",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               },
+               {
+                "text": " · "
+               },
+               {
+                "text": "Album",
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCqECaJ8Gagnn7YCbPEzWH6g",
+                  "canonicalBaseUrl": "/channel/UCqECaJ8Gagnn7YCbPEzWH6g"
+                 }
+                }
+               }
+              ]
+             },
+             "thumbnailRenderer": {
+              "playlistCustomThumbnailRenderer": {
+               "thumbnail": {
+                "thumbnails": [
+                 {
+                  "url": "https://i9.ytimg.com/s_p/OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8/mqdefault.jpg?sqp=CPzdj9gGir7X7AMICOSbtsgGEAE=&rs=AOn4CLD6CIYkqaPW6ukz3IQ1_KNi9XNKdA&v=1762495972",
+                  "width": 180,
+                  "height": 180
+                 },
+                 {
+                  "url": "https://i9.ytimg.com/s_p/OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8/sddefault.jpg?sqp=CPzdj9gGir7X7AMICOSbtsgGEAE=&rs=AOn4CLB1LuyOxTm-BLCCuPf6g-pvBdqFVQ&v=1762495972",
+                  "width": 640,
+                  "height": 640
+                 },
+                 {
+                  "url": "https://i9.ytimg.com/s_p/OLAK5uy_mfcVEP1tDFVjC6_kEpvBMENFTZv1qqeX8/maxresdefault.jpg?sqp=CPzdj9gGir7X7AMICOSbtsgGEAE=&rs=AOn4CLBhgByXq3Sx8dKUmhygVMIlHQZKPg&v=1762495972",
+                  "width": 1200,
+                  "height": 1200
+                 }
+                ],
+                "sampledThumbnailColor": {
+                 "red": 89,
+                 "green": 64,
+                 "blue": 56
+                },
+                "darkColorPalette": {
+                 "section2Color": 3351584,
+                 "iconInactiveColor": 9665910,
+                 "iconDisabledColor": 6311753
+                },
+                "vibrantColorPalette": {
+                 "iconInactiveColor": 10057323
+                }
+               }
+              }
+             },
+             "thumbnailOverlays": [
+              {
+               "thumbnailOverlayBottomPanelRenderer": {
+                "text": {
+                 "simpleText": "19 songs"
+                },
+                "icon": {
+                 "iconType": "MUSIC"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayHoverTextRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Play all"
+                  }
+                 ]
+                },
+                "icon": {
+                 "iconType": "PLAY_ALL"
+                }
+               }
+              },
+              {
+               "thumbnailOverlayNowPlayingRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "Now playing"
+                  }
+                 ]
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         },
+         {
+          "continuationItemRenderer": {
+           "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+           "continuationEndpoint": {
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "sendPost": true,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "continuationCommand": {
+             "token": "4qmFsgLlARIYVUNxRUNhSjhHYWdubjdZQ2JQRXpXSDZnGsgBOGdhTkFScUtBWklCaGdFS2d3RUtXMFZwYzFOTFZUbE5VVlZ6TVdSWWJHWmlWM1JTVWpKR2RHRlViRFpoUlRGVFRYcFNiMU14VG1GYU1GRTFVMGR3TlZKSVFYUlZSbkJ5VlVoYWRrdEVTWGRCVkdkbFVXZHpTVzVQUTFBeVFWbFJibTk2U2xSRlowSlZRVUVTSkRjek9Ea3lZVFkwTFRBd01EQXRNbVl6T1MxaU5XTXdMVE5qTWpnMlpEUm1abU15TWclM0QlM0Q%3D",
+             "request": "CONTINUATION_REQUEST_TYPE_BROWSE"
+            }
+           }
+          }
+         }
+        ],
+        "targetId": "73892a64-0000-2f39-b5c0-3c286d4ffc22",
+        "style": "RICH_GRID_STYLE_SLIM"
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

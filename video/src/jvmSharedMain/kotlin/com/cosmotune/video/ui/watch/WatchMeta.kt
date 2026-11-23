@@ -1,5 +1,6 @@
 package com.cosmotune.video.ui.watch
 
+import com.cosmotune.video.ui.branding.rememberWholeVideoLabel
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.draw.clip
@@ -182,7 +183,8 @@ private fun WatchMetaLine(info: WatchInfo, sidePadding: Dp, onOpen: (() -> Unit)
     val look = orbitLook()
     val more = stringResource(Res.string.video_show_more)
     val first = description?.lineSequence()?.map { it.trim() }?.firstOrNull { it.isNotEmpty() }
-    val line = listOfNotNull(MetaLine(info.item, rememberNowMs(), showChannel = false).takeIf { it.isNotEmpty() }, first).joinToString(" · ")
+    val whole = rememberWholeVideoLabel(info.item)
+    val line = listOfNotNull(MetaLine(info.item, rememberNowMs(), showChannel = false).takeIf { it.isNotEmpty() }, whole, first).joinToString(" · ")
     if (line.isEmpty() && onOpen == null) return
     val openLabel = stringResource(Res.string.video_description)
     val tap = if (onOpen != null) Modifier.clickable(onClickLabel = openLabel, role = Role.Button, onClick = onOpen) else Modifier

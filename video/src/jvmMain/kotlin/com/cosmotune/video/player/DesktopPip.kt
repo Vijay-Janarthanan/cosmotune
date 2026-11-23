@@ -159,7 +159,10 @@ internal fun videoPipSource(playback: VideoPlayback, surface: VideoSurfaceProvid
         previous = playback::playPrevious,
         next = playback::playNext,
         picture = { m -> surface.Surface(m, VideoScale.FIT) },
-        overlay = { SubtitleOverlay(cues, SUBTITLE_SP, options.captionsScale, options.captionsBackground, lift = { 0f }, liftDp = 0.dp) },
+        overlay = { SubtitleOverlay(
+            cues, SUBTITLE_SP, options.captionsScale, options.captionsBackground, lift = { 0f }, liftDp = 0.dp,
+            color = androidx.compose.ui.graphics.Color(options.captionsColor.argb), top = options.captionsTop,
+        ) },
         onKey = { event, close -> onKey(event, playback, options, close) },
         onClose = { if (playback.state.value.playing) playback.togglePlayPause() },
         isPlaying = { playback.state.value.playing },

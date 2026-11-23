@@ -72,6 +72,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         // Phone and TV look for a newer release when the app comes back to the front, not only at launch (main process only,
         // after the proxy and offline mode are in place).
         com.cosmotune.music.data.AppUpdateChecker.watchForeground(this)
+        // Video mode's new-video alerts and automatic backups (the job itself does nothing while neither is on).
+        com.cosmotune.video.background.VideoBackgroundWorker.schedule(this)
         // The player is drawn by the shared UI module; this is what it reads
         // underneath — settings, the Canvas decoder, outputs, the party.
         AndroidStreamHooks.installEarly()

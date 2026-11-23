@@ -69,6 +69,7 @@ class OkHttpFeedFetcher(private val client: OkHttpClient = defaultClient()) : Fe
          * the whole call, and room for the six channels the engine reads at once.
          */
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+            .proxySelector(com.cosmotune.video.source.VideoProxy.selector)
             .dispatcher(Dispatcher().apply { maxRequestsPerHost = FeedPolicy.CONCURRENCY; maxRequests = FeedPolicy.CONCURRENCY * 2 })
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)

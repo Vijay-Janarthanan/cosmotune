@@ -26,6 +26,8 @@ data class VideoItem(
     val isShort: Boolean = false,
     val snippet: String? = null,
     val playlist: PlaylistRef? = null,
+    /** Only the channel's paying members (or buyers) can watch it. */
+    val isPaid: Boolean = false,
 ) {
     /** Whether this card stands for a mix or a playlist the site suggests (it is not a video: [id] is not a video id). */
     val isPlaylistCard: Boolean get() = playlist != null

@@ -77,7 +77,7 @@ class ImportDetectorTest {
         assertEquals(ImportFormat.UNKNOWN, detect("empty.csv", ByteArray(0)))
         assertEquals(ImportFormat.UNKNOWN, detect("note.txt", "just some words\r\non two lines\r\n".encodeToByteArray()))
         assertEquals(ImportFormat.UNKNOWN, detect("picture.png", byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 0, 1, 2, 3)))
-        assertEquals(ImportFormat.UNKNOWN, detect("x.json", """{"watchHistory": [], "subscriptions": [{"channelId": "UC"}]}""".encodeToByteArray()), "another app's backup")
+        assertEquals(ImportFormat.LIBRETUBE, detect("x.json", """{"watchHistory": [], "subscriptions": [{"channelId": "UC"}]}""".encodeToByteArray()), "LibreTube's backup")
         assertEquals(ImportFormat.UNKNOWN, detectFixture("playlists-index.csv"), "the index alone holds no videos")
         assertEquals(ImportFormat.UNKNOWN, detect("raw.db", "SQLite format 3\u0000 and more".encodeToByteArray()), "only the backup ZIP is read")
     }

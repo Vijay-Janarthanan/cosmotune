@@ -47,6 +47,12 @@ class SubtitleFetcher(
         throw last ?: IOException("No attempt was made")
     }
 
+    /** [track] as WebVTT text (the watch page's transcript); one attempt, throws [IOException] when it fails. */
+    suspend fun vtt(track: SubtitleTrack, headers: Map<String, String> = emptyMap()): String {
+        val text = get(track.url, headers)
+        return SubtitleFiles.toVtt(text, SubtitleFormat.of(track.mimeType, track.url, text))
+    }
+
     private suspend fun get(url: String, headers: Map<String, String>): String {
         val builder = Request.Builder().url(url).get()
         headers.forEach { (name, value) -> builder.header(name, value) }

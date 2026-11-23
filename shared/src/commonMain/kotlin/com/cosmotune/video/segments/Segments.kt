@@ -75,7 +75,39 @@ data class SkipSegment(
 interface SegmentProvider {
     /** The segments of [videoId] in [categories]; empty when the video has none. */
     suspend fun segments(videoId: String, categories: Set<SegmentCategory>): List<SkipSegment>
+
+    /** Sends a segment the listener marked by hand; a provider that cannot send says so. */
+    suspend fun submit(submission: SegmentSubmission): SubmitResult = SubmitResult.FAILED
 }
+
+/**
+ * A segment marked by hand: the video, its length, the part and its category. [userId] is the listener's own random id (made on
+ * this device, never shown), which SponsorBlock uses to weigh and limit what one person sends.
+ */
+data class SegmentSubmission(
+    val videoId: String,
+    val userId: String,
+    val videoDurationMs: Long,
+    val startMs: Long,
+    val endMs: Long,
+    val category: SegmentCategory,
+) {
+    /** Whether it may be sent: a skippable category, at least one second long, inside the video. */
+    val isValid: Boolean
+        get() = SegmentAction.SKIP in category.actions && startMs >= 0 && endMs - startMs >= MIN_LENGTH_MS &&
+            (videoDurationMs <= 0 || endMs <= videoDurationMs + 1_000)
+
+    companion object {
+        /** The shortest segment worth sending. */
+        const val MIN_LENGTH_MS = 1_000L
+
+        /** The categories a listener can mark by hand, in the order the player lists them. */
+        val CATEGORIES: List<SegmentCategory> = SegmentCategory.entries.filter { SegmentAction.SKIP in it.actions }
+    }
+}
+
+/** What became of a sent segment. */
+enum class SubmitResult { SENT, ALREADY_THERE, REFUSED, TOO_MANY, FAILED }
 
 /** DeArrow's branding of a video (spec 7.2): a better title, the moment of a better thumbnail and its address. */
 data class Branding(val title: String?, val thumbnailTimeMs: Long?, val thumbnailUrl: String?)

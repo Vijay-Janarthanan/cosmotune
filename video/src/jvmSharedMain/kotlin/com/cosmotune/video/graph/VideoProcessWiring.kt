@@ -105,3 +105,15 @@ internal fun CoroutineScope.followSmoothness(settings: VideoSettingsRepository, 
 
 /** [chosen] when it is set, else [device]. */
 private fun regionOf(chosen: String?, device: String): String = chosen?.takeIf { it.isNotBlank() } ?: device
+
+/** Hands the volume boost, the voice boost and skip silence to [engine] as they change (Settings, Playback). */
+internal fun CoroutineScope.followAudio(settings: VideoSettingsRepository, engine: VideoPlayerEngine): Job =
+    launch {
+        settings.settings
+            .map { Triple(it.volumeBoost, it.voiceBoost, it.skipSilence) }
+            .distinctUntilChanged()
+            .collect { (boost, voice, silence) ->
+                engine.setAudioBoost(boost, voice)
+                engine.setSkipSilence(silence)
+            }
+    }

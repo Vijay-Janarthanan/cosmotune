@@ -1,0 +1,202 @@
+{
+ "continuationContents": {
+  "liveChatContinuation": {
+   "continuations": [
+    {
+     "liveChatReplayContinuationData": {
+      "timeUntilLastMessageMsec": 5000,
+      "continuation": "op2w0wR-Gl5DaWtxSndvWVZVTmthbVExV1hjMVJuVnBSRWhzZHpBNE4xQklUbGhCRWd0blVrdEpaMTl1TmxORVNSb1Q2cWpkdVFFTkNndG5Va3RKWjE5dU5sTkVTU0FCTUFBJTNEKNTco8EPQABIA1IIIACwAQD4AQByBggEGAEwAHgA"
+     }
+    },
+    {
+     "playerSeekContinuationData": {
+      "continuation": "op2w0wR-Gl5DaWtxSndvWVZVTmthbVExV1hjMVJuVnBSRWhzZHpBNE4xQklUbGhCRWd0blVrdEpaMTl1TmxORVNSb1Q2cWpkdVFFTkNndG5Va3RKWjE5dU5sTkVTU0FCTUFBJTNEKNTco8EPQABIBFIIIACwAQD4AQByBggEGAEwAHgA"
+     }
+    }
+   ],
+   "actions": [
+    {
+     "replayChatItemAction": {
+      "actions": [
+       {
+        "addChatItemAction": {
+         "item": {
+          "liveChatViewerEngagementMessageRenderer": {
+           "id": "CiMKIVJFUExBWV9WRU0yMDI2LzExLzIyLTIzOjQ3OjQ4LjcxNw%3D%3D",
+           "timestampUsec": "1795420068717654",
+           "icon": {
+            "iconType": "YOUTUBE_ROUND"
+           },
+           "message": {
+            "runs": [
+             {
+              "text": "message 5 "
+             }
+            ]
+           }
+          }
+         }
+        }
+       }
+      ],
+      "videoOffsetTimeMsec": "0"
+     }
+    },
+    {
+     "replayChatItemAction": {
+      "actions": [
+       {
+        "addChatItemAction": {
+         "item": {
+          "liveChatTextMessageRenderer": {
+           "message": {
+            "runs": [
+             {
+              "text": "message 6 "
+             },
+             {
+              "text": "https://example.com/link"
+             }
+            ]
+           },
+           "authorName": {
+            "simpleText": "Viewer 4"
+           },
+           "authorPhoto": {
+            "thumbnails": [
+             {
+              "url": "https://yt4.ggpht.com/photo=s32",
+              "width": 32,
+              "height": 32
+             },
+             {
+              "url": "https://yt4.ggpht.com/photo=s64",
+              "width": 64,
+              "height": 64
+             }
+            ]
+           },
+           "id": "ChwKGkNLbWZvWUt3bXBnREZYc3Bzd0FkYzJrTzFB",
+           "timestampUsec": "1795309219382661",
+           "authorBadges": [
+            {
+             "liveChatAuthorBadgeRenderer": {
+              "icon": {
+               "iconType": "OWNER"
+              },
+              "tooltip": "Owner",
+              "accessibility": {
+               "accessibilityData": {
+                "label": "Owner"
+               }
+              }
+             }
+            }
+           ],
+           "authorExternalChannelId": "UCviewer",
+           "timestampText": {
+            "simpleText": "0:02"
+           }
+          }
+         }
+        }
+       }
+      ],
+      "videoOffsetTimeMsec": "2113"
+     }
+    },
+    {
+     "replayChatItemAction": {
+      "actions": [
+       {
+        "addChatItemAction": {
+         "item": {
+          "liveChatTextMessageRenderer": {
+           "message": {
+            "runs": [
+             {
+              "text": "message 8 "
+             }
+            ]
+           },
+           "authorName": {
+            "simpleText": "Viewer 5"
+           },
+           "authorPhoto": {
+            "thumbnails": [
+             {
+              "url": "https://yt4.ggpht.com/photo=s32",
+              "width": 32,
+              "height": 32
+             },
+             {
+              "url": "https://yt4.ggpht.com/photo=s64",
+              "width": 64,
+              "height": 64
+             }
+            ]
+           },
+           "id": "ChwKGkNKYi04cld3bXBnREZhUG1jZ2tkZ1FBUEFR",
+           "timestampUsec": "1795309327669968",
+           "authorExternalChannelId": "UCviewer",
+           "timestampText": {
+            "simpleText": "1:50"
+           }
+          }
+         }
+        }
+       }
+      ],
+      "videoOffsetTimeMsec": "110416"
+     }
+    },
+    {
+     "replayChatItemAction": {
+      "actions": [
+       {
+        "addChatItemAction": {
+         "item": {
+          "liveChatTextMessageRenderer": {
+           "message": {
+            "runs": [
+             {
+              "text": "message 9 "
+             }
+            ]
+           },
+           "authorName": {
+            "simpleText": "Viewer 6"
+           },
+           "authorPhoto": {
+            "thumbnails": [
+             {
+              "url": "https://yt4.ggpht.com/photo=s32",
+              "width": 32,
+              "height": 32
+             },
+             {
+              "url": "https://yt4.ggpht.com/photo=s64",
+              "width": 64,
+              "height": 64
+             }
+            ]
+           },
+           "id": "ChwKGkNQQ2E2Y3l3bXBnREZSbjE0d2NkRTQwZlBn",
+           "timestampUsec": "1795309375743173",
+           "authorExternalChannelId": "UCviewer",
+           "timestampText": {
+            "simpleText": "2:38"
+           }
+          }
+         }
+        }
+       }
+      ],
+      "videoOffsetTimeMsec": "158568"
+     }
+    }
+   ],
+   "isReplay": true
+  }
+ }
+}

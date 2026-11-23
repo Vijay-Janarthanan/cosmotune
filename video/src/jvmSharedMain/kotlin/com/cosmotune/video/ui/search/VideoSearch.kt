@@ -53,6 +53,7 @@ import com.cosmotune.video.resources.video_filter_playlists
 import com.cosmotune.video.resources.video_filter_shorts
 import com.cosmotune.video.resources.video_filter_videos
 import com.cosmotune.video.resources.video_search_hint
+import com.cosmotune.video.resources.video_search_voice
 import com.cosmotune.video.shorts.ShortsOrigin
 import com.cosmotune.video.ui.actions.rememberDownloadedIds
 import com.cosmotune.video.ui.actions.rememberVideoActions
@@ -126,6 +127,7 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
     // What is typed: in the page's own field, or in the desktop sidebar's (which the route's query drives).
     val sidebar = sidebarSearchShown()
     var own by rememberSaveable(route.query) { mutableStateOf(route.query) }
+    val voice = rememberVoiceInput()
     val typed = if (sidebar) DesktopVideoState.query else own
     val submitted = route.query.trim()
     val mode = searchMode(typed, submitted)
@@ -164,7 +166,8 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
     // The results of this search with this filter: the tab the session cache holds for them, loaded when the page shows them.
     val tab = if (mode == SearchMode.RESULTS) remember(source, submitted, filter) { SearchSessions.tab(source, submitted, filter) } else null
     if (tab != null) LaunchedEffect(tab) { tab.start(scope) }
-    val visible: List<ListItem> = if (tab != null) remember(tab.items, hideShorts) { visibleResults(tab.items, hideShorts) } else emptyList()
+    val contentFilter = com.cosmotune.video.ui.blocks.rememberContentFilter()
+    val visible: List<ListItem> = if (tab != null) remember(tab.items, hideShorts, contentFilter) { visibleResults(tab.items, hideShorts, contentFilter) } else emptyList()
     val videos = remember(visible) { visible.mapNotNull { (it as? ListItem.Video)?.item } }
 
     val suggestions by rememberSuggestions(source, typed, active = mode == SearchMode.TYPING)
@@ -209,6 +212,17 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
         contentPadding = PaddingValues(top = contentPadding.calculateTopPadding(), bottom = bottom),
         // On the desktop the header's field is the box.
         showField = !sidebar,
+        // Voice search, where the device can listen: the words heard are searched for.
+        fieldTrailing = voice?.let { input ->
+            {
+                com.cosmotune.ui.components.CosmoIconButton(
+                    icon = com.cosmotune.video.ui.VideoIcons.Mic,
+                    contentDescription = stringResource(Res.string.video_search_voice),
+                    onClick = { input.listen { words -> own = words; submit(words) } },
+                    size = 40.dp,
+                )
+            }
+        },
         columnMaxWidth = if (wide) LIST_MAX_WIDTH else androidx.compose.ui.unit.Dp.Unspecified,
         // The source's own kinds; it has no upload-date, length or sort filter to offer.
         kinds = filters.map { CosmoSearchChoice(it.name, filterLabel(it)) },

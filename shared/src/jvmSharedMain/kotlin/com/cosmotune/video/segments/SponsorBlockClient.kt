@@ -4,6 +4,11 @@ import com.cosmotune.music.data.DebugLog
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import kotlin.coroutines.cancellation.CancellationException
@@ -41,6 +46,31 @@ class SponsorBlockClient(
         val key = "$videoId:${categories.fold(0) { mask, c -> mask or (1 shl c.ordinal) }}"
         val raw = cache.get(key) ?: fetch(videoId, categories)?.also { cache.put(key, it) } ?: return emptyList()
         return SegmentMath.prepare(raw, videoDurationMs, SegmentMath::sameCategory)
+    }
+
+    /**
+     * Sends a segment marked by hand (`POST /api/skipSegments`, the JSON form): 200 is sent, 409 already there, 429 too many,
+     * any other 4xx refused (too short, the user is limited, the video is locked), anything else failed. A sent segment drops
+     * the video's cached answers, so the next lookup sees it.
+     */
+    override suspend fun submit(submission: SegmentSubmission): SubmitResult {
+        if (!submission.isValid || !WebServicesHttp.isVideoId(submission.videoId)) return SubmitResult.REFUSED
+        val url = base.newBuilder().addPathSegments("api/skipSegments").build()
+        val answer = try {
+            WebServicesHttp.postJson(http, url, submissionJson(submission, userAgent), userAgent)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DebugLog.w(TAG, "submit failed: ${e.javaClass.simpleName}")
+            return SubmitResult.FAILED
+        }
+        return when (answer.code) {
+            in 200..299 -> SubmitResult.SENT.also { cache.removeWhere { key -> key.startsWith(submission.videoId + ":") } }
+            409 -> SubmitResult.ALREADY_THERE
+            429 -> SubmitResult.TOO_MANY
+            in 400..499 -> SubmitResult.REFUSED
+            else -> SubmitResult.FAILED
+        }.also { if (it != SubmitResult.SENT) DebugLog.w(TAG, "submit answered ${answer.code}") }
     }
 
     /** The parsed segments, an empty list for a 404, or null when the request failed. */
@@ -115,6 +145,24 @@ class SponsorBlockClient(
     }
 
     companion object {
+        /** The body of a submission: seconds with three decimals, the skip action, the app as the agent. */
+        internal fun submissionJson(submission: SegmentSubmission, userAgent: String): String = buildJsonObject {
+            put("videoID", submission.videoId)
+            put("userID", submission.userId)
+            put("userAgent", userAgent)
+            if (submission.videoDurationMs > 0) put("videoDuration", submission.videoDurationMs / 1000.0)
+            putJsonArray("segments") {
+                addJsonObject {
+                    putJsonArray("segment") {
+                        add(submission.startMs / 1000.0)
+                        add(submission.endMs / 1000.0)
+                    }
+                    put("category", submission.category.apiName)
+                    put("actionType", "skip")
+                }
+            }
+        }.toString()
+
         /** The service (spec 2.3). */
         const val DEFAULT_BASE_URL = "https://sponsor.ajay.app"
 

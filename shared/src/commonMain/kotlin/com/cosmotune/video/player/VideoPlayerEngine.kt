@@ -152,6 +152,8 @@ data class EngineCapabilities(
     val autoCeilingHeight: Int?,
     val frameSmoothing: Boolean = false,
     val frameSmoothingExperimental: Boolean = false,
+    /** Whether [VideoPlayerEngine.setSkipSilence] does anything (the phone's player can; the desktop's cannot keep the picture in step). */
+    val skipSilence: Boolean = false,
 )
 
 /**
@@ -255,6 +257,21 @@ interface VideoPlayerEngine {
 
     /** The player's own options (mpv's, as in an mpv.conf, already checked), applied now and at every load; dropped ones go back to what they were. */
     fun setPlayerOptions(options: Map<String, String>) {}
+
+    /**
+     * Makes quiet videos louder: [boost] is the volume in percent over the normal level (100 is none, up to 200); [voice] lifts
+     * the speech band and evens out loud and soft parts. The default does nothing.
+     */
+    fun setAudioBoost(boost: Int, voice: Boolean) {}
+
+    /** Skips the silent parts (lectures, podcasts filmed as video). The default does nothing ([EngineCapabilities.skipSilence]). */
+    fun setSkipSilence(on: Boolean) {}
+
+    /**
+     * Writes the picture showing now to [path] (a PNG) and says whether it did. The default cannot (the phone grabs the picture from
+     * its screen instead).
+     */
+    suspend fun screenshot(path: String): Boolean = false
 
     /** Frees the player; the engine is not used again. */
     fun release()

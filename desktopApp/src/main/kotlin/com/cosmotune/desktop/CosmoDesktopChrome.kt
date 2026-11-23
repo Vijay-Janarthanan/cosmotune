@@ -133,6 +133,10 @@ internal fun CosmoDesktopTopBar(
  */
 @Composable
 private fun DesktopLiveNowPill() {
+    // Video's new-video alerts for belled channels, told through the tray (started once per process).
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.cosmotune.video.graph.watchNewUploads { title, text -> com.cosmotune.music.desktop.DesktopAwtTray.notify(title, text) }
+    }
     val settings = com.cosmotune.ui.live.rememberLiveNowSettings()
     val look = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings
     val host = androidx.compose.runtime.remember(settings, look) {

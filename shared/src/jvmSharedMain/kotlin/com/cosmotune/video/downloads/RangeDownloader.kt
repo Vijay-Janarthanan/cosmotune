@@ -166,6 +166,7 @@ class RangeDownloader(
     companion object {
         /** A client for Video's downloads: no cookie jar (no account), redirects followed, generous read timeout for large ranges. */
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+            .proxySelector(com.cosmotune.video.source.VideoProxy.selector)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .followRedirects(true)

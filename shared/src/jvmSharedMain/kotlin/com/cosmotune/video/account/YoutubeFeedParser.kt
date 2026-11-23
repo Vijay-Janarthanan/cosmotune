@@ -332,7 +332,9 @@ internal object YoutubeFeedParser {
                     mixCard(node, id)?.let { mixCards.add(MixCard(videos.size, it)) }
                 }
                 type.endsWith("_CHANNEL") -> item("lockup:$type") { channelLockup(node, id)?.let(channels::add) }
-                // Podcasts, albums, courses, products: nothing Video mode lists.
+                // A podcast is a playlist (a channel page's Podcasts tab); it never becomes one of Home's mix cards.
+                type.endsWith("_PODCAST") -> item("lockup:$type") { playlistLockup(node, id)?.let(playlists::add) }
+                // Albums, products: nothing Video mode lists.
                 else -> Unit
             }
         }
@@ -407,7 +409,18 @@ internal object YoutubeFeedParser {
             isLive = live,
             isUpcoming = upcoming,
             isShort = isShort,
+            isPaid = membersOnly(node),
         )
+    }
+
+    /** Whether a lockup carries the members-only badge (its style names it, wherever the site puts it). */
+    private fun membersOnly(node: JsonElement?): Boolean = when (node) {
+        is JsonObject -> node.entries.any { (key, value) ->
+            ((key == "badgeStyle" || key == "style") && (value as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty().contains("MEMBERS_ONLY")) ||
+                membersOnly(value)
+        }
+        is JsonArray -> node.any(::membersOnly)
+        else -> false
     }
 
     private fun shortsLockup(node: JsonObject): VideoItem? {
@@ -499,6 +512,7 @@ internal object YoutubeFeedParser {
             isLive = live,
             isUpcoming = upcoming,
             isShort = short,
+            isPaid = badgeStyles.any { it.contains("MEMBERS_ONLY") },
         )
     }
 

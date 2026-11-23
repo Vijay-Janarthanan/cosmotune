@@ -1,5 +1,13 @@
 package com.cosmotune.video.ui.library
 
+import com.cosmotune.video.resources.video_settings_imported
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import com.cosmotune.video.settings.SettingsTransfer
+import com.cosmotune.video.resources.video_settings_import
+import com.cosmotune.video.resources.video_settings_export
+import com.cosmotune.video.resources.video_settings_file
 import androidx.compose.foundation.background
 import com.cosmotune.ui.orbit.OrbitActionPill
 import com.cosmotune.ui.orbit.OrbitProgressLine
@@ -69,6 +77,13 @@ import com.cosmotune.video.resources.video_import_opml
 import com.cosmotune.video.resources.video_import_skipped
 import com.cosmotune.video.resources.video_import_summary
 import com.cosmotune.video.resources.video_import_takeout
+import com.cosmotune.video.resources.video_downloads_added
+import com.cosmotune.video.resources.video_downloads_export
+import com.cosmotune.video.resources.video_downloads_file
+import com.cosmotune.video.resources.video_downloads_import
+import com.cosmotune.video.downloads.DownloadListFile
+import com.cosmotune.video.resources.video_import_freetube
+import com.cosmotune.video.resources.video_import_libretube
 import com.cosmotune.video.resources.video_set_export
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.music.sharedui.resources.cancel
@@ -104,10 +119,57 @@ fun ImportPage(contentPadding: PaddingValues, wide: Boolean) {
         onOpened = { state.read(it) },
         onCreated = { file -> state.export(file) { written -> toast.show(if (written) PageToastMessage.Saved(file.name) else PageToastMessage.NotSaved) } },
     )
+    // Settings alone, apart from the library: their own small file, to carry them to another device or keep them.
+    val settingsPicker = rememberFilePicker(
+        onOpened = { file ->
+            scope.launch {
+                val read = withContext(Dispatchers.IO) {
+                    runCatching { file.open().use { it.readBytes().decodeToString() } }.getOrNull()?.let(SettingsTransfer::read)
+                }
+                if (read != null) graph.settings.update { SettingsTransfer.apply(it, read) }
+                toast.show(if (read != null) PageToastMessage.SettingsImported else PageToastMessage.NotSaved)
+            }
+        },
+        onCreated = { file ->
+            scope.launch {
+                val written = withContext(Dispatchers.IO) {
+                    runCatching { file.open().use { it.write(SettingsTransfer.write(graph.settings.settings.value).encodeToByteArray()) } }.isSuccess
+                }
+                toast.show(if (written) PageToastMessage.Saved(file.name) else PageToastMessage.NotSaved)
+            }
+        },
+    )
+    // The download list, apart from the library: to download the same videos on another device, or again after the files were lost.
+    val downloadsPicker = rememberFilePicker(
+        onOpened = { file ->
+            scope.launch {
+                val list = withContext(Dispatchers.IO) {
+                    runCatching { file.open().use { it.readBytes().decodeToString() } }.getOrNull()?.let(DownloadListFile::read)
+                }
+                if (list == null) {
+                    toast.show(PageToastMessage.NotSaved)
+                } else {
+                    val missing = DownloadListFile.missing(list, graph.downloads.downloads.value)
+                    com.cosmotune.video.ui.actions.queueSavedDownloads(graph.downloads, missing)
+                    toast.show(PageToastMessage.DownloadsAdded(missing.size))
+                }
+            }
+        },
+        onCreated = { file ->
+            scope.launch {
+                val written = withContext(Dispatchers.IO) {
+                    runCatching { file.open().use { it.write(DownloadListFile.write(graph.downloads.downloads.value).encodeToByteArray()) } }.isSuccess
+                }
+                toast.show(if (written) PageToastMessage.Saved(file.name) else PageToastMessage.NotSaved)
+            }
+        },
+    )
     val rows = listOf(
         ImportRow(ImportKind.NEWPIPE_SUBSCRIPTIONS, VideoIcons.Subscriptions, Res.string.video_import_newpipe_subs),
         ImportRow(ImportKind.NEWPIPE_BACKUP, VideoIcons.History, Res.string.video_import_newpipe_db),
         ImportRow(ImportKind.TAKEOUT, CosmoIcons.Library, Res.string.video_import_takeout),
+        ImportRow(ImportKind.FREETUBE, VideoIcons.History, Res.string.video_import_freetube),
+        ImportRow(ImportKind.LIBRETUBE, VideoIcons.History, Res.string.video_import_libretube),
         ImportRow(ImportKind.OPML, CosmoIcons.List, Res.string.video_import_opml),
         ImportRow(ImportKind.COSMOTUNE, CosmoIcons.Download, Res.string.video_import_cosmotune),
     )
@@ -137,6 +199,44 @@ fun ImportPage(contentPadding: PaddingValues, wide: Boolean) {
                     stringResource(Res.string.video_set_export),
                     count = null,
                     onClick = { picker.create(LibraryPlan.exportFileName(LocalDate.now()), LibraryPlan.EXPORT_MIME) },
+                    modifier = cell,
+                )
+            }
+            item(key = "downloads:header") { OrbitGroupLabel(stringResource(Res.string.video_downloads_file), cell) }
+            item(key = "downloads:export") {
+                LinkRow(
+                    VideoIcons.Upload,
+                    stringResource(Res.string.video_downloads_export),
+                    count = null,
+                    onClick = { downloadsPicker.create("cosmotune-video-downloads-${LocalDate.now()}.json", LibraryPlan.EXPORT_MIME) },
+                    modifier = cell,
+                )
+            }
+            item(key = "downloads:import") {
+                LinkRow(
+                    CosmoIcons.Download,
+                    stringResource(Res.string.video_downloads_import),
+                    count = null,
+                    onClick = { downloadsPicker.open(listOf(LibraryPlan.EXPORT_MIME)) },
+                    modifier = cell,
+                )
+            }
+            item(key = "settings:header") { OrbitGroupLabel(stringResource(Res.string.video_settings_file), cell) }
+            item(key = "settings:export") {
+                LinkRow(
+                    VideoIcons.Upload,
+                    stringResource(Res.string.video_settings_export),
+                    count = null,
+                    onClick = { settingsPicker.create("cosmotune-video-settings-${LocalDate.now()}.json", LibraryPlan.EXPORT_MIME) },
+                    modifier = cell,
+                )
+            }
+            item(key = "settings:import") {
+                LinkRow(
+                    CosmoIcons.Download,
+                    stringResource(Res.string.video_settings_import),
+                    count = null,
+                    onClick = { settingsPicker.open(listOf(LibraryPlan.EXPORT_MIME)) },
                     modifier = cell,
                 )
             }
@@ -256,6 +356,10 @@ private sealed interface PageToastMessage {
     data class Saved(val name: String) : PageToastMessage
 
     data object NotSaved : PageToastMessage
+
+    data object SettingsImported : PageToastMessage
+
+    data class DownloadsAdded(val count: Int) : PageToastMessage
 }
 
 /** The page's own toast: [show] puts it up for 4 s; a second one replaces it. */
@@ -284,6 +388,8 @@ private fun PageToast(toast: PageToastState, contentPadding: PaddingValues) {
     val message = when (shown) {
         is PageToastMessage.Saved -> stringResource(Res.string.video_export_done, shown.name)
         PageToastMessage.NotSaved -> stringResource(Res.string.video_import_failed)
+        PageToastMessage.SettingsImported -> stringResource(Res.string.video_settings_imported)
+        is PageToastMessage.DownloadsAdded -> pluralStringResource(Res.plurals.video_downloads_added, shown.count, shown.count)
     }
     LaunchedEffect(serial) {
         delay(TOAST_MS)

@@ -1,5 +1,19 @@
 package com.cosmotune.video.ui.library
 
+import com.cosmotune.video.resources.video_history_month
+import com.cosmotune.video.resources.video_history_week
+import com.cosmotune.video.resources.video_history_today
+import com.cosmotune.video.resources.video_history_any_time
+import com.cosmotune.video.resources.video_history_least
+import com.cosmotune.video.resources.video_history_most
+import com.cosmotune.video.resources.video_history_name
+import com.cosmotune.video.resources.video_history_oldest
+import com.cosmotune.video.resources.video_history_newest
+import com.cosmotune.video.resources.video_remove_from_history
+import androidx.compose.foundation.horizontalScroll
+import com.cosmotune.video.library.HistorySort
+import com.cosmotune.video.library.HistoryRange
+import com.cosmotune.video.library.HistoryOrder
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -119,8 +133,18 @@ fun HistoryPage(contentPadding: PaddingValues, wide: Boolean) {
 
     val now = rememberNowMs()
     val startOfToday = remember(now) { FeedDay.startOfToday(now) }
-    val shown = remember(history, query) { LibraryPlan.filterHistory(history, query) }
-    val groups = remember(shown, startOfToday) { FeedMerge.groups(shown, startOfToday) { it.lastWatchedMs } }
+    var sortName by rememberSaveable { mutableStateOf(HistorySort.NEWEST.name) }
+    var rangeName by rememberSaveable { mutableStateOf(HistoryRange.ANY.name) }
+    val sort = HistorySort.valueOf(sortName)
+    val range = HistoryRange.valueOf(rangeName)
+    val selection = remember { VideoSelection() }
+    val shown = remember(history, query, sort, range, startOfToday) {
+        HistoryOrder.apply(LibraryPlan.filterHistory(history, query), sort, range, startOfToday)
+    }
+    // Newest first keeps the day groups; any other order is one list.
+    val groups = remember(shown, startOfToday, sort) {
+        if (sort == HistorySort.NEWEST) FeedMerge.groups(shown, startOfToday) { it.lastWatchedMs } else listOf(FeedGroup.TODAY to shown)
+    }
     val onAccount = rememberAccountVideos(AccountList.HISTORY)
     val accountShown = remember(onAccount.items, query) { matching(onAccount.items, query) }
     val accountIds = remember(accountShown) { accountShown.mapTo(HashSet()) { it.id } }
@@ -131,6 +155,9 @@ fun HistoryPage(contentPadding: PaddingValues, wide: Boolean) {
     val watchedHere = remember(history) { history.associateBy { it.item.id } }
     val shownItems = remember(shown, accountShown) { AccountLists.merge(accountShown, shown.map { it.item }) }
 
+    val historyTitle = stringResource(Res.string.video_history)
+    val removeLabel = stringResource(Res.string.video_remove_from_history)
+    Box(Modifier.fillMaxSize()) {
     LibraryList(contentPadding, wide) { cell ->
         item(key = "heading") {
             LibraryHeader(stringResource(Res.string.video_history), wide, cell) {
@@ -139,6 +166,7 @@ fun HistoryPage(contentPadding: PaddingValues, wide: Boolean) {
                     canClear = history.isNotEmpty(),
                     onPause = { library.setHistoryPaused(it) },
                     onClear = { confirmClear = true },
+                    onSelect = if (history.isNotEmpty()) selection::start else null,
                 )
             }
         }
@@ -159,6 +187,14 @@ fun HistoryPage(contentPadding: PaddingValues, wide: Boolean) {
                 )
             }
         }
+        if (history.isNotEmpty()) {
+            item(key = "order") {
+                HistoryOrderChips(sort, range, onSort = { sortName = it.name }, onRange = { rangeName = it.name }, modifier = cell)
+            }
+        }
+        if (selection.active) {
+            item(key = "select-head") { VideoSelectionHead(selection, shownItems, cell) }
+        }
         when {
             history.isEmpty() && onAccount.items.isEmpty() -> item(key = "empty") {
                 CosmoEmptyState(message = stringResource(Res.string.video_empty_history), modifier = cell, icon = VideoIcons.History)
@@ -173,7 +209,8 @@ fun HistoryPage(contentPadding: PaddingValues, wide: Boolean) {
                         val here = watchedHere[video.id]
                         LibraryVideoRow(
                             item = video,
-                            onClick = { actions.play(video, shownItems) },
+                            onClick = { if (selection.active) selection.toggle(video.id) else actions.play(video, shownItems) },
+                            trailing = if (selection.active) ({ SelectionCheck(selection, video) }) else null,
                             onMore = { sheetFor = video },
                             wide = wide,
                             modifier = cell,
@@ -183,11 +220,12 @@ fun HistoryPage(contentPadding: PaddingValues, wide: Boolean) {
                     }
                 }
                 for ((group, entries) in localGroups) {
-                item(key = "group:" + group.name) { CosmoOverline(groupLabel(group), cell) }
+                if (sort == HistorySort.NEWEST) item(key = "group:" + group.name) { CosmoOverline(groupLabel(group), cell) }
                 items(entries, key = { "video:" + it.item.id }) { entry ->
                     LibraryVideoRow(
                         item = entry.item,
-                        onClick = { actions.play(entry.item, shownItems) },
+                        onClick = { if (selection.active) selection.toggle(entry.item.id) else actions.play(entry.item, shownItems) },
+                        trailing = if (selection.active) ({ SelectionCheck(selection, entry.item) }) else null,
                         onMore = { sheetFor = entry.item },
                         wide = wide,
                         modifier = cell,
@@ -198,6 +236,14 @@ fun HistoryPage(contentPadding: PaddingValues, wide: Boolean) {
                 }
             }
         }
+    }
+
+    VideoSelectionBar(
+        selection, shownItems, actions, contentPadding, historyTitle,
+        remove = com.cosmotune.ui.orbit.OrbitBarAction(CosmoIcons.Close, removeLabel) {
+            selection.chosen(shownItems).forEach { library.removeFromHistory(it.id) }
+        },
+    )
     }
 
     if (confirmClear) {
@@ -238,7 +284,7 @@ private fun groupLabel(group: FeedGroup): String = stringResource(
  * dimmed while there is nothing to clear.
  */
 @Composable
-private fun HistoryMenu(paused: Boolean, canClear: Boolean, onPause: (Boolean) -> Unit, onClear: () -> Unit) {
+private fun HistoryMenu(paused: Boolean, canClear: Boolean, onPause: (Boolean) -> Unit, onClear: () -> Unit, onSelect: (() -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
     val pauseLabel = stringResource(Res.string.video_pause_history)
     val clearLabel = stringResource(Res.string.video_clear_history)
@@ -257,6 +303,16 @@ private fun HistoryMenu(paused: Boolean, canClear: Boolean, onPause: (Boolean) -
                     CosmoSwitch(checked = paused, onCheckedChange = onPause, modifier = Modifier.clearAndSetSemantics { }, floating = true)
                 },
             )
+            if (onSelect != null) {
+                com.cosmotune.ui.bridge.DropdownMenuItem(
+                    text = { Text(selectLabel()) },
+                    onClick = {
+                        open = false
+                        onSelect()
+                    },
+                    leadingIcon = { Icon(CosmoIcons.Check, contentDescription = null) },
+                )
+            }
             com.cosmotune.ui.bridge.DropdownMenuItem(
                 text = { Text(clearLabel) },
                 onClick = {
@@ -368,4 +424,44 @@ private fun matching(items: List<VideoItem>, query: String): List<VideoItem> {
     val q = query.trim()
     if (q.isEmpty()) return items
     return items.filter { it.title.contains(q, ignoreCase = true) || it.channelName?.contains(q, ignoreCase = true) == true }
+}
+
+/** The order and the time range of the History page, as two rows of chips that scroll sideways when they do not fit. */
+@Composable
+private fun HistoryOrderChips(sort: HistorySort, range: HistoryRange, onSort: (HistorySort) -> Unit, onRange: (HistoryRange) -> Unit, modifier: Modifier) {
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    androidx.compose.foundation.layout.Column(modifier.padding(bottom = 8.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+        androidx.compose.foundation.layout.Row(
+            Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = CosmoSpacing.margin),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+        ) {
+            for (option in HistorySort.entries) {
+                com.cosmotune.ui.orbit.OrbitSelectChip(stringResource(sortLabel(option)), option == sort, fonts, look, onClick = { onSort(option) })
+            }
+        }
+        androidx.compose.foundation.layout.Row(
+            Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = CosmoSpacing.margin),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+        ) {
+            for (option in HistoryRange.entries) {
+                com.cosmotune.ui.orbit.OrbitSelectChip(stringResource(rangeLabel(option)), option == range, fonts, look, onClick = { onRange(option) })
+            }
+        }
+    }
+}
+
+private fun sortLabel(sort: HistorySort) = when (sort) {
+    HistorySort.NEWEST -> Res.string.video_history_newest
+    HistorySort.OLDEST -> Res.string.video_history_oldest
+    HistorySort.NAME -> Res.string.video_history_name
+    HistorySort.MOST_PLAYED -> Res.string.video_history_most
+    HistorySort.LEAST_PLAYED -> Res.string.video_history_least
+}
+
+private fun rangeLabel(range: HistoryRange) = when (range) {
+    HistoryRange.ANY -> Res.string.video_history_any_time
+    HistoryRange.TODAY -> Res.string.video_history_today
+    HistoryRange.WEEK -> Res.string.video_history_week
+    HistoryRange.MONTH -> Res.string.video_history_month
 }

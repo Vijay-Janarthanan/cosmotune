@@ -43,6 +43,7 @@ import com.cosmotune.video.resources.video_error_parsing
 import com.cosmotune.video.resources.video_list_error
 import com.cosmotune.video.resources.video_retry
 import com.cosmotune.video.select.ShortsFilter
+import com.cosmotune.video.select.ContentFilter
 import com.cosmotune.video.source.VideoSource
 import com.cosmotune.video.source.VideoSourceError
 import com.cosmotune.video.ui.blocks.ChannelRow
@@ -234,9 +235,15 @@ internal fun mergeUnique(old: List<ListItem>, added: List<ListItem>): List<ListI
     }
 }
 
-/** The rows the page shows: [items] without their Shorts while "Hide Shorts" is on (channels and playlists stay). */
-internal fun visibleResults(items: List<ListItem>, hideShorts: Boolean): List<ListItem> =
-    ShortsFilter.filter(items, hideShorts) { (it as? ListItem.Video)?.item }
+/**
+ * The rows the page shows: [items] without their Shorts while "Hide Shorts" is on and without what the listener's [filter] hides
+ * (channels and playlists stay, except a hidden channel's own row).
+ */
+internal fun visibleResults(items: List<ListItem>, hideShorts: Boolean, filter: ContentFilter = ContentFilter.NONE): List<ListItem> {
+    val shown = ShortsFilter.filter(items, hideShorts) { (it as? ListItem.Video)?.item }
+    if (filter.isEmpty) return shown
+    return filter.filter(shown) { (it as? ListItem.Video)?.item }.filter { (it as? ListItem.Channel)?.item?.id?.let(filter::keepChannel) ?: true }
+}
 
 /** The words under a failed search: no connection, a changed source, the bot check, else the list's own. */
 internal fun searchErrorMessage(error: Throwable?): StringResource = when (error) {

@@ -190,6 +190,8 @@ internal class MpvPlayer(
         set("demuxer-readahead-secs", if (live) "3600" else "30")
         set("demuxer-max-back-bytes", if (live) "300MiB" else "50MiB")
         set("user-agent", userAgent ?: DEFAULT_USER_AGENT)
+        // the proxy the listener set, for what mpv fetches itself (HLS); the rest comes through the loopback proxy
+        set("http-proxy", com.cosmotune.video.source.VideoProxy.mpvHttpProxy())
         set("http-header-fields", headerFields.joinToString(","))
         set("vid", if (audioOnly) "no" else "auto")
         // Under the lock, so the event thread knows the new entry's id before it handles that entry's first event.

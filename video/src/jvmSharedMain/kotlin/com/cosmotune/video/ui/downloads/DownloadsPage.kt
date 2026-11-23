@@ -1,5 +1,7 @@
 package com.cosmotune.video.ui.downloads
 
+import com.cosmotune.video.resources.video_dl_search
+import com.cosmotune.video.resources.video_dl_resume_all
 import com.cosmotune.video.resources.video_library_label
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -106,7 +108,15 @@ fun DownloadsPage(contentPadding: PaddingValues, wide: Boolean) {
     val entries by downloads.downloads.collectAsState()
     val batches by downloads.batches.collectAsState()
     val page = rememberDownloadsPageState()
-    val rows = remember(entries, batches, page.filter, page.sort, page.collapsed) {
+    // the search field over the list: a title or a channel's name, any case
+    var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    val searched = remember(entries, query) {
+        val words = query.trim()
+        if (words.isEmpty()) entries
+        else entries.filter { it.item.title.contains(words, ignoreCase = true) || it.item.channelName?.contains(words, ignoreCase = true) == true }
+    }
+    val rows = remember(searched, batches, page.filter, page.sort, page.collapsed) {
+        @Suppress("NAME_SHADOWING") val entries = searched
         DownloadsPlan.build(entries, batches, page.filter, page.sort, page.collapsed)
     }
     val storage = rememberStorageLine(downloads, entries)
@@ -158,7 +168,24 @@ fun DownloadsPage(contentPadding: PaddingValues, wide: Boolean) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
             item(key = "heading", contentType = "heading") {
-                DownloadsHeading(sort = page.sort, onSort = { page.sort = it }, showSort = entries.isNotEmpty(), modifier = Modifier.downloadsColumn(wide))
+                val paused = entries.filter { it.state is DownloadState.Paused || it.state is DownloadState.Failed }
+                DownloadsHeading(
+                    sort = page.sort, onSort = { page.sort = it }, showSort = entries.isNotEmpty(), modifier = Modifier.downloadsColumn(wide),
+                    onResumeAll = if (paused.size > 1) ({
+                        paused.forEach { entry -> if (entry.state is DownloadState.Failed) downloads.retry(entry.id) else downloads.resume(entry.id) }
+                    }) else null,
+                )
+            }
+            if (entries.size > 1) {
+                item(key = "search", contentType = "search") {
+                    com.cosmotune.ui.blocks.CosmoSearchField(
+                        query = query,
+                        onQueryChange = { query = it },
+                        onSubmit = {},
+                        placeholder = stringResource(Res.string.video_dl_search),
+                        modifier = Modifier.downloadsColumn(wide).padding(horizontal = com.cosmotune.ui.theme.CosmoSpacing.margin, vertical = 8.dp),
+                    )
+                }
             }
             if (entries.isNotEmpty()) {
                 item(key = "filters", contentType = "filters") {
@@ -276,10 +303,22 @@ private fun rememberStorageLine(downloads: DownloadController, entries: List<Dow
 
 /** "Downloads." as an Orbit page heading under the mono "YOURS" and, at its end, the sort button with its menu ([showSort]: not while there is nothing to sort). */
 @Composable
-private fun DownloadsHeading(sort: DownloadsSort, onSort: (DownloadsSort) -> Unit, showSort: Boolean, modifier: Modifier = Modifier) {
+private fun DownloadsHeading(sort: DownloadsSort, onSort: (DownloadsSort) -> Unit, showSort: Boolean, modifier: Modifier = Modifier, onResumeAll: (() -> Unit)? = null) {
     com.cosmotune.video.ui.blocks.VideoPageHeading(
         stringResource(Res.string.video_downloads), stringResource(Res.string.video_library_label), modifier,
-        actions = if (showSort) ({ SortButton(sort, onSort) }) else null,
+        actions = if (showSort || onResumeAll != null) ({
+            // "Resume all": every paused or failed download goes again at once (shown while two or more wait)
+            if (onResumeAll != null) {
+                CosmoIconButton(
+                    icon = CosmoIcons.Play,
+                    contentDescription = stringResource(Res.string.video_dl_resume_all),
+                    onClick = onResumeAll,
+                    style = CosmoIconButtonStyle.TONAL,
+                    size = 40.dp,
+                )
+            }
+            if (showSort) SortButton(sort, onSort)
+        }) else null,
     )
 }
 

@@ -47,10 +47,13 @@ import com.cosmotune.video.player.VideoSurfaceProvider
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_chapters
 import com.cosmotune.video.resources.video_comments
+import com.cosmotune.video.resources.video_chat
+import com.cosmotune.video.resources.video_transcript
 import com.cosmotune.video.resources.video_up_next
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.ui.actions.rememberDownloadedIds
 import com.cosmotune.video.ui.comments.CommentsPanel
+import com.cosmotune.video.ui.chat.LiveChatPanel
 import com.cosmotune.video.ui.player.PlayerLayout
 import com.cosmotune.video.ui.player.PlayerPlatformControls
 import com.cosmotune.video.ui.player.VideoPlayerBox
@@ -90,12 +93,19 @@ internal enum class WideSegment(val label: StringResource) {
     UP_NEXT(Res.string.video_up_next),
     CHAPTERS(Res.string.video_chapters),
     COMMENTS(Res.string.video_comments),
+    CHAT(Res.string.video_chat),
+    TRANSCRIPT(Res.string.video_transcript),
 }
 
-/** The segments the side column offers: Up next always, Chapters when the video has some, Comments unless the page is offline. */
-internal fun wideSegments(hasChapters: Boolean, comments: Boolean): List<WideSegment> = buildList {
+/**
+ * The segments the side column offers: Up next always, Chapters when the video has some, Chat for a live or finished stream (first
+ * after Up next while it is live), Transcript when it has captions, Comments unless the page is offline.
+ */
+internal fun wideSegments(hasChapters: Boolean, comments: Boolean, chat: Boolean = false, transcript: Boolean = false): List<WideSegment> = buildList {
     add(WideSegment.UP_NEXT)
+    if (chat) add(WideSegment.CHAT)
     if (hasChapters) add(WideSegment.CHAPTERS)
+    if (transcript) add(WideSegment.TRANSCRIPT)
     if (comments) add(WideSegment.COMMENTS)
 }
 
@@ -187,7 +197,9 @@ internal fun WatchPageWide(
     val pipOpen = pip.manual && pip.active
     val info = view.info
     val (ground, _) = coverFill(info?.item?.thumbnailUrl, view.videoId)
-    val segments = remember(view.chapters.isNotEmpty(), view.commentsShown) { wideSegments(view.chapters.isNotEmpty(), view.commentsShown) }
+    val segments = remember(view.chapters.isNotEmpty(), view.commentsShown, view.chatShown, view.subtitles.isNotEmpty()) {
+        wideSegments(view.chapters.isNotEmpty(), view.commentsShown, view.chatShown, view.subtitles.isNotEmpty())
+    }
     var chosen by rememberSaveable(view.videoId) { mutableStateOf(WideSegment.UP_NEXT) }
     val shownSegment = if (chosen in segments) chosen else WideSegment.UP_NEXT
     val screen = WatchScreen(
@@ -333,6 +345,10 @@ private fun WideSideColumn(view: WatchView, segment: WideSegment, callbacks: Wat
                     ChapterRow(chapter, callbacks.onSeek)
                 }
             }
+            WideSegment.TRANSCRIPT -> TranscriptPanel(
+                rememberTranscript(view.videoId, view.subtitles), callbacks.onSeek, Modifier.fillMaxWidth().weight(1f).padding(top = CosmoSpacing.s1),
+            )
+            WideSegment.CHAT -> LiveChatPanel(view.videoId, Modifier.fillMaxWidth().weight(1f).padding(top = CosmoSpacing.s1))
             WideSegment.COMMENTS -> CommentsPanel(
                 videoId = view.videoId,
                 sheet = false,

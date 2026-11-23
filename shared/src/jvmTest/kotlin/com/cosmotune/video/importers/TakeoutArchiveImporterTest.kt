@@ -36,7 +36,8 @@ class TakeoutArchiveImporterTest {
         assertEquals(listOf(V0, V1, V2, V3, ImportFixtures.V4, ImportFixtures.V7), preview.history.map { it.item.id })
         assertEquals(listOf("Road trip", "Fixture, the old way"), preview.playlists.map { it.name })
         // the 4 of the history file, the search file (1) and the repeated video of the playlist (1)
-        assertEquals(4 + 1 + 1, preview.skipped)
+        assertEquals(4, preview.skipped, "the searches are kept as recent searches now")
+        assertTrue(preview.searches.isNotEmpty())
         assertNull(preview.reason)
     }
 

@@ -1,0 +1,279 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@freecodecamp/podcasts",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UC8butISFwT-Wl7EV0hUK0BQ",
+        "params": "Eghwb2RjYXN0c_IGBQoDugEA",
+        "canonicalBaseUrl": "/@freecodecamp"
+       }
+      },
+      "title": "Podcasts",
+      "selected": true,
+      "content": {
+       "richGridRenderer": {
+        "contents": [
+         {
+          "richItemRenderer": {
+           "content": {
+            "lockupViewModel": {
+             "contentImage": {
+              "collectionThumbnailViewModel": {
+               "primaryThumbnail": {
+                "thumbnailViewModel": {
+                 "image": {
+                  "sources": [
+                   {
+                    "url": "https://i.ytimg.com/pl_c/PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7/studio_square_thumbnail.jpg?sqp=COO7j9gG-oaymwEICPABEPABSFqi85f_AwYIsr_yugY=&rs=AOn4CLB8h5GfnAMov3yOdTHJDNG8PO1SLw",
+                    "width": 240,
+                    "height": 240
+                   },
+                   {
+                    "url": "https://i.ytimg.com/pl_c/PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7/studio_square_thumbnail.jpg?sqp=COO7j9gG-oaymwEICOADEOADSFqi85f_AwYIsr_yugY=&rs=AOn4CLBnsliRAZ3DzUqEs_twS_Y6V2NRYg",
+                    "width": 480,
+                    "height": 480
+                   },
+                   {
+                    "url": "https://i.ytimg.com/pl_c/PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7/studio_square_thumbnail.jpg?sqp=COO7j9gG-oaymwEICNAFENAFSFqi85f_AwYIsr_yugY=&rs=AOn4CLD4Q3F4GRLLatxhXY6Kv9SKJ1kBOA",
+                    "width": 720,
+                    "height": 720
+                   }
+                  ]
+                 },
+                 "overlays": [
+                  {
+                   "thumbnailOverlayBadgeViewModel": {
+                    "thumbnailBadges": [
+                     {
+                      "thumbnailBadgeViewModel": {
+                       "icon": {
+                        "sources": [
+                         {
+                          "clientResource": {
+                           "imageName": "BROADCAST"
+                          }
+                         }
+                        ]
+                       },
+                       "text": "110 episodes",
+                       "badgeStyle": "THUMBNAIL_OVERLAY_BADGE_STYLE_DEFAULT",
+                       "backgroundColor": {
+                        "lightTheme": 3355443,
+                        "darkTheme": 3355443
+                       }
+                      }
+                     }
+                    ],
+                    "position": "THUMBNAIL_OVERLAY_BADGE_POSITION_BOTTOM_END"
+                   }
+                  },
+                  {
+                   "thumbnailHoverOverlayViewModel": {
+                    "icon": {
+                     "sources": [
+                      {
+                       "clientResource": {
+                        "imageName": "PLAY_ALL"
+                       }
+                      }
+                     ]
+                    },
+                    "text": {
+                     "content": "Play all",
+                     "styleRuns": [
+                      {
+                       "startIndex": 0,
+                       "length": 8
+                      }
+                     ]
+                    },
+                    "style": "THUMBNAIL_HOVER_OVERLAY_STYLE_COVER"
+                   }
+                  }
+                 ],
+                 "backgroundColor": {
+                  "lightTheme": 4144959,
+                  "darkTheme": 4144959
+                 }
+                }
+               },
+               "stackColor": {
+                "lightTheme": 10066329,
+                "darkTheme": 9211020
+               }
+              }
+             },
+             "metadata": {
+              "lockupMetadataViewModel": {
+               "title": {
+                "content": "the freeCodeCamp.org podcast"
+               },
+               "metadata": {
+                "contentMetadataViewModel": {
+                 "metadataRows": [
+                  {
+                   "metadataParts": [
+                    {
+                     "text": {
+                      "content": "View full podcast",
+                      "commandRuns": [
+                       {
+                        "startIndex": 0,
+                        "length": 17,
+                        "onTap": {
+                         "innertubeCommand": {
+                          "commandMetadata": {
+                           "webCommandMetadata": {
+                            "url": "/playlist?list=PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7",
+                            "webPageType": "WEB_PAGE_TYPE_PLAYLIST",
+                            "rootVe": 5754,
+                            "apiUrl": "/youtubei/v1/browse"
+                           }
+                          },
+                          "browseEndpoint": {
+                           "browseId": "VLPLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7"
+                          }
+                         }
+                        }
+                       }
+                      ],
+                      "styleRuns": [
+                       {
+                        "startIndex": 0,
+                        "length": 17,
+                        "weightLabel": "FONT_WEIGHT_MEDIUM"
+                       }
+                      ]
+                     }
+                    }
+                   ]
+                  }
+                 ],
+                 "delimiter": " • "
+                }
+               }
+              }
+             },
+             "contentId": "PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7",
+             "contentType": "LOCKUP_CONTENT_TYPE_PODCAST",
+             "itemPlayback": {
+              "inlinePlayerData": {
+               "onSelect": {
+                "innertubeCommand": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=GmtOxMl39Tc&list=PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "GmtOxMl39Tc",
+                  "playlistId": "PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7",
+                  "params": "OAI%3D",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GiJQTFdLamhKdHFWQWJtMDRESzhUU1VDUmhlUmpXMlA5VFI3"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr2---sn-5jucgv5qc5oq-h55el.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=1a6b4ec4c977f537&ip=REDACTED&initcwndbps=3123750&mt=1795419672&oweuc="
+                    }
+                   }
+                  }
+                 }
+                }
+               },
+               "onVisible": {
+                "innertubeCommand": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=GmtOxMl39Tc&list=PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7&pp=YAHIAQHwBAD4BACiBhUBAym6i2fTEqds7i5AsnvyA_4QZH8%3D",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "GmtOxMl39Tc",
+                  "playlistId": "PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7",
+                  "playerParams": "YAHIAQHwBAD4BACiBhUBAym6i2fTEqds7i5AsnvyA_4QZH8%3D",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GiJQTFdLamhKdHFWQWJtMDRESzhUU1VDUmhlUmpXMlA5VFI3"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr2---sn-5jucgv5qc5oq-h55el.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=1a6b4ec4c977f537&ip=REDACTED&initcwndbps=3123750&mt=1795419672&oweuc="
+                    }
+                   }
+                  }
+                 }
+                }
+               }
+              }
+             },
+             "rendererContext": {
+              "loggingContext": {},
+              "commandContext": {
+               "onTap": {
+                "innertubeCommand": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/watch?v=GmtOxMl39Tc&list=PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7",
+                   "webPageType": "WEB_PAGE_TYPE_WATCH",
+                   "rootVe": 3832
+                  }
+                 },
+                 "watchEndpoint": {
+                  "videoId": "GmtOxMl39Tc",
+                  "playlistId": "PLWKjhJtqVAbm04DK8TSUCRheRjW2P9TR7",
+                  "params": "OAI%3D",
+                  "loggingContext": {
+                   "vssLoggingContext": {
+                    "serializedContextData": "GiJQTFdLamhKdHFWQWJtMDRESzhUU1VDUmhlUmpXMlA5VFI3"
+                   }
+                  },
+                  "watchEndpointSupportedOnesieConfig": {
+                   "html5PlaybackOnesieConfig": {
+                    "commonConfig": {
+                     "url": "https://rr2---sn-5jucgv5qc5oq-h55el.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=1a6b4ec4c977f537&ip=REDACTED&initcwndbps=3123750&mt=1795419672&oweuc="
+                    }
+                   }
+                  }
+                 }
+                }
+               }
+              }
+             }
+            }
+           }
+          }
+         }
+        ],
+        "targetId": "70c364c5-0000-2959-b200-ac3eb15d642c",
+        "style": "RICH_GRID_STYLE_SLIM",
+        "layoutSizing": "RICH_GRID_LAYOUT_SIZING_EXTRA_COMPACT",
+        "enableContentSpecificAspectRatio": true
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

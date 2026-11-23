@@ -36,7 +36,7 @@ class VideoSettingsStructureTest {
     private val dir = "video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/settings"
     private fun read(path: String) = VideoSourceContract.read(path)
     private fun file(name: String) = read("$dir/$name.kt")
-    private val names = listOf("VideoSettingsPage", "SegmentSettings", "ChoiceSheet", "RegionList", "SettingsPlatform", "SmoothnessSettings")
+    private val names = listOf("VideoSettingsPage", "SegmentSettings", "ChoiceSheet", "RegionList", "SettingsPlatform", "SmoothnessSettings", "ContentFilterSheet", "TvCodeSheet", "ProxySheet")
 
     /** Each file of the page without its comments. */
     private val sources: Map<String, String> get() = names.associateWith { VideoSourceContract.code(file(it)) }
@@ -76,13 +76,15 @@ class VideoSettingsStructureTest {
     private val fields: List<String> = VideoSettings::class.java.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }.map { it.name }
 
     @Test fun theFieldsAreTheOnesTheTestKnows() {
-        assertEquals(33, fields.size, "a new field of VideoSettings needs a row (or a word in this test): $fields")
+        assertEquals(67, fields.size, "a new field of VideoSettings needs a row (or a word in this test): $fields")
         assertTrue("firstRunSeen" in fields && "homeKiosk" in fields)
     }
 
     @Test fun everySettingHasARowThatReadsAndWritesIt() {
         // the notice keeps firstRunSeen, Home keeps homeKiosk (the brief)
-        for (field in fields - setOf("firstRunSeen", "homeKiosk", "homeHiddenVideos", "homeHiddenChannels")) {
+        // the feed's groups, the channel page's bell and Hide watched are kept on those pages; the two marks are the background work's
+        val elsewhere = setOf("feedGroups", "bellChannels", "channelHideWatched", "uploadAlertsSeenMs", "autoBackupLastMs", "speedByVideo", "loungeScreenId", "sponsorBlockUserId", "otherChannels")
+        for (field in fields - setOf("firstRunSeen", "homeKiosk", "homeHiddenVideos", "homeHiddenChannels") - elsewhere) {
             assertTrue(Regex("""\b${field}\b\s*=""").containsMatchIn(allCode), "$field is written by a row: `$field = ...` in a copy")
             assertTrue(Regex("""\.${field}\b""").containsMatchIn(allCode), "$field is read by a row: `.$field`")
         }
@@ -105,7 +107,7 @@ class VideoSettingsStructureTest {
     @Test fun theCodecAndTheCaptionSizeAreSegmentedAndEverythingElseOpensASheet() {
         assertTrue(Regex("""CosmoSettingsSegmented\(\s*options = codecs""").containsMatchIn(page), "the codec is segmented")
         assertTrue(Regex("""CosmoSettingsSegmented\(\s*options = sizes""").containsMatchIn(page), "the caption size is segmented")
-        assertEquals(2, Regex("""compact = true""").findAll(page).count(), "under a row: the compact one, twice")
+        assertEquals(4, Regex("""compact = true""").findAll(page).count(), "under a row: the compact one, for the codec and the captions' size, colour and place")
         assertTrue("VideoSettings.CAPTION_SCALES" in page, "small, medium and large are the contract's scales")
         assertTrue("CodecPreference.entries" in page)
         for (choice in listOf("WIFI_QUALITY", "MOBILE_QUALITY", "SPEED", "DOUBLE_TAP", "CAPTIONS_LANGUAGE", "TITLE_CASE", "REGION", "CONTENT_LANGUAGE")) {

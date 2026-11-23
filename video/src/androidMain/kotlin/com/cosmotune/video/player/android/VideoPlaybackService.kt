@@ -128,7 +128,12 @@ class VideoPlaybackService : MediaSessionService() {
                 else -> return false
             }
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                if (forward) buttons.next() else buttons.previous()
+                // "Headset buttons skip back and on": a headset's or a car's keys seek instead of changing the video
+                when {
+                    buttons.keysSeek -> buttons.seek(forward)
+                    forward -> buttons.next()
+                    else -> buttons.previous()
+                }
             }
             return true
         }
@@ -138,6 +143,12 @@ class VideoPlaybackService : MediaSessionService() {
     interface QueueButtons {
         fun previous()
         fun next()
+
+        /** Whether a headset's previous and next keys seek back and on (the setting) rather than change the video. */
+        val keysSeek: Boolean get() = false
+
+        /** Seeks on ([forward]) or back by the double-tap step. */
+        fun seek(forward: Boolean) = Unit
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession

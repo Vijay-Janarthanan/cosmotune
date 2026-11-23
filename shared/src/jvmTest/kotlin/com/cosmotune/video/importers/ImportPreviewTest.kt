@@ -28,7 +28,8 @@ class ImportPreviewTest {
         assertEquals(subscriptions.subscriptions, document.subscriptions)
         assertEquals(history.history, document.history)
         assertEquals(playlist.playlists, document.playlists)
-        assertTrue(document.watchLater.isEmpty() && document.liked.isEmpty() && document.savedPlaylists.isEmpty() && document.searches.isEmpty())
+        assertTrue(document.watchLater.isEmpty() && document.liked.isEmpty() && document.savedPlaylists.isEmpty())
+        assertEquals(history.searches, document.searches)
     }
 
     @Test

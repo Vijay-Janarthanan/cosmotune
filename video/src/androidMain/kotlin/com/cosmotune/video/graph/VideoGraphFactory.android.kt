@@ -122,6 +122,7 @@ private object AndroidVideoProcess {
         val device = Locale.getDefault()
         scope.followRegion(settings, source, device.country, device.language)
         scope.followSmoothness(settings, playback.engine)
+        scope.followAudio(settings, playback.engine)
         scope.prepareVideoStart(source)
         application.registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
@@ -142,6 +143,13 @@ private object AndroidVideoProcess {
             override fun previous() = playback.playPrevious()
 
             override fun next() = playback.playNext()
+
+            override val keysSeek: Boolean get() = settings.settings.value.mediaKeysSeek
+
+            override fun seek(forward: Boolean) {
+                val step = settings.settings.value.doubleTapSeconds * 1_000L
+                playback.seekBy(if (forward) step else -step)
+            }
         }
         audio = ModeAudio(playback, scope)
     }

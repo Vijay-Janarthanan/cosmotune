@@ -175,7 +175,37 @@ internal class InnerTubeComments(private val web: YoutubeWeb = InnertubeWeb) {
                     else -> CommentRating.NONE
                 },
                 writes = surface?.let(::writesOf),
+                imageUrls = picturesOf(entity, view),
             )
+        }
+
+        /**
+         * The pictures attached to a comment: under any key that names an image in its entity or its view model (not the author's
+         * picture), the largest of each `sources` or `thumbnails` list.
+         */
+        internal fun picturesOf(entity: JsonObject, view: JsonObject): List<String> {
+            val out = LinkedHashSet<String>()
+            fun visit(node: JsonElement?, inImage: Boolean) {
+                when (node) {
+                    is JsonObject -> for ((key, value) in node) {
+                        if (key == "author" || key.contains("avatar", ignoreCase = true) || key == "toolbar") continue
+                        val image = inImage || key.contains("image", ignoreCase = true)
+                        if (image && (key == "sources" || key == "thumbnails") && value is JsonArray) {
+                            value.mapNotNull { it as? JsonObject }
+                                .mapNotNull { o -> o.str("url")?.let { it to ((o["width"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0) } }
+                                .maxByOrNull { it.second }?.first
+                                ?.let { out.add(if (it.startsWith("//")) "https:$it" else it) }
+                        } else {
+                            visit(value, image)
+                        }
+                    }
+                    is JsonArray -> node.forEach { visit(it, inImage) }
+                    else -> Unit
+                }
+            }
+            visit(entity, false)
+            visit(view, false)
+            return out.toList()
         }
 
         private val EDITED = Regex("""\s*\((?:edited|modifié|bearbeitet|editado)\)""", RegexOption.IGNORE_CASE)

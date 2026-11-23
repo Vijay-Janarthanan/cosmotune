@@ -47,6 +47,14 @@ object DesktopModeHost {
      * request that arrives while Video is open is noticed; [DesktopVideoPage]'s links read it and clear it when the page is opened.
      */
     var askedVideo: PendingVideo? by mutableStateOf(null)
+
+    /** A link from outside (the browser add-on) asked for a video: Video mode is shown first, then its watch page opens. */
+    var linkWantsVideo: Boolean by mutableStateOf(false)
+
+    fun openFromLink(videoId: String, startMs: Long?) {
+        askedVideo = PendingVideo(videoId, startMs)
+        linkWantsVideo = true
+    }
 }
 
 /** "Play this song" in Music, provided by the desktop root ([rememberStableSongAction], Y-26); null where nothing provides it. */
@@ -65,6 +73,10 @@ fun desktopVideoShown(): Boolean {
     // A stored mode that does not work (Video, after Video was switched off again) becomes Music: Music's own chrome draws only for the
     // stored mode, so without this the Music window would stand without its bottom bar.
     if (shell != null && !AppModes.available(mode)) LaunchedEffect(mode) { shell.settings.setMode(AppMode.MUSIC) }
+    if (shell != null && DesktopModeHost.linkWantsVideo && AppModes.available(AppMode.VIDEO)) LaunchedEffect(Unit) {
+        DesktopModeHost.linkWantsVideo = false
+        if (mode != AppMode.VIDEO) shell.settings.setMode(AppMode.VIDEO)
+    }
     SideEffect { DesktopModeHost.active = shown }
     return shown
 }

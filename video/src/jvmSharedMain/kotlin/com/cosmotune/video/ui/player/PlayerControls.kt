@@ -61,6 +61,8 @@ import com.cosmotune.video.player.ScrubberGeometry
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoUiError
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_next_chapter
+import com.cosmotune.video.resources.video_lock_controls
 import com.cosmotune.video.resources.video_badge_live
 import com.cosmotune.video.resources.video_badge_upcoming
 import com.cosmotune.video.resources.video_captions
@@ -202,9 +204,18 @@ internal fun BoxScope.ChromeControls(
     settingsMenu: (@Composable () -> Unit)?,
     onInput: () -> Unit,
     onScrub: (Boolean) -> Unit,
+    onLock: (() -> Unit)? = null,
 ) {
     val step = settings.doubleTapSeconds
     val tools: @Composable () -> Unit = {
+        if (onLock != null) {
+            PlayerButton(
+                icon = VideoIcons.LockOpen,
+                contentDescription = stringResource(Res.string.video_lock_controls),
+                onClick = { onInput(); onLock() },
+                size = VideoMetrics.CHROME_ICON_DP.dp,
+            )
+        }
         CaptionsButton(playback, state, settings, onInput, floatingPlain = fullWindow)
         Box {
             PlayerButton(
@@ -283,6 +294,15 @@ internal fun BoxScope.ChromeControls(
     ) {
         if (state.live) LiveStatus(playback, state, playhead, onInput) else TimeText(playhead, state.durationMs, onGlass = false, onInput = onInput)
         Spacer(Modifier.weight(1f))
+        val chapters = state.details?.chapters.orEmpty()
+        if (chapters.size > 1 && !state.live) {
+            PlayerButton(
+                icon = CosmoIcons.ChevronRight,
+                contentDescription = stringResource(Res.string.video_next_chapter),
+                onClick = { onInput(); skipChapter(playback, state, forward = true) },
+                size = VideoMetrics.CHROME_ICON_DP.dp,
+            )
+        }
         val fullscreen = layout == PlayerLayout.FULLSCREEN
         PlayerButton(
             icon = if (fullscreen) VideoIcons.FullscreenExit else VideoIcons.Fullscreen,
@@ -640,6 +660,19 @@ private val KEY_NAMES: Map<Key, String> = mapOf(
     Key.NumPad5 to "5", Key.NumPad6 to "6", Key.NumPad7 to "7", Key.NumPad8 to "8", Key.NumPad9 to "9",
 )
 
+/** The remote's free button [event] is, or null. */
+internal fun remoteButtonOf(event: KeyEvent): com.cosmotune.video.player.RemoteButton? = when (event.key) {
+    Key.ChannelUp -> com.cosmotune.video.player.RemoteButton.CHANNEL_UP
+    Key.ChannelDown -> com.cosmotune.video.player.RemoteButton.CHANNEL_DOWN
+    Key.ProgramRed -> com.cosmotune.video.player.RemoteButton.RED
+    Key.ProgramGreen -> com.cosmotune.video.player.RemoteButton.GREEN
+    Key.ProgramYellow -> com.cosmotune.video.player.RemoteButton.YELLOW
+    Key.ProgramBlue -> com.cosmotune.video.player.RemoteButton.BLUE
+    Key.MediaFastForward -> com.cosmotune.video.player.RemoteButton.FAST_FORWARD
+    Key.MediaRewind -> com.cosmotune.video.player.RemoteButton.REWIND
+    else -> null
+}
+
 /** The name of [event]'s key for [com.cosmotune.video.player.PlayerKeyMap.action], or null for a key the player has no use for. */
 fun playerKeyName(event: KeyEvent): String? = KEY_NAMES[event.key]
 
@@ -686,6 +719,8 @@ fun performPlayerKey(
         PlayerKeyAction.Theatre -> (onTheatre ?: return false).invoke()
         PlayerKeyAction.ExitFullWindow -> (onExitFullWindow ?: return false).invoke()
         PlayerKeyAction.PictureInPicture -> (onPictureInPicture ?: return false).invoke()
+        PlayerKeyAction.NextChapter -> return skipChapter(playback, state, forward = true)
+        PlayerKeyAction.PreviousChapter -> return skipChapter(playback, state, forward = false)
     }
     return true
 }

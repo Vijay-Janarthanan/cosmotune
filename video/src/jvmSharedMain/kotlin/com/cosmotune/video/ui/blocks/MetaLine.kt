@@ -21,6 +21,7 @@ import com.cosmotune.video.resources.video_dl_done_cd
 import com.cosmotune.video.resources.video_views
 import com.cosmotune.video.resources.video_views_none
 import com.cosmotune.video.resources.video_watching
+import com.cosmotune.video.ui.branding.rememberWholeVideoLabel
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -69,7 +70,7 @@ fun MetaLine(item: VideoItem, nowMs: Long, showChannel: Boolean = true): String 
 /**
  * The line under an Orbit card's title (board B: "Desk Lab · 12:04 · 2 days ago"): the channel when [showChannel] is set, the length
  * (nothing is drawn on the picture, so the length is said here), then what [MetaLine] says after the channel (the views of a live
- * stream, a premiere's own text, the age), and "Downloaded" for a [downloaded] video. A live card's "● LIVE" is the card's own.
+ * stream, a premiere's own text, the age), SponsorBlock's whole-video label ("Sponsored"), and "Downloaded" for a [downloaded] video. A live card's "● LIVE" is the card's own.
  */
 @Composable
 fun CardMetaLine(item: VideoItem, nowMs: Long, showChannel: Boolean = true, downloaded: Boolean = false): String {
@@ -78,8 +79,9 @@ fun CardMetaLine(item: VideoItem, nowMs: Long, showChannel: Boolean = true, down
     if (item.playlist != null) return item.channelName.orEmpty()
     val rest = MetaLine(item, nowMs, showChannel = false)
     val mark = if (downloaded) stringResource(Res.string.video_dl_done_cd) else null
-    return remember(channel, rest, mark) {
-        listOfNotNull(channel, rest.takeIf { it.isNotEmpty() && (item.isLive || item.isUpcoming || channel == null) } ?: ageOnly(rest), mark).joinToString(SEPARATOR)
+    val whole = rememberWholeVideoLabel(item)
+    return remember(channel, rest, whole, mark) {
+        listOfNotNull(channel, rest.takeIf { it.isNotEmpty() && (item.isLive || item.isUpcoming || channel == null) } ?: ageOnly(rest), whole, mark).joinToString(SEPARATOR)
     }
 }
 

@@ -194,6 +194,31 @@ class DesktopVideoEngine internal constructor(
         post { playerRef?.set("volume", value.toString()) }
     }
 
+    /** mpv's audio filters for the volume and voice boosts ("" for none); kept so a new player starts with them. */
+    @Volatile private var audioFilter = ""
+
+    /** mpv's audio filter for Watch's sound mix ("" for Normal); set again to Normal at each load. */
+    @Volatile private var mixFilter = ""
+
+    /** The `af` chain: Watch's sound mix, then Video's boosts, so neither replaces the other. */
+    private fun audioFilters(): String = listOf(mixFilter, audioFilter).filter { it.isNotEmpty() }.joinToString(",")
+
+    override fun setAudioBoost(boost: Int, voice: Boolean) {
+        val filter = mpvAudioFilter(boost, voice)
+        if (filter == audioFilter) return
+        audioFilter = filter
+        post { playerRef?.set("af", audioFilters()) }
+    }
+
+    /** mpv's `screenshot-to-file` of the video alone (no subtitles), on the engine's thread. */
+    override suspend fun screenshot(path: String): Boolean = kotlinx.coroutines.suspendCancellableCoroutine { done ->
+        post {
+            val player = playerRef
+            val ok = player != null && player.isLoaded() && player.command("screenshot-to-file", path, "video") >= 0
+            if (done.isActive) done.resumeWith(Result.success(ok))
+        }
+    }
+
     override fun setMuted(muted: Boolean) {
         snapshotFlow.update { it.copy(muted = muted) }
         post { playerRef?.set("mute", if (muted) "yes" else "no") }
@@ -432,6 +457,7 @@ class DesktopVideoEngine internal constructor(
                     if (renderer.start()) {
                         this.renderer = renderer
                         playerRef = player
+                        audioFilters().takeIf { it.isNotEmpty() }?.let { player.set("af", it) }
                         return player
                     }
                     renderer.close()
@@ -523,7 +549,8 @@ class DesktopVideoEngine internal constructor(
     }
 
     override fun setAudioMix(mix: com.cosmotune.video.player.AudioMix) {
-        post { playerRef?.set("af", mpvAudioFilter(mix)) }
+        mixFilter = mpvAudioFilter(mix)
+        post { playerRef?.set("af", audioFilters()) }
     }
 
     override val pictureFilters: Set<com.cosmotune.video.player.PictureFilter> = com.cosmotune.video.player.PictureFilter.entries.toSet()
@@ -630,10 +657,6 @@ class DesktopVideoEngine internal constructor(
     }
 }
 
-/**
- * mpv's audio filter for [mix]: a compressor with make-up gain for Night (the same curve as
- * [com.cosmotune.video.player.sound.SoundMixer]), FFmpeg's dialogue enhancer for Clear voices.
- */
 /** FFmpeg's filters for each picture look: gamma for dark scenes, saturation and a little contrast, a light denoise, an unsharp mask. */
 internal fun mpvPictureFilter(filter: com.cosmotune.video.player.PictureFilter): String = when (filter) {
     com.cosmotune.video.player.PictureFilter.NORMAL -> ""
@@ -643,8 +666,21 @@ internal fun mpvPictureFilter(filter: com.cosmotune.video.player.PictureFilter):
     com.cosmotune.video.player.PictureFilter.SHARPER -> "lavfi=[unsharp=5:5:0.7:5:5:0.0]"
 }
 
+/**
+ * mpv's audio filter for [mix]: a compressor with make-up gain for Night (the same curve as
+ * [com.cosmotune.video.player.sound.SoundMixer]), FFmpeg's dialogue enhancer for Clear voices.
+ */
 internal fun mpvAudioFilter(mix: com.cosmotune.video.player.AudioMix): String = when (mix) {
     com.cosmotune.video.player.AudioMix.NORMAL -> ""
     com.cosmotune.video.player.AudioMix.NIGHT -> "lavfi=[acompressor=threshold=0.0316:ratio=4:attack=5:release=250:makeup=3.16]"
     com.cosmotune.video.player.AudioMix.VOICES -> "lavfi=[dialoguenhance=original=0.6:enhance=1.4]"
 }
+
+/**
+ * mpv's `af` for the boosts: a gain over 100 % and, for the voice, a cut of the rumble under 100 Hz, a lift of the speech band
+ * round 2.5 kHz and ffmpeg's dynamic normaliser so soft talk comes up to the loud parts. "" when both are off.
+ */
+internal fun mpvAudioFilter(boost: Int, voice: Boolean): String = buildList {
+    if (voice) add("lavfi=[highpass=f=100,equalizer=f=2500:t=q:w=1.2:g=5,dynaudnorm=f=150:g=15]")
+    if (boost > 100) add("lavfi=[volume=${"%.2f".format(java.util.Locale.ROOT, boost.coerceAtMost(200) / 100f)}]")
+}.joinToString(",")

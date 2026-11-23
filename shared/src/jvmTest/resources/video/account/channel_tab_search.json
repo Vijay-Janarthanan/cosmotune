@@ -1,0 +1,1196 @@
+{
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "expandableTabRenderer": {
+      "endpoint": {
+       "commandMetadata": {
+        "webCommandMetadata": {
+         "url": "/@mkbhd/search",
+         "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+         "rootVe": 3611,
+         "apiUrl": "/youtubei/v1/browse"
+        }
+       },
+       "browseEndpoint": {
+        "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+        "params": "EgZzZWFyY2jyBgQKAloA",
+        "canonicalBaseUrl": "/@mkbhd"
+       }
+      },
+      "title": "Search",
+      "selected": true,
+      "expandedText": "iphone",
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "itemSectionRenderer": {
+           "contents": [
+            {
+             "videoRenderer": {
+              "videoId": "cBpGq-vDr2Y",
+              "thumbnail": {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/cBpGq-vDr2Y/hqdefault.jpg?sqp=-oaymwEiCKgBEF5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AaLzl_8DDgjvmNuoBhjg6gQg4KgB&rs=AOn4CLA_X2I4ueF-IDOFkX7aEEUwDyN-XQ&usqp=CBU",
+                 "width": 168,
+                 "height": 94
+                },
+                {
+                 "url": "https://i.ytimg.com/vi/cBpGq-vDr2Y/hqdefault.jpg?sqp=-oaymwEiCMQBEG5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AaLzl_8DDgjvmNuoBhjg6gQg4KgB&rs=AOn4CLA92uwbPMfHVY-hWH8EhU2jn-nx5g&usqp=CBU",
+                 "width": 196,
+                 "height": 110
+                },
+                {
+                 "url": "https://i.ytimg.com/vi/cBpGq-vDr2Y/hqdefault.jpg?sqp=-oaymwEjCPYBEIoBSFryq4qpAxUIARUAAAAAGAElAADIQj0AgKJDeAGi85f_Aw4I75jbqAYY4OoEIOCoAQ==&rs=AOn4CLD1lie8zlZEK4bvdaVnX_DsWR7iOA&usqp=CBU",
+                 "width": 246,
+                 "height": 138
+                }
+               ]
+              },
+              "title": {
+               "runs": [
+                {
+                 "text": "iPhone 15 Pro Review: The Good, The Bad, & The Ugly!"
+                }
+               ],
+               "accessibility": {
+                "accessibilityData": {
+                 "label": "iPhone 15 Pro Review: The Good, The Bad, & The Ugly! 24 minutes"
+                }
+               }
+              },
+              "descriptionSnippet": {
+               "runs": [
+                {
+                 "text": "iPhone 15 Pro and Pro Max are refinements of last year's already refined phones.\n\nGet $300 off the Pod Cover with code MKBHD until Cyber Monday at https://www.eightsleep.com/mkbhd/\n\nJerryRigEveryth..."
+                }
+               ]
+              },
+              "longBylineText": {
+               "runs": [
+                {
+                 "text": "Marques Brownlee",
+                 "navigationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "url": "/@mkbhd",
+                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                    "rootVe": 3611,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "browseEndpoint": {
+                   "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                   "canonicalBaseUrl": "/@mkbhd"
+                  }
+                 }
+                }
+               ]
+              },
+              "publishedTimeText": {
+               "simpleText": "3 years ago"
+              },
+              "lengthText": {
+               "accessibility": {
+                "accessibilityData": {
+                 "label": "24 minutes, 42 seconds"
+                }
+               },
+               "simpleText": "24:42"
+              },
+              "viewCountText": {
+               "simpleText": "10,997,849 views"
+              },
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/watch?v=cBpGq-vDr2Y",
+                 "webPageType": "WEB_PAGE_TYPE_WATCH",
+                 "rootVe": 3832
+                }
+               },
+               "watchEndpoint": {
+                "videoId": "cBpGq-vDr2Y",
+                "params": "0gYaEhgaBgoCZW4QASIGCgJlbhABKgYKAmVuEAE%3D",
+                "watchEndpointSupportedOnesieConfig": {
+                 "html5PlaybackOnesieConfig": {
+                  "commonConfig": {
+                   "url": "https://rr2---sn-5jucgv5qc5oq-h55el.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=701a46abebc3af66&ip=REDACTED&initcwndbps=3123375&mt=1795419737&oweuc="
+                  }
+                 }
+                }
+               }
+              },
+              "badges": [
+               {
+                "metadataBadgeRenderer": {
+                 "style": "BADGE_STYLE_TYPE_SIMPLE",
+                 "label": "CC",
+                 "accessibilityData": {
+                  "label": "Closed captions"
+                 }
+                }
+               }
+              ],
+              "ownerBadges": [
+               {
+                "metadataBadgeRenderer": {
+                 "icon": {
+                  "iconType": "CHECK_CIRCLE_THICK"
+                 },
+                 "style": "BADGE_STYLE_TYPE_VERIFIED",
+                 "tooltip": "Verified",
+                 "accessibilityData": {
+                  "label": "Verified"
+                 }
+                }
+               }
+              ],
+              "ownerText": {
+               "runs": [
+                {
+                 "text": "Marques Brownlee",
+                 "navigationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "url": "/@mkbhd",
+                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                    "rootVe": 3611,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "browseEndpoint": {
+                   "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                   "canonicalBaseUrl": "/@mkbhd"
+                  }
+                 }
+                }
+               ]
+              },
+              "shortBylineText": {
+               "runs": [
+                {
+                 "text": "Marques Brownlee",
+                 "navigationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "url": "/@mkbhd",
+                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                    "rootVe": 3611,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "browseEndpoint": {
+                   "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                   "canonicalBaseUrl": "/@mkbhd"
+                  }
+                 }
+                }
+               ]
+              },
+              "showActionMenu": false,
+              "shortViewCountText": {
+               "accessibility": {
+                "accessibilityData": {
+                 "label": "10 million views"
+                }
+               },
+               "simpleText": "10M views"
+              },
+              "channelThumbnailSupportedRenderers": {
+               "channelThumbnailWithLinkRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/qu4TmIaYUlS41-dJ9gZ7DUR3nilvmB5_11i6OKSdvNnBNiyOusZP1bMN6ICnuxtjFBb6ioKgRQ=s68-c-k-c0x00ffffff-no-rj",
+                   "width": 68,
+                   "height": 68
+                  }
+                 ]
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/@mkbhd",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                  "canonicalBaseUrl": "/@mkbhd"
+                 }
+                },
+                "accessibility": {
+                 "accessibilityData": {
+                  "label": "Go to channel Marques Brownlee"
+                 }
+                }
+               }
+              },
+              "thumbnailOverlays": [
+               {
+                "thumbnailOverlayTimeStatusRenderer": {
+                 "text": {
+                  "accessibility": {
+                   "accessibilityData": {
+                    "label": "24 minutes, 42 seconds"
+                   }
+                  },
+                  "simpleText": "24:42"
+                 },
+                 "style": "DEFAULT"
+                }
+               },
+               {
+                "thumbnailOverlayToggleButtonRenderer": {
+                 "isToggled": false,
+                 "untoggledIcon": {
+                  "iconType": "WATCH_LATER"
+                 },
+                 "toggledIcon": {
+                  "iconType": "CHECK"
+                 },
+                 "untoggledTooltip": "Watch later",
+                 "toggledTooltip": "Added",
+                 "untoggledServiceEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true,
+                    "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                   }
+                  },
+                  "playlistEditEndpoint": {
+                   "playlistId": "WL",
+                   "actions": [
+                    {
+                     "addedVideoId": "cBpGq-vDr2Y",
+                     "action": "ACTION_ADD_VIDEO"
+                    }
+                   ]
+                  }
+                 },
+                 "toggledServiceEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true,
+                    "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                   }
+                  },
+                  "playlistEditEndpoint": {
+                   "playlistId": "WL",
+                   "actions": [
+                    {
+                     "action": "ACTION_REMOVE_VIDEO_BY_VIDEO_ID",
+                     "removedVideoId": "cBpGq-vDr2Y"
+                    }
+                   ]
+                  }
+                 },
+                 "untoggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Watch later"
+                  }
+                 },
+                 "toggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Added"
+                  }
+                 }
+                }
+               },
+               {
+                "thumbnailOverlayToggleButtonRenderer": {
+                 "untoggledIcon": {
+                  "iconType": "ADD_TO_QUEUE_TAIL"
+                 },
+                 "toggledIcon": {
+                  "iconType": "PLAYLIST_ADD_CHECK"
+                 },
+                 "untoggledTooltip": "Add to queue",
+                 "toggledTooltip": "Added",
+                 "untoggledServiceEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true
+                   }
+                  },
+                  "signalServiceEndpoint": {
+                   "signal": "CLIENT_SIGNAL",
+                   "actions": [
+                    {
+                     "addToPlaylistCommand": {
+                      "openMiniplayer": true,
+                      "videoId": "cBpGq-vDr2Y",
+                      "listType": "PLAYLIST_EDIT_LIST_TYPE_QUEUE",
+                      "onCreateListCommand": {
+                       "commandMetadata": {
+                        "webCommandMetadata": {
+                         "sendPost": true,
+                         "apiUrl": "/youtubei/v1/playlist/create"
+                        }
+                       },
+                       "createPlaylistServiceEndpoint": {
+                        "videoIds": [
+                         "cBpGq-vDr2Y"
+                        ],
+                        "params": "CAQ%3D"
+                       }
+                      },
+                      "videoIds": [
+                       "cBpGq-vDr2Y"
+                      ]
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 "untoggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Add to queue"
+                  }
+                 },
+                 "toggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Added"
+                  }
+                 }
+                }
+               }
+              ],
+              "avatar": {
+               "decoratedAvatarViewModel": {
+                "avatar": {
+                 "avatarViewModel": {
+                  "image": {
+                   "sources": [
+                    {
+                     "url": "https://yt3.googleusercontent.com/qu4TmIaYUlS41-dJ9gZ7DUR3nilvmB5_11i6OKSdvNnBNiyOusZP1bMN6ICnuxtjFBb6ioKgRQ=s68-c-k-c0x00ffffff-no-rj",
+                     "width": 68,
+                     "height": 68
+                    }
+                   ]
+                  },
+                  "avatarImageSize": "AVATAR_SIZE_M"
+                 }
+                },
+                "a11yLabel": "Go to channel Marques Brownlee",
+                "rendererContext": {
+                 "commandContext": {
+                  "onTap": {
+                   "innertubeCommand": {
+                    "commandMetadata": {
+                     "webCommandMetadata": {
+                      "url": "/@mkbhd",
+                      "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                      "rootVe": 3611,
+                      "apiUrl": "/youtubei/v1/browse"
+                     }
+                    },
+                    "browseEndpoint": {
+                     "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                     "canonicalBaseUrl": "/@mkbhd"
+                    }
+                   }
+                  }
+                 }
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         {
+          "itemSectionRenderer": {
+           "contents": [
+            {
+             "videoRenderer": {
+              "videoId": "5LWDl5qaQbA",
+              "thumbnail": {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/5LWDl5qaQbA/hqdefault.jpg?sqp=-oaymwEiCKgBEF5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AaLzl_8DDgia7sWlBhjg6gQg4KgB&rs=AOn4CLAnTX4YpGOeYTmkT68gN2rAjCyhxA&usqp=CBU",
+                 "width": 168,
+                 "height": 94
+                },
+                {
+                 "url": "https://i.ytimg.com/vi/5LWDl5qaQbA/hqdefault.jpg?sqp=-oaymwEiCMQBEG5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AaLzl_8DDgia7sWlBhjg6gQg4KgB&rs=AOn4CLC4ip5h7U5HA_NBd9SHLunWjDQCIQ&usqp=CBU",
+                 "width": 196,
+                 "height": 110
+                },
+                {
+                 "url": "https://i.ytimg.com/vi/5LWDl5qaQbA/hqdefault.jpg?sqp=-oaymwEjCPYBEIoBSFryq4qpAxUIARUAAAAAGAElAADIQj0AgKJDeAGi85f_Aw4Imu7FpQYY4OoEIOCoAQ==&rs=AOn4CLC2iIh3yWQZuIRVbHnTn2hxMJq-9g&usqp=CBU",
+                 "width": 246,
+                 "height": 138
+                }
+               ]
+              },
+              "title": {
+               "runs": [
+                {
+                 "text": "iOS 17 Hands-On: Top 5 Features!"
+                }
+               ],
+               "accessibility": {
+                "accessibilityData": {
+                 "label": "iOS 17 Hands-On: Top 5 Features! 12 minutes, 33 seconds"
+                }
+               }
+              },
+              "descriptionSnippet": {
+               "runs": [
+                {
+                 "text": "iOS 17, coming soon to an iPhone near you\n\nWhen Apple is a shark: https://youtu.be/qNAo0UdYF6g\n\nMKBHD Merch: http://shop.MKBHD.com\n\nTech I'm using right now: https://www.amazon.com/shop/MKBHD..."
+                }
+               ]
+              },
+              "longBylineText": {
+               "runs": [
+                {
+                 "text": "Marques Brownlee",
+                 "navigationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "url": "/@mkbhd",
+                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                    "rootVe": 3611,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "browseEndpoint": {
+                   "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                   "canonicalBaseUrl": "/@mkbhd"
+                  }
+                 }
+                }
+               ]
+              },
+              "publishedTimeText": {
+               "simpleText": "3 years ago"
+              },
+              "lengthText": {
+               "accessibility": {
+                "accessibilityData": {
+                 "label": "12 minutes, 33 seconds"
+                }
+               },
+               "simpleText": "12:33"
+              },
+              "viewCountText": {
+               "simpleText": "7,907,464 views"
+              },
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/watch?v=5LWDl5qaQbA",
+                 "webPageType": "WEB_PAGE_TYPE_WATCH",
+                 "rootVe": 3832
+                }
+               },
+               "watchEndpoint": {
+                "videoId": "5LWDl5qaQbA",
+                "params": "0gYaEhgaBgoCZW4QASIGCgJlbhABKgYKAmVuEAE%3D",
+                "watchEndpointSupportedOnesieConfig": {
+                 "html5PlaybackOnesieConfig": {
+                  "commonConfig": {
+                   "url": "https://rr2---sn-5jucgv5qc5oq-h55y.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=e4b583979a9a41b0&ip=REDACTED&initcwndbps=3123375&mt=1795419737&oweuc="
+                  }
+                 }
+                }
+               }
+              },
+              "badges": [
+               {
+                "metadataBadgeRenderer": {
+                 "style": "BADGE_STYLE_TYPE_SIMPLE",
+                 "label": "CC",
+                 "accessibilityData": {
+                  "label": "Closed captions"
+                 }
+                }
+               }
+              ],
+              "ownerBadges": [
+               {
+                "metadataBadgeRenderer": {
+                 "icon": {
+                  "iconType": "CHECK_CIRCLE_THICK"
+                 },
+                 "style": "BADGE_STYLE_TYPE_VERIFIED",
+                 "tooltip": "Verified",
+                 "accessibilityData": {
+                  "label": "Verified"
+                 }
+                }
+               }
+              ],
+              "ownerText": {
+               "runs": [
+                {
+                 "text": "Marques Brownlee",
+                 "navigationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "url": "/@mkbhd",
+                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                    "rootVe": 3611,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "browseEndpoint": {
+                   "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                   "canonicalBaseUrl": "/@mkbhd"
+                  }
+                 }
+                }
+               ]
+              },
+              "shortBylineText": {
+               "runs": [
+                {
+                 "text": "Marques Brownlee",
+                 "navigationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "url": "/@mkbhd",
+                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                    "rootVe": 3611,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "browseEndpoint": {
+                   "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                   "canonicalBaseUrl": "/@mkbhd"
+                  }
+                 }
+                }
+               ]
+              },
+              "showActionMenu": false,
+              "shortViewCountText": {
+               "accessibility": {
+                "accessibilityData": {
+                 "label": "7.9 million views"
+                }
+               },
+               "simpleText": "7.9M views"
+              },
+              "channelThumbnailSupportedRenderers": {
+               "channelThumbnailWithLinkRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/qu4TmIaYUlS41-dJ9gZ7DUR3nilvmB5_11i6OKSdvNnBNiyOusZP1bMN6ICnuxtjFBb6ioKgRQ=s68-c-k-c0x00ffffff-no-rj",
+                   "width": 68,
+                   "height": 68
+                  }
+                 ]
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/@mkbhd",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                  "canonicalBaseUrl": "/@mkbhd"
+                 }
+                },
+                "accessibility": {
+                 "accessibilityData": {
+                  "label": "Go to channel Marques Brownlee"
+                 }
+                }
+               }
+              },
+              "thumbnailOverlays": [
+               {
+                "thumbnailOverlayTimeStatusRenderer": {
+                 "text": {
+                  "accessibility": {
+                   "accessibilityData": {
+                    "label": "12 minutes, 33 seconds"
+                   }
+                  },
+                  "simpleText": "12:33"
+                 },
+                 "style": "DEFAULT"
+                }
+               },
+               {
+                "thumbnailOverlayToggleButtonRenderer": {
+                 "isToggled": false,
+                 "untoggledIcon": {
+                  "iconType": "WATCH_LATER"
+                 },
+                 "toggledIcon": {
+                  "iconType": "CHECK"
+                 },
+                 "untoggledTooltip": "Watch later",
+                 "toggledTooltip": "Added",
+                 "untoggledServiceEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true,
+                    "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                   }
+                  },
+                  "playlistEditEndpoint": {
+                   "playlistId": "WL",
+                   "actions": [
+                    {
+                     "addedVideoId": "5LWDl5qaQbA",
+                     "action": "ACTION_ADD_VIDEO"
+                    }
+                   ]
+                  }
+                 },
+                 "toggledServiceEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true,
+                    "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                   }
+                  },
+                  "playlistEditEndpoint": {
+                   "playlistId": "WL",
+                   "actions": [
+                    {
+                     "action": "ACTION_REMOVE_VIDEO_BY_VIDEO_ID",
+                     "removedVideoId": "5LWDl5qaQbA"
+                    }
+                   ]
+                  }
+                 },
+                 "untoggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Watch later"
+                  }
+                 },
+                 "toggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Added"
+                  }
+                 }
+                }
+               },
+               {
+                "thumbnailOverlayToggleButtonRenderer": {
+                 "untoggledIcon": {
+                  "iconType": "ADD_TO_QUEUE_TAIL"
+                 },
+                 "toggledIcon": {
+                  "iconType": "PLAYLIST_ADD_CHECK"
+                 },
+                 "untoggledTooltip": "Add to queue",
+                 "toggledTooltip": "Added",
+                 "untoggledServiceEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true
+                   }
+                  },
+                  "signalServiceEndpoint": {
+                   "signal": "CLIENT_SIGNAL",
+                   "actions": [
+                    {
+                     "addToPlaylistCommand": {
+                      "openMiniplayer": true,
+                      "videoId": "5LWDl5qaQbA",
+                      "listType": "PLAYLIST_EDIT_LIST_TYPE_QUEUE",
+                      "onCreateListCommand": {
+                       "commandMetadata": {
+                        "webCommandMetadata": {
+                         "sendPost": true,
+                         "apiUrl": "/youtubei/v1/playlist/create"
+                        }
+                       },
+                       "createPlaylistServiceEndpoint": {
+                        "videoIds": [
+                         "5LWDl5qaQbA"
+                        ],
+                        "params": "CAQ%3D"
+                       }
+                      },
+                      "videoIds": [
+                       "5LWDl5qaQbA"
+                      ]
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 "untoggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Add to queue"
+                  }
+                 },
+                 "toggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Added"
+                  }
+                 }
+                }
+               }
+              ],
+              "avatar": {
+               "decoratedAvatarViewModel": {
+                "avatar": {
+                 "avatarViewModel": {
+                  "image": {
+                   "sources": [
+                    {
+                     "url": "https://yt3.googleusercontent.com/qu4TmIaYUlS41-dJ9gZ7DUR3nilvmB5_11i6OKSdvNnBNiyOusZP1bMN6ICnuxtjFBb6ioKgRQ=s68-c-k-c0x00ffffff-no-rj",
+                     "width": 68,
+                     "height": 68
+                    }
+                   ]
+                  },
+                  "avatarImageSize": "AVATAR_SIZE_M"
+                 }
+                },
+                "a11yLabel": "Go to channel Marques Brownlee",
+                "rendererContext": {
+                 "commandContext": {
+                  "onTap": {
+                   "innertubeCommand": {
+                    "commandMetadata": {
+                     "webCommandMetadata": {
+                      "url": "/@mkbhd",
+                      "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                      "rootVe": 3611,
+                      "apiUrl": "/youtubei/v1/browse"
+                     }
+                    },
+                    "browseEndpoint": {
+                     "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                     "canonicalBaseUrl": "/@mkbhd"
+                    }
+                   }
+                  }
+                 }
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         {
+          "itemSectionRenderer": {
+           "contents": [
+            {
+             "videoRenderer": {
+              "videoId": "pTCgWVjB6UE",
+              "thumbnail": {
+               "thumbnails": [
+                {
+                 "url": "https://i.ytimg.com/vi/pTCgWVjB6UE/hqdefault.jpg?sqp=-oaymwEiCKgBEF5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AaLzl_8DDgjF-OWYBhjg6gQg4KgB&rs=AOn4CLB6UdhTawejjKgTViaU9FjpA0IRkQ&usqp=CBU",
+                 "width": 168,
+                 "height": 94
+                },
+                {
+                 "url": "https://i.ytimg.com/vi/pTCgWVjB6UE/hqdefault.jpg?sqp=-oaymwEiCMQBEG5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AaLzl_8DDgjF-OWYBhjg6gQg4KgB&rs=AOn4CLBW2Ck7Ae4iIEGkYD5TkDKk-ShKFQ&usqp=CBU",
+                 "width": 196,
+                 "height": 110
+                },
+                {
+                 "url": "https://i.ytimg.com/vi/pTCgWVjB6UE/hqdefault.jpg?sqp=-oaymwEjCPYBEIoBSFryq4qpAxUIARUAAAAAGAElAADIQj0AgKJDeAGi85f_Aw4IxfjlmAYY4OoEIOCoAQ==&rs=AOn4CLDx98vZ1JukPfG1PANLxMRLMhEulw&usqp=CBU",
+                 "width": 246,
+                 "height": 138
+                }
+               ]
+              },
+              "title": {
+               "runs": [
+                {
+                 "text": "iPhone 14/Pro Impressions: Welcome to Dynamic Island!"
+                }
+               ],
+               "accessibility": {
+                "accessibilityData": {
+                 "label": "iPhone 14/Pro Impressions: Welcome to Dynamic Island! 13 minutes, 27 seconds"
+                }
+               }
+              },
+              "descriptionSnippet": {
+               "runs": [
+                {
+                 "text": "iPhone 14 first look, and hands-on with the dynamic island AKA The Pill!\nApple Watch Ultra impressions: https://youtu.be/N8M8OOe3SV4\n\nThanks to Anker for sponsoring today's video! Check out..."
+                }
+               ]
+              },
+              "longBylineText": {
+               "runs": [
+                {
+                 "text": "Marques Brownlee",
+                 "navigationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "url": "/@mkbhd",
+                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                    "rootVe": 3611,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "browseEndpoint": {
+                   "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                   "canonicalBaseUrl": "/@mkbhd"
+                  }
+                 }
+                }
+               ]
+              },
+              "publishedTimeText": {
+               "simpleText": "4 years ago"
+              },
+              "lengthText": {
+               "accessibility": {
+                "accessibilityData": {
+                 "label": "13 minutes, 27 seconds"
+                }
+               },
+               "simpleText": "13:27"
+              },
+              "viewCountText": {
+               "simpleText": "8,732,602 views"
+              },
+              "navigationEndpoint": {
+               "commandMetadata": {
+                "webCommandMetadata": {
+                 "url": "/watch?v=pTCgWVjB6UE",
+                 "webPageType": "WEB_PAGE_TYPE_WATCH",
+                 "rootVe": 3832
+                }
+               },
+               "watchEndpoint": {
+                "videoId": "pTCgWVjB6UE",
+                "watchEndpointSupportedOnesieConfig": {
+                 "html5PlaybackOnesieConfig": {
+                  "commonConfig": {
+                   "url": "https://rr3---sn-5jucgv5qc5oq-h55e7.googlevideo.com/initplayback?source=youtube&oeis=1&c=WEB&oad=3200&ovd=3200&oaad=11000&oavd=11000&ocs=700&oewis=1&oputc=1&epbp=1&msp=1&odepv=1&id=a530a05958c1e941&ip=REDACTED&initcwndbps=3123375&mt=1795419737&oweuc="
+                  }
+                 }
+                }
+               }
+              },
+              "badges": [
+               {
+                "metadataBadgeRenderer": {
+                 "style": "BADGE_STYLE_TYPE_SIMPLE",
+                 "label": "CC",
+                 "accessibilityData": {
+                  "label": "Closed captions"
+                 }
+                }
+               }
+              ],
+              "ownerBadges": [
+               {
+                "metadataBadgeRenderer": {
+                 "icon": {
+                  "iconType": "CHECK_CIRCLE_THICK"
+                 },
+                 "style": "BADGE_STYLE_TYPE_VERIFIED",
+                 "tooltip": "Verified",
+                 "accessibilityData": {
+                  "label": "Verified"
+                 }
+                }
+               }
+              ],
+              "ownerText": {
+               "runs": [
+                {
+                 "text": "Marques Brownlee",
+                 "navigationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "url": "/@mkbhd",
+                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                    "rootVe": 3611,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "browseEndpoint": {
+                   "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                   "canonicalBaseUrl": "/@mkbhd"
+                  }
+                 }
+                }
+               ]
+              },
+              "shortBylineText": {
+               "runs": [
+                {
+                 "text": "Marques Brownlee",
+                 "navigationEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "url": "/@mkbhd",
+                    "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                    "rootVe": 3611,
+                    "apiUrl": "/youtubei/v1/browse"
+                   }
+                  },
+                  "browseEndpoint": {
+                   "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                   "canonicalBaseUrl": "/@mkbhd"
+                  }
+                 }
+                }
+               ]
+              },
+              "showActionMenu": false,
+              "shortViewCountText": {
+               "accessibility": {
+                "accessibilityData": {
+                 "label": "8.7 million views"
+                }
+               },
+               "simpleText": "8.7M views"
+              },
+              "channelThumbnailSupportedRenderers": {
+               "channelThumbnailWithLinkRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/qu4TmIaYUlS41-dJ9gZ7DUR3nilvmB5_11i6OKSdvNnBNiyOusZP1bMN6ICnuxtjFBb6ioKgRQ=s68-c-k-c0x00ffffff-no-rj",
+                   "width": 68,
+                   "height": 68
+                  }
+                 ]
+                },
+                "navigationEndpoint": {
+                 "commandMetadata": {
+                  "webCommandMetadata": {
+                   "url": "/@mkbhd",
+                   "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                   "rootVe": 3611,
+                   "apiUrl": "/youtubei/v1/browse"
+                  }
+                 },
+                 "browseEndpoint": {
+                  "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                  "canonicalBaseUrl": "/@mkbhd"
+                 }
+                },
+                "accessibility": {
+                 "accessibilityData": {
+                  "label": "Go to channel Marques Brownlee"
+                 }
+                }
+               }
+              },
+              "thumbnailOverlays": [
+               {
+                "thumbnailOverlayTimeStatusRenderer": {
+                 "text": {
+                  "accessibility": {
+                   "accessibilityData": {
+                    "label": "13 minutes, 27 seconds"
+                   }
+                  },
+                  "simpleText": "13:27"
+                 },
+                 "style": "DEFAULT"
+                }
+               },
+               {
+                "thumbnailOverlayToggleButtonRenderer": {
+                 "isToggled": false,
+                 "untoggledIcon": {
+                  "iconType": "WATCH_LATER"
+                 },
+                 "toggledIcon": {
+                  "iconType": "CHECK"
+                 },
+                 "untoggledTooltip": "Watch later",
+                 "toggledTooltip": "Added",
+                 "untoggledServiceEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true,
+                    "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                   }
+                  },
+                  "playlistEditEndpoint": {
+                   "playlistId": "WL",
+                   "actions": [
+                    {
+                     "addedVideoId": "pTCgWVjB6UE",
+                     "action": "ACTION_ADD_VIDEO"
+                    }
+                   ]
+                  }
+                 },
+                 "toggledServiceEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true,
+                    "apiUrl": "/youtubei/v1/browse/edit_playlist"
+                   }
+                  },
+                  "playlistEditEndpoint": {
+                   "playlistId": "WL",
+                   "actions": [
+                    {
+                     "action": "ACTION_REMOVE_VIDEO_BY_VIDEO_ID",
+                     "removedVideoId": "pTCgWVjB6UE"
+                    }
+                   ]
+                  }
+                 },
+                 "untoggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Watch later"
+                  }
+                 },
+                 "toggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Added"
+                  }
+                 }
+                }
+               },
+               {
+                "thumbnailOverlayToggleButtonRenderer": {
+                 "untoggledIcon": {
+                  "iconType": "ADD_TO_QUEUE_TAIL"
+                 },
+                 "toggledIcon": {
+                  "iconType": "PLAYLIST_ADD_CHECK"
+                 },
+                 "untoggledTooltip": "Add to queue",
+                 "toggledTooltip": "Added",
+                 "untoggledServiceEndpoint": {
+                  "commandMetadata": {
+                   "webCommandMetadata": {
+                    "sendPost": true
+                   }
+                  },
+                  "signalServiceEndpoint": {
+                   "signal": "CLIENT_SIGNAL",
+                   "actions": [
+                    {
+                     "addToPlaylistCommand": {
+                      "openMiniplayer": true,
+                      "videoId": "pTCgWVjB6UE",
+                      "listType": "PLAYLIST_EDIT_LIST_TYPE_QUEUE",
+                      "onCreateListCommand": {
+                       "commandMetadata": {
+                        "webCommandMetadata": {
+                         "sendPost": true,
+                         "apiUrl": "/youtubei/v1/playlist/create"
+                        }
+                       },
+                       "createPlaylistServiceEndpoint": {
+                        "videoIds": [
+                         "pTCgWVjB6UE"
+                        ],
+                        "params": "CAQ%3D"
+                       }
+                      },
+                      "videoIds": [
+                       "pTCgWVjB6UE"
+                      ]
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 "untoggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Add to queue"
+                  }
+                 },
+                 "toggledAccessibility": {
+                  "accessibilityData": {
+                   "label": "Added"
+                  }
+                 }
+                }
+               }
+              ],
+              "avatar": {
+               "decoratedAvatarViewModel": {
+                "avatar": {
+                 "avatarViewModel": {
+                  "image": {
+                   "sources": [
+                    {
+                     "url": "https://yt3.googleusercontent.com/qu4TmIaYUlS41-dJ9gZ7DUR3nilvmB5_11i6OKSdvNnBNiyOusZP1bMN6ICnuxtjFBb6ioKgRQ=s68-c-k-c0x00ffffff-no-rj",
+                     "width": 68,
+                     "height": 68
+                    }
+                   ]
+                  },
+                  "avatarImageSize": "AVATAR_SIZE_M"
+                 }
+                },
+                "a11yLabel": "Go to channel Marques Brownlee",
+                "rendererContext": {
+                 "commandContext": {
+                  "onTap": {
+                   "innertubeCommand": {
+                    "commandMetadata": {
+                     "webCommandMetadata": {
+                      "url": "/@mkbhd",
+                      "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+                      "rootVe": 3611,
+                      "apiUrl": "/youtubei/v1/browse"
+                     }
+                    },
+                    "browseEndpoint": {
+                     "browseId": "UCBJycsmduvYEL83R_U4JriQ",
+                     "canonicalBaseUrl": "/@mkbhd"
+                    }
+                   }
+                  }
+                 }
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         {
+          "continuationItemRenderer": {
+           "trigger": "CONTINUATION_TRIGGER_ON_ITEM_SHOWN",
+           "continuationEndpoint": {
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "sendPost": true,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "continuationCommand": {
+             "token": "4qmFsgJ2EhhVQ0JKeWNzbWR1dllFTDgzUl9VNEpyaVEaJkNCNFNCbk5sWVhKamFEQUJPQUZnQVdvQWVnTkhRalM0QVFBJTNEWgZpcGhvbmWaAilicm93c2UtZmVlZFVDQkp5Y3NtZHV2WUVMODNSX1U0SnJpUXNlYXJjaA%3D%3D",
+             "request": "CONTINUATION_REQUEST_TYPE_BROWSE"
+            }
+           }
+          }
+         }
+        ],
+        "targetId": "browse-feedUCBJycsmduvYEL83R_U4JriQsearch"
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

@@ -29,7 +29,7 @@ import kotlinx.coroutines.withContext
  */
 
 /** The sections of a channel page (spec 5.5): its tabs, and About, which is drawn from the header and needs no tab. */
-internal enum class ChannelSection { VIDEOS, SHORTS, LIVE, PLAYLISTS, ABOUT }
+internal enum class ChannelSection { VIDEOS, SHORTS, LIVE, PLAYLISTS, PODCASTS, COURSES, RELEASES, POSTS, ABOUT, SEARCH }
 
 /** Which sections a channel page offers, and which one it shows. Pure. */
 internal object ChannelSections {
@@ -59,7 +59,7 @@ internal object ChannelSections {
         ChannelSection.SHORTS -> ChannelTab.SHORTS
         ChannelSection.LIVE -> ChannelTab.LIVE
         ChannelSection.PLAYLISTS -> ChannelTab.PLAYLISTS
-        ChannelSection.ABOUT -> null
+        else -> null
     }
 
     /** The section to show: [wanted] when the channel offers it, else the first one it does. */

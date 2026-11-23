@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import org.jetbrains.compose.resources.stringResource
+import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_unlock_controls
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
@@ -145,7 +149,7 @@ fun VideoPlayerBox(
         if (localAspect != null) surface?.Surface(Modifier.fillMaxSize(), localAspect) else surface?.Surface(Modifier.fillMaxSize(), shownScale)
         if (!chrome) {
             val cues by playback.engine.cues.collectAsState()
-            SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp)
+            SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp, color = Color(settings.captionsColor.argb), top = settings.captionsTop)
             return@Box
         }
         if (!controls) {
@@ -206,7 +210,7 @@ private fun BoxScope.PagePlayerLayer(
         Box(Modifier.matchParentSize().then(if (hoverControls) Modifier.hoverReveal(hover, layout) else Modifier)) {
             if (posterShown) ThumbnailFrame(poster, Modifier.matchParentSize().testTag("video:watch:poster"), RectangleShape)
             val cues by playback.engine.cues.collectAsState()
-            SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp)
+            SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp, color = Color(settings.captionsColor.argb), top = settings.captionsTop)
             Box(
                 Modifier.matchParentSize().playerGestures(
                     playback = playback,
@@ -214,6 +218,8 @@ private fun BoxScope.PagePlayerLayer(
                     platform = platform,
                     feedback = feedback,
                     stepSeconds = settings.doubleTapSeconds,
+                    swipeEdge = settings.swipeEdgePercent / 100f,
+                    swipeSpeed = settings.swipeSpeed,
                     live = state.live,
                     onTap = {
                         when {
@@ -307,6 +313,9 @@ private fun BoxScope.PlayerChrome(
     LaunchedEffect(controller, playing) { controller.send(if (playing) ChromeEvent.PLAY else ChromeEvent.PAUSE) }
 
     var settingsOpen by remember { mutableStateOf(false) }
+    // The phone's fullscreen lock: while it is on, touches do nothing but bring back the unlock button for a moment.
+    var locked by remember { mutableStateOf(false) }
+    if (layout != PlayerLayout.FULLSCREEN && locked) locked = false
     var statsShown by PlayerStatsSwitch::shown
     val scrubbing = remember { mutableStateOf(false) }
     val feedback = remember { GestureFeedback() }
@@ -348,10 +357,15 @@ private fun BoxScope.PlayerChrome(
             background = settings.captionsBackground,
             lift = { visibility.value },
             liftDp = metrics.subtitleLiftDp.dp,
+            color = Color(settings.captionsColor.argb),
+            top = settings.captionsTop,
         )
 
+        if (locked) {
+            PlayerLockLayer(onUnlock = { locked = false; controller.send(ChromeEvent.INPUT) }, modifier = Modifier.matchParentSize().zIndex(4f))
+        }
         // The gestures: under the controls while they show, over them while they are hidden (so the first tap only wakes them).
-        Box(
+        if (!locked) Box(
             Modifier
                 .matchParentSize()
                 .zIndex(if (shown) 0f else 2f)
@@ -361,6 +375,8 @@ private fun BoxScope.PlayerChrome(
                     platform = platform,
                     feedback = feedback,
                     stepSeconds = settings.doubleTapSeconds,
+                    swipeEdge = settings.swipeEdgePercent / 100f,
+                    swipeSpeed = settings.swipeSpeed,
                     live = state.live,
                     onTap = {
                         if (layout == PlayerLayout.WINDOW) {
@@ -378,7 +394,7 @@ private fun BoxScope.PlayerChrome(
         )
 
         // The controls, composed always (focus and assistive technology keep them), drawn at the chrome's opacity.
-        Box(Modifier.matchParentSize().zIndex(1f).graphicsLayer { alpha = visibility.value }) {
+        if (!locked) Box(Modifier.matchParentSize().zIndex(1f).graphicsLayer { alpha = visibility.value }) {
             ChromeControls(
                 playback = playback,
                 state = state,
@@ -395,6 +411,7 @@ private fun BoxScope.PlayerChrome(
                 onToggleFullscreen = onToggleFullscreen,
                 onEnterPip = onEnterPip,
                 onOpenSettings = { settingsOpen = true; controller.send(ChromeEvent.SHEET_OPEN) },
+                onLock = if (layout == PlayerLayout.FULLSCREEN) ({ locked = true }) else null,
                 settingsMenu = if (layout == PlayerLayout.WINDOW && settingsOpen) {
                     {
                         PlayerSettingsMenu(
@@ -501,8 +518,14 @@ private fun onPlayerKey(
     onInput: () -> Unit,
 ): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
-    val name = playerKeyName(event) ?: return false
-    val action = PlayerKeyMap.action(name, event.isShiftPressed, event.isCtrlPressed || event.isMetaPressed) ?: return false
+    val remote = remoteButtonOf(event)
+    val action = if (remote != null) {
+        com.cosmotune.video.player.RemoteButtons.keyAction(com.cosmotune.video.player.RemoteButtons.actionOf(settings.remoteButtons, remote), settings.doubleTapSeconds)
+            ?: return false
+    } else {
+        val name = playerKeyName(event) ?: return false
+        PlayerKeyMap.action(name, event.isShiftPressed, event.isCtrlPressed || event.isMetaPressed) ?: return false
+    }
     val done = performPlayerKey(
         action = action,
         playback = playback,

@@ -49,6 +49,7 @@ import com.cosmotune.video.resources.video_muted_segment
 import com.cosmotune.video.resources.video_seek_back_pill
 import com.cosmotune.video.resources.video_seek_forward_pill
 import com.cosmotune.video.resources.video_speed_hold
+import com.cosmotune.video.resources.video_speed_value
 import com.cosmotune.video.resources.video_volume
 import com.cosmotune.video.resources.video_zoom_fill
 import com.cosmotune.video.resources.video_zoom_fit
@@ -56,6 +57,7 @@ import com.cosmotune.video.ui.VideoIcons
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -84,11 +86,31 @@ internal fun tapZone(fraction: Float): TapZone = when {
     else -> TapZone.MIDDLE
 }
 
+/** The zone of a full-screen drag: the left and right [edge] of the width (the setting, 25 to 50 %) are brightness and volume. */
+internal fun swipeZone(fraction: Float, edge: Float): TapZone = when {
+    fraction < edge -> TapZone.LEFT
+    fraction > 1f - edge -> TapZone.RIGHT
+    else -> TapZone.MIDDLE
+}
+
+/**
+ * The speed a drag in the middle sets: up is faster, the box's height spans [SPEED_SWIPE_RANGE], in steps of 0.25x between 0.25x and 4x.
+ * [dy] is the drag down from where it began, [height] the box's.
+ */
+internal fun swipedSpeed(startSpeed: Float, dy: Float, height: Float): Float {
+    val raw = startSpeed - dy / height.coerceAtLeast(1f) * SPEED_SWIPE_RANGE
+    return ((raw / SPEED_SWIPE_STEP).roundToInt() * SPEED_SWIPE_STEP).coerceIn(SPEED_SWIPE_STEP, SPEED_SWIPE_MAX)
+}
+
+private const val SPEED_SWIPE_RANGE = 3f
+private const val SPEED_SWIPE_STEP = 0.25f
+private const val SPEED_SWIPE_MAX = 4f
+
 /** A run of double-tap seeks (spec 6.5: "adding up on repeated taps"): its direction, the seconds so far, when the last tap was. */
 internal data class SeekRun(val forward: Boolean, val seconds: Int, val stamp: Long)
 
 /** Which meter a full-screen drag shows (spec 6.5). */
-internal enum class MeterKind { BRIGHTNESS, VOLUME }
+internal enum class MeterKind { BRIGHTNESS, VOLUME, SPEED }
 
 /**
  * What the gestures show while they happen (spec 6.5): the seek pill of a run of double taps, the "2x speed" chip of a long press,
@@ -112,7 +134,8 @@ internal class GestureFeedback {
  * - a long press: 2x while held (not for live), the speed set back on release;
  * - [PlayerLayout.PAGE]: a swipe down calls [onCollapse], a swipe up [onToggleFullscreen];
  * - [PlayerLayout.FULLSCREEN]: with [PlayerPlatformControls.swipeControls] (a touch screen) a vertical drag on the left 40 % is the
- *   brightness and on the right 40 % the volume, a swipe down in the middle leaves full screen; without them a swipe down anywhere does;
+ *   brightness and on the right 40 % the volume ([swipeEdge] sets how wide), a swipe down in the middle leaves full screen, or with
+ *   [swipeSpeed] a drag in the middle changes the speed; without them a swipe down anywhere does;
  *   a pinch fills or fits ([onScale]).
  */
 internal fun Modifier.playerGestures(
@@ -129,6 +152,8 @@ internal fun Modifier.playerGestures(
     onScale: (VideoScale) -> Unit,
     immediateTap: Boolean = false,
     windowTapPlays: Boolean = true,
+    swipeEdge: Float = VideoMetrics.DOUBLE_TAP_ZONE,
+    swipeSpeed: Boolean = false,
 ): Modifier = composed {
     val tap by rememberUpdatedState(onTap)
     val input by rememberUpdatedState(onInput)
@@ -189,11 +214,11 @@ internal fun Modifier.playerGestures(
 
     if (layout != PlayerLayout.WINDOW) {
         // After the taps in the chain, so its drags are consumed before the tap detector sees them (and cancel the tap).
-        chain = chain.pointerInput(layout, platform, playback) {
+        chain = chain.pointerInput(layout, platform, playback, swipeEdge, swipeSpeed) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 val height = size.height.coerceAtLeast(1).toFloat()
-                val zone = tapZone(down.position.x / size.width.coerceAtLeast(1))
+                val zone = swipeZone(down.position.x / size.width.coerceAtLeast(1), swipeEdge)
                 val swipeControls = layout == PlayerLayout.FULLSCREEN && platform.swipeControls
                 var vertical = false
                 var pinch = false
@@ -217,13 +242,18 @@ internal fun Modifier.playerGestures(
                     val moveX = change.position.x - down.position.x
                     if (!vertical && abs(moveY) > viewConfiguration.touchSlop && abs(moveY) > abs(moveX)) {
                         vertical = true
-                        if (swipeControls && zone != TapZone.MIDDLE) {
+                        if (swipeControls && zone == TapZone.MIDDLE && swipeSpeed && !isLive) {
+                            meter = MeterKind.SPEED
+                            startLevel = playback.state.value.speed
+                            feedback.meterLevel.floatValue = startLevel
+                            feedback.meter = meter
+                        } else if (swipeControls && zone != TapZone.MIDDLE) {
                             meter = if (zone == TapZone.LEFT) MeterKind.BRIGHTNESS else MeterKind.VOLUME
                             if (meter == MeterKind.BRIGHTNESS && !platform.brightnessSupported) meter = null
                             startLevel = when (meter) {
                                 MeterKind.BRIGHTNESS -> platform.brightness()
                                 MeterKind.VOLUME -> platform.volume()
-                                null -> 0f
+                                MeterKind.SPEED, null -> 0f
                             }
                             feedback.meterLevel.floatValue = startLevel
                             feedback.meter = meter
@@ -232,7 +262,13 @@ internal fun Modifier.playerGestures(
                     if (vertical) {
                         change.consume()
                         dy = moveY
-                        if (meter != null) {
+                        if (meter == MeterKind.SPEED) {
+                            val speed = swipedSpeed(startLevel, moveY, height)
+                            if (speed != feedback.meterLevel.floatValue) {
+                                feedback.meterLevel.floatValue = speed
+                                playback.setSpeed(speed)
+                            }
+                        } else if (meter != null) {
                             val level = (startLevel - moveY / height).coerceIn(0f, 1f)
                             feedback.meterLevel.floatValue = level
                             if (meter == MeterKind.BRIGHTNESS) platform.setBrightness(level) else platform.setVolume(level)
@@ -325,7 +361,12 @@ internal fun BoxScope.GestureOverlays(feedback: GestureFeedback, metrics: Chrome
     }
 
     val meter = feedback.meter
-    if (meter != null && layout == PlayerLayout.FULLSCREEN) {
+    if (meter == MeterKind.SPEED && layout == PlayerLayout.FULLSCREEN) {
+        ChromePill(
+            stringResource(Res.string.video_speed_value, speedLabel(feedback.meterLevel.floatValue)),
+            Modifier.align(Alignment.TopCenter).padding(top = metrics.chipTopDp.dp),
+        )
+    } else if (meter != null && layout == PlayerLayout.FULLSCREEN) {
         // The shared kit's glass meter (the full-screen player's too), at spec 6.5's size, named for assistive technology.
         com.cosmotune.ui.fullscreen.LevelMeter(
             kind = if (meter == MeterKind.BRIGHTNESS) com.cosmotune.ui.fullscreen.LevelKind.BRIGHTNESS else com.cosmotune.ui.fullscreen.LevelKind.VOLUME,

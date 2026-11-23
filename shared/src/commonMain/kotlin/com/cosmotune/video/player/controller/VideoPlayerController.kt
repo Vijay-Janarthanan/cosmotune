@@ -283,7 +283,7 @@ class VideoPlayerController(
         val s = settings.settings.value
         val previous = load
         val l = Load(
-            videoId, short, local, s.defaultSpeed, loop = short, budget = RefreshBudget(clock = clock),
+            videoId, short, local, startSpeed(s, videoId, short), loop = short, budget = RefreshBudget(clock = clock),
             startBudget = RefreshBudget(max = STARTUP_ROUTES, clock = clock), freshStreams = freshStreams,
         )
         l.knownItem = known ?: knownItem(videoId, previous)
@@ -929,7 +929,8 @@ class VideoPlayerController(
     private fun evaluateSegments(l: Load, positionMs: Long) {
         val s = settings.settings.value
         var changed = false
-        if (!s.sponsorBlock || l.segments.isEmpty()) {
+        val excluded = (l.item ?: l.knownItem)?.channelId?.let { it in s.sponsorBlockExcluded } == true
+        if (!s.sponsorBlock || excluded || l.segments.isEmpty()) {
             if (l.mutedSegment != null) {
                 endMute(l)
                 changed = true
@@ -1183,6 +1184,7 @@ class VideoPlayerController(
     override fun setSpeed(speed: Float) {
         val clamped = speed.coerceIn(MIN_SPEED, MAX_SPEED)
         load?.speed = clamped
+        load?.takeIf { !it.short && settings.settings.value.rememberSpeed }?.let { l -> settings.update { it.copy(speedByVideo = remembered(it.speedByVideo, l.videoId, clamped)) } }
         engine.setSpeed(clamped)
         publish()
     }
@@ -1427,3 +1429,11 @@ class VideoPlayerController(
         const val STARTUP_ROUTES = 4
     }
 }
+
+/** The speed a video starts at: the one it was last watched at when the listener asked for that (not for Shorts), else the default. */
+internal fun startSpeed(s: com.cosmotune.video.settings.VideoSettings, videoId: String, short: Boolean): Float =
+    (if (s.rememberSpeed && !short) s.speedByVideo[videoId] else null) ?: s.defaultSpeed
+
+/** [map] with [videoId] at [speed], newest last, at most 300 videos (the default speed is not kept: it is what they start at anyway). */
+internal fun remembered(map: Map<String, Float>, videoId: String, speed: Float): Map<String, Float> =
+    (map - videoId).let { rest -> if (speed == 1f) rest else rest + (videoId to speed) }.entries.toList().takeLast(300).associate { it.key to it.value }
