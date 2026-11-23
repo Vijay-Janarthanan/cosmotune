@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -34,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -42,140 +40,10 @@ import androidx.compose.ui.unit.sp
 import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.orbit.OrbitPageHeading
-import com.cosmotune.ui.orbit.OrbitSearchPill
 import com.cosmotune.ui.orbit.WatchCard
 import com.cosmotune.ui.orbit.WatchMessage
-import com.cosmotune.ui.orbit.WatchSkeleton
-import com.cosmotune.watch.LiveNowItem
-import com.cosmotune.watch.SearchResults
 import com.cosmotune.watch.model.TitleSummary
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-/** Watch search's text, filters and last results, kept for the process per repository (a test's fake has its own). */
-internal class WatchSearchMemory {
-    val query = mutableStateOf("")
-    val type = mutableStateOf<String?>(null)
-    val genre = mutableStateOf<String?>(null)
-    val year = mutableStateOf<Int?>(null)
-    @Volatile var found: Pair<String, SearchResults>? = null
-    @Volatile var live: List<LiveNowItem> = emptyList()
-
-    companion object {
-        private val all = java.util.WeakHashMap<Any, WatchSearchMemory>()
-        fun of(owner: Any): WatchSearchMemory = synchronized(all) { all.getOrPut(owner) { WatchSearchMemory() } }
-    }
-}
-
-/** Search (board: Search in the sidebar): Orbit's search pill, then films and series as posters and channels as live rows. */
-@Composable
-internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame, initialQuery: String = "") {
-    val repository = actions.repository
-    val clock = LocalWatchClock.current
-    // What was searched and found stays for the process: opening a result and coming back finds the same search, not an empty one.
-    val memory = remember(repository) { WatchSearchMemory.of(repository).also { m -> if (initialQuery.isNotEmpty()) m.query.value = initialQuery } }
-    var query by memory.query
-    var results by remember { mutableStateOf(memory.found?.takeIf { it.first == query.trim() }?.second) }
-    var searching by remember { mutableStateOf(false) }
-    var type by memory.type
-    var genre by memory.genre
-    var year by memory.year
-    var genreMenu by remember { mutableStateOf(false) }
-    var yearMenu by remember { mutableStateOf(false) }
-    var live by remember { mutableStateOf(memory.live.takeIf { memory.found?.first == query.trim() }.orEmpty()) }
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(query) {
-        val q = query.trim()
-        if (q.isEmpty()) { results = null; searching = false; return@LaunchedEffect }
-        if (memory.found?.first == q) { results = memory.found?.second; live = memory.live; return@LaunchedEffect }
-        searching = true
-        delay(300)
-        val found = runCatching { repository.search(q) }.getOrNull()
-        live = found?.channels.orEmpty().take(8).map { c -> runCatching { repository.nowNext(c) }.getOrDefault(LiveNowItem(c)) }
-        results = found
-        if (found != null) { memory.found = q to found; memory.live = live }
-        searching = false
-    }
-    val side = frame.side
-    Box(Modifier.fillMaxSize()) {
-        WatchWash(Color(0xFF2E2758), look)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = frame.padding) {
-            frame.header?.let { header -> item(key = "search:header") { header() } }
-            item(key = "search:heading") {
-                OrbitPageHeading("Search", if (frame.wide) "Films, series and channels · every plugin that is on" else "Every plugin that is on", fonts, look, Modifier.padding(start = side + 6.dp, end = side, top = if (frame.wide) 24.dp else 18.dp))
-            }
-            item(key = "search:pill") {
-                OrbitSearchPill(query, { query = it }, onSubmit = {}, placeholder = "What do you want to watch?", fonts = fonts, look = look, focusRequester = focus,
-                    modifier = Modifier.padding(horizontal = side).padding(top = 20.dp))
-            }
-            item(key = "search:filters") {
-                Row(Modifier.padding(horizontal = side, vertical = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(null to "All", "FILM" to "Films", "SERIES" to "Series").forEach { (value, label) ->
-                        com.cosmotune.ui.orbit.OrbitSelectChip(label, type == value, fonts, look, onClick = { type = value }, haptic = false)
-                    }
-                    Box {
-                        com.cosmotune.ui.orbit.OrbitSelectChip(genre ?: "Genre", genre != null, fonts, look, onClick = { genreMenu = true }, haptic = false)
-                        com.cosmotune.ui.orbit.OrbitMenu(genreMenu, { genreMenu = false }, fonts = fonts, look = look, items =
-                            listOf(com.cosmotune.ui.orbit.OrbitMenuItem("All genres") { genre = null }) +
-                                (results?.let { it.films + it.series }.orEmpty().flatMap { it.genres }.distinct().sorted()).map { value ->
-                                    com.cosmotune.ui.orbit.OrbitMenuItem(value) { genre = value }
-                                })
-                    }
-                    Box {
-                        com.cosmotune.ui.orbit.OrbitSelectChip(year?.toString() ?: "Year", year != null, fonts, look, onClick = { yearMenu = true }, haptic = false)
-                        com.cosmotune.ui.orbit.OrbitMenu(yearMenu, { yearMenu = false }, fonts = fonts, look = look, items =
-                            listOf(com.cosmotune.ui.orbit.OrbitMenuItem("All years") { year = null }) +
-                                (results?.let { it.films + it.series }.orEmpty().mapNotNull { it.year }.distinct().sortedDescending()).map { value ->
-                                    com.cosmotune.ui.orbit.OrbitMenuItem(value.toString()) { year = value }
-                                })
-                    }
-                }
-            }
-            val r = results?.let { com.cosmotune.watch.WatchSearchFilter(type?.let(com.cosmotune.watch.model.TitleType::valueOf), genre, year).apply(it) }
-            when {
-                query.isBlank() -> item(key = "search:hint") {
-                    WatchMessage("Search", "Find anything to watch", "A title, a channel or a series. Search asks every plugin that is on, and the free ones are on from the start.",
-                        fonts, look, Modifier.padding(horizontal = side).padding(top = 22.dp))
-                }
-                searching && r == null -> item(key = "search:loading") {
-                    LazyRow(Modifier.padding(top = 26.dp), contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        items(5) { WatchSkeleton(look, Modifier.size(132.dp, 198.dp)) }
-                    }
-                }
-                r != null && r.isEmpty -> item(key = "search:none") {
-                    WatchMessage("No results", "Nothing for “${query.trim()}”", "Try another spelling, or switch on more plugins.", fonts, look,
-                        Modifier.padding(horizontal = side).padding(top = 22.dp), action = "Open Plugins", onAction = { WatchNav.go(WatchTab.PLUGINS) })
-                }
-                r != null -> {
-                    if (r.films.isNotEmpty()) item(key = "search:films") { PosterShelf("Films", r.films, actions, fonts, look, side) }
-                    if (r.series.isNotEmpty()) item(key = "search:series") { PosterShelf("Series", r.series, actions, fonts, look, side) }
-                    if (r.channels.isNotEmpty() && live.isNotEmpty()) item(key = "search:channels") {
-                        Column {
-                            Section("Channels", null, fonts, look, side)
-                            Column(Modifier.padding(horizontal = side), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                live.forEach { item -> LiveRow(item, fonts, look, clock) { actions.playChannel(item.channel) } }
-                            }
-                        }
-                    }
-                }
-            }
-            item(key = "search:end") { Spacer(Modifier.height(40.dp)) }
-        }
-    }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-}
-
-@Composable
-private fun PosterShelf(title: String, items: List<TitleSummary>, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
-    Column {
-        Section(title, null, fonts, look, side)
-        LazyRow(contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            itemsIndexed(items, key = { i, it -> it.key.value + i }) { _, s ->
-                WatchCard(s.name, posterLine(s), s.posterUrl ?: s.backdropUrl, s.key.value, fonts, look, onClick = { actions.open(s) }, width = 142.dp, onPlay = { actions.play(s) })
-            }
-        }
-    }
-}
 
 /** How My list is sorted. */
 private enum class MyListSort(val label: String) { ADDED("Recently added"), NAME("A to Z"), YEAR("Year") }

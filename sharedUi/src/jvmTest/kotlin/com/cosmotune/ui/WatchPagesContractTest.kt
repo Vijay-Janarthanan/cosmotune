@@ -70,17 +70,40 @@ class WatchPagesContractTest {
 
     private val dir = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/"
 
-    @Test fun thePhoneHasFourTabsAndTheProfileMenuHoldsDownloadsPluginsAndSettings() {
-        assertEquals(listOf(WatchTab.HOME, WatchTab.LIVE, WatchTab.SEARCH, WatchTab.MY_LIST), com.cosmotune.ui.watch.WATCH_PHONE_TABS)
-        assertEquals(setOf(WatchTab.DOWNLOADS, WatchTab.PLUGINS, WatchTab.SETTINGS), com.cosmotune.ui.watch.WATCH_MENU_PAGES)
+    @Test fun thePhoneHasFourTabsAndTheProfileMenuHoldsPluginsAndSettings() {
+        assertEquals(listOf(WatchTab.HOME, WatchTab.LIVE, WatchTab.MY_LIST, WatchTab.DOWNLOADS), com.cosmotune.ui.watch.WATCH_PHONE_TABS)
+        assertEquals(setOf(WatchTab.PLUGINS, WatchTab.SETTINGS), com.cosmotune.ui.watch.WATCH_MENU_PAGES)
         val app = read(dir + "WatchApp.kt")
         assertFalse("WATCH_PHONE_TABS.forEach { t -> OrbitSelectChip(" in app, "the tabs are no longer chips in the head")
         assertTrue("com.cosmotune.ui.shell.CosmoNavShell(" in app && "selectedIndex = WATCH_PHONE_TABS.indexOf(lit)," in app && "onTabSelected = { WatchNav.go(WATCH_PHONE_TABS[it]) }," in app,
             "the four tabs stand in the shared bottom bar (or the rail from 600 dp)")
         assertTrue("navigation = navShown," in app && "val navShown = showNavigation && top !is WatchRoute.Play" in app, "on every page but the player")
         assertFalse("WatchTab.entries.forEach" in app, "no chip for every page any more")
-        for (entry in listOf("OrbitMenuItem(\"Downloads\"", "OrbitMenuItem(\"Plugins\"", "OrbitMenuItem(\"Settings\"")) assertTrue(entry in app, "the profile menu has $entry")
+        for (entry in listOf("OrbitMenuItem(\"Plugins\"", "OrbitMenuItem(\"Settings\"")) assertTrue(entry in app, "the profile menu has $entry")
+        assertFalse("OrbitMenuItem(\"Downloads\"" in app, "Downloads is a tab now, not in the menu")
         assertTrue("showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader(" in app, "the menu's pages come back with a back button")
+    }
+
+    @Test fun searchIsTheRoundButtonBesideThePillAndPressedAgainClearsTheBox() {
+        val app = read(dir + "WatchApp.kt")
+        assertTrue("com.cosmotune.ui.shell.CosmoNavSearch(\"Search\", selected = tab == WatchTab.SEARCH, onClick = WatchNav::tapSearch)" in app)
+        assertTrue("search = search," in app && "onHeightChanged = { dockPx = it }, search = search," in app, "the bar and the rail both carry it")
+        assertFalse(WatchTab.SEARCH in com.cosmotune.ui.watch.WATCH_PHONE_TABS, "no tab is lit while Search is open")
+        try {
+            WatchNav.go(WatchTab.HOME)
+            WatchNav.tapSearch()
+            assertEquals(WatchTab.SEARCH, WatchNav.tab.value)
+            val before = WatchNav.searchAgain.value
+            WatchNav.tapSearch()
+            assertEquals(before + 1, WatchNav.searchAgain.value, "pressed again on Search: the page clears and focuses its box")
+        } finally {
+            WatchNav.go(WatchTab.HOME)
+        }
+        val page = read(dir + "WatchSearchPage.kt")
+        assertTrue("LaunchedEffect(again) { if (again != seenAgain) { seenAgain = again; text = \"\"; focus.request() } }" in page)
+        assertTrue("CosmoSearchPage(" in page && "repository.find(query, year)" in page, "the shared page, asking the sources with the filters")
+        assertTrue("onClick = { open(s) }" in page && "actions.open(s)" in page, "a result opens its page")
+        assertTrue("if (sources.size > 1) add(CosmoSearchFilter(\"source\"" in page, "Source only with more than one source on")
     }
 
     @Test fun theStatusBarBandIsSolidOverTheBar() {
