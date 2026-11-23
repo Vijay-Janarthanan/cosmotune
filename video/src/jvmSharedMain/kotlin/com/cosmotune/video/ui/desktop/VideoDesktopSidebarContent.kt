@@ -139,7 +139,8 @@ internal fun VideoDesktopSidebarContent(focusSearch: Boolean, onSearchFocused: (
     val shownChannels = if (showAll) channels else channels.take(COLLAPSED_CHANNELS)
     val nav = sidebarNav(navigator, route)
 
-    Column(Modifier.width(width).fillMaxHeight().background(Color(LocalCosmoColors.current.palette.backgroundBottom)).clipToBounds()) {
+    // On the window's own ground, as Music's sidebar stands.
+    Column(Modifier.width(width).fillMaxHeight().clipToBounds()) {
         caption?.invoke()
         if (collapsed) {
             SidebarRail(nav, route, navigator, Modifier.padding(top = if (caption != null) 4.dp else 16.dp))
