@@ -134,6 +134,7 @@ class GooglevideoDataSource(private val upstream: HttpDataSource) : DataSource {
          */
         val client: OkHttpClient by lazy {
             OkHttpClient.Builder()
+                .proxySelector(com.cosmotune.video.source.VideoProxy.selector)
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(20, TimeUnit.SECONDS)
                 .build()

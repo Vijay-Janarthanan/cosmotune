@@ -80,6 +80,7 @@ internal class VideoDownloader(private val client: OkHttpClient = newClient()) :
 
         /** No cookie jar, no interceptors; 10 s to connect, 30 s to read, 30 s for a whole call. */
         fun newClient(): OkHttpClient = OkHttpClient.Builder()
+            .proxySelector(com.cosmotune.video.source.VideoProxy.selector)
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .callTimeout(30, TimeUnit.SECONDS)

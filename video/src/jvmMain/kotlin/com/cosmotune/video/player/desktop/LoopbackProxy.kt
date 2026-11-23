@@ -667,6 +667,7 @@ class LoopbackProxy(
 
         /** Video's client for the source: no cookie jar, timeouts that let a slow piece finish. */
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+            .proxySelector(com.cosmotune.video.source.VideoProxy.selector)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build()

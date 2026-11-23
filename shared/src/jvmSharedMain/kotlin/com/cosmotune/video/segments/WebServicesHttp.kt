@@ -41,6 +41,7 @@ object WebServicesHttp {
 
     /** [http] with the timeouts and the empty cookie jar of this task, sharing its connection pool and dispatcher. */
     fun tuned(http: OkHttpClient): OkHttpClient = http.newBuilder()
+        .proxySelector(com.cosmotune.video.source.VideoProxy.selector)
         .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)

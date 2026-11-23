@@ -448,6 +448,12 @@
     <string name="video_open_elsewhere_none">No other player found</string>
     <string name="video_set_hide_paid">Hide members-only videos</string>
     <string name="video_set_hide_paid_note">Also hides videos you have to buy.</string>
+    <string name="video_set_proxy">Proxy</string>
+    <string name="video_set_proxy_none">None</string>
+    <string name="video_set_proxy_hint">socks5://127.0.0.1:9050</string>
+    <string name="video_set_proxy_note">Video's requests go through this address. For Tor, run Tor or Orbot and use socks5://127.0.0.1:9050. Leave it empty for none.</string>
+    <string name="video_set_proxy_bad">That is not a proxy address. Use http://host:port or socks5://host:port.</string>
+    <string name="video_set_proxy_save">Save</string>
     <string name="video_set_family">Family-friendly only</string>
     <string name="video_set_family_note">Uses YouTube's Restricted Mode and hides comments and live chat.</string>
     <string name="video_set_focus">Fewer distractions</string>

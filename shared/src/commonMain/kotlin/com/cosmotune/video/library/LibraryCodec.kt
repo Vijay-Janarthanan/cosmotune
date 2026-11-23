@@ -383,6 +383,7 @@ internal data class SettingsDocument(
     val hideUpNext: Boolean = false,
     val hideLiveChat: Boolean = false,
     val remoteButtons: Map<String, String> = emptyMap(),
+    val proxy: String = "",
     val smoothness: SmoothnessDto = SmoothnessDto(),
 )
 
@@ -474,6 +475,7 @@ internal fun VideoSettings.toDocument() = SettingsDocument(
     hideUpNext = hideUpNext,
     hideLiveChat = hideLiveChat,
     remoteButtons = remoteButtons,
+    proxy = proxy,
     smoothness = smoothness.toDto(),
 )
 
@@ -549,6 +551,7 @@ internal fun SettingsDocument.toSettings(): VideoSettings {
         hideUpNext = hideUpNext,
         hideLiveChat = hideLiveChat,
         remoteButtons = remoteButtons.filterKeys { k -> com.cosmotune.video.player.RemoteButton.entries.any { it.name == k } },
+        proxy = proxy.trim().take(200),
         smoothness = smoothness.toDomain(),
     )
 }

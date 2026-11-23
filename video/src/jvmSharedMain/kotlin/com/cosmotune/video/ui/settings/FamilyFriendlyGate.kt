@@ -7,9 +7,10 @@ import androidx.compose.runtime.getValue
 import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.source.newpipe.VideoRestrict
 
-/** Keeps the source's Restricted Mode in step with "Family-friendly only" while Video is open. */
+/** Keeps the source's Restricted Mode in step with "Family-friendly only", and every client's proxy with the setting, while Video is open. */
 @Composable
 internal fun FamilyFriendlyGate() {
     val settings by LocalVideoGraph.current.settings.settings.collectAsState()
     LaunchedEffect(settings.familyFriendly) { VideoRestrict.strict = settings.familyFriendly }
+    LaunchedEffect(settings.proxy) { com.cosmotune.video.source.VideoProxy.set(settings.proxy) }
 }

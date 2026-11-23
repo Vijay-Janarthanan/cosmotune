@@ -127,6 +127,8 @@ import com.cosmotune.video.resources.video_home_use_account
 import com.cosmotune.video.resources.video_set_resume_short
 import com.cosmotune.video.resources.video_set_seconds
 import com.cosmotune.video.resources.video_set_speed
+import com.cosmotune.video.resources.video_set_proxy
+import com.cosmotune.video.resources.video_set_proxy_none
 import com.cosmotune.video.resources.video_set_preset
 import com.cosmotune.video.resources.video_preset_custom
 import com.cosmotune.video.resources.video_preset_saver
@@ -203,7 +205,7 @@ import androidx.compose.runtime.setValue
 internal typealias SettingsUpdate = ((VideoSettings) -> VideoSettings) -> Unit
 
 /** The choices that open a [ChoiceSheet] (a category of SponsorBlock opens its own, see [CategoryChoiceSheet]). */
-private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP, SWIPE_EDGE, REMOTE, PRESET }
+private enum class SettingsChoice { TV_CODE, WIFI_QUALITY, MOBILE_QUALITY, SPEED, DOUBLE_TAP, CAPTIONS_LANGUAGE, TITLE_CASE, REGION, CONTENT_LANGUAGE, FILTERS, VOLUME_BOOST, AUTO_BACKUP, SWIPE_EDGE, REMOTE, PRESET, PROXY }
 
 /** What the page asks about before it clears something. */
 private enum class Confirm { CLEAR_HISTORY, CLEAR_SEARCHES }
@@ -583,6 +585,12 @@ private fun ContentSettings(settings: VideoSettings, update: SettingsUpdate, loc
             subtitle = settings.contentLanguage?.let { languageName(it, locale) } ?: device,
             onClick = { open(SettingsChoice.CONTENT_LANGUAGE) },
         )
+        CosmoSettingsRow(
+            icon = CosmoIcons.Together,
+            title = stringResource(Res.string.video_set_proxy),
+            subtitle = settings.proxy.ifBlank { stringResource(Res.string.video_set_proxy_none) },
+            onClick = { open(SettingsChoice.PROXY) },
+        )
     }
 }
 
@@ -721,6 +729,7 @@ private fun SettingsChoiceSheet(choice: SettingsChoice, settings: VideoSettings,
             onDismiss = onDismiss,
         )
         SettingsChoice.REMOTE -> RemoteButtonsSheets(settings, update, onDismiss)
+        SettingsChoice.PROXY -> ProxySheet(settings, update, onDismiss)
         SettingsChoice.PRESET -> ChoiceSheet(
             title = stringResource(Res.string.video_set_preset),
             options = QualityPreset.entries.map { ChoiceOption<QualityPreset?>(it, presetLabel(it)) },

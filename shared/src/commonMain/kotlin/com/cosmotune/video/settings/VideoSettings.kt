@@ -52,6 +52,8 @@ data class VideoSettings(
     val hideLiveChat: Boolean = false,
     /** What the remote's free buttons do (button name to action name; see RemoteButtons). */
     val remoteButtons: Map<String, String> = emptyMap(),
+    /** The listener's proxy for Video (`http://host:port`, `socks5://host:port`), or blank for none. */
+    val proxy: String = "",
     val sponsorBlock: Boolean = true,
     val segmentBehaviours: Map<SegmentCategory, SegmentBehaviour> = SegmentCategory.defaults(),
     val segmentsOnBar: Boolean = true,
