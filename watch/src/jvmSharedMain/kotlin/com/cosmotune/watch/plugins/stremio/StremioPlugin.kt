@@ -163,7 +163,7 @@ class StremioPlugin(
             val lang = s.str("lang") ?: "und"
             Subtitle("$id:${s.str("id") ?: url.hashCode()}", url, lang, s.str("label") ?: languageName(lang),
                 url.substringBefore('?').substringAfterLast('.', "").lowercase().takeIf { it in setOf("srt", "vtt", "ass", "ssa", "ttml") } ?: "srt",
-                subtitleOrigin)
+                subtitleOrigin, provider = displayName)
         }
     }
 

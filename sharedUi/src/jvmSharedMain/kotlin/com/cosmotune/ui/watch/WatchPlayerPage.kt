@@ -661,7 +661,7 @@ private fun FilmCard(
                     else WatchCardChip("Subtitles", ink, fonts, onClick = { subtitles = true }, icon = CosmoIcons.Lyrics)
                     OrbitMenu(subtitles, { subtitles = false }, fonts = fonts, look = look, header = "Subtitles", width = 300.dp, items = buildList {
                         add(OrbitMenuItem("Off", null, selected = state.selectedSubtitleId == null) { controls.selectSubtitle(null) })
-                        state.subtitles.forEach { s -> add(OrbitMenuItem(s.label, listOfNotNull(s.origin.name.lowercase().replaceFirstChar { it.uppercase() }, if (s.hearingImpaired) "SDH" else null).joinToString(" · "), selected = s.id == state.selectedSubtitleId) { controls.selectSubtitle(s.id) }) }
+                        state.subtitles.forEach { s -> add(OrbitMenuItem(s.label, listOfNotNull(s.sourceLabel, if (s.hearingImpaired) "SDH" else null).joinToString(" · "), selected = s.id == state.selectedSubtitleId) { controls.selectSubtitle(s.id) }) }
                         add(OrbitMenuItem("Find more subtitles", "OpenSubtitles and your subtitle plugins", CosmoIcons.Search) { controls.searchSubtitles() })
                         add(OrbitMenuItem("Subtitle look", "Size, colour, background and height", CosmoIcons.Lyrics) { styleOpen = true })
                         if (state.selectedSubtitleId != null) {

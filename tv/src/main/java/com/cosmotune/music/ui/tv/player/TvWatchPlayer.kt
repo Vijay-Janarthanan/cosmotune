@@ -384,7 +384,7 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                 state.subtitles.forEach { s ->
                     TvListRow(
                         title = s.label,
-                        subtitle = listOfNotNull(s.origin.name.lowercase().replaceFirstChar { it.uppercase() }, if (s.hearingImpaired) "SDH" else null).joinToString(" · "),
+                        subtitle = listOfNotNull(s.sourceLabel, if (s.hearingImpaired) "SDH" else null).joinToString(" · "),
                         value = if (s.id == state.selectedSubtitleId) "On" else null,
                         onClick = { menu = null; player.selectSubtitle(s.id) },
                         modifier = Modifier.tvInitialFocus(s.id == state.selectedSubtitleId),

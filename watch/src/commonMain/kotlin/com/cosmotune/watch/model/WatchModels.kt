@@ -219,7 +219,19 @@ data class Subtitle(
     val hearingImpaired: Boolean = false,
     val forced: Boolean = false,
     val trackId: String? = null,
-)
+    /** The add-on or service that found it ("OpenSubtitles v3", "SubDL"), shown beside it in the subtitle menus. */
+    val provider: String? = null,
+) {
+    /** Where this subtitle comes from, in the menus' words: the add-on's name, else "In the video", "Your server" and so on. */
+    val sourceLabel: String get() = provider ?: when (origin) {
+        SubtitleOrigin.EMBEDDED -> "In the video"
+        SubtitleOrigin.STREAM -> "With this copy"
+        SubtitleOrigin.ADDON -> "Add-on"
+        SubtitleOrigin.OPENSUBTITLES -> "OpenSubtitles"
+        SubtitleOrigin.SERVER -> "Your server"
+        SubtitleOrigin.LOCAL_FILE -> "File beside the video"
+    }
+}
 
 /** An audio track inside a stream (an MKV's English 5.1 and Hindi stereo), or an HLS rendition. */
 @Serializable
