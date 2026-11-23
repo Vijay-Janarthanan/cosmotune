@@ -739,9 +739,9 @@
     <string name="saved">Saved</string>
     <string name="saved_bang">Saved!</string>
     <string name="share_my_replay">Share my Replay</string>
-    <string name="replay_share_video">Share as a story video</string>
-    <string name="replay_video_making">Making the video… %1$d%%</string>
-    <string name="replay_video_failed">The Replay video could not be made</string>
+    <string name="replay_share_video" translatable="false">Share as a story video</string>
+    <string name="replay_video_making" translatable="false">Making the video… %1$d%%</string>
+    <string name="replay_video_failed" translatable="false">The Replay video could not be made</string>
     <string name="share_your_lyrics">Send your lyrics card</string>
     <string name="share_your_replay">Share your Replay</string>
     <string name="tap_share_for_picture">Tap Share to create a picture.</string>

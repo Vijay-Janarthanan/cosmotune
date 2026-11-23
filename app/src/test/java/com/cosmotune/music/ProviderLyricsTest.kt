@@ -19,8 +19,10 @@ class ProviderLyricsTest {
 
     @Test
     fun `the measured providers are the ones offered`() {
-        assertEquals(5, LyricsSource.entries.size)
+        assertEquals(5, LyricsSource.offered.size)
         assertTrue(LyricsSource.offered.none { it.hidden })
+        // The listener's own lyrics are kept with the providers' but never offered as one.
+        assertTrue(LyricsSource.OWN.hidden)
         assertEquals(LyricsSource.LRC_RED, LyricsSource.offered.first())
         assertEquals(LyricsSource.LRCLIB, LyricsSource.offered.last())
     }
