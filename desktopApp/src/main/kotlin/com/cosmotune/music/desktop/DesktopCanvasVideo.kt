@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.IntSize
 import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.opencanvas.core.sync.CanvasSyncDefaults
 import com.opencanvas.core.sync.CanvasSyncPolicy
+import com.opencanvas.core.sync.CanvasStallWatch
 import com.cosmotune.music.data.canvas.CanvasSource
 import com.cosmotune.music.ui.player.CanvasContentMode
 import com.cosmotune.music.ui.player.CanvasVideoSpec
@@ -41,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.Frame
 import java.awt.Window
@@ -178,26 +180,53 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     // A music video that follows the song: the picture is held at the song's position plus the
     // video's own offset, so it jumps when the song does and never loops. Frames are paced to the
     // song's clock rather than to the decoder's, so a slow frame is dropped, not carried as drift.
+    //
+    // A stream can stop while the song plays on (its signed address runs out, a range is refused with HTTP 403, the
+    // connection stalls): a watch beside the decoding notices when no frame has come for a moment while one is due, says why,
+    // and the video is opened again at the place the map gives for the song, with a fresh address. Until it comes back the
+    // cover shows (the picture fades out) rather than a frozen frame.
     LaunchedEffect(canvas) {
         val sync = spec.sync ?: return@LaunchedEffect
         val policy = CanvasSyncPolicy(sync.map, sync.durationMs)
-        val playback = DesktopCanvasPlayback()
-        val decoder = playback.decoder
+        var playback = DesktopCanvasPlayback()
         val startedAt = System.nanoTime()
+        val watch = CanvasStallWatch()
+        // Set by the watch, read by the decoding: the stream is to be opened again.
+        var reopenWanted = false
+        var stallReason = ""
         // Only for the subject framing, which samples frames as bytes; reused, and made only when it is on.
         var analysisPixels: ByteArray? = null
+        val watching = launch {
+            while (isActive) {
+                delay(CanvasSyncDefaults.CHECK_INTERVAL_MS)
+                val now = System.currentTimeMillis()
+                if (!reopenWanted && watch.stalled(now)) {
+                    val songMs = sync.songMs()
+                    stallReason = CanvasStallWatch.reason(playback.streamFailure?.message, playback.isStreaming,
+                        canvas.url.takeIf { playback.isStreaming }?.let { com.opencanvas.core.stream.isMediaStreamExpired(it) } == true)
+                    DesktopTrackLog.log("canvas: video stalled at video ${playback.decoder.lastPtsMs} ms, song $songMs ms: " +
+                        "no new frame for ${watch.sinceLastFrameMs(now) ?: 0} ms ($stallReason); opening it again")
+                    reopenWanted = true
+                    // A decode waiting on the network returns now; the cover shows until a frame comes again.
+                    playback.abortStream()
+                    hide()
+                }
+            }
+        }
         try {
-            decoder.showAt(decodeSize.width, decodeSize.height)
+            playback.decoder.showAt(decodeSize.width, decodeSize.height)
             val attempt = playback.open(listOfNotNull(canvas.url, canvas.fallbackUrl), canvas.headers)
             if (attempt.result.isFailure) {
                 DesktopTrackLog.log("canvas: ${attempt.result.exceptionOrNull()?.message}")
                 return@LaunchedEffect
             }
-            reportAspect(decoder.sourceAspect)
-            sourceAspect = decoder.sourceAspect
+            reportAspect(playback.decoder.sourceAspect)
+            sourceAspect = playback.decoder.sourceAspect
+            var how = attempt.how
 
             /** The next frame, into the bitmap not on screen, at the size the video is shown; false when there is none. */
             suspend fun decodeNext(): Boolean {
+                val decoder = playback.decoder
                 decoder.showAt(decodeSize.width, decodeSize.height)
                 if (!frames.ensure(decoder.width, decoder.height)) {
                     CanvasFrameFailures.noteNoMemory()
@@ -220,18 +249,70 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
             }
             fun showDecoded() {
                 // Only a recorded framing path follows the frame's time; nothing else recomposes per frame.
-                if (canvas.trajectory != null) frameTime = decoder.lastPtsMs / 1000.0
+                if (canvas.trajectory != null) frameTime = playback.decoder.lastPtsMs / 1000.0
                 present()
             }
+
+            /**
+             * Opens the video again, from a fresh address when one can be had, at the place the map gives for the song now.
+             * False when it would not open; the watch then backs off and the cover stays.
+             */
+            suspend fun reopen(): Boolean {
+                playback.close()
+                playback = DesktopCanvasPlayback()
+                val fresh = canvas.videoId?.let { id ->
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            com.opencanvas.core.OpenCanvas.freshVideoStream(id,
+                                com.opencanvas.core.models.OpenCanvasResolution.fromLabel(DesktopAppearanceSettings.openCanvasResolution.value))
+                        }.getOrNull()
+                    }
+                }
+                playback.decoder.showAt(decodeSize.width, decodeSize.height)
+                val again = playback.open(listOfNotNull(fresh?.url ?: canvas.url, canvas.fallbackUrl).distinct(), fresh?.headers ?: canvas.headers)
+                if (again.result.isFailure) {
+                    DesktopTrackLog.log("canvas: the video would not open again (${again.result.exceptionOrNull()?.message})")
+                    return false
+                }
+                how = again.how + if (fresh != null) ", fresh address" else ""
+                val at = CanvasStallWatch.reopenAtMs(policy, sync.songMs())
+                withContext(Dispatchers.IO) { playback.decoder.seekToMs(at) }
+                return true
+            }
+
             var epoch = sync.epoch()
             var positioned = false
             var shownPts = Long.MIN_VALUE
             var firstFrameLogged = false
+            var stalledAtMs = 0L
+            watch.repositioned(System.currentTimeMillis())
             while (isActive) {
+                if (reopenWanted) {
+                    val now = System.currentTimeMillis()
+                    if (stalledAtMs == 0L) stalledAtMs = now
+                    if (!watch.mayReopen(now)) {
+                        delay(CanvasSyncDefaults.CHECK_INTERVAL_MS)
+                        continue
+                    }
+                    if (reopen()) {
+                        reopenWanted = false
+                        positioned = true
+                        shownPts = Long.MIN_VALUE
+                        watch.repositioned(System.currentTimeMillis())
+                    } else {
+                        watch.reopenFailed(System.currentTimeMillis())
+                        if (watch.givenUp && watch.failures == watch.maxReopens) {
+                            DesktopTrackLog.log("canvas: the video could not be opened again after ${watch.failures} tries ($stallReason); " +
+                                "the cover shows, trying again now and then")
+                        }
+                        continue
+                    }
+                }
                 val songMs = sync.songMs()
                 if (!policy.isVisible(songMs)) {
                     // Before the video starts or after it ends: the still cover shows through.
                     hide()
+                    watch.idle()
                     positioned = false
                     shownPts = Long.MIN_VALUE
                     delay(CanvasSyncDefaults.CHECK_INTERVAL_MS / 2)
@@ -240,6 +321,7 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                 if (!seen()) {
                     // Minimised, in the tray, out of the window or faded out: nothing is decoded until it is seen again, and
                     // then the video seeks to wherever the song has got to.
+                    watch.idle()
                     snapshotFlow { seen() }.first { it }
                     positioned = false
                     shownPts = Long.MIN_VALUE
@@ -248,29 +330,34 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                 var target = policy.targetVideoMs(songMs)
                 val jumped = sync.epoch() != epoch
                 epoch = sync.epoch()
-                if (!positioned || jumped || kotlin.math.abs(decoder.lastPtsMs - target) > CanvasSyncDefaults.HARD_SEEK_MS) {
+                if (!positioned || jumped || kotlin.math.abs(playback.decoder.lastPtsMs - target) > CanvasSyncDefaults.HARD_SEEK_MS) {
                     // The seek is what makes a progressive reader fetch the bytes at the target first.
-                    withContext(Dispatchers.IO) { decoder.seekToMs(target) }
+                    withContext(Dispatchers.IO) { playback.decoder.seekToMs(target) }
                     positioned = true
                     shownPts = Long.MIN_VALUE
+                    watch.repositioned(System.currentTimeMillis())
                 }
                 if (!running) {
                     // Paused with the song: the picture stays at exactly where the song is, and a seek
                     // made while paused still moves it.
+                    watch.idle()
                     if (shownPts == Long.MIN_VALUE || kotlin.math.abs(shownPts - target) > policy.toleranceMs) {
                         if (decodeNext()) {
-                            shownPts = decoder.lastPtsMs
+                            shownPts = playback.decoder.lastPtsMs
                             showDecoded()
                         }
                     }
                     delay(CanvasSyncDefaults.CHECK_INTERVAL_MS / 5)
+                    // Playing again: the next frame has the settling time to come.
+                    if (running) watch.repositioned(System.currentTimeMillis())
                     continue
                 }
                 if (!decodeNext()) {
                     delay(CanvasSyncDefaults.CHECK_INTERVAL_MS)
                     continue
                 }
-                val pts = decoder.lastPtsMs
+                if (reopenWanted) continue // the frame came from a stream already given up on
+                val pts = playback.decoder.lastPtsMs
                 target = policy.targetVideoMs(sync.songMs())
                 val lead = pts - target
                 when {
@@ -278,22 +365,29 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                     lead > FRAME_EARLY_MS -> delay(lead.coerceAtMost(CanvasSyncDefaults.CHECK_INTERVAL_MS))
                     // Late: skip ahead without converting what would be dropped anyway.
                     lead < -FRAME_LATE_MS -> {
-                        decoder.fastForwardTo(target)
+                        playback.decoder.fastForwardTo(target)
                         continue
                     }
                 }
                 shownPts = pts
                 showDecoded()
+                watch.framePresented(System.currentTimeMillis())
+                if (stalledAtMs != 0L) {
+                    DesktopTrackLog.log("canvas: video back after ${System.currentTimeMillis() - stalledAtMs} ms ($how) at video $pts ms, " +
+                        "song ${sync.songMs()} ms")
+                    stalledAtMs = 0L
+                }
                 if (!firstFrameLogged) {
                     firstFrameLogged = true
                     val millis = (System.nanoTime() - startedAt) / 1_000_000
                     DesktopTrackLog.log(
                         "canvas: synced first frame in $millis ms (${attempt.how}) at video $pts ms, song ${sync.songMs()} ms, " +
-                            "decoded at ${decoder.width}x${decoder.height}",
+                            "decoded at ${playback.decoder.width}x${playback.decoder.height}",
                     )
                 }
             }
         } finally {
+            watching.cancel()
             playback.close()
         }
     }
