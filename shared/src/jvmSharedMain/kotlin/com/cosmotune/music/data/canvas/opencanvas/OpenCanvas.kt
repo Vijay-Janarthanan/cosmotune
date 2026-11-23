@@ -190,6 +190,20 @@ object OpenCanvas {
         return env().search.findOutcome(query.title, artist, durationSec, limit = limit, album = query.album).candidates
     }
 
+    /**
+     * A new stream of [videoId], asked afresh of the backends (the sharp one first): for a player whose stream stopped while
+     * the song plays on (an address that ran out, a range refused). Null when none answers.
+     */
+    suspend fun freshVideoStream(videoId: String, resolution: OpenCanvasResolution): com.opencanvas.core.stream.StreamInfo? {
+        val env = env()
+        val backends = listOfNotNull(env.backend, env.instantBackend)
+        backends.forEach { it.forget(videoId) }
+        for (backend in backends) {
+            com.opencanvas.core.stream.tryOrNull { backend.resolveVideo(videoId, resolution) }?.let { return it }
+        }
+        return null
+    }
+
     /** Clears every session and every measured map, in memory and on disk. */
     fun clearCache() {
         synchronized(lock) {
@@ -203,7 +217,11 @@ object OpenCanvas {
 
     private fun session(request: CanvasRequest, foreground: Boolean = true): CanvasSession = synchronized(lock) {
         val existing = sessions[request.key]
-        if (existing != null && !existing.isStale()) return existing.also { if (foreground) it.promote() }
+        if (existing != null && !existing.isStale(forPlayingSong = foreground)) return existing.also { if (foreground) it.promote() }
+        if (existing != null && foreground && existing.endedInBackground && existing.state.value.done) {
+            env().config.log("[OpenCanvas ${request.artist} - ${request.title}] the song has started: looking for its video again, " +
+                "as the early look found none")
+        }
         CanvasSession(request, env(), scope, foreground).also { sessions[request.key] = it }
     }
 }

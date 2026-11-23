@@ -74,6 +74,8 @@ object CanvasRepository {
         val withAlbum: Boolean,
         val at: Long = System.currentTimeMillis(),
         private val lifetimeMs: Long = ENTRY_TTL_MS,
+        /** Worked out for the queue's next song (a prefetch), whose music-video search yields to the playing song's. */
+        val background: Boolean = false,
     ) {
         /** A stream URL is minted for a few hours; an older answer is looked up again rather than served dead. */
         val fresh: Boolean get() = System.currentTimeMillis() - at < lifetimeMs &&
@@ -129,7 +131,12 @@ object CanvasRepository {
         val seconds = song.durationMillis() / 1_000L
 
         // An answer that already stands needs neither the lock nor any lookup.
-        settled(key, withAlbum, acceptCached)?.let { return it.artwork }
+        // A miss from the early look (the song was next in the queue) is not the answer once the song plays: it is asked again,
+        // once; the playing song's own miss then stands for MISS_RETRY_MS.
+        settled(key, withAlbum, acceptCached, background)?.let { entry ->
+            if (entry.artwork == null && !background) Log.d(TAG, "no video for '$title' (looked up ${(System.currentTimeMillis() - entry.at) / 1000} s ago)")
+            return entry.artwork
+        }
 
         return coroutineScope {
             // The music video is looked up from the moment the question is asked, not when the label
@@ -150,7 +157,8 @@ object CanvasRepository {
                     ?.takeIf { it.matches(title, artist, album) }
             }
 
-            val answer = resolve(key, withAlbum, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS, acceptCached = acceptCached) {
+            val answer = resolve(key, withAlbum, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS, acceptCached = acceptCached,
+                background = background) {
                 Log.d(TAG, "lookup start '$title' (album=${album != null})")
                 video ?: if (spotifyFirst) {
                     firstHit(
@@ -174,8 +182,8 @@ object CanvasRepository {
     }
 
     /** The entry for [key] if it is fresh and still answers the question as asked now. */
-    private fun settled(key: String, withAlbum: Boolean, acceptCached: (CanvasArtwork) -> Boolean): Entry? =
-        synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(withAlbum, acceptCached) } }
+    private fun settled(key: String, withAlbum: Boolean, acceptCached: (CanvasArtwork) -> Boolean, background: Boolean = false): Entry? =
+        synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(withAlbum, acceptCached, background) } }
 
     /**
      * Gets the music-video lookup going the moment [song] starts playing, rather than when its player
@@ -268,16 +276,18 @@ object CanvasRepository {
         withAlbum: Boolean,
         missLifetimeMs: Long = ENTRY_TTL_MS,
         acceptCached: (CanvasArtwork) -> Boolean = { true },
+        background: Boolean = false,
         lookUp: suspend () -> CanvasArtwork?,
     ): CanvasArtwork? = lock.withLock {
         val began = synchronized(cache) {
-            cache[key]?.let { if (it.fresh && it.reusable(withAlbum, acceptCached)) return@withLock it.artwork }
+            cache[key]?.let { if (it.fresh && it.reusable(withAlbum, acceptCached, background)) return@withLock it.artwork }
             generation
         }
         val found = withContext(Dispatchers.IO) { lookUp() }
         synchronized(cache) {
             // an answer worked out under settings that have changed since is not remembered
-            if (generation == began) cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS)
+            if (generation == began) cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS,
+                background = background)
         }
         found
     }
@@ -303,8 +313,8 @@ object CanvasRepository {
         }
     }
 
-    private fun Entry.reusable(withAlbum: Boolean, accept: (CanvasArtwork) -> Boolean): Boolean =
-        artwork?.let(accept) ?: (this.withAlbum || !withAlbum)
+    private fun Entry.reusable(withAlbum: Boolean, accept: (CanvasArtwork) -> Boolean, nowBackground: Boolean = false): Boolean =
+        artwork?.let(accept) ?: ((this.withAlbum || !withAlbum) && (nowBackground || !background))
 
     /**
      * The first source that answers with something that survives [accept].

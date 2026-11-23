@@ -10,15 +10,18 @@ internal data class MusicVideoQuery(val title: String, val album: String?) {
             Regex("""\bs(?:\s*[/\.]\s*|\s+)o\b""", RegexOption.IGNORE_CASE), "Son of",
         )
         private val from = Regex("""[\(\[]\s*from\s+([^\)\]]+)[\)\]]""", RegexOption.IGNORE_CASE)
+        /** `Song :From "Film"` or `Song - From "Film"`, the film named without brackets. */
+        private val bareFrom = Regex("""\s*[:\-–]\s*from\s+["“]([^"”]+)["”]""", RegexOption.IGNORE_CASE)
         private val noise = Regex(
-            """\((?:from|official|lyrical|video|audio)[^)]*\)|\[[^]]*]|""" +
+            """\((?:from|official|lyrical|video|audio|soundtrack|original motion picture soundtrack)[^)]*\)|\[[^]]*]|""" +
+                """\s*[:\-–]\s*from\s+["“][^"”]+["”]|""" +
                 """\b(?:official (?:video|audio|music video)|lyrical|full song|4k video)\b""",
             RegexOption.IGNORE_CASE,
         )
 
         fun from(title: String, album: String?): MusicVideoQuery {
             val decoded = Parser.unescapeEntities(title, false)
-            val film = from.find(decoded)?.groupValues?.get(1)
+            val film = (from.find(decoded) ?: bareFrom.find(decoded))?.groupValues?.get(1)
                 ?.trim()?.trim('"', '\'', '“', '”', '‘', '’')?.trim()?.takeIf(String::isNotEmpty)
                 ?: decoded.split('|').drop(1).firstNotNullOfOrNull { part ->
                     Regex("""^\s*(.+?)\s+(?:movie|film)\s+songs?\s*$""", RegexOption.IGNORE_CASE)

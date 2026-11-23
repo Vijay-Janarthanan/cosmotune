@@ -70,15 +70,66 @@ object PreviewFrames {
         return changes[changes.size / 2] < STILL_MEDIAN_CHANGE
     }
 
+    /**
+     * How much the frames after the opening ones are one and the same picture, 0–1: each frame's shapes (its brightness
+     * pattern with its overall brightness and contrast taken out) against the typical frame's, the median of those
+     * correlations. A poster whose colours pulse, flash, zoom slightly or carry particles or visualiser bars keeps its shapes
+     * and scores near 1; a video song's scenes do not. Null when there are too few frames to tell.
+     */
+    fun sameness(grids: List<DoubleArray>): Double? {
+        if (grids.size < MIN_FRAMES) return null
+        val shapes = grids.drop(maxOf(1, grids.size / 10)).mapNotNull(::shape)
+        if (shapes.size < MIN_FRAMES - 1) return null
+        val typical = DoubleArray(GRID * GRID) { cell -> shapes.map { it[cell] }.sorted()[shapes.size / 2] }
+        val reference = shape(typical, minSpread = 0.01) ?: return null
+        val correlations = shapes.map { frame -> frame.indices.sumOf { frame[it] * reference[it] } / frame.size }.sorted()
+        return correlations[correlations.size / 2]
+    }
+
+    /** [grid] with its mean taken out and its spread set to 1; null for a flat frame (a black card), which has no shapes. */
+    private fun shape(grid: DoubleArray, minSpread: Double = MIN_SPREAD): DoubleArray? {
+        val mean = grid.average()
+        val spread = kotlin.math.sqrt(grid.sumOf { (it - mean) * (it - mean) } / grid.size)
+        if (spread < minSpread) return null
+        return DoubleArray(grid.size) { (grid[it] - mean) / spread }
+    }
+
+    /** What the preview frames say about an upload: whether they barely change, and how much they are one picture ([sameness]). */
+    class Verdict(val still: Boolean?, val sameness: Double?)
+
+    /** Both readings of [grids]. */
+    fun verdict(grids: List<DoubleArray>): Verdict = Verdict(isStill(grids), sameness(grids))
+
     /** The same, read from YouTube for a storyboard [spec]; null when it cannot be read or decided. */
-    internal suspend fun isStill(http: OkHttpClient, spec: String): Boolean? {
-        val decode = decoder ?: return null
+    internal suspend fun isStill(http: OkHttpClient, spec: String): Boolean? = read(http, spec)?.still
+
+    /** The frames of [spec]'s sheet, read from YouTube and judged; null when the sheet cannot be read. */
+    internal suspend fun read(http: OkHttpClient, spec: String): Verdict? = readGrids(http, spec)?.let(::verdict)
+
+    /** The frames of [spec]'s sheet as grids ([grids]); null when the sheet cannot be read or opened. */
+    internal suspend fun readGrids(http: OkHttpClient, spec: String, decode: ((ByteArray) -> PreviewImage?)? = decoder): List<DoubleArray>? {
+        decode ?: return null
         val sheet = sheet(spec) ?: return null
         val answer = runCatching { http.newCall(Request.Builder().url(sheet.url).build()).fetch(limit = MAX_SHEET_BYTES) }.getOrNull() ?: return null
         if (!answer.isSuccessful) return null
         val image = runCatching { decode(answer.body) }.getOrNull() ?: return null
-        return isStill(grids(image, sheet))
+        return grids(image, sheet)
     }
+
+    /**
+     * Whether an upload whose preview frames change is still a poster with effects: the picture's shapes stay the same in
+     * most frames ([sameness] at or above [POSTER_SAMENESS]) and its file barely moves ([videoMotion] below
+     * [POSTER_MOTION]). Colour pulses change the brightness between frames, not the picture.
+     */
+    fun isPosterWithEffects(sameness: Double?, videoMotion: Double): Boolean =
+        sameness != null && sameness >= POSTER_SAMENESS && videoMotion < POSTER_MOTION
+
+    /** At or above this [sameness] the frames are one picture (see [isPosterWithEffects]). */
+    const val POSTER_SAMENESS = 0.8
+    /** Below this frame-size motion a file with one picture in it is a poster, however its colours change. */
+    const val POSTER_MOTION = 0.15
+    /** Below this spread (0–255) a frame is flat: a black or single-colour card. */
+    private const val MIN_SPREAD = 4.0
 
     private const val GRID = 8
     /** The smallest frames read: at 48 px compression noise alone moves a still picture by as much as a dark video changes. */

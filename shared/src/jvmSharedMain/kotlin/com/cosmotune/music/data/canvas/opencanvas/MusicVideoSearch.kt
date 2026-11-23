@@ -36,7 +36,9 @@ import java.net.ProtocolException
  * (a timeout, a dropped connection, youtube.com asking for a captcha): an empty [candidates] list with unanswered
  * queries is a network failure, not proof that the song has no video, and must not be remembered as one.
  */
-internal class VideoSearchOutcome(val candidates: List<VideoCandidate>, val unanswered: Int, val asked: Int) {
+internal class VideoSearchOutcome(val candidates: List<VideoCandidate>, val unanswered: Int, val asked: Int,
+    /** The queries sent, so a later, wider search of the same song need not ask them again. */
+    val queries: List<String> = emptyList()) {
     val complete: Boolean get() = unanswered == 0
 }
 
@@ -67,6 +69,8 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
     /** Until when each way of searching is being refused with a captcha; asked again only after that. */
     @Volatile private var pageThrottledUntil = 0L
     @Volatile private var apiThrottledUntil = 0L
+    /** Captchas in a row from each way of searching: each one keeps that way closed twice as long, up to [MAX_THROTTLE_PAUSE_MS]. */
+    private val refusals = java.util.concurrent.ConcurrentHashMap<Endpoint, Int>()
 
     /** The most likely music videos for the song, best first (at most [limit]); empty when the search fails. */
     suspend fun find(title: String, artist: String, durationSec: Long = 0L, limit: Int = 6, album: String? = null,
@@ -81,7 +85,8 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
      */
     suspend fun findOutcome(title: String, artist: String, durationSec: Long = 0L, limit: Int = 6, album: String? = null,
         exhaustive: Boolean = false, excludedVideoIds: Set<String> = emptySet(),
-        foreground: StateFlow<Boolean> = SearchTraffic.PLAYING, budgetMs: Long = FIND_BUDGET_MS): VideoSearchOutcome {
+        foreground: StateFlow<Boolean> = SearchTraffic.PLAYING, budgetMs: Long = FIND_BUDGET_MS,
+        alreadyAsked: Set<String> = emptySet()): VideoSearchOutcome {
         // "Sakkarakatti (Original Motion Picture Soundtrack)" is searched, and matched against titles, as "Sakkarakatti".
         val album = album?.let(VideoMatcher::cleanFilmName)
         val lookupTitle = VideoMatcher.searchTitleVariants(title).last()
@@ -92,6 +97,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
         // Without useful album context, another verified artist's same-title
         // video must not suppress the title-only publisher fallback.
         val ambiguousContext = albumKey.isEmpty() || albumKey == titleKey
+        val shortTitle = VideoMatcher.shortenedTitle(title)
         val queries = listOfNotNull(
             if (exhaustive && words.size >= 3) album?.let { "$it ${words.drop(1).joinToString(" ")} video song -\"5.1\" -audio -lyrics" } else null,
             if (exhaustive) "$lookupTitle ${album.orEmpty()} video song -\"5.1\" -audio -lyrics -lyrical" else null,
@@ -101,13 +107,18 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
             album?.takeIf { it.isNotBlank() && words.size == 2 }?.let { "\"${words.reversed().joinToString(" ")}\" $it" },
             "\"$lookupTitle\" video song",
             "$artist $lookupTitle official music video",
-            "\"$title\" $artist official video").distinct()
+            "\"$title\" $artist official video",
+            // A tag with a stray last word ("Song Name Pon" for "Song Name"): the song as its uploads name it, with the film
+            // when it is known, and with the singer.
+            shortTitle?.let { short -> album?.trim()?.takeIf { it.isNotEmpty() }?.let { "$short video song $it" } ?: "\"$short\" video song" },
+            shortTitle?.let { "$artist $it" }).distinct().filter { it !in alreadyAsked }
         val results = ArrayList<VideoCandidate>()
         val titleWords = words.map { word -> word.lowercase().filter { it.isLetterOrDigit() } }.filter { it.length >= 3 }
         val startedAt = System.nanoTime()
         fun elapsedMs() = (System.nanoTime() - startedAt) / 1_000_000L
         var unanswered = 0
         var asked = 0
+        val sent = ArrayList<String>()
         fun eligible() = VideoMatcher.rank(results.distinctBy { it.videoId }
             .filter { it.videoId !in excludedVideoIds && VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
         // The film's own channel, verified or not, by what else of the film it shows in these results; its uploads go first.
@@ -128,6 +139,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
                 if (elapsed > SOFT_BUDGET_MS && eligible().any { VideoMatcher.advertisesVideo(it.title) }) break
                 val queryStarted = System.nanoTime()
                 asked++
+                sent += query
                 val answer = lease.page { search(query, minOf(QUERY_TIMEOUT_MS, budgetMs - elapsed), hedged = foreground.value) }
                 val raw = answer.orEmpty()
                 val toCorroborate = raw.firstOrNull { it.videoId !in excludedVideoIds && VideoMatcher.needsPublisherCorroboration(it, title, artist, album) }
@@ -150,7 +162,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
                     ranked.joinToString { it.videoId }.ifEmpty { "none" } + leftOut(batch, ranked, title, artist, durationSec, album, excludedVideoIds))
                 if (exhaustive && ranked.isNotEmpty()) {
                     val others = ranked(results.distinctBy { it.videoId }.filter { it.videoId !in excludedVideoIds })
-                    return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(marked(ranked), others, title, artist, album), title, artist, album), unanswered, asked)
+                    return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(marked(ranked), others, title, artist, album), title, artist, album), unanswered, asked, sent)
                 }
                 // Do not wait for speculative fallbacks when a publisher's matching song was found.
                 // An album-only hit is insufficient: another track from the same film must not stop search.
@@ -160,7 +172,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
                             (titleWords.size >= 2 && titleWords.all { name.contains(it) })
                         val contextMatches = !ambiguousContext || VideoMatcher.isCreditedArtistChannel(candidate, artist)
                         titleMatches && contextMatches && VideoMatcher.advertisesVideo(candidate.title)
-                    }) return VideoSearchOutcome(preferMovingPictures(marked(ranked), title, artist, album), unanswered, asked)
+                    }) return VideoSearchOutcome(preferMovingPictures(marked(ranked), title, artist, album), unanswered, asked, sent)
             }
         } finally {
             lease.close()
@@ -171,14 +183,21 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
         val publisherVideos = VideoMatcher.rank(distinct.filter { it.videoId !in excludedVideoIds && VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
         if (publisherVideos.isNotEmpty()) {
             val others = ranked(distinct.filter { it.videoId !in excludedVideoIds })
-            return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(marked(publisherVideos), others, title, artist, album), title, artist, album), unanswered, asked)
+            return VideoSearchOutcome(preferMovingPictures(VideoMatcher.videoSongsFirst(marked(publisherVideos), others, title, artist, album), title, artist, album), unanswered, asked, sent)
         }
         // No publisher has the video: an upload by anyone else is tried, and the audio check has the last word. The film's
         // own channel's go first, before the list is cut to [limit].
         val uploads = ranked(distinct.filter { it.videoId !in excludedVideoIds && VideoMatcher.hasFallbackEvidence(it, title, artist, album) })
         if (uploads.isNotEmpty()) log("no publisher video for '$title': trying ${uploads.joinToString { "${it.videoId} by ${it.channelTitle}" }}")
         if (uploads.isEmpty() && unanswered > 0) log("video search for '$title': nothing found, but $unanswered of $asked search(es) got no answer")
-        return VideoSearchOutcome(preferMovingPictures(uploads, title, artist, album), unanswered, asked)
+        // Answered searches whose results were all left out: said once, with why, so a song without a video is never silent.
+        if (uploads.isEmpty() && unanswered == 0) log(when {
+            asked == 0 -> "video search for '$title': no search sent (${if (queries.isEmpty()) "every query was asked already" else "no time left in the budget"})"
+            distinct.isEmpty() -> "video search for '$title': $asked search(es) answered with no videos"
+            else -> "video search for '$title': ${distinct.size} result(s) from $asked search(es), none is the song's video" +
+                leftOut(distinct, emptyList(), title, artist, durationSec, album, excludedVideoIds)
+        })
+        return VideoSearchOutcome(preferMovingPictures(uploads, title, artist, album), unanswered, asked, sent)
     }
 
     /** Why each of this query's results is not eligible: "; left out X "title…" (reason), …". */
@@ -317,14 +336,19 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
             val answer = searchHttp.newCall(request).within(ATTEMPT_TIMEOUT_MS).fetch()
             val location = answer.headers["Location"].orEmpty()
             if (answer.code == 429 || answer.code in 300..399 && "/sorry" in location) {
-                val until = System.currentTimeMillis() + THROTTLE_PAUSE_MS
+                val inARow = refusals.merge(endpoint, 1, Int::plus) ?: 1
+                val pause = throttlePauseMs(inARow)
+                val until = System.currentTimeMillis() + pause
                 if (endpoint == Endpoint.PAGE) pageThrottledUntil = until else apiThrottledUntil = until
+                log("video search: the ${endpoint.label} is asking for a captcha (${inARow} in a row); " +
+                    "searching through the ${if (endpoint == Endpoint.PAGE) "api" else "page"} for the next ${pause / 1000} s")
                 failures += "try $number: ${endpoint.label} refused with a captcha (HTTP ${answer.code}) at ${sinceMs()} ms"
                 return Attempt.Failed(endpoint, retryable = true)
             }
             // A page that carries its data and no videos is a real "nothing found"; anything else (a consent page, a
             // throttled reply) is worth another try.
             val parsed = if (answer.isSuccessful) parseAnswer(answer.text()) else null
+            if (parsed != null) refusals.remove(endpoint)
             if (parsed != null) Attempt.Answered(endpoint, parsed)
             else {
                 failures += "try $number: ${endpoint.label} HTTP ${answer.code} without results at ${sinceMs()} ms"
@@ -352,6 +376,11 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
         private const val SOFT_BUDGET_MS = 6_000L
         /** How long a captcha answer keeps that way of searching closed. */
         private const val THROTTLE_PAUSE_MS = 90_000L
+        private const val MAX_THROTTLE_PAUSE_MS = 30 * 60_000L
+
+        /** How long a way of searching stays closed after [inARow] captchas in a row: 90 s, doubling, at most 30 min. */
+        internal fun throttlePauseMs(inARow: Int): Long =
+            minOf(THROTTLE_PAUSE_MS shl (inARow - 1).coerceIn(0, 10), MAX_THROTTLE_PAUSE_MS)
         private const val MAX_LOGGED_REJECTIONS = 8
         private const val WEB_CLIENT_VERSION = "2.20251001.01.00"
         private const val USER_AGENT =

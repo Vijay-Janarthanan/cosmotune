@@ -124,13 +124,15 @@ object DesktopCanvasClient {
         val withAlbum: Boolean,
         val at: Long = System.currentTimeMillis(),
         private val lifetimeMs: Long = ENTRY_TTL_MS,
+        /** Worked out for the queue's next song (a prefetch), whose music-video search yields to the playing song's. */
+        val background: Boolean = false,
     ) {
         /** A stream URL is minted for a few hours; an older answer is looked up again rather than served dead. */
         val fresh: Boolean get() = System.currentTimeMillis() - at < lifetimeMs &&
             artwork?.url?.let { !com.opencanvas.core.stream.isMediaStreamExpired(it) } != false
 
-        fun reusable(nowWithAlbum: Boolean, accept: (DesktopCanvasArtwork) -> Boolean): Boolean =
-            artwork?.let(accept) ?: (withAlbum || !nowWithAlbum)
+        fun reusable(nowWithAlbum: Boolean, accept: (DesktopCanvasArtwork) -> Boolean, nowBackground: Boolean = false): Boolean =
+            artwork?.let(accept) ?: ((withAlbum || !nowWithAlbum) && (nowBackground || !background))
     }
 
     private val cache = object : LinkedHashMap<String, Entry>(CACHE_SIZE, 0.75f, true) {
@@ -167,7 +169,15 @@ object DesktopCanvasClient {
         val seconds = song.durationMillis() / 1_000L
         val key = com.cosmotune.canvas.canvasSongKey(song.videoId, openCanvasActive, openCanvasRes)
         // An answer that already stands needs neither the lock nor any lookup.
-        synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(withAlbum, acceptCached) } }?.let { return it.artwork }
+        // A miss from the early look (the song was next in the queue) is not the answer once the song plays: it is asked again,
+        // once; the playing song's own miss then stands for MISS_RETRY_MS.
+        synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(withAlbum, acceptCached, background) } }?.let { entry ->
+            if (entry.artwork == null && !background) {
+                DesktopTrackLog.log("canvas: no video for '$title' (looked up ${(System.currentTimeMillis() - entry.at) / 1000} s ago; " +
+                    "asked again ${MISS_RETRY_MS / 1000} s after that)")
+            }
+            return entry.artwork
+        }
 
         return coroutineScope {
             // The music video is looked up from the moment the question is asked, not when the label
@@ -185,7 +195,8 @@ object DesktopCanvasClient {
                 runCatching { pending.await() }.getOrNull()?.takeIf { it.matches(title, artist, album) }
             }
 
-            val answer = resolve(key, withAlbum, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS, acceptCached = acceptCached) {
+            val answer = resolve(key, withAlbum, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS, acceptCached = acceptCached,
+                background = background) {
                 video ?: firstHit(
                     { DesktopAppleMusicCanvas.search(title, artist, album) },
                     { DesktopTidalCanvas.search(title, artist, album) },
@@ -232,16 +243,18 @@ object DesktopCanvasClient {
         withAlbum: Boolean,
         missLifetimeMs: Long = ENTRY_TTL_MS,
         acceptCached: (DesktopCanvasArtwork) -> Boolean = { true },
+        background: Boolean = false,
         lookUp: suspend () -> DesktopCanvasArtwork?,
     ): DesktopCanvasArtwork? = gate.withLock {
         val began = synchronized(cache) {
-            cache[key]?.let { if (it.fresh && it.reusable(withAlbum, acceptCached)) return@withLock it.artwork }
+            cache[key]?.let { if (it.fresh && it.reusable(withAlbum, acceptCached, background)) return@withLock it.artwork }
             generation
         }
         val found = withContext(Dispatchers.IO) { lookUp() }
         synchronized(cache) {
             // an answer worked out under settings that have changed since is not remembered
-            if (generation == began) cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS)
+            if (generation == began) cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS,
+                background = background)
         }
         found
     }
@@ -431,6 +444,20 @@ internal class DesktopCanvasPlayback(decorative: Boolean = false) {
 
     suspend fun open(candidates: List<String>, headers: Map<String, String> = emptyMap()) = withContext(Dispatchers.IO) {
         DesktopCanvasCache.open(decoder, candidates, headers).also { streaming = it.streaming }
+    }
+
+    /** Why the network reader stopped fetching (a refused range, a dropped connection), or null. */
+    val streamFailure: java.io.IOException? get() = streaming?.lastFailure
+
+    /** Whether the clip is read over the network (and so can stall), not from a file. */
+    val isStreaming: Boolean get() = streaming != null
+
+    /**
+     * Stops the network reader, so a decode blocked waiting for its bytes returns at once (its reads fail as closed). The
+     * decoder itself is left to [close], on the thread that decodes: closing it under a decode would crash.
+     */
+    fun abortStream() {
+        streaming?.close()
     }
 
     suspend fun close() = withContext(NonCancellable + Dispatchers.IO) {

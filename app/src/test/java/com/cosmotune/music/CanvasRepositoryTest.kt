@@ -59,6 +59,19 @@ class CanvasRepositoryTest {
     }
 
     @Test
+    fun `an early miss for the queue's next song is asked again once the song plays, and that miss then stands`() = runBlocking {
+        val key = songKey("early-miss-${System.nanoTime()}")
+        var lookups = 0
+        CanvasRepository.resolve(key, withAlbum = false, background = true) { lookups++; null }
+        CanvasRepository.resolve(key, withAlbum = false, background = true) { lookups++; null }
+        assertEquals("another early look takes the early miss", 1, lookups)
+        CanvasRepository.resolve(key, withAlbum = false) { lookups++; null }
+        assertEquals("the playing song looks again", 2, lookups)
+        CanvasRepository.resolve(key, withAlbum = false) { lookups++; null }
+        assertEquals("and its own miss is believed for a while", 2, lookups)
+    }
+
+    @Test
     fun `a lookup that was running when the answers were dropped is not remembered afterwards`() = runBlocking {
         CanvasRepository.resolve(songKey("clear-2"), withAlbum = false) {
             CanvasRepository.forgetAll()

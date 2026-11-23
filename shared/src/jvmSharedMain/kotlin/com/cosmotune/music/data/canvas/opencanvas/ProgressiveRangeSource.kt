@@ -59,6 +59,9 @@ class ProgressiveRangeSource(
     private var failure: IOException? = null
     private var inFlight: Call? = null
 
+    /** Why fetching stopped (a refused range, a dropped connection), or null while it has not; for the player's log. */
+    val lastFailure: IOException? get() = synchronized(lock) { failure }
+
     /** The (offset, size) of every range request issued so far - for tests, logs and benchmarks. */
     val requestLog: List<Pair<Long, Int>> get() = synchronized(lock) { requests.toList() }
 

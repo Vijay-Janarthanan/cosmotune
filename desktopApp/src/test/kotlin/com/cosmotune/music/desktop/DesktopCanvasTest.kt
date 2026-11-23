@@ -216,6 +216,19 @@ class DesktopCanvasTest {
     }
 
     @Test
+    fun `an early miss for the queue's next song is asked again once the song plays, and that miss then stands`() = runBlocking {
+        val key = songKey("early-miss-${System.nanoTime()}")
+        var lookups = 0
+        DesktopCanvasClient.resolve(key, withAlbum = false, background = true) { lookups++; null }
+        DesktopCanvasClient.resolve(key, withAlbum = false, background = true) { lookups++; null }
+        assertEquals(1, lookups, "another early look takes the early miss")
+        DesktopCanvasClient.resolve(key, withAlbum = false) { lookups++; null }
+        assertEquals(2, lookups, "the playing song looks again")
+        DesktopCanvasClient.resolve(key, withAlbum = false) { lookups++; null }
+        assertEquals(2, lookups, "and its own miss is believed for a while")
+    }
+
+    @Test
     fun `a lookup that was running when the answers were dropped is not remembered afterwards`() = runBlocking {
         DesktopCanvasClient.resolve(songKey("clear-2"), withAlbum = false) {
             DesktopCanvasClient.forgetAll()
