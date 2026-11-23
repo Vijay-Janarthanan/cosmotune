@@ -113,7 +113,20 @@ internal class WatchPlayerControls(
     val pictureInPicture: (() -> Unit)? = null,
     /** The engine's speed, for full screen's long press at 2x; null where it cannot change (a cast receiver). */
     val speed: com.cosmotune.ui.fullscreen.FullScreenSpeed? = null,
+    /** The sound mix (Night, Clear voices) and the way to change it, kept for every video. */
+    val sound: com.cosmotune.video.player.AudioMix = com.cosmotune.video.player.AudioMix.NORMAL,
+    val setSound: (com.cosmotune.video.player.AudioMix) -> Unit = {},
 )
+
+/** The Audio menu's rows: the audio tracks when there is a choice, then the sound mixes. */
+internal fun watchAudioItems(state: WatchPlayerState, controls: WatchPlayerControls): List<OrbitMenuItem> = buildList {
+    if (state.audioTracks.size > 1) state.audioTracks.forEach { t ->
+        add(OrbitMenuItem(t.label, listOfNotNull(t.codec, t.channels?.let { "$it ch" }).joinToString(" · ").ifBlank { null }, selected = t.selected) { controls.selectAudio(t.trackId) })
+    }
+    com.cosmotune.watch.WatchSoundChoice.all.forEach { choice ->
+        add(OrbitMenuItem(choice.label, choice.detail, selected = controls.sound == choice.mix) { controls.setSound(choice.mix) })
+    }
+}
 
 /**
  * The player (board notes: "the same player as Now Playing"): the picture, then the film card in the title's colour with play in
@@ -145,6 +158,10 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     }
     val state by player.state.collectAsState()
     val snapshot by player.engine.snapshot.collectAsState()
+    val watchPrefs by actions.repository.preferences.collectAsState()
+    LaunchedEffect(player, watchPrefs.sound) { player.setSoundMix(watchPrefs.sound) }
+    LaunchedEffect(player, watchPrefs.softwareDecoding) { player.setSoftwareDecoding(watchPrefs.softwareDecoding) }
+    LaunchedEffect(player, watchPrefs.passthrough) { player.engine.setAudioPassthrough(watchPrefs.passthrough) }
     val casting = remember(player, route) { com.cosmotune.watch.WatchCasting(player, actions.repository) }
     DisposableEffect(casting) { onDispose { casting.close() } }
     var castOpen by remember { mutableStateOf(false) }
@@ -153,7 +170,7 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     val castScope = rememberCoroutineScope()
     if (castOpen) WatchCastSheet(casting, state.stream, fonts, look) { castOpen = false }
     val roomOwnsPlayback = playback.roomHolds(route.target.key)
-    val controls = remember(player, actions, route, roomOwnsPlayback, castRenderer, pip, pip.supported) {
+    val controls = remember(player, actions, route, roomOwnsPlayback, castRenderer, pip, pip.supported, watchPrefs.sound) {
         WatchPlayerControls(
             playPause = { val target = castRenderer; if (target != null) castScope.launch { if (target.state.value.playing) target.pause() else target.play() }
                 else if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() },
@@ -177,6 +194,8 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
             remote = castRenderer != null,
             pictureInPicture = if (pip.supported && castRenderer == null) ({ pip.enter(); Unit }) else null,
             speed = if (castRenderer == null) com.cosmotune.ui.fullscreen.FullScreenSpeed({ player.engine.snapshot.value.speed }, player.engine::setSpeed) else null,
+            sound = watchPrefs.sound,
+            setSound = { mix -> castScope.launch { actions.repository.setPreferences(actions.repository.preferences.value.copy(sound = mix)) } },
             watchTogether = {
                 val s = player.state.value
                 s.target?.let { t -> actions.watchTogether(t, s.summary ?: route.summary, s.stream, s.durationMs.takeIf { it > 0 } ?: player.engine.snapshot.value.durationMs) }
@@ -651,10 +670,10 @@ private fun FilmCard(
                     onClick = controls.toggleMute, ink = ink, on = state.muted)
                 if (!controls.remote) Box {
                     // The audio track gets the waveform, so it does not read as a second Mute beside the speaker.
-                    if (narrow) WatchRoundButton(CosmoIcons.Waveform, "Audio", look, onClick = { audio = true }, ink = ink, enabled = state.audioTracks.size > 1)
-                    else WatchCardChip("Audio", ink, fonts, onClick = { audio = true }, icon = CosmoIcons.Waveform, enabled = state.audioTracks.size > 1)
-                    OrbitMenu(audio, { audio = false }, fonts = fonts, look = look, header = "Audio",
-                        items = state.audioTracks.map { t -> OrbitMenuItem(t.label, listOfNotNull(t.codec, t.channels?.let { "$it ch" }).joinToString(" · ").ifBlank { null }, selected = t.selected) { controls.selectAudio(t.trackId) } })
+                    if (narrow) WatchRoundButton(CosmoIcons.Waveform, "Audio", look, onClick = { audio = true }, ink = ink)
+                    else WatchCardChip("Audio", ink, fonts, onClick = { audio = true }, icon = CosmoIcons.Waveform)
+                    OrbitMenu(audio, { audio = false }, fonts = fonts, look = look, header = "Audio", width = 300.dp,
+                        items = watchAudioItems(state, controls))
                 }
                 if (!controls.remote) Box {
                     if (narrow) WatchRoundButton(CosmoIcons.Lyrics, "Subtitles", look, onClick = { subtitles = true }, ink = ink)
@@ -725,8 +744,8 @@ private fun WatchFullScreen(
                 add(OrbitMenuItem("Find more subtitles", "OpenSubtitles and your subtitle plugins", CosmoIcons.Search) { controls.searchSubtitles() })
                 add(OrbitMenuItem("Subtitle look", "Size, colour, background and height", CosmoIcons.Lyrics) { subtitleLook = true })
             }))
-            if (state.audioTracks.size > 1) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Audio", state.audioTracks.firstOrNull { it.selected }?.label, CosmoIcons.Waveform,
-                state.audioTracks.map { t -> OrbitMenuItem(t.label, listOfNotNull(t.codec, t.channels?.let { "$it ch" }).joinToString(" · ").ifBlank { null }, selected = t.selected) { controls.selectAudio(t.trackId) } }))
+            add(com.cosmotune.ui.fullscreen.FullScreenMenu("Audio", state.audioTracks.takeIf { it.size > 1 }?.firstOrNull { it.selected }?.label
+                ?: com.cosmotune.watch.WatchSoundChoice.of(controls.sound).label, CosmoIcons.Waveform, watchAudioItems(state, controls)))
             if (state.streams.isNotEmpty()) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Sources", state.stream?.let { "${it.source.pluginName} · ${it.label}" }, CosmoIcons.Queue,
                 watchSourceItems(state, controls.switchStream)))
         }

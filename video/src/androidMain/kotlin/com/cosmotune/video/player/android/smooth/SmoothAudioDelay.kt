@@ -81,13 +81,15 @@ internal class SmoothAudioDelayProcessor : BaseAudioProcessor() {
     private fun framesFor(seconds: Double): Int = if (seconds <= 0.0) 0 else (seconds * sampleRate).roundToInt()
 }
 
-/** The service player's renderers: the defaults, with the audio sink carrying [SmoothAudioDelayProcessor]. */
+/** The service player's renderers: the defaults, with the audio sink carrying [SoundMixProcessor] and [SmoothAudioDelayProcessor]. */
 @OptIn(UnstableApi::class)
 internal class VideoRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
+    init { setMediaCodecSelector(SoftwareDecoding.selector) }
+
     override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
         DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(enableFloatOutput)
             .setEnableAudioOutputPlaybackParameters(enableAudioTrackPlaybackParams)
-            .setAudioProcessors(arrayOf(SmoothAudioDelayProcessor()))
+            .setAudioProcessors(arrayOf(SoundMixProcessor(), SmoothAudioDelayProcessor()))
             .build()
 }

@@ -248,6 +248,8 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
         // The subtitles, in the viewer's look (the engine hands its cues to the app).
         val watchPreferences by repository.preferences.collectAsState()
         WatchEngineSubtitles(player.engine, watchPreferences.subtitles)
+        LaunchedEffect(player, watchPreferences.sound) { player.setSoundMix(watchPreferences.sound) }
+        LaunchedEffect(player, watchPreferences.softwareDecoding) { player.setSoftwareDecoding(watchPreferences.softwareDecoding) }
         // The picture takes focus while the card is down, so the remote's keys reach [keys].
         Box(Modifier.fillMaxSize().focusRequester(stage).focusable().pointerInput(failed) {
             if (!failed) detectTapGestures { cardUp = !cardUp }
@@ -369,6 +371,16 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                         value = if (t.selected) "On" else null,
                         onClick = { menu = null; player.selectAudio(t.trackId) },
                         modifier = Modifier.tvInitialFocus(t.selected),
+                    )
+                }
+                val sound = repository.preferences.collectAsState().value.sound
+                com.cosmotune.watch.WatchSoundChoice.all.forEach { choice ->
+                    TvListRow(
+                        title = choice.label,
+                        subtitle = choice.detail,
+                        value = if (choice.mix == sound) "On" else null,
+                        onClick = { menu = null; subtitleScope.launch { repository.setPreferences(repository.preferences.value.copy(sound = choice.mix)) } },
+                        modifier = Modifier.tvInitialFocus(state.audioTracks.size < 2 && choice.mix == sound),
                     )
                 }
             }
@@ -553,7 +565,7 @@ private fun TvFilmCard(
                 onPip?.let { TvWatchRound(CosmoIcons.Pip, "Picture in picture", ink, it) }
                 TvButton(if (state.muted) "Unmute" else "Mute", onClick = player::toggleMute)
                 if (state.streams.isNotEmpty()) TvButton("Sources", onClick = { onMenu(TvWatchMenu.SOURCES) })
-                if (state.audioTracks.size > 1) TvButton("Audio", onClick = { onMenu(TvWatchMenu.AUDIO) })
+                TvButton("Audio", onClick = { onMenu(TvWatchMenu.AUDIO) })
                 TvButton("Subtitles", onClick = { onMenu(TvWatchMenu.SUBTITLES) })
                 TvWatchRound(CosmoIcons.Canvas, "Screen", ink) { onMenu(TvWatchMenu.SCREEN) }
             }

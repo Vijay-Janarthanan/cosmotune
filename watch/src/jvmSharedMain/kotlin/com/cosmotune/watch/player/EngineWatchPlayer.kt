@@ -256,9 +256,29 @@ class EngineWatchPlayer(
         ))
         engine.setMuted(state.value.muted)
         engine.play()
+        engine.setAudioMix(soundMix)
+        engine.setSoftwareDecoding(softwareDecoding)
     }
 
     private fun startTicker() {
+    @Volatile private var soundMix = com.cosmotune.video.player.AudioMix.NORMAL
+
+    @Volatile private var softwareDecoding = false
+
+    override fun setSoftwareDecoding(on: Boolean) {
+        if (softwareDecoding == on) return
+        softwareDecoding = on
+        engine.setSoftwareDecoding(on)
+        // The decoder is chosen when a copy opens: open this one again where it is.
+        val s = state.value
+        if (s.stream != null && !remotePlayback && s.status in setOf(WatchPlayerStatus.PLAYING, WatchPlayerStatus.PAUSED, WatchPlayerStatus.BUFFERING)) switchStream(s.stream)
+    }
+
+    override fun setSoundMix(mix: com.cosmotune.video.player.AudioMix) {
+        soundMix = mix
+        engine.setAudioMix(mix)
+    }
+
         ticker?.cancel()
         ticker = scope.launch {
             while (isActive) {

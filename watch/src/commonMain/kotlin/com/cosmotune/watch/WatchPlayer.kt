@@ -70,6 +70,10 @@ interface WatchPlayer {
     fun setSubtitleDelay(ms: Long)
     fun playNextEpisode()
     /** Cancels the next-episode countdown for this episode. */
+    /** Plays the sound as [mix] from now on, this video and the next (Night, Clear voices). */
+    fun setSoundMix(mix: com.cosmotune.video.player.AudioMix) {}
+    /** Decodes the picture in software only from now on (a changed choice reopens the copy playing, where it was). */
+    fun setSoftwareDecoding(on: Boolean) {}
     fun cancelNextEpisode()
     /** Saves progress and unloads. */
     fun stop()

@@ -11,4 +11,22 @@ data class WatchPreferences(val density: WatchDensity = WatchDensity.BALANCED, v
     /** How the player draws subtitles. */
     val subtitles: WatchSubtitleStyle = WatchSubtitleStyle(),
     /** Original languages (codes of [WatchLanguage]) whose Top 10, films, web series and daily soaps get their own rows on Home. */
-    val homeLanguages: List<String> = listOf("ta", "hi"))
+    val homeLanguages: List<String> = listOf("ta", "hi"),
+    /** How the player mixes the sound: as made, Night (loud and quiet evened out) or Clear voices. */
+    val sound: com.cosmotune.video.player.AudioMix = com.cosmotune.video.player.AudioMix.NORMAL,
+    /** Decode the picture in software only, for a device whose hardware decoder shows a broken picture. */
+    val softwareDecoding: Boolean = false,
+    /** On computers: send Dolby and DTS sound as it is to an amplifier. */
+    val passthrough: Boolean = false)
+
+/** A sound mix the player's Audio menu offers, in the words the menu shows. */
+data class WatchSoundChoice(val mix: com.cosmotune.video.player.AudioMix, val label: String, val detail: String?) {
+    companion object {
+        val all = listOf(
+            WatchSoundChoice(com.cosmotune.video.player.AudioMix.NORMAL, "Sound as made", null),
+            WatchSoundChoice(com.cosmotune.video.player.AudioMix.NIGHT, "Night", "Loud parts quieter, quiet parts louder"),
+            WatchSoundChoice(com.cosmotune.video.player.AudioMix.VOICES, "Clear voices", "Dialogue louder than music and effects"),
+        )
+        fun of(mix: com.cosmotune.video.player.AudioMix) = all.first { it.mix == mix }
+    }
+}

@@ -284,6 +284,8 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     override fun load(request: PlaybackRequest) {
         if (released) return
         smoothing.onLoad()
+        com.cosmotune.video.player.android.smooth.SoundMix.mix = com.cosmotune.video.player.AudioMix.NORMAL
+        com.cosmotune.video.player.android.smooth.SoftwareDecoding.on = false
         val from = request.startMs.coerceAtLeast(0)
         // A live stream starts at its default position, the live edge less the target offset (Y-28, spec 5.13, 6.2): a start of 0
         // would be the oldest moment of its window.
@@ -364,6 +366,16 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         smoothing.playbackSpeed = wanted
         snapshotValues.update { it.copy(speed = wanted) }
         command { it.setPlaybackSpeed(wanted) }
+    }
+
+    override fun setSoftwareDecoding(on: Boolean) {
+        // Read when the next decoder is chosen: this video's copy is opened again to apply it now.
+        if (com.cosmotune.video.player.android.smooth.SoftwareDecoding.on == on) return
+        com.cosmotune.video.player.android.smooth.SoftwareDecoding.on = on
+    }
+
+    override fun setAudioMix(mix: com.cosmotune.video.player.AudioMix) {
+        com.cosmotune.video.player.android.smooth.SoundMix.mix = mix
     }
 
     override fun setVolume(volume: Float) {

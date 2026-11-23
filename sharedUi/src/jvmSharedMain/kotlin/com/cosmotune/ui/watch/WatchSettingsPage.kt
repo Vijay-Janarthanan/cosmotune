@@ -121,6 +121,16 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                 val sub = preferences.subtitles
                 CosmoSettingsRow(CosmoIcons.Lyrics, "Subtitle look", subtitle = "${sub.sizePercent}% · ${sub.colour.label} · ${sub.background.label.lowercase()} behind",
                     onClick = { dialog = WatchSettingsDialog.SUBTITLES })
+                CosmoSettingsRow(CosmoIcons.Devices, "Software decoding", subtitle = "Try this if the picture looks broken or green",
+                    trailing = {
+                        OrbitSwitch(preferences.softwareDecoding, { on -> scope.launch { repository.setPreferences(preferences.copy(softwareDecoding = on)) } }, look, "Software decoding")
+                    })
+                // Android sends surround sound on to a receiver by itself when the output takes it; a computer needs telling.
+                if (com.cosmotune.ui.components.platformSdkInt == null) CosmoSettingsRow(CosmoIcons.Volume, "Surround to your amplifier",
+                    subtitle = "Sends Dolby and DTS sound as it is over HDMI or optical",
+                    trailing = {
+                        OrbitSwitch(preferences.passthrough, { on -> scope.launch { repository.setPreferences(preferences.copy(passthrough = on)) } }, look, "Surround to your amplifier")
+                    })
                 CosmoSettingsRow(Icons.Rounded.SkipNext, "Skip intros, recaps and credits", subtitle = "A button shows when the times are known",
                     trailing = {
                         OrbitSwitch(preferences.animeSkips, { on -> scope.launch { repository.setPreferences(preferences.copy(animeSkips = on)) } }, look,

@@ -121,7 +121,10 @@ class DesktopVideoEngine internal constructor(
     @Volatile private var restarted = false
 
     /** The hardware decoding of the options (`auto-copy`), which a load starts without and turns on once it plays. */
-    private val steadyHwdec: String = (MpvPlayer.DEFAULT_OPTIONS + playerOptions)["hwdec"] ?: "no"
+    private val optionHwdec: String = (MpvPlayer.DEFAULT_OPTIONS + playerOptions)["hwdec"] ?: "no"
+
+    /** [optionHwdec], or `no` while the viewer asked for software decoding ([setSoftwareDecoding]). */
+    @Volatile private var steadyHwdec: String = optionHwdec
 
     /** Whether the current load started in software and still has to turn [steadyHwdec] on. Engine thread. */
     private var hardwareDue = false
@@ -144,6 +147,8 @@ class DesktopVideoEngine internal constructor(
 
     override fun load(request: PlaybackRequest) {
         if (released) return
+        setAudioMix(com.cosmotune.video.player.AudioMix.NORMAL)
+        steadyHwdec = optionHwdec
         val number = generation.incrementAndGet()
         pendingStartMs = if (request.live) 0 else request.startMs.coerceAtLeast(0)
         tracedId = request.videoId
@@ -506,6 +511,19 @@ class DesktopVideoEngine internal constructor(
         }
     }
 
+    override fun setAudioPassthrough(on: Boolean) {
+        post { playerRef?.set("audio-spdif", if (on) "ac3,eac3,dts,dts-hd,truehd" else "") }
+    }
+
+    override fun setSoftwareDecoding(on: Boolean) {
+        steadyHwdec = if (on) "no" else optionHwdec
+        post { playerRef?.takeIf { it.isLoaded() }?.let { hardwareDue = false; it.set("hwdec", steadyHwdec) } }
+    }
+
+    override fun setAudioMix(mix: com.cosmotune.video.player.AudioMix) {
+        post { playerRef?.set("af", mpvAudioFilter(mix)) }
+    }
+
     override fun setSubtitleDelay(ms: Long) {
         post { playerRef?.set("sub-delay", MpvPlayer.seconds(ms)) }
     }
@@ -580,4 +598,14 @@ class DesktopVideoEngine internal constructor(
             headers.filter { !it.key.equals("User-Agent", ignoreCase = true) && ',' !in it.value && ',' !in it.key }
                 .map { "${it.key}: ${it.value}" }
     }
+}
+
+/**
+ * mpv's audio filter for [mix]: a compressor with make-up gain for Night (the same curve as
+ * [com.cosmotune.video.player.sound.SoundMixer]), FFmpeg's dialogue enhancer for Clear voices.
+ */
+internal fun mpvAudioFilter(mix: com.cosmotune.video.player.AudioMix): String = when (mix) {
+    com.cosmotune.video.player.AudioMix.NORMAL -> ""
+    com.cosmotune.video.player.AudioMix.NIGHT -> "lavfi=[acompressor=threshold=0.0316:ratio=4:attack=5:release=250:makeup=3.16]"
+    com.cosmotune.video.player.AudioMix.VOICES -> "lavfi=[dialoguenhance=original=0.6:enhance=1.4]"
 }
