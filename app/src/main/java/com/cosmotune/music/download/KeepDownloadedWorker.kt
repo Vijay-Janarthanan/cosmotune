@@ -25,6 +25,10 @@ import com.cosmotune.music.data.YtMusicRepository
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.ui.pages.KeepDownloaded
+import com.cosmotune.ui.pages.SmartDownloads
+import com.cosmotune.music.data.stats.ListeningStats
+import com.cosmotune.music.data.stats.RankedSong
+import com.cosmotune.music.data.stats.ReplayPeriod
 import com.cosmotune.ui.settings.cosmoLookSettings
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
@@ -47,15 +51,31 @@ object KeepDownloadedScheduler {
     private const val LIKED_SOON = "cosmotune-keep-liked-soon"
     internal const val KEY_PLAYLISTS = "playlists"
     internal const val KEY_NEWEST_ONLY = "newest_only"
+    internal const val KEY_SMART_ONLY = "smart_only"
+    private const val SMART_NOW = "cosmotune-smart-downloads-now"
 
     fun init(context: Context) {
         val app = context.applicationContext
         val look = cosmoLookSettings(app)
         CoroutineScope(SupervisorJob() + Dispatchers.Main).launch {
             var before: Set<String>? = null
-            look.keepDownloaded.collect { kept ->
+            var smartBefore: Int? = null
+            // Smart downloads (the most played songs kept downloaded) rides on the same daily job.
+            kotlinx.coroutines.flow.combine(look.keepDownloaded, look.smartDownloads) { kept, smart -> kept to smart }.collect { (kept, smart) ->
                 val work = WorkManager.getInstance(app)
-                if (kept.isEmpty()) {
+                // Smart downloads just turned on or changed: its songs come down now (on Wi-Fi), not at the next daily pass.
+                if (smartBefore != null && smart != smartBefore) {
+                    val now = OneTimeWorkRequestBuilder<KeepDownloadedWorker>().setConstraints(wifiOnly())
+                        .setInputData(workDataOf(KEY_SMART_ONLY to true)).build()
+                    work.enqueueUniqueWork(SMART_NOW, ExistingWorkPolicy.REPLACE, now)
+                }
+                smartBefore = smart
+                if (smart > 0 || look.smartKept().isNotEmpty()) {
+                    val daily = PeriodicWorkRequestBuilder<KeepDownloadedWorker>(1, TimeUnit.DAYS)
+                        .setConstraints(wifiOnly()).setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.MINUTES).build()
+                    work.enqueueUniquePeriodicWork(DAILY, ExistingPeriodicWorkPolicy.KEEP, daily)
+                }
+                if (kept.isEmpty() && smart <= 0 && look.smartKept().isEmpty()) {
                     work.cancelUniqueWork(DAILY)
                     work.cancelUniqueWork(SWITCHED_ON)
                 } else {
@@ -104,13 +124,15 @@ class KeepDownloadedWorker(context: Context, parameters: WorkerParameters) : Cor
         val look = cosmoLookSettings(applicationContext)
         val only = inputData.getStringArray(KeepDownloadedScheduler.KEY_PLAYLISTS)?.toSet()
         val newestOnly = inputData.getBoolean(KeepDownloadedScheduler.KEY_NEWEST_ONLY, false)
-        if (look.keepDownloaded.value.isEmpty()) return Result.success()
-        if (only == null && !KeepDownloaded.due(look.keepDownloadedCheckedMs(), System.currentTimeMillis())) return Result.success()
+        val smartOnly = inputData.getBoolean(KeepDownloadedScheduler.KEY_SMART_ONLY, false)
+        val smart = only == null && !newestOnly && (look.smartDownloads.value > 0 || look.smartKept().isNotEmpty())
+        if (look.keepDownloaded.value.isEmpty() && !smart) return Result.success()
+        if (only == null && !smartOnly && !KeepDownloaded.due(look.keepDownloadedCheckedMs(), System.currentTimeMillis())) return Result.success()
         if (!AppSettings.downloadsAllowedNow) return Result.retry()
         return try {
             setForeground(notification())
             withTimeout(45 * 60 * 1000L) {
-                KeepDownloaded.run(
+                if (!smartOnly) KeepDownloaded.run(
                     look,
                     songsOf = { id ->
                         // A like lands at the top: the quick pass after one reads the newest page only.
@@ -121,6 +143,17 @@ class KeepDownloadedWorker(context: Context, parameters: WorkerParameters) : Cor
                     download = ::fetch,
                     playlists = only ?: look.keepDownloaded.value,
                     stamp = !newestOnly,
+                )
+                if (smart) SmartDownloads.run(
+                    look,
+                    ranked = {
+                        ListeningStats.summary(ReplayPeriod.ALL_TIME).songs
+                            .sortedWith(compareByDescending<RankedSong> { it.plays }.thenByDescending { it.ms })
+                            .map { it.song }.filter { SmartDownloads.streamable(it.videoId) }
+                    },
+                    onDevice = { id -> id in Downloads.saved.value },
+                    download = { songs -> fetch(SMART_COLLECTION, songs) },
+                    remove = { id -> Downloads.delete(applicationContext, id) },
                 )
             }
             Result.success()
@@ -159,5 +192,9 @@ class KeepDownloadedWorker(context: Context, parameters: WorkerParameters) : Cor
         return ForegroundInfo(8118, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
     }
 
-    companion object { private const val CHANNEL = "keep_downloaded" }
+    companion object {
+        private const val CHANNEL = "keep_downloaded"
+        /** The downloads Smart downloads hands over are filed under this collection id. */
+        private const val SMART_COLLECTION = "cosmotune-smart-downloads"
+    }
 }

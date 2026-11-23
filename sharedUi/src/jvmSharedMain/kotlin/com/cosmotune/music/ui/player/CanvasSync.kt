@@ -7,6 +7,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
@@ -72,9 +74,12 @@ internal fun rememberCanvasSync(canvas: CanvasArtwork, isPlaying: Boolean): Canv
     val map = canvas.syncMap ?: return null
     val position = CanvasSyncSource.position ?: return null
     val clock = rememberSongClock(canvas.url, position, isPlaying)
-    return remember(canvas, position, clock) {
+    // The listener's own timing for this video, from the video menu.
+    val timings by com.cosmotune.settings.Extras.settings.videoTimings.collectAsStateWithLifecycle()
+    val timing = canvas.videoId?.let { timings[it] } ?: 0L
+    return remember(canvas, position, clock, timing) {
         CanvasSyncSpec(
-            map = map,
+            map = com.cosmotune.listening.VideoTimings.apply(map, timing),
             durationMs = canvas.videoDurationMs,
             songMs = { clock.longValue },
             epoch = { position.seeks.toLong() },

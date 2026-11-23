@@ -138,6 +138,8 @@ object DesktopLyricsClient {
                     sources = asked.toSet(),
                     order = asked,
                     prioritizeSyllableSync = prioritizeSyllables,
+                    // The player lays the listener's own lyrics over this answer itself.
+                    ownFirst = false,
                 )
                 // The automatic lookup is kept between plays (LyricsStore); one provider picked by hand always asks it.
                 val found = if (only == null) LyricsStore.lyrics(request) else LyricsRepository.lyrics(

@@ -42,7 +42,7 @@ fun rememberMusicRadio(refreshKey: Any? = null): UiState<MixGroups>? {
         if (!signedIn) { value = null; return@produceState }
         if (value !is UiState.Success) value = UiState.Loading
         value = YtMusicRepository.mixedForYou().fold(
-            onSuccess = { mixes -> UiState.Success(MixGroups.of(mixes)) },
+            onSuccess = { groups -> UiState.Success(groups) },
             onFailure = { UiState.Error("Your mixes could not be loaded") },
         )
     }

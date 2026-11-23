@@ -286,6 +286,18 @@ internal object Mp4Tags {
         }.toMap()
     }
 
+    /** The freeform `----` items (where taggers keep MusicBrainz ids and the ISRC), by their upper-cased name. */
+    fun freeform(file: File): Map<String, String> {
+        val items = ilst(parsed(file).moov)?.children.orEmpty()
+        return items.filter { it.type == "----" }.mapNotNull { item ->
+            val parts = parse(item.payload, 0, item.payload.size)
+            val name = parts.firstOrNull { it.type == "name" }?.payload?.takeIf { it.size > 4 }?.let { String(it, 4, it.size - 4, Charsets.UTF_8) }
+                ?: return@mapNotNull null
+            val data = parts.firstOrNull { it.type == "data" }?.payload?.takeIf { it.size > 8 } ?: return@mapNotNull null
+            name.uppercase(java.util.Locale.ROOT) to String(data, 8, data.size - 8, Charsets.UTF_8)
+        }.toMap()
+    }
+
     private fun item(field: TagField, value: String): Box {
         val atom = atoms.getValue(field)
         val (type, bytes) = if (field == TagField.TRACK) {

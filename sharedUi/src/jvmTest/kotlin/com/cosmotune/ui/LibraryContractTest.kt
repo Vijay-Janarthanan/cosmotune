@@ -125,7 +125,7 @@ class LibraryContractTest {
 
     // ---- the rules ----------------------------------------------------------------------------------------------------
 
-    private val pages = listOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves")
+    private val pages = listOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves", "PlaylistFolderParts")
 
     /** The text before the `{` of every block that encloses [index], innermost first. */
     private fun enclosingHeads(code: String, index: Int): List<String> {
@@ -268,7 +268,7 @@ class LibraryContractTest {
     @Test fun historyIsOrbitRowsUnderDayLabelsKeyedOnTheIdAndTheIndex() {
         val code = SourceContract.code(lib("CosmoHistory"))
         assertTrue("OrbitSongRowFor(" in code && "OrbitLabel(" in code, "Home's rows under mono day labels (board batch-a 1)")
-        assertTrue("YtMusicRepository.historyDays" in code && "historyGroups(songs, days)" in code, "the days come from the history read")
+        assertTrue("YtMusicRepository.historyDays" in code && "historyGroups(songs, days, span)" in code, "the days come from the history read")
         assertTrue("OrbitPageHeading(" in code && "title = \"History\"" in code && "OrbitStatCard(" in code, "the heading and one quiet stat card")
         assertFalse("HorizontalDivider" in code || "Divider" in code, "no dividers")
         assertTrue("key = { \"\${songs[group.first + it].videoId}:\${group.first + it}\" }" in code, "keyed on the id and the index")
@@ -301,6 +301,16 @@ class LibraryContractTest {
             }
         }
         val files = File(SourceContract.root, library).listFiles { f -> f.extension == "kt" }.orEmpty().map { it.nameWithoutExtension }.toSet()
-        assertEquals(setOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves"), files, "the files of the library package")
+        assertEquals(setOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves", "PlaylistFolderParts"), files, "the files of the library package")
+    }
+
+    @Test fun playlistFoldersSitAboveTheLoosePlaylistsAndOpenWithAWayBack() {
+        val code = SourceContract.code(lib("CosmoLibrary"))
+        val parts = SourceContract.code(lib("PlaylistFolderParts"))
+        assertTrue("Extras.settings.playlistFolders" in code && "PlaylistFolders.loose(all, folders.folders)" in code, "filed playlists leave the top of the page")
+        assertTrue("PlayerBackHandler(enabled = openFolder != null" in code, "back closes an open folder")
+        assertTrue("\"New folder\"" in code, "a chip makes a folder")
+        assertTrue("CosmoIconButton(CosmoIcons.ArrowLeft, \"All playlists\"" in parts && "CosmoIconButton(CosmoIcons.MoreVertical" in parts, "the folder's icon buttons carry tooltips")
+        assertTrue("\"Rename folder\"" in parts && "\"Delete folder\"" in parts && "\"Choose playlists\"" in parts)
     }
 }

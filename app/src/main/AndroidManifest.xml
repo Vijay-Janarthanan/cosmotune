@@ -226,6 +226,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
             </intent-filter>
+            <!-- A song file opened the same way plays in Music (MusicLink.AudioFile). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
 
             <!--
               A radio station's playlist (M3U, PLS): tapped in the browser or opened from the file manager, Cosmotune offers it to
@@ -416,6 +422,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_media_pill" />
+        </receiver>
+
+        <!-- The lyrics widget: the line being sung and the next. See LyricWidget. -->
+        <receiver
+            android:name=".widget.LyricWidget"
+            android:exported="false"
+            android:label="@string/widget_lyrics_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_lyrics" />
         </receiver>
 
         <!-- Quick Settings tile: play or pause the last queue. See PlaybackTile. -->

@@ -146,5 +146,5 @@ internal object DesktopLocalMusicWatcher {
         return count
     }
 
-    private val AUDIO_EXTENSIONS = setOf("aac", "flac", "m4a", "mp3", "ogg", "wav", "webm")
+    private val AUDIO_EXTENSIONS = DesktopLocalMusic.supportedExtensions
 }

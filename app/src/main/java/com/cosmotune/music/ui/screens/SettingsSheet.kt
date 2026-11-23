@@ -1,5 +1,6 @@
 package com.cosmotune.music.ui.screens
 
+import com.cosmotune.ui.extras.downloadHistoryItems
 import androidx.compose.foundation.selection.selectableGroup
 
 import android.content.Context
@@ -107,6 +108,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -336,6 +338,8 @@ fun SettingsScreen(
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.ALL) }
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
+    var viewingDownloadHistory by remember { mutableStateOf(false) }
+    val downloadHistory by com.cosmotune.settings.Extras.settings.downloadHistory.collectAsStateWithLifecycle()
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
     // What the last export or import did, shown on the row that did it rather
     // than as a toast: a backup is the one action here whose outcome nobody can
@@ -854,8 +858,20 @@ fun SettingsScreen(
             row(com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART, "best part", "chorus", "skip", "replayed", summary = com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART_LINE) {
                 com.cosmotune.ui.settings.BestPartRow()
             }
+            row(com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM, "waveform", "seek", "comments", "timestamps", summary = com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM_LINE) {
+                com.cosmotune.ui.settings.WaveformSeekRow()
+            }
+            row(com.cosmotune.ui.settings.PlayerExtrasText.MUSIC_SKIPS, "sponsorblock", "skip", "music video", summary = com.cosmotune.ui.settings.PlayerExtrasText.MUSIC_SKIPS_LINE) {
+                com.cosmotune.ui.settings.MusicSkipsRow()
+            }
+            row(com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON, "screen", "awake", "wakelock", "sleep", summary = com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON_LINE) {
+                com.cosmotune.ui.settings.ScreenOnRow()
+            }
             row(com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE, "sleep", "timer", "fade", summary = com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE_LINE) {
                 com.cosmotune.ui.settings.SleepFadeOutRow()
+            }
+            row(com.cosmotune.ui.settings.PlayerExtrasText.NOTIFICATION_SLEEP, "sleep", "timer", "notification", "lock screen", summary = com.cosmotune.ui.settings.PlayerExtrasText.NOTIFICATION_SLEEP_LINE) {
+                com.cosmotune.ui.settings.NotificationSleepRow()
             }
             row(com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM, "premium", "opus", "quality", "256", summary = com.cosmotune.ui.settings.PlayerExtrasText.PREMIUM_LINE) {
                 com.cosmotune.ui.settings.PremiumAudioRow()
@@ -867,6 +883,17 @@ fun SettingsScreen(
             }
             row(com.cosmotune.ui.settings.SoundExtrasText.PROXY, "proxy", "socks", "http", summary = com.cosmotune.ui.settings.SoundExtrasText.PROXY_LINE) {
                 com.cosmotune.ui.settings.ProxyRows()
+            }
+            row(com.cosmotune.ui.settings.OutsideAppsText.DNS, "dns", "https", "doh", "blocked", summary = com.cosmotune.ui.settings.OutsideAppsText.DNS_LINE) {
+                com.cosmotune.ui.settings.PrivateDnsRow()
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = com.cosmotune.ui.settings.OutsideAppsText.GROUP) {
+            row(com.cosmotune.ui.settings.OutsideAppsText.WEBHOOK, "webhook", "home assistant", "now playing", summary = com.cosmotune.ui.settings.OutsideAppsText.WEBHOOK_LINE) {
+                com.cosmotune.ui.settings.NowPlayingWebhookRow()
+            }
+            row(com.cosmotune.ui.settings.OutsideAppsText.BROADCAST, "tasker", "broadcast", "scrobble", summary = com.cosmotune.ui.settings.OutsideAppsText.BROADCAST_LINE) {
+                com.cosmotune.ui.settings.NowPlayingBroadcastRow()
             }
         }
         SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = com.cosmotune.ui.settings.SoundExtrasText.GROUP_RECOGNITION) {
@@ -1062,6 +1089,19 @@ fun SettingsScreen(
                     subtitle = "Music/Cosmotune".takeIf { exportDownloads },
                 )
             }
+            row(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE, "most played", "offline", "automatic", summary = com.cosmotune.ui.settings.SMART_DOWNLOADS_LINE) {
+                val smartContext = androidx.compose.ui.platform.LocalContext.current
+                com.cosmotune.ui.settings.SmartDownloadsRows(com.cosmotune.ui.settings.cosmoLookSettings(smartContext))
+            }
+            row("Download history", "downloads", "history", "failed") {
+                SettingsRow(
+                    icon = Icons.Rounded.History,
+                    title = "Download history",
+                    subtitle = if (downloadHistory.isEmpty()) "Songs you download are listed here, with any that failed"
+                    else "${downloadHistory.size} songs, newest first",
+                    onClick = { viewingDownloadHistory = true },
+                )
+            }
         }
         SearchableSettingsGroup(search, category = SettingsCategory.DOWNLOADS, header = stringResource(R.string.local_music)) {
             val localMusicFolderTitle = stringResource(R.string.local_music_folder)
@@ -1084,6 +1124,16 @@ fun SettingsScreen(
                         onClick = { AppSettings.setLocalMusicFolderUri("") },
                     )
                 }
+            }
+            row(com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_TITLE, "length", "seconds", "voice notes", summary = com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_LINE) {
+                val rulesContext = androidx.compose.ui.platform.LocalContext.current
+                com.cosmotune.ui.settings.LocalShortSongsRows(com.cosmotune.ui.settings.cosmoLookSettings(rulesContext))
+            }
+            row(com.cosmotune.ui.settings.LOCAL_FOLDERS_TITLE, "hide", "exclude", "blacklist", summary = com.cosmotune.ui.settings.LOCAL_FOLDERS_LINE) {
+                val rulesContext = androidx.compose.ui.platform.LocalContext.current
+                val folders by LocalMediaRepository.knownFolders.collectAsStateWithLifecycle()
+                LaunchedEffect(Unit) { if (folders.isEmpty()) runCatching { LocalMediaRepository.getLocalMusic(rulesContext) } }
+                com.cosmotune.ui.settings.LocalFoldersRows(com.cosmotune.ui.settings.cosmoLookSettings(rulesContext), folders)
             }
             val filterNonMusicAudioTitle = stringResource(R.string.filter_non_music_audio)
             row(filterNonMusicAudioTitle, "podcast", "recording", summary = stringResource(R.string.filter_non_music_audio_subtitle)) {
@@ -1829,6 +1879,43 @@ fun SettingsScreen(
                     onClick = { exportPicker.launch(Backup.suggestedName()) },
                 )
             }
+            // Backups on a schedule into a folder the listener grants once (AutoBackupScheduler).
+            row(com.cosmotune.ui.settings.AUTO_BACKUP_TITLE, "backup", "automatic", "daily", "weekly", summary = com.cosmotune.ui.settings.AUTO_BACKUP_LINE) {
+                val look = com.cosmotune.ui.settings.cosmoLookSettings(context)
+                val folder by look.autoBackupFolder.collectAsState()
+                val days by look.autoBackupDays.collectAsState()
+                val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+                    if (tree == null) return@rememberLauncherForActivityResult
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    }
+                    look.setAutoBackupFolder(tree.toString())
+                    // A first backup straight away, so the folder is seen to work.
+                    backupScope.launch {
+                        val now = System.currentTimeMillis()
+                        if (look.autoBackupDays.value > 0 && com.cosmotune.music.data.stats.AutoBackupScheduler.backUp(context, tree.toString(), now)) look.setAutoBackupLast(now)
+                    }
+                }
+                val last = remember(folder, days) { look.autoBackupLast() }.takeIf { it > 0 }?.let {
+                    java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it))
+                }
+                com.cosmotune.ui.settings.AutoBackupRows(
+                    folderLabel = folder.takeIf { it.isNotBlank() }?.let { com.cosmotune.music.data.stats.AutoBackupScheduler.folderLabel(it) },
+                    last = last,
+                    onChooseFolder = { treePicker.launch(null) },
+                    webDavHost = com.cosmotune.music.data.settings.AppSettings.webdavUrl.collectAsStateWithLifecycle().value
+                        .takeIf(com.cosmotune.music.data.webdav.WebDavConfig::isConfigured)?.let(com.cosmotune.music.data.webdav.WebDavConfig::hostOf),
+                )
+            }
+            // Likes YouTube lost, found against the likes Cosmotune keeps and liked again on request.
+            row(com.cosmotune.ui.settings.RESTORE_LIKES_TITLE, "likes", "liked music", "missing", summary = com.cosmotune.ui.settings.RESTORE_LIKES_LINE) {
+                com.cosmotune.ui.settings.RestoreLikesRows(
+                    signedIn = signedIn,
+                    kept = { com.cosmotune.music.data.cloud.AndroidCloud.keptLikes() },
+                    loadLiked = { com.cosmotune.music.data.cloud.AndroidCloud.youTubeLikedIds() },
+                    like = { com.cosmotune.music.data.cloud.AndroidCloud.likeAgain(it) },
+                )
+            }
             val importDataTitle = stringResource(R.string.import_data)
             row(importDataTitle, "backup", "restore", summary = stringResource(R.string.import_data_subtitle)) {
                 SettingsRow(
@@ -1977,6 +2064,20 @@ fun SettingsScreen(
                     picking = null
                 },
             )
+        }
+    }
+
+    if (viewingDownloadHistory) {
+        com.cosmotune.ui.orbit.OrbitPickerSheet(onDismiss = { viewingDownloadHistory = false }) {
+            if (downloadHistory.isEmpty()) {
+                Text("No downloads yet", style = com.cosmotune.ui.orbit.orbitFonts().body, color = com.cosmotune.ui.orbit.orbitLook().dim,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp))
+            }
+            androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
+                downloadHistoryItems(downloadHistory, System.currentTimeMillis(),
+                    onClear = com.cosmotune.settings.Extras.settings::clearDownloadHistory, horizontal = 20.dp, title = "Download history")
+            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 

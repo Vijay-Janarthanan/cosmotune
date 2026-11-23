@@ -490,6 +490,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 LyricsStore.Request(
                     videoId, title, artist, durationMs, album, sources,
                     AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+                    // The player lays the listener's own lyrics over this answer itself.
+                    ownFirst = false,
                 ),
                 onSourceStarted = { source -> providerStarted(generation, source) },
                 onSourceResult = { source, result ->
@@ -1591,6 +1593,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             BoundedContextRequests.snapshot.collect { snapshot ->
                 snapshot?.let(::applyBoundedContextSnapshot)
+            }
+        }
+        viewModelScope.launch {
+            // Hidden folders and the shortest song shown (Settings, Local music) re-read the device's songs too.
+            com.cosmotune.ui.settings.cosmoLookSettings(getApplication()).localRules.drop(1).collect {
+                if (_detailStack.value.any { page -> page.browseId == "local:all" }) {
+                    reloadLocalDetail("local:all")
+                }
             }
         }
         viewModelScope.launch {

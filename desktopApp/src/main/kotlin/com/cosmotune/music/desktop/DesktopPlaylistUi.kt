@@ -73,17 +73,40 @@ internal fun DesktopPlaylistDialog(
     onPickLocal: (DesktopPlaylist) -> Unit,
     onCreate: (String, PlaylistPrivacy) -> Unit,
     onDismiss: () -> Unit,
+    /** The title of a whole album or playlist going in, when it is one rather than a [song]. */
+    release: String? = null,
+    /** How many of [release]'s songs have arrived while the rest are still being fetched; null once they all have. */
+    releaseLoaded: Int? = null,
 ) {
-    var creating by remember { mutableStateOf(song == null) }
+    var creating by remember { mutableStateOf(song == null && release == null) }
     // Find a playlist (upstream 1.10): narrows both lists as it is typed.
     var query by remember { mutableStateOf("") }
 
     DesktopDialogFrame(onDismiss = onDismiss) {
+        // A long playlist is fetched whole before anything goes in, so none of its songs are left behind.
+        if (releaseLoaded != null) {
+            DialogHeading("Add to playlist", release.orEmpty())
+            Row(
+                Modifier.fillMaxWidth().padding(start = dialogSide(), end = dialogSide(), top = 12.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(color = dialogInk(), modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(14.dp))
+                Text(
+                    "Getting every song, $releaseLoaded so far",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = dialogInk(),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            DesktopDialogButtons(null, {}, DesktopStrings["cancel", "Cancel"], onDismiss)
+            return@DesktopDialogFrame
+        }
         if (creating) {
             NewPlaylistForm(
                 // Nowhere to go back to when the dialog opened onto the form; its own dismiss is
                 // the way out.
-                onBack = if (song == null) null else ({ creating = false }),
+                onBack = if (song == null && release == null) null else ({ creating = false }),
                 signedIn = signedIn && canUseAccount,
                 busy = busy,
                 error = error,
@@ -92,7 +115,7 @@ internal fun DesktopPlaylistDialog(
             return@DesktopDialogFrame
         }
 
-        DialogHeading("Add to playlist", song?.let { "${it.title} — ${it.artist}" }.orEmpty())
+        DialogHeading("Add to playlist", song?.let { "${it.title} — ${it.artist}" } ?: release.orEmpty())
         error?.let { DialogError(it) }
         DialogAction(CosmotuneIcons.Plus, "New playlist", enabled = !busy) { creating = true }
 

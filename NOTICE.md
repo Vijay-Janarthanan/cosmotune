@@ -328,3 +328,23 @@ Find a playlist (`sharedUi/.../ui/sheets/PlaylistFind.kt`, from `1b637f66f4`), a
 `7f15a6fec6`), appended playlist pages (`888dd735a7`), the notification's reserved Back and Next slots (`4a22733653`), the Quick
 Settings tile (`9ffffa6261`), YouTube Premium's Opus ask (`a2d886e693`), remote-speaker listening in Replay (`ffe87cbd38`) and the
 imported-playlist edits (`fee962bf28`). Their tests are adapted the same way.
+
+## Music ideas from other players (November 2026)
+
+These follow ideas seen in other players and are written for Cosmotune without taking their code: playlist folders in Library
+(`PlaylistFolders.kt`, the idea from OuterTune, GPL-3.0); reading MusicBrainz and AcoustID ids from a song file's tags (`TrackIdentifiers.kt`,
+OuterTune) and the MusicBrainz part of Song info (`RecordingFacts.kt`, the idea from Kreate, GPL-3.0); the lyrics home-screen widget
+(`LyricWidget.kt`, the idea from Gramophone, GPL-3.0); ratings, moods and tags with their own pages (`SongTags.kt`, the idea from Namida, whose
+code may not be used); Now playing for other apps, a webhook and the music broadcasts (`NowPlayingOut.kt`, the idea from Namida) and
+the now-playing file for OBS (th-ch YouTube Music, MIT); DNS over HTTPS (`PrivateDns.kt`, the idea from RiMusic and Kreate, GPL-3.0); from Kreate
+as well, the history by days, weeks or months with source chips, Replay's weekday chart and time per source (`ListeningActivity.kt`),
+and the sleep timer button on the notification (`SleepButtonCycle.kt`); sharing a local song's file itself (`LocalFileShare.kt`, Kreate);
+AIFF on the phone (`AiffExtractor.kt`, written from Apple's AIFF and AIFF-C specifications) and AIFF and DSD in the desktop library
+(the idea from LastWave, GPL-3.0); each album and playlist page keeping its own order (`ListOrders.kt`, the idea from AETHER, GPL-3.0).
+Share links from the listener's own Subsonic server use the OpenSubsonic `createShare` call (the idea from Kreate, GPL-3.0); the fidelity
+score, stream stops and output clock in Audio details (`PlaybackHealth.kt`) follow LastWave's output screen (GPL-3.0); moving a music
+video's picture against the sound (`VideoTimings.kt`) and the kept download history with its finished notice (`DownloadHistory.kt`) follow
+Lokal (MIT); the WebDAV copy of automatic backups (`WebDavBackup.kt`) and Restore lost likes (`LostLikes.kt`) follow Mochy (GPL-3.0); the
+shortcuts in any app (`GlobalShortcuts.kt`), the remote's live WebSocket (`LanRemoteLive.kt`), skipping the parts of music videos that are
+not the song with SponsorBlock's data (`MusicSkips.kt`), the volume steps and the song notices follow th-ch's YouTube Music (MIT). All are
+written for Cosmotune without taking their code.

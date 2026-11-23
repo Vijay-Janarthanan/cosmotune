@@ -28,9 +28,9 @@ object LocalMediaRepository {
     // `mp4` only ever reaches this list as an audio row — MediaStore files a
     // video .mp4 under Video, not Audio — so it is the audio-only MP4s Dolby
     // and Apple music downloads come as (AC-4, E-AC-3, ALAC). `dsf`/`dff` are
-    // DSD, which DsdExtractor plays.
+    // DSD, which DsdExtractor plays; `aiff`/`aif`/`aifc` are AIFF, which AiffExtractor plays.
     private val localMusicExtensions = setOf(
-        "mp3", "m4a", "mp4", "flac", "ogg", "opus", "aac", "webm", "dsf", "dff",
+        "mp3", "m4a", "mp4", "flac", "ogg", "opus", "aac", "webm", "dsf", "dff", "aiff", "aif", "aifc",
     )
 
     private val nonMusicPathSegments = listOf(
@@ -338,8 +338,14 @@ object LocalMediaRepository {
             }
         }.onFailure { Log.w(TAG, "Failed scanning device local music: ${it.message}") }
 
-        extraLocalMusic?.invoke(context, songs) ?: songs
+        // The listener's rules (Settings, Local music): every folder found is listed there, hidden ones included.
+        knownFolders.value = com.cosmotune.listening.LocalLibraryRules.folders(songs)
+        val kept = com.cosmotune.ui.settings.cosmoLookSettings(context).localRules.value.apply(songs)
+        extraLocalMusic?.invoke(context, kept) ?: kept
     }
+
+    /** Every folder the last scan found songs in, before the hidden ones were taken out: the settings' list of folders. */
+    val knownFolders = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
 
     /** Human-readable path for the folder setting without exposing provider internals. */
     fun selectedFolderLabel(treeUri: String): String? = selectedFolder(treeUri)?.label
@@ -420,6 +426,16 @@ object LocalMediaRepository {
      * fills in what the retriever couldn't read, since the media scanner and
      * `MediaMetadataRetriever` do not agree on every container.
      */
+    /** The song a file opened from another app is (its own tags, its name as the provider gives it), or null when it cannot be read. */
+    fun songForOpenedFile(context: Context, uriStr: String): Song? = runCatching {
+        val uri = Uri.parse(uriStr)
+        val name = if (uri.scheme == "file") uri.lastPathSegment else
+            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getString(0) else null
+            }
+        buildSongFromUri(context, uriStr, name ?: uri.lastPathSegment ?: "Song")
+    }.getOrNull()
+
     private fun buildSongFromUri(
         context: Context,
         uriStr: String,

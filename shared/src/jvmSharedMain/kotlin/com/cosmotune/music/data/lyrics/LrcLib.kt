@@ -59,6 +59,48 @@ object LrcLib {
             }
         }
 
+    /** One answer to a typed lyrics search: whose song it says it is, and its lines (timed when [synced]). */
+    data class Found(
+        val title: String,
+        val artist: String,
+        val album: String?,
+        val durationMs: Long,
+        val synced: Boolean,
+        val lines: List<LyricLine>,
+    )
+
+    /**
+     * What LRCLIB has for words the listener typed (a title, an artist, a line of the song), timed hits first. For the player's
+     * "Search for lyrics", when no provider found the right lyrics by itself. Empty when nothing matches or the request failed.
+     */
+    suspend fun search(query: String): List<Found> = withContext(Dispatchers.IO) {
+        val words = query.trim()
+        if (words.length < 2) return@withContext emptyList()
+        val url = "$BASE/search".toHttpUrl().newBuilder().addQueryParameter("q", words).build()
+        runCatching { get(url.toString())?.let(::parseSearch) }.getOrNull().orEmpty()
+    }
+
+    /** The hits in a `search` answer that have any lyrics, timed ones first, each parsed into lines. */
+    internal fun parseSearch(body: String): List<Found> {
+        val hits = json.parseToJsonElement(body) as? JsonArray ?: return emptyList()
+        return hits.mapNotNull { element ->
+            val hit = element as? JsonObject ?: return@mapNotNull null
+            fun text(key: String) = hit[key]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+            val synced = text("syncedLyrics")?.let(::parseLrc)?.takeIf { lines -> lines.count { !it.isGap } >= 2 }
+            val plain = text("plainLyrics")?.lines()?.map { it.trim() }?.filter { it.isNotEmpty() }?.map { LyricLine(0L, it) }
+                ?.takeIf { it.size >= 2 }
+            val lines = synced ?: plain ?: return@mapNotNull null
+            Found(
+                title = text("trackName") ?: return@mapNotNull null,
+                artist = text("artistName").orEmpty(),
+                album = text("albumName"),
+                durationMs = hit["duration"]?.jsonPrimitive?.doubleOrNull?.takeIf(Double::isFinite)?.times(1_000)?.toLong() ?: 0L,
+                synced = synced != null,
+                lines = lines,
+            )
+        }.sortedByDescending { it.synced }
+    }
+
     /** A hit's lyrics: the synced LRC when [timed], else the words alone (plain text, or LRC whose timing is not this song's). */
     data class Hit(val text: String, val timed: Boolean)
 

@@ -339,6 +339,27 @@ private fun SwipeToRemove(onRemove: () -> Unit, look: OrbitLook, fonts: OrbitFon
     }
 }
 
+/**
+ * Which songs are in the listener's library, for the small marks on Up next's rows (OuterTune's queue badges, own code): a heart for
+ * a liked song, the filled arrow for a downloaded one. Each host provides its own sets around the player; none by default.
+ */
+data class QueueMarks(val liked: Set<String> = emptySet(), val downloaded: Set<String> = emptySet())
+
+val LocalQueueMarks = androidx.compose.runtime.compositionLocalOf { QueueMarks() }
+
+/** A row's library marks, before its time or handle: dim, 14 dp, 4 dp apart, and nothing when the song has none. */
+@Composable
+private fun QueueMarkIcons(videoId: String, look: OrbitLook) {
+    val marks = LocalQueueMarks.current
+    val liked = videoId in marks.liked
+    val downloaded = videoId in marks.downloaded
+    if (!liked && !downloaded) return
+    Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (liked) Icon(CosmoIcons.HeartFill, "Liked", tint = look.dim, modifier = Modifier.size(14.dp))
+        if (downloaded) Icon(CosmoIcons.Downloaded, "Downloaded", tint = look.dim, modifier = Modifier.size(14.dp))
+    }
+}
+
 @Composable
 private fun QueueRow(
     track: QueueTrack,
@@ -366,6 +387,8 @@ private fun QueueRow(
         trailing = {
             // The controls keep a column of their own: the words end 12 dp before it, ellipsized.
             if (onRemove != null || handle != null) Spacer(Modifier.width(12.dp))
+            // Marks for this song in the queue (repeat it, stop after it).
+            QueueMarkIcons(song.videoId, look)
             if (onRemove != null) {
                 // Its place is kept while hidden, so the handle does not move when the pointer comes onto the row.
                 Box(Modifier.size(36.dp).graphicsLayer { alpha = if (hovered || focusInside) 1f else 0f }) {

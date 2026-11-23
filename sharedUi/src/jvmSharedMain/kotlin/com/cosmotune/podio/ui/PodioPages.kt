@@ -219,6 +219,9 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
  * bar at the top once scrolled away ([OrbitCollapsingHeaderBar]), then "Episodes · 48 · 6 new" with All, Unplayed and Downloaded and the order, and the
  * episodes as rows with one button each, so several show on opening. Older episodes load on demand at the end.
  */
+/** A show with this many episodes gets the Find an episode field. */
+private const val FIND_EPISODE_FROM = 8
+
 @Composable internal fun ShowPage(m: PodioModel, env: PodioEnv) {
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -235,6 +238,8 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
         val id = requested?.id ?: return
         if (env.saved.shows.any { it.id == id }) m.save { PodioShowRules.change(it, id) { s -> s.copy(filter = nextFilter, oldestFirst = nextOldest) } }
     }
+    // Find an episode (Metrolist's podcast-page search, own code): narrows the show's episodes by title and show notes.
+    var episodeQuery by remember(requested?.id) { mutableStateOf("") }
     var more by remember { mutableStateOf(false) }
     val uri = androidx.compose.ui.platform.LocalUriHandler.current
     val openLink: (String) -> Unit = { url -> PodioCatalogue.httpUrl(url)?.let { runCatching { uri.openUri(it) } } }
@@ -300,6 +305,16 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                 OrbitPageSection("Episodes", Modifier.padding(horizontal = side + 4.dp).padding(top = 24.dp, bottom = 10.dp),
                     subtitle = PodioFormat.episodeMeta(feed.episodes.size.toString(), if (fresh.isEmpty()) "" else "${fresh.size} new"))
             }
+            if (feed.episodes.size >= FIND_EPISODE_FROM) item(key = "episode-find") {
+                OrbitTextField(
+                    value = episodeQuery, onValueChange = { episodeQuery = it }, placeholder = "Find an episode", fonts = fonts, look = look,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+                    trailing = if (episodeQuery.isNotEmpty()) {
+                        { OrbitRoundButton(CosmoIcons.Close, "Clear", look.ink, { episodeQuery = "" }, size = 32.dp) }
+                    } else null,
+                    modifier = Modifier.padding(horizontal = side).padding(bottom = 8.dp).fillMaxWidth().testTag("podio:show:find"),
+                )
+            }
             item(key = "episode-filters") {
                 OrbitChipRow(side, Modifier.padding(bottom = 10.dp)) {
                     OrbitSelectChip("All", filter == 0, fonts, look, { keepView(0, oldestFirst) }, haptic = false)
@@ -322,9 +337,15 @@ internal fun newEpisodes(m: PodioModel, env: PodioEnv): List<InboxEpisode> = m.i
                     else -> true
                 }
             }.let { if (oldestFirst) it.reversed() else it }
+                .let { list -> com.cosmotune.ui.sheets.findPlaylists(list, episodeQuery) { it.title + " " + it.description } }
             if (shown.isEmpty()) item(key = "filtered-none") {
-                Text(when (filter) { 2 -> "No downloaded episodes of this show."; 3 -> "No episode of this show is queued."; 4 -> "No favourite episodes of this show."
-                    else -> "Every episode here has been played." }, style = fonts.body, color = look.dim,
+                Text(when {
+                    episodeQuery.isNotBlank() -> "No episodes match “${episodeQuery.trim()}”" + if (feed.nextPage != null) ". Older ones may: load them below." else "."
+                    filter == 2 -> "No downloaded episodes of this show."
+                    filter == 3 -> "No episode of this show is queued."
+                    filter == 4 -> "No favourite episodes of this show."
+                    else -> "Every episode here has been played."
+                }, style = fonts.body, color = look.dim,
                     modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 16.dp))
             }
             val freshIds = fresh.map { it.id }.toSet()

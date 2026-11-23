@@ -157,6 +157,10 @@ internal object DesktopSourceRegistry {
         if (config.kind != DesktopSourceKind.SUBSONIC) null
         else com.cosmotune.providers.SubsonicCatalogue.forSource(config.id, config.baseUrl, config.userSettings, com.cosmotune.music.data.Http.client)
 
+    /** The Subsonic server a song row or album page came from (`src:<id>::…` or `addon:<id>:album:…`), or null. */
+    fun subsonicFor(sourceId: String): com.cosmotune.providers.SubsonicCatalogue? =
+        configs().firstOrNull { it.id == sourceId && it.kind == DesktopSourceKind.SUBSONIC }?.let(::subsonic)
+
     private class PackageAdapter(private val install: com.cosmotune.providers.ProviderInstall) : SourceAdapter {
         override val config = DesktopSourceConfig("sflx-${install.manifest.name}", DesktopSourceKind.ADDON, install.manifest.title)
         override val descriptor = DesktopSourceDescriptor(config.id, config.label, "Provider package", config.kind, true, true, true)
@@ -361,6 +365,8 @@ internal object DesktopSourceRegistry {
         /** A download: addons that said `allowDownloads: 0` are left out, see [adapters]. */
         forDownload: Boolean = false,
     ): Result<DesktopStream> = runCatching {
+        // A song from the listener's WebDAV or SMB share plays from there.
+        if (DesktopNetworkShares.owns(song)) return@runCatching DesktopNetworkShares.stream(song)
         if (song.videoId.startsWith("podio:")) {
             check(excludedSourceId?.startsWith("podio:") != true) { "This Podio stream could not be played" }
             com.cosmotune.podio.YouTubePodcasts.videoId(song.videoId)?.let { videoId ->

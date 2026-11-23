@@ -30,4 +30,31 @@ class MixGroupsTest {
         assertEquals(1, MixGroups.of(listOf(mix("Replay Mix"), mix("Replay Mix"))).stations.size)
         assertTrue(MixGroups.of(emptyList()).isEmpty)
     }
+    @Test fun inAnotherLanguageTheEnglishNamesSortTheCardsAndTheListenersTitlesStay() {
+        val cards = listOf(mix("Mi Supermix"), mix("Mezcla Feel Good 1"), mix("Supermix Feel Good"), mix("Mezcla de novedades"), mix("Ritmos punjabi"))
+        val english = mapOf(
+            "VLRDMiSupermix" to "My Supermix",
+            "VLRDMezclaFeelGood1" to "Feel Good Mix 1",
+            "VLRDSupermixFeelGood" to "Feel Good Supermix",
+            "VLRDMezcladenovedades" to "New Release Mix",
+            "VLRDRitmospunjabi" to "Modern Punjabi Beats",
+        )
+        val groups = MixGroups.of(cards, english)
+        assertEquals(listOf("Mi Supermix", "Mezcla de novedades"), groups.stations.map { it.title })
+        assertEquals(listOf("Ritmos punjabi"), groups.yours.map { it.title })
+        assertEquals(listOf("Supermix Feel Good", "Mezcla Feel Good 1"), groups.moods.single().items.map { it.title })
+        assertEquals("Feel Good", groups.moods.single().name, "the mood keeps its name when the listener's titles carry it")
+    }
+
+    @Test fun aMoodWhoseNameIsTranslatedIsHeadedByItsFirstCard() {
+        val cards = listOf(mix("Supermix Bonne humeur"), mix("Mix Bonne humeur 1"))
+        val english = mapOf("VLRDSupermixBonnehumeur" to "Feel Good Supermix", "VLRDMixBonnehumeur1" to "Feel Good Mix 1")
+        assertEquals("Supermix Bonne humeur", MixGroups.of(cards, english).moods.single().name)
+    }
+
+    @Test fun aCardTheEnglishPageLacksIsSortedByItsOwnTitle() {
+        val groups = MixGroups.of(listOf(mix("Replay Mix"), mix("Ma mezcla")), mapOf("VLRDOther" to "Discover Mix"))
+        assertEquals(listOf("Replay Mix"), groups.stations.map { it.title })
+        assertEquals(listOf("Ma mezcla"), groups.yours.map { it.title })
+    }
 }

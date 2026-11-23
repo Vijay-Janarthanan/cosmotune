@@ -44,6 +44,16 @@ object LocalTagEditor {
         Kind.MP4 -> Mp4Tags.read(file)
     }
 
+    /** The MusicBrainz recording id, AcoustID and ISRC a tagger wrote into [file]; empty for anything unreadable. Headers only. */
+    fun identifiers(file: File): TrackIdentifiers = runCatching {
+        when (kind(file)) {
+            Kind.FLAC -> TrackIdentifiers.fromVorbis(flacComments(file))
+            Kind.OGG -> TrackIdentifiers.fromVorbis(OggTags.read(file))
+            Kind.MP3 -> id3(file)?.let { tag -> TrackIdentifiers.fromId3(tag.frames.map { it.id to it.body }) } ?: TrackIdentifiers()
+            Kind.MP4 -> TrackIdentifiers.fromFreeform(Mp4Tags.freeform(file))
+        }
+    }.getOrDefault(TrackIdentifiers())
+
     private fun vorbisFields(comments: List<String>): Map<String, String> =
         comments.groupBy({ it.substringBefore('=').uppercase(java.util.Locale.ROOT) }, { it.substringAfter('=') })
             .mapValues { it.value.first() }.let { all -> TagField.entries.mapNotNull { f -> all[f.vorbis]?.let { f.name to it } }.toMap() }

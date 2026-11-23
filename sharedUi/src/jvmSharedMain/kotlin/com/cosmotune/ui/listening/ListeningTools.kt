@@ -65,8 +65,11 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
         syncStore = withContext(Dispatchers.IO) { runCatching { com.cosmotune.remote.LibrarySyncStore(File(host.file.absoluteFile.parentFile, "device-sync")) }.getOrNull() }
         updates = withContext(Dispatchers.IO) { runCatching { PlaylistDownloadUpdates.open(File(host.file.absoluteFile.parentFile, "playlist-download-updates.json")) }.getOrNull() }
     }
-    LaunchedEffect(syncStore, host.syncPlaylists, host.syncLibraryReady) {
-        try { if (host.syncLibraryReady) withContext(Dispatchers.IO) { syncStore?.reconcilePublished(host.syncPlaylists) } }
+    LaunchedEffect(syncStore, host.syncPlaylists, host.library, host.syncLibraryReady) {
+        try { if (host.syncLibraryReady) withContext(Dispatchers.IO) { syncStore?.let { sync ->
+            // Likes and recent plays, once shared, keep up as they change; nobody's lists are taken for removals.
+            sync.reconcilePublished(LibraryExchange.published(host.syncPlaylists, host.library, sync.device, sync.records()))
+        } } }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { /* Keep the original journal; an explicit publish/exchange surfaces storage failures. */ }
     }
@@ -461,6 +464,21 @@ private fun ColumnScope.BackupPage(host: ListeningToolsHost, store: ListeningSto
                 "Backup merged. Existing local entries were kept. Missing local files are skipped when you open a session."
             } })
             ToolNote("Listening backups add missing entries by identity; importing the same backup again does not duplicate them. Local edits take precedence.")
+            val pick = host.pickBackupFile
+            val opener = host.openSqlite
+            val like = host.likeSongs
+            if (pick != null && opener != null && like != null) {
+                Spacer(Modifier.height(12.dp))
+                Heading("From another music app", "Bring your liked songs and playlists from InnerTune, Metrolist, OuterTune, ViMusic, RiMusic, Kreate or SimpMusic. Choose the backup that app made.")
+                ToolButton("Import from another app", enabled = !busy, kind = ToolKind.QUIET, tag = "listening:other-app", onClick = { run {
+                    val bytes = pick() ?: return@run null
+                    val backup = withContext(Dispatchers.IO) { com.cosmotune.listening.OtherAppBackup.read(bytes, opener) }
+                    if (backup.isEmpty) return@run "That backup has no liked songs or playlists."
+                    like(backup.liked)
+                    backup.playlists.forEach { host.createPlaylist(it.name, it.songs) }
+                    "From ${backup.app}: ${backup.liked.size} liked songs and ${backup.playlists.size} playlists"
+                } })
+            }
             Spacer(Modifier.height(12.dp))
             MusicPlaylistImportPanel(host, busy, run)
             Spacer(Modifier.height(12.dp))

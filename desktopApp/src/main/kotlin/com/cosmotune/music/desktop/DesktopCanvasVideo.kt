@@ -98,6 +98,7 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     DisposableEffect(frames) { onDispose { frames.close() } }
     val rendered by remember(canvas) { derivedStateOf { frame != null } }
     val running by rememberUpdatedState(spec.isPlaying && !spec.pausedForTransition)
+    val latestSync by rememberUpdatedState(spec.sync)
     val reportAspect by rememberUpdatedState(spec.onAspectRatioChanged)
     val reportRendered by rememberUpdatedState(spec.onRenderedChanged)
     val reportFrame by rememberUpdatedState(spec.onFrameCaptured)
@@ -189,7 +190,7 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     // cover shows (the picture fades out) rather than a frozen frame.
     LaunchedEffect(canvas) {
         val sync = spec.sync ?: return@LaunchedEffect
-        val policy = CanvasSyncPolicy(sync.map, sync.durationMs)
+        var policy = CanvasSyncPolicy(sync.map, sync.durationMs)
         var playback = DesktopCanvasPlayback()
         val startedAt = System.nanoTime()
         val watch = CanvasStallWatch()
@@ -329,6 +330,8 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                         continue
                     }
                 }
+                // The listener moved the picture from the video menu: the map changes, the drift check below seeks to it.
+                latestSync?.takeIf { it.map !== policy.syncMap }?.let { policy = CanvasSyncPolicy(it.map, it.durationMs) }
                 val songMs = sync.songMs()
                 if (!policy.isVisible(songMs)) {
                     // Before the video starts or after it ends: the still cover shows through.

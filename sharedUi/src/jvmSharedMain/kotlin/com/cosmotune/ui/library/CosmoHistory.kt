@@ -15,7 +15,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
@@ -29,7 +32,9 @@ import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.retry
 import com.cosmotune.music.ui.components.MessageState
 import com.cosmotune.music.ui.components.songListSkeleton
+import com.cosmotune.ui.orbit.OrbitChipRow
 import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitSelectChip
 import com.cosmotune.ui.orbit.OrbitLabel
 import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.orbit.OrbitPageHeading
@@ -70,8 +75,13 @@ fun CosmoHistory(
     val fonts = orbitFonts()
     val look = orbitLook()
     val days by YtMusicRepository.historyDays.collectAsStateWithLifecycle()
-    val songs = (state as? UiState.Success)?.data.orEmpty()
-    val groups = remember(songs, days) { historyGroups(songs, days) }
+    val all = (state as? UiState.Success)?.data.orEmpty()
+    // Days, weeks or months, and where the songs came from; both kept while the page lives.
+    var span by rememberSaveable { mutableStateOf(HistorySpan.DAYS) }
+    var source by rememberSaveable { mutableStateOf(HistorySource.ALL) }
+    val sources = remember(all) { HistorySource.present(all) }
+    val songs = remember(all, source) { if (source == HistorySource.ALL) all else all.filter { HistorySource.of(it) == source } }
+    val groups = remember(songs, days, span) { historyGroups(songs, days, span) }
     BoxWithConstraints(modifier.fillMaxSize().testTag("music:history")) {
         val wide = maxWidth >= 840.dp
         val side = if (wide) 28.dp else 16.dp
@@ -89,6 +99,17 @@ fun CosmoHistory(
                     )
                 }
                 if (!wide && songs.isNotEmpty()) item(key = "history:stat") { stat(Modifier.padding(horizontal = side).padding(bottom = 10.dp)) }
+                if (all.isNotEmpty()) item(key = "history:chips") {
+                    OrbitChipRow(side, Modifier.padding(bottom = 8.dp).testTag("music:history:chips")) {
+                        for (option in HistorySpan.entries) {
+                            OrbitSelectChip(option.label, selected = option == span, fonts = fonts, look = look, onClick = { span = option }, haptic = option != span)
+                        }
+                        // The sources only when the history holds more than one.
+                        if (sources.size > 1) for (option in listOf(HistorySource.ALL) + sources) {
+                            OrbitSelectChip(option.label, selected = option == source, fonts = fonts, look = look, onClick = { source = option }, haptic = option != source)
+                        }
+                    }
+                }
                 when (state) {
                     is UiState.Loading -> songListSkeleton(count = 10, keyPrefix = "skeleton:history")
 
@@ -137,13 +158,53 @@ private fun sideColumn(width: Dp): Dp = (width / 3).coerceIn(300.dp, 380.dp)
 /** A run of the history under one day: where it starts in the list, how many rows it holds, and the day. */
 internal data class HistoryGroup(val label: String, val first: Int, val count: Int)
 
+/** How the history is grouped: by the day YouTube Music files each song under, or those days gathered into weeks or months. */
+internal enum class HistorySpan(val label: String) {
+    DAYS("Days"), WEEKS("Weeks"), MONTHS("Months");
+
+    /** The group a day label belongs to at this span. Month and year labels stay as they are. */
+    fun group(day: String): String {
+        val plain = day.trim().lowercase()
+        val thisWeek = plain in setOf("today", "yesterday", "this week") || plain in WEEKDAYS
+        return when (this) {
+            DAYS -> day
+            WEEKS -> if (thisWeek) "This week" else day
+            MONTHS -> if (thisWeek || plain == "last week") "The last few weeks" else day
+        }
+    }
+
+    companion object {
+        private val WEEKDAYS = setOf("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    }
+}
+
+/** Where a played song came from, for the history's source chips. */
+internal enum class HistorySource(val label: String) {
+    ALL("Everywhere"), YOUTUBE("YouTube Music"), DEVICE("This device"), RADIO("Radio and podcasts"), SERVERS("Your servers");
+
+    companion object {
+        fun of(song: Song): HistorySource {
+            val id = song.videoId
+            return when {
+                id.startsWith("podio:") -> RADIO
+                song.localUri != null || id.startsWith("local:") || id.startsWith("content:") || id.startsWith("file:") -> DEVICE
+                com.cosmotune.providers.SourceLibraryStore.ownsTrack(id) -> SERVERS
+                else -> YOUTUBE
+            }
+        }
+
+        /** The sources [songs] come from, in this order. */
+        fun present(songs: List<Song>): List<HistorySource> = songs.mapTo(HashSet(), ::of).let { found -> entries.filter { it != ALL && it in found } }
+    }
+}
+
 /** [songs] cut into runs by the day [days] files each under; a song with no day joins the run above it (or "Recently played"). */
-internal fun historyGroups(songs: List<Song>, days: Map<String, String>): List<HistoryGroup> {
+internal fun historyGroups(songs: List<Song>, days: Map<String, String>, span: HistorySpan = HistorySpan.DAYS): List<HistoryGroup> {
     val out = ArrayList<HistoryGroup>()
     var label: String? = null
     var first = 0
     songs.forEachIndexed { index, song ->
-        val day = days[song.videoId] ?: label ?: RECENT
+        val day = days[song.videoId]?.let(span::group) ?: label ?: RECENT
         if (day != label) {
             label?.let { out += HistoryGroup(it, first, index - first) }
             label = day

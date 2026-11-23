@@ -227,6 +227,7 @@ const val ACTION_TOGGLE_SHUFFLE = "com.cosmotune.music.action.TOGGLE_SHUFFLE"
 /** Session command used by the media notification's Repeat button: off → all → one → off. */
 const val ACTION_CYCLE_REPEAT = "com.cosmotune.music.action.CYCLE_REPEAT"
 const val ACTION_NEXT_CHAPTER = "com.cosmotune.music.action.NEXT_CHAPTER"
+const val ACTION_CYCLE_SLEEP = "com.cosmotune.music.action.CYCLE_SLEEP"
 
 /** Session actions exposed to Android Auto for the track that is playing. */
 const val ACTION_START_STATION = "com.cosmotune.music.action.START_STATION"
@@ -795,6 +796,27 @@ class PlaybackService : MediaLibraryService() {
 
     private val podioSkipper = com.cosmotune.podio.PodioSkipper()
     private var podioSkipLibrary: com.cosmotune.podio.PodioLibrary? = null
+
+    /**
+     * "Repeat this song" a number of times: while a hold for the playing song runs, the player repeats one song (so the
+     * laps are seamless and nothing blends away from it), and the listener's own repeat setting comes back when it ends.
+     */
+    private fun holdRepeatTimes() {
+        var saved: Int? = null
+        scope.launch {
+            com.cosmotune.music.playback.RepeatTimes.hold.collect { hold ->
+                val exoPlayer = player ?: return@collect
+                if (hold != null && hold.videoId == exoPlayer.currentMediaItem?.mediaId) {
+                    if (saved == null) saved = exoPlayer.repeatMode
+                    exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
+                } else if (hold == null) {
+                    saved?.let { exoPlayer.repeatMode = it }
+                    saved = null
+                }
+            }
+        }
+    }
+
     private data class PodioPosition(val id: String?, val positionMs: Long, val playing: Boolean, val loading: Boolean = false, val durationMs: Long = 0)
     private val podioPositions = kotlinx.coroutines.channels.Channel<PodioPosition>(kotlinx.coroutines.channels.Channel.BUFFERED)
     private val podioProgressScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -840,10 +862,29 @@ class PlaybackService : MediaLibraryService() {
                         if (library != null) podioSkipper.check(library, id, it.currentPosition, it.duration.takeIf { d -> d > 0 } ?: 0, it.isPlaying && it.playbackState == Player.STATE_READY)
                             ?.let { target -> it.seekTo(target) }
                     }
+                    // Stops to load and the output's clock, for the player's Audio details.
+                    com.cosmotune.audio.PlaybackHealth.monitor.observe(
+                        it.currentMediaItem?.mediaId, it.currentPosition, it.playWhenReady,
+                        it.playbackState == Player.STATE_BUFFERING, it.playbackParameters.speed, System.nanoTime(),
+                        bufferedAheadMs = (it.bufferedPosition - it.currentPosition).takeIf { ahead -> ahead >= 0 },
+                    )
+                    // Settings, Player, Skip the talking in music videos.
+                    if (com.cosmotune.settings.Extras.settings.musicSkips.value && it.isPlaying) {
+                        musicSkipper.tick(it.currentMediaItem?.mediaId, it.currentPosition, it.duration.takeIf { d -> d > 0 })?.let { part ->
+                            it.seekTo(part.endMs)
+                            android.widget.Toast.makeText(this@PlaybackService, com.cosmotune.listening.MusicSkips.message(part), android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
                 delay(1_000)
             }
         }
+    }
+
+    /** The marked parts of music videos to skip, fetched once per song while the setting is on. */
+    private val musicSkipper by lazy {
+        val client = com.cosmotune.video.segments.SponsorBlockClient()
+        com.cosmotune.listening.MusicSkipper(scope) { id, duration -> client.segments(id, com.cosmotune.listening.MusicSkips.CATEGORIES, duration) }
     }
 
     /** Canonical context owner for the active local bounded album/playlist. */
@@ -918,6 +959,7 @@ class PlaybackService : MediaLibraryService() {
     private val shuffleCommand = SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
     private val repeatCommand = SessionCommand(ACTION_CYCLE_REPEAT, Bundle.EMPTY)
     private val nextChapterCommand = SessionCommand(ACTION_NEXT_CHAPTER, Bundle.EMPTY)
+    private val sleepCommand = SessionCommand(ACTION_CYCLE_SLEEP, Bundle.EMPTY)
     private val startStationCommand = SessionCommand(ACTION_START_STATION, Bundle.EMPTY)
     private val revertToOriginalCommand = SessionCommand(ACTION_REVERT_TO_ORIGINAL, Bundle.EMPTY)
     private val swapToVersionCommand = SessionCommand(ACTION_SWAP_TO_VERSION, Bundle.EMPTY)
@@ -1180,6 +1222,9 @@ class PlaybackService : MediaLibraryService() {
             // A repeat or the queue moving on is a moment the phone is awake;
             // a timer that is overdue stops here rather than a lap later.
             SleepTimerWatcher.checkDue()
+            // Repeat this song N times: a lap of the held song uses one play; any other song ends the hold.
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) com.cosmotune.music.playback.RepeatTimes.consume(mediaItem?.mediaId)
+            else com.cosmotune.music.playback.RepeatTimes.songChanged(mediaItem?.mediaId)
 
             // No crossfade case to allow for here any more. A blended advance
             // never reaches this callback — the incoming track starts as the
@@ -1479,6 +1524,7 @@ class PlaybackService : MediaLibraryService() {
                 launch(Dispatchers.IO) { com.cosmotune.reading.ui.ReadingAndroidShelf.savePlace(this@PlaybackService, id, position, sendRemote = tick % 4 == 0) }
             }
         }
+        holdRepeatTimes()
 
         if (com.cosmotune.music.data.innertube.Innertube.cookie == null) {
             // The active session of the account registry, and the channel it acts as, the way the application restores it. The
@@ -1531,6 +1577,12 @@ class PlaybackService : MediaLibraryService() {
                     if (onWatch) WATCH_SESSION_FOREGROUND_MS else DEFAULT_FOREGROUND_SERVICE_TIMEOUT_MS,
                 )
             }
+        }
+        // The sleep button follows the timer, whoever set it, and the setting that shows it.
+        scope.launch {
+            kotlinx.coroutines.flow.combine(SleepTimer.deadline, com.cosmotune.settings.Extras.settings.notificationSleep) { deadline, on -> (deadline != null) to on }
+                .distinctUntilChanged()
+                .collectLatest { refreshCustomLayouts() }
         }
         // Signing in or out adds or removes Like everywhere at once.
         scope.launch {
@@ -2119,10 +2171,26 @@ class PlaybackService : MediaLibraryService() {
         )
 
     /** Like and Repeat, or Shuffle and Repeat: the two actions of Cosmotune's own on the phone notification. See [NotificationButtons]. */
-    private fun notificationButtons(): List<CommandButton> = buttons(NotificationButtons.pick(canLike(player?.currentMediaItem), podioChapters()))
+    private fun notificationButtons(): List<CommandButton> = buttons(
+        NotificationButtons.pick(canLike(player?.currentMediaItem), podioChapters(), com.cosmotune.settings.Extras.settings.notificationSleep.value),
+    )
 
     /** The playing podcast episode has chapters the player knows: the notification and the car offer Next chapter. */
     private fun podioChapters(): Boolean = player?.currentMediaItem?.mediaId?.startsWith("podio:episode:") == true && podioChapterMedia.hasChapters
+
+    /** Minutes left on a timed sleep timer, rounded up, or null while none runs (an "end of song" timer counts as none). */
+    private fun sleepMinutesLeft(): Int? = SleepTimer.deadline.value?.let { deadline ->
+        (((deadline - SleepTimer.clock()).coerceAtLeast(0) + 59_999) / 60_000).toInt()
+    }
+
+    /** The notification's sleep button: the next length in [com.cosmotune.listening.SleepButtonCycle], or off. */
+    private fun cycleSleepFromSession() {
+        when (val next = com.cosmotune.listening.SleepButtonCycle.next(sleepMinutesLeft())) {
+            null -> SleepTimer.cancel()
+            else -> SleepTimer.start(next)
+        }
+        refreshCustomLayouts()
+    }
 
     private fun buttons(kinds: List<NotificationButtons.Kind>): List<CommandButton> =
         kinds.map { kind ->
@@ -2148,6 +2216,14 @@ class PlaybackService : MediaLibraryService() {
                     .setSessionCommand(nextChapterCommand)
                     .setDisplayName("Next chapter")
                     .build()
+                NotificationButtons.Kind.SLEEP -> {
+                    val left = sleepMinutesLeft()
+                    CommandButton.Builder(CommandButton.ICON_UNDEFINED)
+                        .setCustomIconResId(if (left == null) R.drawable.ic_notification_sleep else R.drawable.ic_notification_sleep_on)
+                        .setSessionCommand(sleepCommand)
+                        .setDisplayName(com.cosmotune.listening.SleepButtonCycle.label(left))
+                        .build()
+                }
                 NotificationButtons.Kind.REPEAT -> {
                     val mode = player?.repeatMode ?: Player.REPEAT_MODE_OFF
                     CommandButton.Builder(
@@ -6571,6 +6647,31 @@ class PlaybackService : MediaLibraryService() {
         MediaWidget.refresh(this)
         // The watch app follows the widget — same moments, same snapshot.
         WearBridge.publish(this, snapshot, reported, playing)
+        publishNowPlaying(song, snapshot.isPlaying, exoPlayer.duration.takeIf { it > 0L && it != C.TIME_UNSET } ?: 0L)
+    }
+
+    /**
+     * Now playing for other apps (Settings): the listener's webhook, and, when turned on, Android's standard music broadcasts
+     * that Tasker and scrobblers listen for, plus Cosmotune's own. Only when the song or play/pause changed.
+     */
+    private fun publishNowPlaying(song: Song, playing: Boolean, durationMs: Long) {
+        val extras = com.cosmotune.settings.Extras.settings
+        val event = com.cosmotune.listening.NowPlayingEvent(song.videoId, song.title, song.artist, song.albumName, playing, durationMs, song.thumbnailUrl)
+        if (!com.cosmotune.listening.NowPlayingOut.publish(event, extras.nowPlayingWebhook.value, null)) return
+        if (!extras.nowPlayingBroadcast.value) return
+        for (action in listOf("com.android.music.metachanged", "com.android.music.playstatechanged", "com.cosmotune.music.NOW_PLAYING")) {
+            runCatching {
+                sendBroadcast(Intent(action).apply {
+                    putExtra("id", song.videoId)
+                    putExtra("track", song.title)
+                    putExtra("artist", song.artist)
+                    putExtra("album", song.albumName.orEmpty())
+                    putExtra("playing", playing)
+                    putExtra("duration", durationMs)
+                    putExtra("package", packageName)
+                })
+            }
+        }
     }
 
     private var foreignCachePurgeJob: Job? = null
@@ -8207,6 +8308,8 @@ class PlaybackService : MediaLibraryService() {
         val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return
         val lines = serviceLyrics
         val pos = exoPlayer.currentPosition
+        // The lyrics widget follows the same line (it draws nothing unless one is placed).
+        com.cosmotune.music.widget.LyricWidget.show(this, com.cosmotune.music.data.lyrics.LyricWidgetState.at(currentSong.title, currentSong.artist, lines, pos))
         val subtitleText = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
             val idx = lines.indexOfLast { it.timeMs <= pos }
             val currentLine = lines.getOrNull(idx)
@@ -8775,6 +8878,7 @@ class PlaybackService : MediaLibraryService() {
                 .add(autoplayCommand)
                 .add(shuffleCommand)
                 .add(repeatCommand)
+                .add(sleepCommand)
                 .add(startStationCommand)
                 .add(revertToOriginalCommand)
                 .add(swapToVersionCommand)
@@ -8814,6 +8918,7 @@ class PlaybackService : MediaLibraryService() {
                 ACTION_TOGGLE_SHUFFLE -> toggleShuffleFromSession()
                 ACTION_CYCLE_REPEAT -> cycleRepeatFromSession()
                 ACTION_NEXT_CHAPTER -> podioChapterMedia.nextChapterStart()?.let { start -> player?.seekTo(start) }
+                ACTION_CYCLE_SLEEP -> cycleSleepFromSession()
                 ACTION_START_STATION -> startStationFromSession()
                 ACTION_REVERT_TO_ORIGINAL -> revertCurrentToOriginal()
                 ACTION_SWAP_TO_VERSION -> swapCurrentToVersion(args)

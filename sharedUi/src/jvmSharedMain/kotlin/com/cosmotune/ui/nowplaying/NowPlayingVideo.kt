@@ -1,5 +1,6 @@
 package com.cosmotune.ui.nowplaying
 
+import com.cosmotune.listening.VideoTimings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -232,6 +233,20 @@ internal fun videoViewItems(
     else OrbitMenuItem("Picture in picture", "Not on this device", enabled = false) {},
     OrbitMenuItem("Off", "The cover. Saves data and battery", selected = !videoOn) { onCinema(false); onVideoOn(false) },
 )
+
+/**
+ * Moving the picture when it runs ahead of or behind the sound (the idea from Lokal, see NOTICE.md): a tenth of a second a tap,
+ * kept for this video. Nothing for a song with no music video.
+ */
+internal fun videoTimingItems(videoId: String?, timings: Map<String, Long>, onNudge: (String, Long?) -> Unit): List<OrbitMenuItem> {
+    videoId ?: return emptyList()
+    val timing = timings[videoId] ?: 0L
+    return listOfNotNull(
+        OrbitMenuItem("Picture earlier", "When it runs behind the sound · ${VideoTimings.label(timing)}", keepOpen = true) { onNudge(videoId, VideoTimings.STEP_MS) },
+        OrbitMenuItem("Picture later", "When it runs ahead of the sound", keepOpen = true) { onNudge(videoId, -VideoTimings.STEP_MS) },
+        if (timing != 0L) OrbitMenuItem("Timing as matched", "Undo your changes for this video") { onNudge(videoId, null) } else null,
+    )
+}
 
 /** The screen button's icon. */
 internal val VIDEO_VIEW_ICON = CosmoIcons.Canvas

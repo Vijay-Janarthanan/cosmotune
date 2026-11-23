@@ -51,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -192,7 +193,20 @@ fun OrbitHome(
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    val shelves = (state as? UiState.Success)?.data.orEmpty()
+    // Home sections the listener turned off (Look and colours, Home sections), and the shelves offered there.
+    val lookSettings = LocalCosmoShell.current?.settings
+    val hiddenHome = lookSettings?.hiddenHome?.collectAsState()?.value.orEmpty()
+    val allShelves = (state as? UiState.Success)?.data.orEmpty()
+    LaunchedEffect(allShelves) { if (allShelves.isNotEmpty()) lookSettings?.rememberHomeShelves(allShelves.filter { it.items.isNotEmpty() }.map { it.title }) }
+    // Songs by an artist the listener blocked, and explicit songs when hidden, are left off the shelves too.
+    val blockedArtists = lookSettings?.blockedArtists?.collectAsState()?.value.orEmpty()
+    val hideExplicit = lookSettings?.hideExplicit?.collectAsState()?.value ?: false
+    val shelves = remember(allShelves, hiddenHome, blockedArtists, hideExplicit) {
+        allShelves.filter { it.title !in hiddenHome }.map { shelf ->
+            if (blockedArtists.isEmpty() && !hideExplicit) shelf
+            else shelf.copy(items = shelf.items.filter { item -> item.song?.let(com.cosmotune.music.data.recommendations.MusicBlocks::allows) ?: true })
+        }
+    }
     val moods = remember(browse?.state) { (browse?.state as? UiState.Success)?.let { BrowseSplit.moods(it.data) }.orEmpty() }
     val room = LocalRoomLauncher.current
     // Another device's song, while this one plays nothing.
@@ -203,7 +217,7 @@ fun OrbitHome(
             val wide = maxWidth >= 840.dp
             val side = if (wide) 28.dp else 16.dp
 
-            val pick = pickUp(shelves, elsewhere)
+            val pick = pickUp(shelves, elsewhere).takeIf { com.cosmotune.settings.CosmoLookSettings.HOME_PICK_UP !in hiddenHome }
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
                 item(key = "orbit:live") { com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = side).padding(top = 10.dp)) }
                 item(key = "orbit:greeting") {
@@ -216,7 +230,7 @@ fun OrbitHome(
                     PickUpCard(pick, elsewhere, onItemClick, onItemLongPress, Modifier.padding(horizontal = side).padding(top = 16.dp).fillMaxWidth())
                 }
 
-                if (quickLinks.isNotEmpty() || moods.isNotEmpty()) {
+                if ((quickLinks.isNotEmpty() || moods.isNotEmpty()) && com.cosmotune.settings.CosmoLookSettings.HOME_CHIPS !in hiddenHome) {
                     item(key = "orbit:chips") { OrbitChips(quickLinks, moods, browse, fonts, look, side) }
                 }
 

@@ -24,7 +24,9 @@ import java.time.format.DateTimeFormatter
 /** Shared interactive activity view for Android and every desktop target. */
 @Composable
 fun ListeningActivityPanel(days: Map<String, Long>, hourly: List<Long>, modifier: Modifier = Modifier,
-    textColor: Color = MaterialTheme.colorScheme.onSurface, today: LocalDate = LocalDate.now()) {
+    textColor: Color = MaterialTheme.colorScheme.onSurface, today: LocalDate = LocalDate.now(),
+    /** Time listened per source ("YouTube Music", "This device"…), largest first; drawn when there are two or more. */
+    sources: List<Pair<String, Long>> = emptyList()) {
     val window = remember(days, today) { ListeningActivity.window(days, today) }
     var selectedDay by remember(days, today) { mutableStateOf(window.last()) }
     var selectedHour by remember { mutableStateOf<Int?>(null) }
@@ -69,6 +71,37 @@ fun ListeningActivityPanel(days: Map<String, Long>, hourly: List<Long>, modifier
         selectedHour?.let { hour ->
             Text("%02d:00–%02d:00 · %s".format(hour * 3, hour * 3 + 3, duration(bins[hour])),
                 color = textColor, modifier = Modifier.testTag("activity:hour:selection"))
+        }
+        // The days of the week, Monday first, over every day the period holds.
+        val weekdays = remember(days) { ListeningActivity.byWeekday(days) }
+        if (weekdays.any { it > 0 }) {
+            Text("By day of the week", style = MaterialTheme.typography.titleMedium, color = textColor, modifier = Modifier.padding(top = 6.dp))
+            val top = weekdays.max().coerceAtLeast(1)
+            Row(Modifier.fillMaxWidth().height(76.dp).testTag("activity:weekdays"), horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
+                weekdays.forEachIndexed { index, ms ->
+                    val name = java.time.DayOfWeek.of(index + 1).getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+                    Column(Modifier.weight(1f).fillMaxHeight().semantics { contentDescription = "$name: ${duration(ms)}" }, verticalArrangement = Arrangement.Bottom) {
+                        Box(Modifier.fillMaxWidth().height((4 + 48 * ms.toFloat() / top).dp).clip(RoundedCornerShape(CosmoRadii.rXs))
+                            .background(accent.copy(alpha = if (ms == weekdays.max()) 1f else .55f)))
+                        Text(name, style = MaterialTheme.typography.labelSmall, color = textColor.copy(alpha = .7f), maxLines = 1)
+                    }
+                }
+            }
+        }
+        if (sources.size > 1) {
+            Text("Where you listened", style = MaterialTheme.typography.titleMedium, color = textColor, modifier = Modifier.padding(top = 6.dp))
+            val total = sources.sumOf { it.second }.coerceAtLeast(1)
+            Column(Modifier.fillMaxWidth().testTag("activity:sources"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                sources.forEach { (name, ms) ->
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("$name · ${duration(ms)} · ${(ms * 100 / total)}%", style = MaterialTheme.typography.bodySmall, color = textColor)
+                        Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(CosmoRadii.rXs)).background(accent.copy(alpha = .12f))) {
+                            Box(Modifier.fillMaxWidth(ms.toFloat() / total).fillMaxHeight().clip(RoundedCornerShape(CosmoRadii.rXs)).background(accent))
+                        }
+                    }
+                }
+            }
         }
     }
 }

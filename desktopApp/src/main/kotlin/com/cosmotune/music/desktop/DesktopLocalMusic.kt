@@ -12,7 +12,8 @@ import kotlin.io.path.nameWithoutExtension
 
 /** Finds ordinary audio files without requiring an Android MediaStore. */
 object DesktopLocalMusic {
-    private val supportedExtensions = setOf("aac", "flac", "m4a", "mp3", "ogg", "wav", "webm")
+    // The desktop engine plays every one of these, AIFF and DSD (DSF, DFF) included.
+    internal val supportedExtensions = setOf("aac", "flac", "m4a", "mp3", "ogg", "wav", "webm", "opus", "oga", "aiff", "aif", "aifc", "dsf", "dff", "ape", "wv")
     private var previousRoots = emptyList<Path>()
     private var previousFilter: Boolean? = null
     private var previousSongs = emptyList<Song>()
@@ -45,8 +46,13 @@ object DesktopLocalMusic {
         index.finish(songs.mapNotNullTo(HashSet()) { it.localPath })
         previousRoots = currentRoots; previousFilter = filterNonMusic; previousSongs = songs
         changedPaths.clear(); fullScanRequired = false
-        return songs
+        // The listener's rules (Settings, Local music): every folder found is listed there, hidden ones included.
+        knownFolders.value = com.cosmotune.listening.LocalLibraryRules.folders(songs)
+        return com.cosmotune.ui.settings.cosmoLookSettings().localRules.value.apply(songs)
     }
+
+    /** Every folder the last scan found songs in, before the hidden ones were taken out: the settings' list of folders. */
+    val knownFolders = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
 
     /**
      * Where to look: the chosen folder, or the usual two when none has been chosen.
@@ -144,7 +150,11 @@ object DesktopLocalMusic {
                 "wav" -> "WAV"
                 "aac", "m4a" -> "AAC"
                 "ogg" -> "OGG"
-                "webm" -> "OPUS"
+                "webm", "opus", "oga" -> "OPUS"
+                "aiff", "aif", "aifc" -> "AIFF"
+                "dsf", "dff" -> "DSD"
+                "ape" -> "APE"
+                "wv" -> "WAVPACK"
                 else -> value.uppercase(Locale.ROOT)
             }
         }

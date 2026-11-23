@@ -15,4 +15,12 @@ class ListeningActivityTest {
             "2026-01-03" to 5, "2026-01-04" to 7, "2026-01-05" to 8, "legacy" to 90)))
         assertEquals(0, ListeningActivity.longestStreak(emptyMap()))
     }
+
+    @Test fun weekdaysAndSourcesAddUp() {
+        // 2026-11-23 is a Monday.
+        val week = ListeningActivity.byWeekday(mapOf("2026-11-23" to 60_000L, "2026-11-30" to 30_000L, "2026-11-29" to 10_000L, "bad" to 5L))
+        kotlin.test.assertEquals(listOf(90_000L, 0L, 0L, 0L, 0L, 0L, 10_000L), week)
+        val split = ListeningActivity.bySource(listOf("abcdefghijk" to 50L, "local:/m/a.flac" to 70L, "podio:x" to 10L, "subsonic:s:1" to 5L, "zzzzzzzzzzz" to 30L)) { it.startsWith("subsonic:") }
+        kotlin.test.assertEquals(listOf("YouTube Music" to 80L, "This device" to 70L, "Radio and podcasts" to 10L, "Your servers" to 5L), split)
+    }
 }

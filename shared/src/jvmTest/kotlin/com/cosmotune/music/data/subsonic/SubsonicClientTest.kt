@@ -32,6 +32,9 @@ class SubsonicClientTest {
                 exchange.requestURI.path.endsWith("ping.view") -> 200 to """{"subsonic-response":{"status":"ok","version":"1.16.1","type":"navidrome","openSubsonic":true}}"""
                 exchange.requestURI.path.endsWith("getOpenSubsonicExtensions.view") -> 200 to """{"subsonic-response":{"status":"ok","openSubsonicExtensions":[{"name":"apiKeyAuthentication","versions":[1]},{"name":"songLyrics","versions":[1]}]}}"""
                 exchange.requestURI.path.endsWith("search3.view") -> 200 to searchBody
+                exchange.requestURI.path.endsWith("createShare.view") && query["id"] == "off" -> 200 to """{"subsonic-response":{"status":"failed","error":{"code":50,"message":"Sharing is disabled"}}}"""
+                exchange.requestURI.path.endsWith("createShare.view") && query["id"] == "leaky" -> 200 to """{"subsonic-response":{"status":"ok","shares":{"share":[{"id":"x","url":"http://127.0.0.1/rest/stream.view?t=abc&s=1"}]}}}"""
+                exchange.requestURI.path.endsWith("createShare.view") -> 200 to """{"subsonic-response":{"status":"ok","shares":{"share":[{"id":"sh1","url":"https://music.example.org/share/sh1","description":"${query["description"]}"}]}}}"""
                 exchange.requestURI.path.endsWith("getAlbum.view") -> 200 to """{"subsonic-response":{"status":"ok","album":{"id":"al","song":{"id":"only","title":"Solo","artist":"A","duration":61}}}}"""
                 else -> 200 to """{"subsonic-response":{"status":"failed","error":{"code":70,"message":"Not found"}}}"""
             }
@@ -80,5 +83,15 @@ class SubsonicClientTest {
         assertEquals("http://host:4533/music", SubsonicClient.normalize("http://host:4533/music/rest/").toString())
         assertFailsWith<IllegalArgumentException> { SubsonicClient("not a url", "vijay", SubsonicCredential.Password("x"), http) }
         assertFalse(SubsonicCredential.Password("secret").toString().contains("secret"))
+    }
+
+    @Test fun shareLinksComeBackWithoutCredentialsAndRefusalsSayWhy() = runBlocking<Unit> {
+        val client = SubsonicClient(base, "vijay", SubsonicCredential.Password("sesame"), http)
+        assertEquals("https://music.example.org/share/sh1", client.createShare(listOf("tr-1"), "A song", days = 7, now = 1_000L))
+        val asked = synchronized(seen) { seen.last { it["path"]!!.endsWith("createShare.view") } }
+        assertEquals("tr-1", asked["id"]); assertEquals("A song", asked["description"]); assertEquals((1_000L + 7 * 86_400_000L).toString(), asked["expires"])
+        assertEquals(50, assertFailsWith<SubsonicException> { client.createShare(listOf("off"), null) }.code)
+        assertFailsWith<SubsonicException> { client.createShare(listOf("leaky"), null) }
+        assertFailsWith<IllegalArgumentException> { client.createShare(emptyList(), null) }
     }
 }

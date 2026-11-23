@@ -31,6 +31,9 @@ sealed interface LinkRequest {
 
     /** "Play music", with nothing said about what. */
     data object Resume : LinkRequest
+
+    /** A song file another app opened with Cosmotune ("Open with" from a file manager or a download): its `content:` or `file:` address. */
+    data class AudioFile(val uri: String) : LinkRequest
 }
 
 /**
@@ -70,6 +73,9 @@ object MusicLink {
         val request = when (intent.action) {
             Intent.ACTION_VIEW -> intent.data?.let { uri ->
                 if (uri.scheme == "cosmotune") SharedPlaylistLink.fromOpenUri(uri.toString())?.let(LinkRequest::ImportPlaylist)
+                else if (uri.scheme == "content" || uri.scheme == "file") {
+                    if (isAudioFile(intent.type, uri.lastPathSegment)) LinkRequest.AudioFile(uri.toString()) else null
+                }
                 else parse(uri)
             }
             Intent.ACTION_SEND -> intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.let { shared ->
@@ -101,6 +107,12 @@ object MusicLink {
     fun handled() {
         _pending.value = null
     }
+
+    /** A song file by its type, or by its name when the opening app gave no type; a video or anything else is not Music's. */
+    internal fun isAudioFile(type: String?, name: String?): Boolean =
+        type?.lowercase()?.startsWith("audio/") ?: ((name ?: "").substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS)
+
+    private val AUDIO_EXTENSIONS = setOf("mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "wma", "alac", "aiff", "aif", "ape", "mka", "weba")
 
     /**
      * What a YouTube or YouTube Music URL points at, or null for one this app

@@ -152,8 +152,11 @@ fun CosmoReleasePage(
     // reopened would be a page that appears to have lost most of its tracks (`DetailScreen.kt`'s own reasoning).
     var searching by rememberSaveable(page.browseId) { mutableStateOf(false) }
     var query by rememberSaveable(page.browseId) { mutableStateOf("") }
-    var orderName by rememberSaveable(page.browseId) { mutableStateOf(initialOrder.name) }
-    LaunchedEffect(initialOrder) { orderName = initialOrder.name }
+    // Each page keeps the order it was last put in; one never changed follows Settings' song order.
+    val savedOrders by com.cosmotune.settings.Extras.settings.listOrders.collectAsState()
+    val savedOrder = savedOrders[page.browseId]?.let { name -> MusicListOrder.entries.firstOrNull { it.name == name } }
+    var orderName by rememberSaveable(page.browseId) { mutableStateOf((savedOrder ?: initialOrder).name) }
+    LaunchedEffect(initialOrder) { if (savedOrder == null) orderName = initialOrder.name }
     val order = MusicListOrder.entries.firstOrNull { it.name == orderName } ?: MusicListOrder.DEFAULT
     var downloadedOnly by rememberSaveable(page.browseId) { mutableStateOf(false) }
     var selecting by rememberSaveable(page.browseId) { mutableStateOf(false) }
@@ -301,7 +304,10 @@ fun CosmoReleasePage(
                     onFind = { if (searching) closeSearch() else { searching = true; focusSearch = true } },
                     findLabel = findLabel,
                     order = order,
-                    onOrder = { orderName = it.name },
+                    onOrder = {
+                        orderName = it.name
+                        com.cosmotune.settings.Extras.settings.setListOrder(page.browseId, it.name.takeIf { name -> name != initialOrder.name })
+                    },
                     hasAddedDates = songs.any { it.localDateAddedSeconds != null },
                     downloadedOnly = downloadedOnly,
                     onDownloadedOnly = if (local) null else { { downloadedOnly = it } },

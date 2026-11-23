@@ -263,6 +263,7 @@ private fun Habits(summary: ReplaySummary, side: Dp) {
         dailyMs = summary.dailyMs,
         hourly = summary.hourOfDay,
         side = side,
+        sources = com.cosmotune.listening.ListeningActivity.bySource(summary.songs.map { it.song.videoId to it.ms }, com.cosmotune.providers.SourceLibraryStore::ownsTrack),
     )
 }
 

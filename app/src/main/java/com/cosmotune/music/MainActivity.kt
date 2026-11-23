@@ -265,6 +265,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.launch
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.delay
 import java.util.Locale
@@ -1165,6 +1166,8 @@ private fun CosmotuneApp(
     // Looked up only while the app is on screen.
     val elsewhereHandoff by com.cosmotune.music.data.cloud.AndroidCloud.handoff.elsewhere.collectAsState()
     val elsewhereLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    // Settings, Player, Keep the screen on: "Whenever music plays" holds it anywhere in the app.
+    com.cosmotune.music.ui.player.PlaybackKeepsScreenOn(player.isPlaying)
     LaunchedEffect(player.isPlaying) {
         if (player.isPlaying) {
             com.cosmotune.music.data.cloud.AndroidCloud.handoff.look(isPlaying = true)
@@ -1877,6 +1880,15 @@ private fun CosmotuneApp(
             // bounded queue before the controller connects, so this resumes
             // both a live session and one recovered after process death.
             LinkRequest.Resume -> if (session.mediaItemCount > 0) session.play()
+            // A song file opened from a file manager plays on its own, read from where it is.
+            is LinkRequest.AudioFile -> {
+                val song = withContext(Dispatchers.IO) { LocalMediaRepository.songForOpenedFile(context, request.uri) }
+                if (song == null) {
+                    Toast.makeText(context, context.getString(R.string.couldnt_open_link), Toast.LENGTH_SHORT).show()
+                } else {
+                    play(listOf(song), 0)
+                }
+            }
             is LinkRequest.ImportPlaylist -> Unit
         }
         MusicLink.handled()
@@ -2330,6 +2342,15 @@ private fun CosmotuneApp(
                         it.memberId == playback.startedBy
                     }?.displayName?.takeIf(String::isNotBlank)
             }
+        // Up next marks the liked and downloaded songs.
+        val savedDownloads by com.cosmotune.music.download.Downloads.saved.collectAsStateWithLifecycle()
+        val queueMarks = remember(likeStatuses, libraryState, savedDownloads) {
+            com.cosmotune.ui.orbit.QueueMarks(
+                liked = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys + (libraryState as? UiState.Success)?.data?.likedSongs.orEmpty().map { it.videoId },
+                downloaded = savedDownloads.keys,
+            )
+        }
+        androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.orbit.LocalQueueMarks provides queueMarks) {
         NowPlayingSwitch(
             song = displayedSong,
             playedBy = playedBy,
@@ -2576,6 +2597,7 @@ private fun CosmotuneApp(
                 }
             },
         )
+        }
     }
 
     val listeningLibraryPage = (libraryState as? UiState.Success)?.data
@@ -2594,6 +2616,9 @@ private fun CosmotuneApp(
         open = listeningToolsOpen,
         onDismiss = { listeningToolsOpen = false; listeningToolsOpenOn = null },
         openOn = listeningToolsOpenOn,
+        likeSongs = { songs ->
+            songs.filterNot { likeStatuses[it.videoId] == LikeStatus.LIKE }.forEach { viewModel.setLike(it.videoId, LikeStatus.LIKE, it) }
+        },
         library = com.cosmotune.listening.ListeningLibrary(
             songs = listeningLibraryPage?.likedSongs.orEmpty() + listeningLibraryPage?.librarySongs.orEmpty() + localPlaylists.flatMap { it.songs } + listeningHistory + player.queue,
             likedIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
@@ -4248,15 +4273,33 @@ private fun CosmotuneApp(
             // read off the player's own visibility any more, because on a
             // tablet the player is visible whatever the menu was opened from.
             val fromPlayer = menuFromPlayer
+            // Outlives the sheet, which closes as soon as Share is tapped.
+            val shareScope = viewModel.viewModelScope
             val share: () -> Unit = {
-                val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    val shared = if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId) || song.localUri != null || song.localPath != null)
-                        "${song.title} — ${song.artist}\nShared from Cosmotune"
-                    else "https://music.youtube.com/watch?v=${song.videoId}"
-                    putExtra(Intent.EXTRA_TEXT, shared)
+                fun send(shared: String) {
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, shared)
+                    }
+                    context.startActivity(Intent.createChooser(sendIntent, song.title))
                 }
-                context.startActivity(Intent.createChooser(sendIntent, song.title))
+                val plain = "${song.title} — ${song.artist}\nShared from Cosmotune"
+                // A song from the listener's own Subsonic server: the server makes a public link that plays it.
+                val server = com.cosmotune.music.data.sources.SourceRegistry.parseTrackKey(song.videoId)
+                    ?.let { (configId, _) -> com.cosmotune.music.data.sources.SourceRegistry.instance(configId) as? com.cosmotune.music.data.sources.SubsonicSource }
+                    ?.catalogue
+                when {
+                    server != null -> shareScope.launch {
+                        runCatching { server.shareText(song) }
+                            .onSuccess { send(it ?: plain) }
+                            .onFailure {
+                                android.widget.Toast.makeText(context, it.message ?: "Your server didn't make a link", android.widget.Toast.LENGTH_LONG).show()
+                                send(plain)
+                            }
+                    }
+                    com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId) || song.localUri != null || song.localPath != null -> send(plain)
+                    else -> send("https://music.youtube.com/watch?v=${song.videoId}")
+                }
                 songActions = null
             }
             // Navigating has to take the player down with the sheet, or the
@@ -4801,16 +4844,30 @@ private fun CosmotuneApp(
                     ?.takeIf { remote && (target.type == BrowseType.ALBUM || target.type == BrowseType.PLAYLIST) }
                     ?.let { id ->
                         {
-                            val url = if (target.type == BrowseType.PLAYLIST) {
-                                "https://music.youtube.com/playlist?list=${id.removePrefix("VL")}"
-                            } else {
-                                "https://music.youtube.com/browse/$id"
+                            fun send(text: String) {
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, target.title))
                             }
-                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, url)
+                            val sourcePage = com.cosmotune.providers.ProviderBrowseKey.parse(id)
+                            val server = sourcePage?.let { com.cosmotune.music.data.sources.SourceRegistry.instance(it.provider) as? com.cosmotune.music.data.sources.SubsonicSource }?.catalogue
+                            val plain = "${target.title}\nShared from Cosmotune"
+                            when {
+                                // An album on the listener's own Subsonic server: the server makes a public link that plays it.
+                                sourcePage != null && server != null -> viewModel.viewModelScope.launch {
+                                    runCatching { server.shareText(sourcePage, target.title) }
+                                        .onSuccess { send(it ?: plain) }
+                                        .onFailure {
+                                            Toast.makeText(context, it.message ?: "Your server didn't make a link", Toast.LENGTH_LONG).show()
+                                            send(plain)
+                                        }
+                                }
+                                sourcePage != null -> send(plain)
+                                target.type == BrowseType.PLAYLIST -> send("https://music.youtube.com/playlist?list=${id.removePrefix("VL")}")
+                                else -> send("https://music.youtube.com/browse/$id")
                             }
-                            context.startActivity(Intent.createChooser(sendIntent, target.title))
                             browseActions = null
                         }
                     },

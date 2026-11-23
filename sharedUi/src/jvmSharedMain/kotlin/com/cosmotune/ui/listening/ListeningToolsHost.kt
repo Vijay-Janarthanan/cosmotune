@@ -74,6 +74,18 @@ data class ListeningToolsHost(
     },
     /** Called only when the listener chooses catalogue matching in the import preview. */
     val matchPlaylistTrack: suspend (com.cosmotune.listening.MusicPlaylistImportRow) -> Song? = ::findPlaylistRecording,
+    /**
+     * Another music app's backup (InnerTune, Metrolist, ViMusic, Kreate, SimpMusic): [pickBackupFile] answers the picked file's
+     * bytes, [openSqlite] reads its database, [likeSongs] likes the songs that were liked there. The import is offered only
+     * when all three are given; its playlists are made with [createPlaylist].
+     */
+    val pickBackupFile: (suspend () -> ByteArray?)? = null,
+    val openSqlite: com.cosmotune.video.importers.SqliteOpener? = null,
+    val likeSongs: (suspend (List<Song>) -> Unit)? = null,
+    /** Adds recent plays received in Device sync to this device's history; null keeps them as a playlist instead. */
+    val addHistory: (suspend (List<Song>) -> Unit)? = null,
+    /** Reads the other device's pairing code with the camera, answering its link; null where there is no camera. */
+    val scanPairingCode: (suspend () -> String?)? = null,
 )
 
 private suspend fun findPlaylistRecording(row: com.cosmotune.listening.MusicPlaylistImportRow): Song? =

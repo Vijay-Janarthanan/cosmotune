@@ -126,9 +126,10 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
 
     private fun serve(socket: Socket) {
         var timeout: java.util.concurrent.ScheduledFuture<*>? = null
+        var live = false
         try {
             timeout = deadlines.schedule({ runCatching { socket.close() } }, 8, TimeUnit.SECONDS)
-            socket.use {
+            run {
                 try {
                 val request = try { read(socket) } catch (_: Exception) { respond(socket, 400, "text/plain", "Invalid request"); return }
                 if (request.headers["host"]?.lowercase(Locale.ROOT) != expectedAuthority.lowercase(Locale.ROOT)) {
@@ -139,6 +140,21 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
                 if (request.method == "GET" && request.path == "/") {
                     respond(socket, 200, "text/html; charset=utf-8", LanRemotePage.html); return
                 }
+                if (request.method == "GET" && request.path == LanRemoteLive.PATH) {
+                    val offered = LanRemoteLive.offeredKey(request.headers["sec-websocket-protocol"]).orEmpty()
+                    when {
+                        !LanRemoteLive.isUpgrade(request.headers) -> respond(socket, 400, "text/plain", "Open this with a WebSocket")
+                        closed.get() || offered.length != key.length || !MessageDigest.isEqual(offered.toByteArray(), key.toByteArray()) ->
+                            respond(socket, 401, "text/plain", "Pair this browser using the link shown in Cosmotune")
+                        liveCount.incrementAndGet() > MAX_LIVE -> { liveCount.decrementAndGet(); respond(socket, 503, "text/plain", "Too many live connections") }
+                        else -> {
+                            timeout?.cancel(false)
+                            live = true
+                            thread(name = "cosmotune-lan-live", isDaemon = true) { runLive(socket, request) }
+                        }
+                    }
+                    return
+                }
                 val supplied = request.headers["authorization"]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
                 if (closed.get() || supplied.length != key.length || !MessageDigest.isEqual(supplied.toByteArray(), key.toByteArray())) {
                     respond(socket, 401, "text/plain", "Pair this browser using the link shown in Cosmotune"); return
@@ -147,10 +163,88 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
                     runBlocking(lifetime) { withTimeout(5000) { route(socket, request) } }
                 } catch (_: BadRequest) { respond(socket, 400, "text/plain", "Invalid command") }
                 catch (failure: Exception) { failureObserver?.invoke(failure); respond(socket, 503, "text/plain", "The player is unavailable. Try again.") }
-                } finally { settle(socket) }
+                } finally { if (!live) settle(socket) }
             }
         } catch (_: Exception) { /* A closed browser is a completed request. */ }
-        finally { timeout?.cancel(false); sockets.remove(socket); runCatching { socket.close() } }
+        finally { if (!live) { timeout?.cancel(false); sockets.remove(socket); runCatching { socket.close() } } }
+    }
+
+    private val liveCount = java.util.concurrent.atomic.AtomicInteger()
+
+    /**
+     * One live connection ([LanRemoteLive]): the handshake, then the status pushed whenever it changes (and every 15 s
+     * regardless), and each text frame run as a command, answered with ok or the reason. Ends when either side closes or the
+     * server stops.
+     */
+    private fun runLive(socket: Socket, request: Request) {
+        val output = socket.getOutputStream()
+        val writeLock = Any()
+        fun send(opcode: Int, payload: ByteArray) = synchronized(writeLock) { LanRemoteLive.write(output, opcode, payload) }
+        try {
+            val accept = LanRemoteLive.accept(request.headers["sec-websocket-key"].orEmpty())
+            synchronized(writeLock) {
+                output.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
+                    "Sec-WebSocket-Accept: $accept\r\nSec-WebSocket-Protocol: ${LanRemoteLive.PROTOCOL}\r\n\r\n").toByteArray(Charsets.US_ASCII))
+                output.flush()
+            }
+            socket.soTimeout = 0
+            val pusher = thread(name = "cosmotune-lan-live-push", isDaemon = true) {
+                var last: String? = null
+                var lastAt = 0L
+                try {
+                    while (!closed.get() && !socket.isClosed) {
+                        val text = json.encodeToString(RemotePlayback.serializer(), bounded(host.playback()))
+                        val now = System.nanoTime()
+                        if (text != last || now - lastAt > TimeUnit.SECONDS.toNanos(15)) {
+                            send(0x1, text.toByteArray(Charsets.UTF_8)); last = text; lastAt = now
+                        }
+                        Thread.sleep(500)
+                    }
+                } catch (_: Exception) { runCatching { socket.close() } }
+            }
+            val input = socket.getInputStream()
+            while (!closed.get()) {
+                when (val frame = LanRemoteLive.read(input)) {
+                    is LanRemoteLive.Frame.Text -> {
+                        val answer = try {
+                            val command = try { json.decodeFromString<RemoteCommand>(frame.text) } catch (_: Exception) { throw BadRequest() }
+                            runBlocking(lifetime) { withTimeout(5000) { perform(command) } }
+                            "{\"ok\":true}"
+                        } catch (_: BadRequest) { "{\"ok\":false,\"error\":\"Invalid command\"}" }
+                        catch (failure: Exception) { failureObserver?.invoke(failure); "{\"ok\":false,\"error\":\"The player is unavailable\"}" }
+                        send(0x1, answer.toByteArray(Charsets.UTF_8))
+                    }
+                    is LanRemoteLive.Frame.Ping -> send(0xA, frame.payload)
+                    LanRemoteLive.Frame.Pong -> Unit
+                    LanRemoteLive.Frame.Close -> { runCatching { send(0x8, ByteArray(0)) }; break }
+                }
+            }
+            pusher.interrupt()
+        } catch (_: Exception) { /* A closed or misbehaving client ends its own connection. */ }
+        finally { liveCount.decrementAndGet(); sockets.remove(socket); runCatching { socket.close() } }
+    }
+
+    private fun bounded(value: RemotePlayback) = value.copy(title = value.title.take(1000), artist = value.artist.take(1000),
+        positionMs = value.positionMs.coerceIn(0, MAX_POSITION), durationMs = value.durationMs?.coerceIn(0, MAX_POSITION),
+        volume = value.volume?.takeIf { it.isFinite() }?.coerceIn(0f, 1f))
+
+    /** A typed command, checked the same way wherever it came from, then run on the player one at a time. */
+    private suspend fun perform(command: RemoteCommand) {
+        if (command.action != RemoteAction.PLAY_QUEUE_INDEX && command.index != null) throw BadRequest()
+        when (command.action) {
+            RemoteAction.SEEK -> if (command.positionMs == null || command.positionMs !in 0..MAX_POSITION || command.volume != null || command.trackId != null) throw BadRequest()
+            RemoteAction.VOLUME -> if (command.volume == null || !command.volume.isFinite() || command.volume !in 0f..1f || command.positionMs != null || command.trackId != null) throw BadRequest()
+            RemoteAction.PLAY_TRACK -> if (command.trackId == null || synchronized(knownTracks) { command.trackId !in knownTracks } || command.positionMs != null || command.volume != null) throw BadRequest()
+            RemoteAction.PLAY_QUEUE_INDEX -> if (command.index == null || command.index !in 0..MAX_QUEUE_INDEX || command.trackId != null || command.positionMs != null || command.volume != null) throw BadRequest()
+            else -> if (command.trackId != null || command.positionMs != null || command.volume != null) throw BadRequest()
+        }
+        commandMutex.withLock {
+            val nativeCommand = if (command.action == RemoteAction.PLAY_TRACK) {
+                val track = synchronized(knownTracks) { knownTracks[command.trackId] } ?: throw BadRequest()
+                command.copy(trackId = track.id)
+            } else command
+            host.command(nativeCommand)
+        }
     }
 
     private suspend fun route(socket: Socket, request: Request) {
@@ -195,9 +289,7 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
                 respond(socket, 200, "application/json", result)
             }
             request.method == "GET" && request.path == "/api/status" -> {
-                val state = host.playback().let { value -> value.copy(title = value.title.take(1000), artist = value.artist.take(1000),
-                    positionMs = value.positionMs.coerceIn(0, MAX_POSITION), durationMs = value.durationMs?.coerceIn(0, MAX_POSITION),
-                    volume = value.volume?.takeIf { it.isFinite() }?.coerceIn(0f, 1f)) }
+                val state = bounded(host.playback())
                 respond(socket, 200, "application/json", json.encodeToString(RemotePlayback.serializer(), state))
             }
             request.method == "GET" && (request.path == "/api/search" || request.path.startsWith("/api/search?q=")) -> {
@@ -232,21 +324,7 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
             request.method == "POST" && request.path == "/api/action" -> {
                 if (request.headers["content-type"]?.substringBefore(';')?.trim()?.lowercase(Locale.ROOT) != "application/json") throw BadRequest()
                 val command = try { json.decodeFromString<RemoteCommand>(request.body.toString(Charsets.UTF_8)) } catch (_: Exception) { throw BadRequest() }
-                if (command.action != RemoteAction.PLAY_QUEUE_INDEX && command.index != null) throw BadRequest()
-                when (command.action) {
-                    RemoteAction.SEEK -> if (command.positionMs == null || command.positionMs !in 0..MAX_POSITION || command.volume != null || command.trackId != null) throw BadRequest()
-                    RemoteAction.VOLUME -> if (command.volume == null || !command.volume.isFinite() || command.volume !in 0f..1f || command.positionMs != null || command.trackId != null) throw BadRequest()
-                    RemoteAction.PLAY_TRACK -> if (command.trackId == null || synchronized(knownTracks) { command.trackId !in knownTracks } || command.positionMs != null || command.volume != null) throw BadRequest()
-                    RemoteAction.PLAY_QUEUE_INDEX -> if (command.index == null || command.index !in 0..MAX_QUEUE_INDEX || command.trackId != null || command.positionMs != null || command.volume != null) throw BadRequest()
-                    else -> if (command.trackId != null || command.positionMs != null || command.volume != null) throw BadRequest()
-                }
-                commandMutex.withLock {
-                    val nativeCommand = if (command.action == RemoteAction.PLAY_TRACK) {
-                        val track = synchronized(knownTracks) { knownTracks[command.trackId] } ?: throw BadRequest()
-                        command.copy(trackId = track.id)
-                    } else command
-                    host.command(nativeCommand)
-                }
+                perform(command)
                 respond(socket, 200, "application/json", "{\"ok\":true}")
             }
             request.path.substringBefore('?') in setOf("/api/action", "/api/status", "/api/search", "/api/queue") -> respond(socket, 405, "text/plain", "Method not allowed")
@@ -322,6 +400,7 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
         private const val MAX_POSITION = 7L * 24 * 60 * 60 * 1000
         private const val MAX_QUEUE_ROWS = 100
         private const val MAX_QUEUE_INDEX = 1_000_000
+        private const val MAX_LIVE = 2
         fun start(host: LanRemoteHost, address: InetAddress = InetAddress.getByName("127.0.0.1"), port: Int = 0): LanRemoteServer {
             require(port in 0..65535)
             require(address is Inet4Address && !address.isAnyLocalAddress && (address.isLoopbackAddress || address.isSiteLocalAddress)) { "Select a local IPv4 interface" }

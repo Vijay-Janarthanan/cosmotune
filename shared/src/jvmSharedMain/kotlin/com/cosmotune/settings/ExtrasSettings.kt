@@ -39,6 +39,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val pitchFlow = MutableStateFlow(clampPitch(store.getInt(KEY_PITCH, 0)))
     private val offlineFlow = MutableStateFlow(store.getBoolean(KEY_OFFLINE, false))
     private val proxyFlow = MutableStateFlow(readProxy())
+    private val privateDnsFlow = MutableStateFlow(com.cosmotune.music.data.PrivateDns.named(store.getString(KEY_PRIVATE_DNS, "OFF")))
     private val autoLyricsOffsetFlow = MutableStateFlow(store.getBoolean(KEY_AUTO_LYRICS_OFFSET, true))
     private val spatialPresetFlow = MutableStateFlow(SpatialPreset.named(store.getString(KEY_SPATIAL_PRESET, SpatialPreset.DEFAULT.name)))
     private val spatialSurroundFlow = MutableStateFlow(store.getBoolean(KEY_SPATIAL_SURROUND, false))
@@ -165,7 +166,16 @@ class ExtrasSettings(private val store: KeyValueStore) {
         password = store.getString(KEY_PROXY_PASSWORD, ""),
     )
 
+    /** Look names up over HTTPS through this resolver instead of the network's DNS; see [com.cosmotune.music.data.PrivateDnsResolver]. */
+    val privateDns: StateFlow<com.cosmotune.music.data.PrivateDns> = privateDnsFlow.asStateFlow()
+    fun setPrivateDns(value: com.cosmotune.music.data.PrivateDns) {
+        privateDnsFlow.value = value
+        store.putString(KEY_PRIVATE_DNS, value.name)
+        publishNetwork()
+    }
+
     private fun publishNetwork() {
+        com.cosmotune.music.data.PrivateDnsResolver.choice = privateDnsFlow.value
         NetworkPolicy.offline = offlineFlow.value
         NetworkPolicy.apply(proxyFlow.value.takeIf { it.enabled }?.let(NetworkPolicy::configOf))
     }
@@ -174,6 +184,9 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val premiumAudioFlow = MutableStateFlow(store.getBoolean(KEY_PREMIUM_AUDIO, false))
     private val sleepFadeOutFlow = MutableStateFlow(store.getBoolean(KEY_SLEEP_FADE_OUT, true))
     private val bestPartFlow = MutableStateFlow(store.getBoolean(KEY_BEST_PART, true))
+    private val waveformSeekFlow = MutableStateFlow(store.getBoolean(KEY_WAVEFORM_SEEK, true))
+    private val eqUserPresetsFlow = MutableStateFlow(com.cosmotune.music.playback.EqUserPresets.decode(store.getString(KEY_EQ_USER_PRESETS, "")))
+    private val screenOnFlow = MutableStateFlow(ScreenOnPolicy.named(store.getString(KEY_SCREEN_ON, ScreenOnPolicy.DEFAULT.name)))
 
     /**
      * The listener's word that their YouTube account has Premium: a signed-in account then asks for Premium's ~256 kbps Opus
@@ -191,11 +204,142 @@ class ExtrasSettings(private val store: KeyValueStore) {
     fun setSleepFadeOut(value: Boolean) { sleepFadeOutFlow.value = value; store.putBoolean(KEY_SLEEP_FADE_OUT, value) }
     fun setBestPart(value: Boolean) { bestPartFlow.value = value; store.putBoolean(KEY_BEST_PART, value) }
 
+    /** The player's seek line as the song's waveform, with dots for listeners' timed comments. On unless turned off. */
+    val waveformSeek: StateFlow<Boolean> = waveformSeekFlow.asStateFlow()
+    fun setWaveformSeek(value: Boolean) { waveformSeekFlow.value = value; store.putBoolean(KEY_WAVEFORM_SEEK, value) }
+
+    /** The equaliser curves the listener saved by name (Your presets), newest first. */
+    val eqUserPresets: StateFlow<List<com.cosmotune.music.playback.EqUserPreset>> = eqUserPresetsFlow.asStateFlow()
+    fun setEqUserPresets(value: List<com.cosmotune.music.playback.EqUserPreset>) {
+        eqUserPresetsFlow.value = value
+        store.putString(KEY_EQ_USER_PRESETS, com.cosmotune.music.playback.EqUserPresets.encode(value))
+    }
+
+    /** When the player keeps the screen on; see [ScreenOnPolicy]. */
+    val screenOn: StateFlow<ScreenOnPolicy> = screenOnFlow.asStateFlow()
+    fun setScreenOn(value: ScreenOnPolicy) { screenOnFlow.value = value; store.putString(KEY_SCREEN_ON, value.name) }
+
+    private val playlistFoldersFlow = MutableStateFlow(com.cosmotune.listening.PlaylistFolders.decode(store.getString(KEY_PLAYLIST_FOLDERS, "")))
+
+    /** The folders the listener sorted their playlists into (Library, Playlists); see [com.cosmotune.listening.PlaylistFolders]. */
+    val playlistFolders: StateFlow<List<com.cosmotune.listening.PlaylistFolder>> = playlistFoldersFlow.asStateFlow()
+    fun setPlaylistFolders(value: List<com.cosmotune.listening.PlaylistFolder>) {
+        playlistFoldersFlow.value = value
+        store.putString(KEY_PLAYLIST_FOLDERS, com.cosmotune.listening.PlaylistFolders.encode(value))
+    }
+
+    private val songTagsFlow = MutableStateFlow(com.cosmotune.listening.SongTags.decode(store.getString(KEY_SONG_TAGS, "")))
+
+    /** The songs the listener rated or tagged; see [com.cosmotune.listening.SongTags]. */
+    val songTags: StateFlow<List<com.cosmotune.listening.TaggedSong>> = songTagsFlow.asStateFlow()
+    fun setSongTags(value: List<com.cosmotune.listening.TaggedSong>) {
+        songTagsFlow.value = value
+        store.putString(KEY_SONG_TAGS, com.cosmotune.listening.SongTags.encode(value))
+    }
+
+    private val listOrdersFlow = MutableStateFlow(com.cosmotune.listening.ListOrders.decode(store.getString(KEY_LIST_ORDERS, "")))
+
+    /** The order each album or playlist page was last put in, by its browse id; see [com.cosmotune.listening.ListOrders]. */
+    val listOrders: StateFlow<Map<String, String>> = listOrdersFlow.asStateFlow()
+    fun setListOrder(id: String, order: String?) {
+        val next = com.cosmotune.listening.ListOrders.with(listOrdersFlow.value, id, order)
+        listOrdersFlow.value = next
+        store.putString(KEY_LIST_ORDERS, com.cosmotune.listening.ListOrders.encode(next))
+    }
+
+    private val downloadHistoryFlow = MutableStateFlow(com.cosmotune.listening.DownloadHistory.decode(store.getString(KEY_DOWNLOAD_HISTORY, "")))
+
+    /** Finished and failed downloads, newest first; see [com.cosmotune.listening.DownloadHistory]. */
+    val downloadHistory: StateFlow<List<com.cosmotune.listening.DownloadHistory.Entry>> = downloadHistoryFlow.asStateFlow()
+    @Synchronized fun recordDownload(trackId: String, title: String, artist: String, failed: String? = null, atMs: Long = System.currentTimeMillis()) {
+        val next = com.cosmotune.listening.DownloadHistory.add(downloadHistoryFlow.value, com.cosmotune.listening.DownloadHistory.Entry(trackId, title, artist, atMs, failed))
+        downloadHistoryFlow.value = next
+        store.putString(KEY_DOWNLOAD_HISTORY, com.cosmotune.listening.DownloadHistory.encode(next))
+    }
+    fun clearDownloadHistory() {
+        downloadHistoryFlow.value = emptyList()
+        store.putString(KEY_DOWNLOAD_HISTORY, "")
+    }
+
+    private val videoTimingsFlow = MutableStateFlow(com.cosmotune.listening.VideoTimings.decode(store.getString(KEY_VIDEO_TIMINGS, "")))
+
+    /** The listener's own timing for each music video, by video id; see [com.cosmotune.listening.VideoTimings]. */
+    val videoTimings: StateFlow<Map<String, Long>> = videoTimingsFlow.asStateFlow()
+    fun nudgeVideoTiming(videoId: String, stepMs: Long?) {
+        val next = if (stepMs == null) com.cosmotune.listening.VideoTimings.set(videoTimingsFlow.value, videoId, 0)
+        else com.cosmotune.listening.VideoTimings.nudge(videoTimingsFlow.value, videoId, stepMs)
+        videoTimingsFlow.value = next
+        store.putString(KEY_VIDEO_TIMINGS, com.cosmotune.listening.VideoTimings.encode(next))
+    }
+
+    private val musicSkipsFlow = MutableStateFlow(store.getBoolean(KEY_MUSIC_SKIPS, false))
+
+    /** Skip the marked parts of a music video that are not the song; see [com.cosmotune.listening.MusicSkips]. */
+    val musicSkips: StateFlow<Boolean> = musicSkipsFlow.asStateFlow()
+    fun setMusicSkips(value: Boolean) { musicSkipsFlow.value = value; store.putBoolean(KEY_MUSIC_SKIPS, value) }
+
+    private val songNoticesFlow = MutableStateFlow(store.getBoolean(KEY_SONG_NOTICES, false))
+
+    /** The desktop names each new song in a system notice while its window is in the background. */
+    val songNotices: StateFlow<Boolean> = songNoticesFlow.asStateFlow()
+    fun setSongNotices(value: Boolean) { songNoticesFlow.value = value; store.putBoolean(KEY_SONG_NOTICES, value) }
+
+    private val globalShortcutsFlow = MutableStateFlow(store.getBoolean(KEY_GLOBAL_SHORTCUTS, false))
+
+    /** The desktop's Ctrl+Alt shortcuts that work in any app; see [com.cosmotune.listening.GlobalShortcuts]. */
+    val globalShortcuts: StateFlow<Boolean> = globalShortcutsFlow.asStateFlow()
+    fun setGlobalShortcuts(value: Boolean) { globalShortcutsFlow.value = value; store.putBoolean(KEY_GLOBAL_SHORTCUTS, value) }
+
+    private val backupToWebDavFlow = MutableStateFlow(store.getBoolean(KEY_BACKUP_TO_WEBDAV, false))
+
+    /** Automatic backups also go to the listener's WebDAV server; see [com.cosmotune.music.data.webdav.WebDavBackup]. */
+    val backupToWebDav: StateFlow<Boolean> = backupToWebDavFlow.asStateFlow()
+    fun setBackupToWebDav(value: Boolean) { backupToWebDavFlow.value = value; store.putBoolean(KEY_BACKUP_TO_WEBDAV, value) }
+
+    private val notificationSleepFlow = MutableStateFlow(store.getBoolean(KEY_NOTIFICATION_SLEEP, false))
+
+    /** The phone notification's second button is the sleep timer instead of Repeat. Off until turned on. */
+    val notificationSleep: StateFlow<Boolean> = notificationSleepFlow.asStateFlow()
+    fun setNotificationSleep(value: Boolean) { notificationSleepFlow.value = value; store.putBoolean(KEY_NOTIFICATION_SLEEP, value) }
+
+    private val nowPlayingWebhookFlow = MutableStateFlow(store.getString(KEY_NOW_PLAYING_WEBHOOK, ""))
+    private val nowPlayingBroadcastFlow = MutableStateFlow(store.getBoolean(KEY_NOW_PLAYING_BROADCAST, false))
+    private val nowPlayingFileFlow = MutableStateFlow(store.getBoolean(KEY_NOW_PLAYING_FILE, false))
+
+    /** A web address of the listener's own that is told each song as it starts, pauses or resumes; empty for none. See [com.cosmotune.listening.NowPlayingOut]. */
+    val nowPlayingWebhook: StateFlow<String> = nowPlayingWebhookFlow.asStateFlow()
+    fun setNowPlayingWebhook(value: String) { val tidy = value.trim().take(2_000); nowPlayingWebhookFlow.value = tidy; store.putString(KEY_NOW_PLAYING_WEBHOOK, tidy) }
+
+    /** The phone tells other apps (Tasker, scrobblers) the song with the standard music broadcasts. Off until turned on. */
+    val nowPlayingBroadcast: StateFlow<Boolean> = nowPlayingBroadcastFlow.asStateFlow()
+    fun setNowPlayingBroadcast(value: Boolean) { nowPlayingBroadcastFlow.value = value; store.putBoolean(KEY_NOW_PLAYING_BROADCAST, value) }
+
+    /** The desktop keeps a text file naming the song, for OBS and other streaming software. Off until turned on. */
+    val nowPlayingFile: StateFlow<Boolean> = nowPlayingFileFlow.asStateFlow()
+    fun setNowPlayingFile(value: Boolean) { nowPlayingFileFlow.value = value; store.putBoolean(KEY_NOW_PLAYING_FILE, value) }
+
     companion object {
         const val KEY_SONG_PLAYBACK="extras_song_playback"
         const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
         const val KEY_SLEEP_FADE_OUT = "extras_sleep_fade_out"
         const val KEY_BEST_PART = "extras_best_part"
+        const val KEY_SCREEN_ON = "extras_screen_on"
+        const val KEY_WAVEFORM_SEEK = "extras_waveform_seek"
+        const val KEY_EQ_USER_PRESETS = "extras_eq_user_presets"
+        const val KEY_PLAYLIST_FOLDERS = "extras_playlist_folders"
+        const val KEY_SONG_TAGS = "extras_song_tags"
+        const val KEY_PRIVATE_DNS = "extras_private_dns"
+        const val KEY_NOW_PLAYING_WEBHOOK = "extras_now_playing_webhook"
+        const val KEY_NOW_PLAYING_BROADCAST = "extras_now_playing_broadcast"
+        const val KEY_NOW_PLAYING_FILE = "extras_now_playing_file"
+        const val KEY_NOTIFICATION_SLEEP = "extras_notification_sleep"
+        const val KEY_LIST_ORDERS = "extras_list_orders"
+        const val KEY_VIDEO_TIMINGS = "extras_video_timings"
+        const val KEY_DOWNLOAD_HISTORY = "extras_download_history"
+        const val KEY_BACKUP_TO_WEBDAV = "extras_backup_to_webdav"
+        const val KEY_GLOBAL_SHORTCUTS = "extras_global_shortcuts"
+        const val KEY_MUSIC_SKIPS = "extras_music_skips"
+        const val KEY_SONG_NOTICES = "extras_song_notices"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"

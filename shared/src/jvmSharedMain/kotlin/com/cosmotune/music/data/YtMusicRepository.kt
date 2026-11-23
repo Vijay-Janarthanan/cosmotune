@@ -1,5 +1,6 @@
 package com.cosmotune.music.data
 
+import com.cosmotune.music.data.radio.MixGroups
 import com.cosmotune.music.data.DebugLog as Log
 import com.cosmotune.music.data.innertube.Innertube
 import com.cosmotune.music.data.innertube.InnertubeParser
@@ -568,7 +569,13 @@ object YtMusicRepository {
      * What YouTube Music would play on after [videoId]. Feeds AutoPlay; the
      * seed track itself comes back first, so callers filter what they have.
      */
-    suspend fun radio(videoId: String, seedSong: Song? = null): Result<List<Song>> {
+    suspend fun radio(videoId: String, seedSong: Song? = null): Result<List<Song>> =
+        // Blocked artists and (when hidden) explicit songs are left out; the seed itself was asked for, so it stays.
+        unblockedRadio(videoId, seedSong).map { songs ->
+            songs.filter { it.videoId == videoId || com.cosmotune.music.data.recommendations.MusicBlocks.allows(it) }
+        }
+
+    private suspend fun unblockedRadio(videoId: String, seedSong: Song? = null): Result<List<Song>> {
         val remote = call("radio:$videoId") { InnertubeParser.parseWatchQueue(Innertube.next(videoId)) }
         val seed = seedSong ?: remote.getOrNull()?.firstOrNull { it.videoId == videoId } ?: return remote
         return try {
@@ -1165,11 +1172,18 @@ object YtMusicRepository {
 
     /**
      * The signed-in listener's "Mixed for you" page (Music's Radio, from upstream 1.10): My Supermix, Replay Mix, the mixes made
-     * from their taste and the mood mixes, in one list. Empty while signed out: the page is the account's own.
+     * from their taste and the mood mixes, sorted into Radio's kinds. Radio sorts them by their English names, so in another language
+     * the page is asked for in English too and only its names are used; the cards keep the listener's titles. Empty while signed out:
+     * the page is the account's own.
      */
-    suspend fun mixedForYou(): Result<List<ShelfItem>> = call("mixedForYou") {
-        if (Innertube.cookie == null) return@call emptyList()
-        InnertubeParser.parseTwoRowItemsDeep(Innertube.browse("FEmusic_mixed_for_you"))
+    suspend fun mixedForYou(): Result<MixGroups> = call("mixedForYou") {
+        if (Innertube.cookie == null) return@call MixGroups.of(emptyList())
+        val cards = InnertubeParser.parseTwoRowItemsDeep(Innertube.browse("FEmusic_mixed_for_you"))
+        val english = if (Innertube.currentLanguage.startsWith("en") || cards.isEmpty()) emptyMap() else runCatching {
+            InnertubeParser.parseTwoRowItemsDeep(Innertube.browse("FEmusic_mixed_for_you", language = "en"))
+                .mapNotNull { card -> card.browseId?.let { it to card.title } }.toMap()
+        }.getOrElse { if (it is CancellationException) throw it; emptyMap() }
+        MixGroups.of(cards, english)
     }
 
     private suspend fun <T> call(label: String, block: suspend () -> T): Result<T> =

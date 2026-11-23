@@ -42,8 +42,10 @@ import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ThumbDown
@@ -320,6 +322,19 @@ fun SongActionsSheet(
             accent = palette.accent,
             onClick = onStartRadio,
         )
+        // Keeps this artist out of AutoPlay, radio and Home (Settings, Look and colours, Blocked artists lets them back).
+        val blockContext = androidx.compose.ui.platform.LocalContext.current
+        com.cosmotune.music.data.recommendations.MusicBlocks.artistsOf(song).firstOrNull()?.takeIf { song.localUri == null }?.let { artist ->
+            ActionRow(
+                icon = Icons.Rounded.Block,
+                label = "Don't play $artist",
+                accent = palette.accent,
+                onClick = {
+                    com.cosmotune.ui.settings.cosmoLookSettings(blockContext).setArtistBlocked(artist, true)
+                    android.widget.Toast.makeText(blockContext, "$artist won't play in AutoPlay, radio or Home", android.widget.Toast.LENGTH_SHORT).show()
+                },
+            )
+        }
         if (!orbitChips) {
             ActionRow(
                 icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
@@ -390,8 +405,22 @@ fun SongActionsSheet(
             onShare?.let {
                 ActionRow(Icons.Rounded.Share, stringResource(R.string.share), accent = palette.accent, onClick = it)
             }
+        } else {
+            // A song kept on the phone has no link to share: its file goes instead.
+            val shareContext = androidx.compose.ui.platform.LocalContext.current
+            val shareScope = rememberCoroutineScope()
+            ActionRow(Icons.Rounded.Share, "Share the file", accent = palette.accent, onClick = {
+                shareScope.launch {
+                    if (!com.cosmotune.music.share.LocalFileShare.share(shareContext, song)) {
+                        android.widget.Toast.makeText(shareContext, "This file can't be read right now", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            })
         }
         onSongInfo?.let { ActionRow(Icons.Rounded.Info, "Song info", accent = palette.accent, onClick = it) }
+        if (song.videoId.isNotBlank()) {
+            ActionRow(Icons.Rounded.StarBorder, "Rate and tag", accent = palette.accent, onClick = { com.cosmotune.ui.sheets.SongTagging.open(song) })
+        }
         // Last, and only from the player: it is about the track playing right
         // now rather than about the song as a thing in a library, and it is
         // the one row here nobody reaches for by accident.

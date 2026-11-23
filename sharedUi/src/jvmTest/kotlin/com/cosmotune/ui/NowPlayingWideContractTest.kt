@@ -75,7 +75,7 @@ class NowPlayingWideContractTest {
         val button = SourceContract.functionBody(card, "NowPlayingPlayButton")
         assertTrue(button.contains("OrbitPlayButton(t.isPlaying, t.onPlayPause, look, size = size)"), "the bite's button is play / pause")
         assertTrue(button.contains("if (t.isLoading)") && button.contains("OrbitRing("), "the moon circles it while the song loads")
-        assertTrue(body.contains("OrbitProgressLine(t::progress, ink"), "the seek line")
+        assertTrue(body.contains("SongSeekLine(t, ink, fonts)"), "the seek line (the waveform line, or the plain Orbit line)")
         assertTrue(body.contains("CardTimes(t, fonts, ink, quality,"), "with the times and the measured quality under it")
         assertTrue(card.contains("\"NOW ORBITING\""), "the mono label")
         val call = screen.substring(screen.indexOf("card = { m, wideCard ->"), screen.indexOf("panel = { m ->"))

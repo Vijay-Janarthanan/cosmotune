@@ -1,5 +1,6 @@
 package com.cosmotune.music.ui.components
 
+import com.cosmotune.ui.extras.downloadHistoryItems
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
@@ -181,6 +182,7 @@ fun DownloadManagerSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     val look = orbitLook()
     // Newest ask last, the order the queue will actually reach them in.
     val items = remember(session.items) { session.items.sortedBy { it.sequence } }
+    val history by com.cosmotune.settings.Extras.settings.downloadHistory.collectAsStateWithLifecycle()
 
     Column(modifier.fillMaxWidth()) {
         queueError?.let { Text(it, style = fonts.body, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(18.dp)) }
@@ -231,6 +233,12 @@ fun DownloadManagerSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
                     onRetry = { Downloads.retry(context, item.videoId) },
                 )
             }
+            // What came before this sitting, kept across restarts; this sitting's songs are the rows above.
+            val inSession = items.mapTo(HashSet()) { it.song.videoId }
+            downloadHistoryItems(
+                history.filterNot { it.trackId in inSession }, System.currentTimeMillis(),
+                onClear = com.cosmotune.settings.Extras.settings::clearDownloadHistory,
+            )
         }
         Spacer(Modifier.height(12.dp))
     }

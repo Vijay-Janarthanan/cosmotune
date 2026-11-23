@@ -54,7 +54,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CreateNewFolder
+import androidx.compose.material.icons.rounded.Star
 import com.cosmotune.design.LibrarySegment
+import com.cosmotune.listening.PlaylistFolders
+import com.cosmotune.music.ui.player.PlayerBackHandler
+import com.cosmotune.settings.Extras
 import com.cosmotune.design.LibrarySegments
 import com.cosmotune.music.data.model.HomeShelf
 import com.cosmotune.music.data.model.LibraryPage
@@ -200,6 +206,38 @@ fun CosmoLibrary(
     val pinnedPlaylist = remember(playlists, pinned, liked) { playlists.firstOrNull { it.browseId != null && it.browseId in pinned && it != liked } }
     // Find in the library: what the chosen chip shows, narrowed by title (and by artist for songs). Cleared with the chip.
     var query by rememberSaveable(segmentIndex) { mutableStateOf("") }
+    // Playlist folders: this device's own, kept in the extras settings; the one opened, and the dialog over them.
+    val folders by Extras.settings.playlistFolders.collectAsStateWithLifecycle()
+    var openFolder by rememberSaveable { mutableStateOf<String?>(null) }
+    var folderDialog by remember { mutableStateOf<FolderDialog?>(null) }
+    // Moods and tags: the songs rated or tagged on this device, a tile that opens their pages.
+    val tagged by Extras.settings.songTags.collectAsStateWithLifecycle()
+    var tagPages by remember { mutableStateOf(false) }
+    if (tagPages) com.cosmotune.ui.sheets.SongTagsSheet(onDismiss = { tagPages = false }, onPlay = onSongClick)
+    PlayerBackHandler(enabled = openFolder != null && chip == LibraryChip.PLAYLISTS) { openFolder = null }
+    val folderPage = FolderPage(
+        folders = folders,
+        open = openFolder?.takeIf { name -> folders.any { it.name == name } },
+        onOpen = { openFolder = it },
+        onNew = { folderDialog = FolderDialog.New },
+        onRename = { folderDialog = FolderDialog.Rename(it) },
+        onDelete = { name -> Extras.settings.setPlaylistFolders(PlaylistFolders.remove(folders, name)); if (openFolder == name) openFolder = null },
+        onChoose = { folderDialog = FolderDialog.Choose(it) },
+    )
+    when (val dialog = folderDialog) {
+        null -> Unit
+        FolderDialog.New -> PlaylistFolderNameDialog(folders, renaming = null, onDismiss = { folderDialog = null }) { name ->
+            Extras.settings.setPlaylistFolders(PlaylistFolders.create(folders, name)); folderDialog = FolderDialog.Choose(name)
+        }
+        is FolderDialog.Rename -> PlaylistFolderNameDialog(folders, renaming = dialog.name, onDismiss = { folderDialog = null }) { name ->
+            Extras.settings.setPlaylistFolders(PlaylistFolders.rename(folders, dialog.name, name))
+            if (openFolder == dialog.name) openFolder = name
+            folderDialog = null
+        }
+        is FolderDialog.Choose -> PlaylistFolderChooseDialog(dialog.name, playlists.filter { it != liked }, folders, onDismiss = { folderDialog = null }) { ids ->
+            Extras.settings.setPlaylistFolders(PlaylistFolders.setPlaylists(folders, dialog.name, ids)); folderDialog = null
+        }
+    }
     PullToRefresh(refreshing = refreshing, onRefresh = onRefresh, state = pullState, modifier = modifier) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth >= 840.dp
@@ -226,6 +264,8 @@ fun CosmoLibrary(
                         onPlay = onSongClick,
                         onDownloaded = { segmentIndex = LibraryChip.DOWNLOADED.ordinal },
                         onHistory = onHistory,
+                        taggedCount = tagged.size,
+                        onTagged = { tagPages = true },
                     )
                 }
                 item(key = "segments") {
@@ -266,7 +306,7 @@ fun CosmoLibrary(
                             // The same page with the picked playlist covers in (see `shown` above).
                             val data = library ?: state.data
                             when (chip) {
-                                LibraryChip.PLAYLISTS -> playlistsSegment(data.shelves, pinned, replay, onShelfItemClick, onShelfItemLongPress, onNewPlaylist, onImportSpotifyPlaylist, onShowAll, page)
+                                LibraryChip.PLAYLISTS -> playlistsSegment(data.shelves, pinned, replay, onShelfItemClick, onShelfItemLongPress, onNewPlaylist, onImportSpotifyPlaylist, onShowAll, page, folderPage)
                                 LibraryChip.ALBUMS -> albumsSegment(LibrarySegments.shelfFor(LibrarySegment.ALBUMS, data.shelves), onShelfItemClick, onShelfItemLongPress, page)
                                 LibraryChip.ARTISTS -> artistsSegment(LibrarySegments.shelfFor(LibrarySegment.ARTISTS, data.shelves), onShelfItemClick, onShelfItemLongPress, page)
                                 else -> songsSegment(data, currentSong, isPlaying, onSongClick, onSongLongPress, onShelfItemClick, page)
@@ -342,6 +382,8 @@ private fun ShortcutTiles(
     onPlay: ((List<Song>, Int) -> Unit)?,
     onDownloaded: () -> Unit,
     onHistory: (() -> Unit)?,
+    taggedCount: Int = 0,
+    onTagged: (() -> Unit)? = null,
 ) {
     val tiles = mutableListOf<@Composable (Modifier) -> Unit>()
     if (liked != null || likedSongs.isNotEmpty()) tiles += { m ->
@@ -361,6 +403,10 @@ private fun ShortcutTiles(
     }
     if (onHistory != null) tiles += { m ->
         ShortcutTile("History", "What you played", page, m, onClick = onHistory, lead = { TileIcon(CosmoIcons.Clock, page.look.ink, page.look.chip) }, testTag = "music:library:history")
+    }
+    if (taggedCount > 0 && onTagged != null) tiles += { m ->
+        ShortcutTile("Moods and tags", songsText(taggedCount), page, m, onClick = onTagged,
+            lead = { TileIcon(Icons.Rounded.Star, page.look.ink, page.look.chip) }, testTag = "music:library:tags")
     }
     if (pinned != null) tiles += { m ->
         ShortcutTile(pinned.title, listOf("Pinned", localizeCardSubtitle(pinned.subtitle)).filter { it.isNotBlank() }.joinToString(" · "), page, m,
@@ -542,12 +588,32 @@ private fun LazyListScope.playlistsSegment(
     onImportSpotifyPlaylist: (() -> Unit)?,
     onShowAll: (HomeShelf) -> Unit,
     page: LibraryLook,
+    folders: FolderPage,
 ) {
     val layout = LibrarySegments.playlistLayout(LibrarySegments.shelfFor(LibrarySegment.PLAYLISTS, shelves)?.items.orEmpty(), pinned)
-    item(key = "replay") { replay() }
-    makeChips(onNewPlaylist, onImportSpotifyPlaylist, page)
     // The liked playlist has its card above; the mix the old page gave a tile of its own is a record like the rest.
-    val rows = LibrarySegments.sorted(listOfNotNull(layout.mix) + layout.rows, page.sort).matching(page)
+    val all = LibrarySegments.sorted(listOfNotNull(layout.mix) + layout.rows, page.sort)
+    val counts = PlaylistFolders.counts(all, folders.folders) { it.browseId }
+    val open = folders.open
+    val rows = if (open != null) {
+        // An opened folder: its head, then its playlists.
+        val inside = PlaylistFolders.inFolder(all, folders.folders, open) { it.browseId }
+        item(key = "folder-bar") {
+            PlaylistFolderBar(open, counts[open] ?: 0, page.fonts, page.look, page.side, onBack = { folders.onOpen(null) }, onChoose = { folders.onChoose(open) })
+        }
+        if (inside.isEmpty()) item(key = "folder:empty") { MessageState("Nothing in this folder yet. Choose playlists to put here.") }
+        inside.matching(page)
+    } else {
+        item(key = "replay") { replay() }
+        makeChips(onNewPlaylist, onImportSpotifyPlaylist, page, onNewFolder = folders.onNew)
+        // The folders first; a playlist in one is left off the top of the page, unless the listener is looking for it.
+        val shownFolders = folders.folders.filter { page.query.isEmpty() || it.name.contains(page.query, ignoreCase = true) }
+        itemsIndexed(shownFolders, key = { _, folder -> "playlist-folder:" + folder.name }) { _, folder ->
+            PlaylistFolderRow(folder.name, counts[folder.name] ?: 0, page.fonts, page.look, page.side,
+                onOpen = { folders.onOpen(folder.name) }, onRename = { folders.onRename(folder.name) }, onDelete = { folders.onDelete(folder.name) })
+        }
+        if (page.query.isEmpty()) PlaylistFolders.loose(all, folders.folders) { it.browseId } else all.matching(page)
+    }
     if (page.grid) recordGrid("playlist", rows, onClick, onLongPress, page)
     else itemsIndexed(rows, key = { index, item -> "playlist:" + shelfKey(item, index) }) { _, item ->
         val pinnedItem = item.browseId != null && item.browseId in pinned
@@ -566,7 +632,7 @@ private fun LazyListScope.playlistsSegment(
             },
         )
     }
-    for (shelf in LibrarySegments.otherShelves(shelves)) {
+    if (open == null) for (shelf in LibrarySegments.otherShelves(shelves)) {
         if (shelf.items.isEmpty()) continue
         sectionHeader("shelf-header:${shelf.title}", shelf.title, page)
         item(key = "shelf:${shelf.title}") {
@@ -584,10 +650,14 @@ private fun LazyListScope.playlistsSegment(
 }
 
 /** The chips that make a playlist, and, when this build can import one, the chip that imports from Spotify. */
-private fun LazyListScope.makeChips(onNewPlaylist: () -> Unit, onImportSpotifyPlaylist: (() -> Unit)?, page: LibraryLook) {
+private fun LazyListScope.makeChips(onNewPlaylist: () -> Unit, onImportSpotifyPlaylist: (() -> Unit)?, page: LibraryLook, onNewFolder: (() -> Unit)? = null) {
     item(key = "make") {
         OrbitChipRow(page.side, Modifier.padding(top = 14.dp, bottom = 6.dp)) {
             OrbitSelectChip(stringResource(Res.string.new_playlist), selected = false, fonts = page.fonts, look = page.look, onClick = onNewPlaylist, icon = CosmoIcons.Plus)
+            if (onNewFolder != null) {
+                OrbitSelectChip("New folder", selected = false, fonts = page.fonts, look = page.look, onClick = onNewFolder, icon = Icons.Rounded.CreateNewFolder,
+                    modifier = Modifier.testTag("music:library:new-folder"))
+            }
             if (onImportSpotifyPlaylist != null) {
                 OrbitSelectChip(stringResource(Res.string.import_spotify), selected = false, fonts = page.fonts, look = page.look, onClick = onImportSpotifyPlaylist,
                     painter = painterResource(Res.drawable.spotify_logo))

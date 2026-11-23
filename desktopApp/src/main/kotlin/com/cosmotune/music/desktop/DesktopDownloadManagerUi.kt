@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import com.cosmotune.ui.extras.downloadHistoryItems
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,16 +77,21 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
         }
 
         storageError?.let { Text(it, color = DesktopAccent, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+        val history by com.cosmotune.settings.Extras.settings.downloadHistory.collectAsState()
+        // Earlier downloads, kept across restarts; what is in the queue now is listed above them.
+        val earlier = remember(history, items) { items.mapTo(HashSet()) { it.song.videoId }.let { queued -> history.filterNot { it.trackId in queued } } }
         if (items.isEmpty()) {
             Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
                 Text(DesktopStrings["nothing_downloading", "Nothing downloading."], color = dimColor)
             }
-        } else {
+        }
+        if (items.isNotEmpty() || earlier.isNotEmpty()) {
             LazyColumn(
-                Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                Modifier.fillMaxWidth().heightIn(max = 420.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(items, key = { it.jobId }) { item -> OrbitDownloadRow(item) }
+                downloadHistoryItems(earlier, System.currentTimeMillis(), com.cosmotune.settings.Extras.settings::clearDownloadHistory, horizontal = 20.dp)
             }
         }
         Spacer(Modifier.height(12.dp))

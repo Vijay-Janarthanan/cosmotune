@@ -136,7 +136,7 @@ class NowPlayingPanelsContractTest {
         val handlers = Regex("""PlayerBackHandler\(enabled = ([\w.]+)""").findAll(src).map { it.groupValues[1] }.toList()
         // a later call is the one back reaches first: the lyrics, the queue, then the sheets
         assertEquals(
-            listOf("panels.lyricsOpen", "panels.queueOpen", "panels.relatedOpen", "cinemaShown", "chooseVideoOpen", "flags.output", "flags.providers", "flags.members", "flags.details", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
+            listOf("panels.lyricsOpen", "panels.queueOpen", "panels.relatedOpen", "cinemaShown", "chooseVideoOpen", "flags.output", "flags.providers", "flags.lyricsSearch", "flags.lyricsEditor", "flags.members", "flags.details", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
             handlers,
         )
         assertTrue(src.indexOf("PlayerBackHandler(enabled = panels.queueOpen && !wide)") in 0 until src.indexOf("NowPlayingSheets(\n                song"), "the panels register before the sheets")
@@ -150,8 +150,9 @@ class NowPlayingPanelsContractTest {
             assertTrue(call.contains("hazeState = hazeState"), "$sheet takes the player's haze state")
         }
         assertTrue(src.contains("currentSource = lyricsSource") && src.contains("states = lyricsProviderStates") && src.contains("onSelect = onSelectLyricsProvider"))
-        assertTrue(src.contains("KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||"))
-        assertTrue(src.contains("nowPlayingVideoKeepsScreenOn(videoShowing = wantVideo && rendered, isPlaying = isPlaying, isLoading = isLoading))"),
+        assertTrue(src.contains("KeepScreenOn(enabled = screenOnPolicy.keepsOn("), "the player follows Keep the screen on")
+        assertTrue(src.contains("lyricsOrVideo = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown ||"))
+        assertTrue(src.contains("nowPlayingVideoKeepsScreenOn(videoShowing = wantVideo && rendered, isPlaying = isPlaying, isLoading = isLoading),"),
             "the song's video keeps the screen on while it shows and play is wanted")
         assertFalse(src.contains("(wantVideo && rendered && isPlaying))"), "not only while its frames advance")
         assertTrue(src.contains("flags.providers = true") || src.contains("sheets.providers = true"), "the lyrics status opens the provider sheet")

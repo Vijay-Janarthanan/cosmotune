@@ -94,15 +94,7 @@ fun ReplayStories(
 ) {
     // A category with nothing in it has no card: an empty page in the middle of
     // a story reads as the app having lost something.
-    val pages = remember(summary) {
-        ReplayStoryPage.ordered.filter { page ->
-            when (page) {
-                ReplayStoryPage.ALBUMS -> summary.albums.isNotEmpty()
-                ReplayStoryPage.GENRES -> summary.genres.isNotEmpty()
-                else -> true
-            }
-        }
-    }
+    val pages = remember(summary) { summary.storyPages() }
     val pagerState = rememberPagerState(
         initialPage = pages.indexOf(start).coerceAtLeast(0),
         pageCount = { pages.size },

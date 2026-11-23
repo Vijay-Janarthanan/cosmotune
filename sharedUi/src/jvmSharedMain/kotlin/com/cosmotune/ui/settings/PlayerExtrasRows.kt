@@ -2,11 +2,22 @@ package com.cosmotune.ui.settings
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.cosmotune.settings.ScreenOnPolicy
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.cosmotune.settings.Extras
 import com.cosmotune.settings.ExtrasSettings
@@ -20,8 +31,20 @@ object PlayerExtrasText {
         "and applies from the next song."
     const val SLEEP_FADE = "Fade out before the sleep timer stops"
     const val SLEEP_FADE_LINE = "The volume goes down over the last 30 seconds."
+    const val SCREEN_ON = "Keep the screen on"
+    const val SCREEN_ON_LINE = "The lyrics and videos always keep it on. Choose to keep it on while the player is open, or whenever music plays."
     const val BEST_PART = "Best part button"
-    const val BEST_PART_LINE = "A button on the player that skips to the part of the song people replay most, when YouTube knows it."
+    const val BEST_PART_LINE = "A button on the player that skips to the part of the song people replay most, or else to the chorus in its lyrics."
+    const val NOTIFICATION_SLEEP = "Sleep timer on the notification"
+    const val NOTIFICATION_SLEEP_LINE = "The notification's second button sets the sleep timer instead of Repeat: each tap goes 15, 30, 60 minutes, then off."
+    const val WAVEFORM = "Waveform seek line"
+    const val MUSIC_SKIPS = "Skip the talking in music videos"
+    const val MUSIC_SKIPS_LINE = "Jumps over the parts of a music video that are not the song, a sponsor read or a plug, as SponsorBlock's listeners marked them."
+    const val SONG_NOTICES = "Song notifications"
+    const val SONG_NOTICES_LINE = "A notice names each new song while Cosmotune's window is behind other apps."
+    const val GLOBAL_SHORTCUTS = "Shortcuts in any app"
+    val GLOBAL_SHORTCUTS_LINE = "Works while another app is in front. " + com.cosmotune.listening.GlobalShortcuts.summary()
+    const val WAVEFORM_LINE = "The seek line shows how loud the song gets once you have heard it, with dots where listeners left a comment about a moment."
 }
 
 /** YouTube Premium's higher Opus rung for a signed-in account ([ExtrasSettings.premiumAudio]); off until turned on. */
@@ -43,6 +66,65 @@ fun SleepFadeOutRow(settings: ExtrasSettings = Extras.settings) {
 fun BestPartRow(settings: ExtrasSettings = Extras.settings) {
     val on by settings.bestPart.collectAsState()
     ExtrasSwitchRow(Icons.Rounded.Whatshot, PlayerExtrasText.BEST_PART, PlayerExtrasText.BEST_PART_LINE, on, settings::setBestPart)
+}
+
+/** The sleep timer in place of Repeat on the phone notification ([ExtrasSettings.notificationSleep]); off until turned on. */
+@Composable
+fun NotificationSleepRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.notificationSleep.collectAsState()
+    ExtrasSwitchRow(Icons.Rounded.Bedtime, PlayerExtrasText.NOTIFICATION_SLEEP, PlayerExtrasText.NOTIFICATION_SLEEP_LINE, on, settings::setNotificationSleep)
+}
+
+/** Skipping the marked parts of music videos that are not the song ([ExtrasSettings.musicSkips]); off until turned on. */
+@Composable
+fun MusicSkipsRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.musicSkips.collectAsState()
+    ExtrasSwitchRow(Icons.Rounded.FastForward, PlayerExtrasText.MUSIC_SKIPS, PlayerExtrasText.MUSIC_SKIPS_LINE, on, settings::setMusicSkips)
+}
+
+/** The desktop's notice for each new song while its window is behind others ([ExtrasSettings.songNotices]). */
+@Composable
+fun SongNoticesRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.songNotices.collectAsState()
+    ExtrasSwitchRow(Icons.Rounded.Notifications, PlayerExtrasText.SONG_NOTICES, PlayerExtrasText.SONG_NOTICES_LINE, on, settings::setSongNotices)
+}
+
+/** The desktop's Ctrl+Alt shortcuts that work in any app ([ExtrasSettings.globalShortcuts]); off until turned on. */
+@Composable
+fun GlobalShortcutsRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.globalShortcuts.collectAsState()
+    ExtrasSwitchRow(Icons.Rounded.Keyboard, PlayerExtrasText.GLOBAL_SHORTCUTS, PlayerExtrasText.GLOBAL_SHORTCUTS_LINE, on, settings::setGlobalShortcuts)
+}
+
+/** The waveform seek line with timed comments ([ExtrasSettings.waveformSeek]); on until turned off. */
+@Composable
+fun WaveformSeekRow(settings: ExtrasSettings = Extras.settings) {
+    val on by settings.waveformSeek.collectAsState()
+    ExtrasSwitchRow(com.cosmotune.ui.components.CosmoIcons.Waveform, PlayerExtrasText.WAVEFORM, PlayerExtrasText.WAVEFORM_LINE, on, settings::setWaveformSeek)
+}
+
+/** When the screen stays on ([ExtrasSettings.screenOn]): a short pill in the row's own column, the full choices in its menu. */
+@Composable
+fun ScreenOnRow(settings: ExtrasSettings = Extras.settings) {
+    val policy by settings.screenOn.collectAsState()
+    var open by remember { mutableStateOf(false) }
+    CosmoSettingsRow(
+        icon = Icons.Rounded.LightMode,
+        title = PlayerExtrasText.SCREEN_ON,
+        subtitle = PlayerExtrasText.SCREEN_ON_LINE,
+        trailing = {
+            com.cosmotune.ui.orbit.OrbitMenuPill(
+                text = policy.short,
+                open = open,
+                onOpen = { open = true },
+                onDismiss = { open = false },
+                items = ScreenOnPolicy.entries.map { choice ->
+                    com.cosmotune.ui.orbit.OrbitMenuItem(choice.label, selected = choice == policy) { settings.setScreenOn(choice); open = false }
+                },
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        },
+    )
 }
 
 @Composable

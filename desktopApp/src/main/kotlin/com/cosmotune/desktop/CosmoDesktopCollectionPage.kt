@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -130,6 +131,8 @@ internal fun CosmoDesktopCollectionPage(
     onReorder: (() -> Unit)? = null,
     /** One of the account's own playlists: its cover can be changed (More, or a click on the disc) and put back to the automatic one. */
     coverEditable: Boolean = false,
+    /** An album or playlist into a playlist whole, from the card's More ("Add to playlists"); null where it cannot go. */
+    onAddAllToPlaylists: ((List<Song>) -> Unit)? = null,
     nowPlaying: Song? = null,
     isPlaying: Boolean = LocalCosmoPlaying.current,
 ) {
@@ -201,6 +204,7 @@ internal fun CosmoDesktopCollectionPage(
                     onRename = onRename,
                     onDelete = onDelete,
                     onReorder = onReorder,
+                    onAddToPlaylists = onAddAllToPlaylists?.let { add -> { add(songs) } }?.takeIf { songs.isNotEmpty() },
                     cover = picked ?: automatic,
                     onChangeCover = { coverPicker = true }.takeIf { coverEditable },
                     onUseAutomaticCover = { com.cosmotune.music.data.covers.PlaylistCovers.clearSoon(collection.browseId); Unit }
@@ -349,6 +353,7 @@ private fun CollectionCard(
     onRename: (() -> Unit)?,
     onDelete: (() -> Unit)?,
     onReorder: (() -> Unit)?,
+    onAddToPlaylists: (() -> Unit)?,
     cover: String?,
     onChangeCover: (() -> Unit)?,
     onUseAutomaticCover: (() -> Unit)?,
@@ -399,10 +404,20 @@ private fun CollectionCard(
         if (songs.isNotEmpty()) {
             OrbitCardButton(CosmoIcons.Download, DesktopStrings["download_all", "Download all"], colors, onDownloadAll)
         }
-        if (onShare != null || onRename != null || onReorder != null || onDelete != null || onChangeCover != null) {
+        if (onShare != null || onRename != null || onReorder != null || onDelete != null || onChangeCover != null || onAddToPlaylists != null) {
             Box {
                 OrbitCardButton(CosmoIcons.MoreVertical, DesktopStrings["more", "More"], colors, { moreOpen = true })
                 DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                    onAddToPlaylists?.let { add ->
+                        DropdownMenuItem(
+                            text = { Text("Add to playlists") },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, null) },
+                            onClick = {
+                                moreOpen = false
+                                add()
+                            },
+                        )
+                    }
                     onShare?.let { share ->
                         DropdownMenuItem(
                             text = { Text(DesktopStrings["share", "Share"]) },

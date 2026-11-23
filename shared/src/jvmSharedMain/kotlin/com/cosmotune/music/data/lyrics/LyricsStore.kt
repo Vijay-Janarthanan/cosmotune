@@ -55,6 +55,11 @@ object LyricsStore {
         val order: List<LyricsSource> = LyricsSource.entries,
         val prioritizeSyllableSync: Boolean = false,
         val isrc: String? = null,
+        /**
+         * Whether the listener's own lyrics for the song ([OwnLyrics]) answer first. Off for the player's own lookup, which lays
+         * them over the providers' answer itself (so removing them shows the providers' again at once); on for everyone else.
+         */
+        val ownFirst: Boolean = true,
     ) {
         /** The sources that will really be asked, in order: what [LyricsRepository] does with [order] and [sources]. */
         internal val asked: List<LyricsSource> get() = (order + LyricsSource.offered).distinct().filter { it in sources && !it.hidden }
@@ -118,6 +123,17 @@ object LyricsStore {
         onSourceCancelled: ((LyricsSource) -> Unit)? = null,
     ): LyricsRepository.Result? {
         if (request.asked.isEmpty()) return null
+        // The listener's own lyrics for the song outrank every provider, and need no lookup.
+        val own = when {
+            !request.ownFirst -> null
+            OwnLyrics.needsDisk(request.videoId) -> withContext(Dispatchers.IO) { OwnLyrics.lines(request.videoId) }
+            else -> OwnLyrics.lines(request.videoId)
+        }
+        own?.let { lines ->
+            val result = LyricsRepository.Result(LyricsSource.OWN, lines)
+            onSourceResult?.invoke(LyricsSource.OWN, result)
+            return result
+        }
         kept(request)?.let { saved ->
             val result = saved.result
             if (result != null) onSourceResult?.invoke(result.source, result)

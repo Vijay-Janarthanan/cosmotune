@@ -29,9 +29,9 @@ import java.nio.ByteOrder
  */
 @UnstableApi
 class DsdExtractorsFactory(private val delegate: ExtractorsFactory = DefaultExtractorsFactory()) : ExtractorsFactory {
-    override fun createExtractors(): Array<Extractor> = arrayOf(DsdExtractor(), *delegate.createExtractors())
+    override fun createExtractors(): Array<Extractor> = arrayOf(DsdExtractor(), AiffExtractor(), *delegate.createExtractors())
     override fun createExtractors(uri: Uri, responseHeaders: Map<String, List<String>>): Array<Extractor> =
-        arrayOf(DsdExtractor(), *delegate.createExtractors(uri, responseHeaders))
+        arrayOf(DsdExtractor(), AiffExtractor(), *delegate.createExtractors(uri, responseHeaders))
 }
 
 /**

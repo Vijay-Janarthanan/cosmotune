@@ -56,6 +56,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
         // Watch's Play on a TV lists Google Cast devices next to DLNA ones.
         com.cosmotune.watch.WatchReceiverFinders.googleCast = com.cosmotune.music.playback.cast.GoogleCastWatchFinder(this)
+        // The player's waveform seek line keeps each song's shape (72 bytes) for its next play.
+        com.cosmotune.music.data.audio.SongWaveforms.install(java.io.File(cacheDir, "waveforms"))
         com.cosmotune.music.data.cast.dlna.DlnaDiscovery.multicastHold = {
             val lock = applicationContext.getSystemService(android.net.wifi.WifiManager::class.java)
                 .createMulticastLock("cosmotune-dlna").apply { setReferenceCounted(false); acquire() }
@@ -108,6 +110,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         com.cosmotune.cache.PageCache.configure(java.io.File(cacheDir, "pages"))
         // Each song's lyrics, looked up once for the player and the service together and kept between plays (LyricsStore).
         com.cosmotune.music.data.lyrics.LyricsStore.configure(java.io.File(cacheDir, "lyrics"))
+        // Lyrics the listener chose or timed themselves: kept for good, in the app's own files (OwnLyrics).
+        com.cosmotune.music.data.lyrics.OwnLyrics.configure(java.io.File(filesDir, "own-lyrics"))
         // A song video candidate's preview frames (a WebP sheet), to tell a still poster from a video.
         com.opencanvas.core.stream.PreviewFrames.decoder = { bytes ->
             runCatching {
@@ -204,6 +208,7 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         com.cosmotune.music.download.PlaylistDownloadScheduler.init(this)
         // "Keep downloaded" playlists come down with their page closed: daily on Wi-Fi, and as soon as a switch is turned on.
         com.cosmotune.music.download.KeepDownloadedScheduler.init(this)
+        com.cosmotune.music.data.stats.AutoBackupScheduler.init(this)
         // The device's own listening record. Opened here rather than in
         // PlaybackService because the Replay page reads it from the UI side and
         // both live in this process — one owner, one directory.

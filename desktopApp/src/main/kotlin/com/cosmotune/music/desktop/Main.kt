@@ -36,6 +36,15 @@ import org.jetbrains.compose.resources.painterResource
 
 internal val desktopSharedPlaylist = MutableStateFlow<String?>(null)
 
+/** A song file Cosmotune was opened with ("Open with" in the file manager): Music plays it. */
+internal val desktopOpenedAudio = MutableStateFlow<String?>(null)
+
+/** Whether [arg] is a song file on this computer (by its name; the folder scan's own check). */
+internal fun isAudioFileArg(arg: String): Boolean = runCatching {
+    val path = java.nio.file.Path.of(arg)
+    java.nio.file.Files.isRegularFile(path) && path.fileName.toString().substringAfterLast(".", "").lowercase() in DesktopLocalMusic.supportedExtensions + setOf("opus", "oga")
+}.getOrDefault(false)
+
 private fun offerDesktopLink(link: String) {
     // A radio station playlist (a .pls or .m3u file or address) goes to Podio's Add a station.
     if (com.cosmotune.podio.PodioLinks.offerDesktop(link)) return
@@ -45,6 +54,7 @@ private fun offerDesktopLink(link: String) {
         runCatching { DesktopWindowVisibility.show() }
         return
     }
+    if (isAudioFileArg(link)) { desktopOpenedAudio.value = link; return }
     val playlist = SharedPlaylistLink.fromOpenUri(link)
     if (playlist != null) desktopSharedPlaylist.value = playlist
     else com.cosmotune.desktop.DesktopWatch.offer(link)
@@ -57,7 +67,8 @@ fun main(args: Array<String>) {
     val openLink = args.firstOrNull {
         com.cosmotune.watch.InstallLinks.isInstallLink(it) || com.cosmotune.watch.InstallLinks.isPackLink(it) ||
             SharedPlaylistLink.fromOpenUri(it) != null || com.cosmotune.podio.PodioLinks.accepts(it) ||
-                com.cosmotune.video.library.VideoOpenLinks.parse(it) != null
+                com.cosmotune.video.library.VideoOpenLinks.parse(it) != null ||
+                isAudioFileArg(it)
     }
     openLink?.let(::offerDesktopLink)
     // macOS hands URL-scheme opens (the bundle declares stremio:// and cosmotune://) to a running app through this handler.
@@ -65,9 +76,13 @@ fun main(args: Array<String>) {
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.APP_OPEN_URI)) {
             java.awt.Desktop.getDesktop().setOpenURIHandler { event -> offerDesktopLink(event.uri.toString()) }
         }
-        // A playlist file opened with Cosmotune from Finder.
+        // A playlist file, or a song file (the first one), opened with Cosmotune from Finder.
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.APP_OPEN_FILE)) {
-            java.awt.Desktop.getDesktop().setOpenFileHandler { event -> event.files.forEach { offerDesktopLink(it.absolutePath) } }
+            java.awt.Desktop.getDesktop().setOpenFileHandler { event ->
+                val (songs, others) = event.files.partition { isAudioFileArg(it.absolutePath) }
+                others.forEach { offerDesktopLink(it.absolutePath) }
+                songs.firstOrNull()?.let { offerDesktopLink(it.absolutePath) }
+            }
         }
     }
     // Cosmotune already running: the link goes to that process (its Install sheet opens there) and this one ends.
@@ -86,6 +101,8 @@ fun main(args: Array<String>) {
             failure.stackTrace.take(30).joinToString("\n") { "    at $it" })
     }
     com.cosmotune.diagnostics.CrashNotes.configure(com.cosmotune.desktop.DesktopWatch.dataDir.parentFile)
+    // The player's waveform seek line keeps each song's shape (72 bytes) for its next play.
+    com.cosmotune.music.data.audio.SongWaveforms.install(java.io.File(com.cosmotune.desktop.DesktopWatch.dataDir.parentFile, "waveforms"))
     val shutdown = Thread({ instance.close() }, "cosmotune-instance-cleanup")
     Runtime.getRuntime().addShutdownHook(shutdown)
     try {
@@ -131,6 +148,8 @@ private fun runDesktop() {
     com.cosmotune.cache.PageCache.configure(DesktopMediaCache.directory.resolveSibling("pages").toFile())
     // Each song's lyrics, kept between plays (LyricsStore).
     com.cosmotune.music.data.lyrics.LyricsStore.configure(DesktopMediaCache.directory.resolveSibling("lyrics").toFile())
+    // Lyrics the listener chose or timed themselves: kept for good beside the listening history, not in the cache (OwnLyrics).
+    com.cosmotune.music.data.lyrics.OwnLyrics.configure(java.io.File(com.cosmotune.desktop.desktopListeningFile().parentFile, "own-lyrics"))
     // A song video candidate's preview frames (a WebP sheet) are opened with Skia, to tell a still poster from a video.
     com.opencanvas.core.stream.PreviewFrames.decoder = { bytes ->
         runCatching {
@@ -162,6 +181,10 @@ private fun runDesktop() {
         }.collect { com.cosmotune.music.data.recommendations.LocalRecommendations.useLastFm(it) }
     }
     DesktopDownloadQueue.restore(java.io.File(desktopRecommendationData().parentFile, "downloads/queue.json"))
+    // A drained queue says how it went: a tray notice, or the window's own notice where there is no tray.
+    DesktopDownloadQueue.onBatchFinished = { summary ->
+        if (!DesktopAwtTray.notify("Downloads finished", summary)) DesktopPlayerHost.showMessage(summary)
+    }
     com.cosmotune.providers.ProviderHub.configure(java.io.File(desktopRecommendationData().parentFile, "providers"), cache = DesktopMediaCache.directory.resolve("provider-artwork").toFile())
     // Where cloud sync remembers how far it got; the session itself is in the credential store.
     DesktopCloud.configure(java.io.File(desktopRecommendationData().parentFile, "cloud"))
@@ -208,6 +231,7 @@ private fun desktopMain() = application {
     // Closing puts the window away rather than ending the process, while there is a tray icon to
     // bring it back from — see [DesktopWindowVisibility].
     val visible by DesktopWindowVisibility.visible.collectAsState()
+    val windowTitle by DesktopWindowTitle.title.collectAsState()
     val state = rememberWindowState(width = 1_220.dp, height = 780.dp)
     LaunchedEffect(visible) {
         if (visible && state.isMinimized) {
@@ -244,7 +268,7 @@ private fun desktopMain() = application {
         // and a button its press. See [DesktopSpaceKey].
         onKeyEvent = { event -> DesktopSpaceKey.onKeyEvent(event, lookSettings.mode.value) },
         visible = visible,
-        title = "Cosmotune",
+        title = windowTitle,
         icon = painterResource(Res.drawable.logo),
         state = state,
         // No system title bar on Windows, where the application draws its own instead — see

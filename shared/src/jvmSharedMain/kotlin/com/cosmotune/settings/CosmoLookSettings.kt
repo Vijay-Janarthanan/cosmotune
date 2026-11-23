@@ -98,6 +98,128 @@ class CosmoLookSettings(private val store: KeyValueStore) {
 
     fun setKeepDownloadedCheckedMs(ms: Long) = store.putString(KEY_KEEP_CHECKED, ms.toString())
 
+    private val smartDownloadsFlow = MutableStateFlow(store.getInt(KEY_SMART_DOWNLOADS, 0).coerceAtLeast(0))
+
+    /**
+     * Smart downloads: how many of the listener's most played songs are kept downloaded (0 for off; 25, 50 or 100). The songs
+     * download on Wi-Fi once a day, and a song this fetched is removed again once it falls well out of the most played.
+     */
+    val smartDownloads: StateFlow<Int> = smartDownloadsFlow.asStateFlow()
+
+    fun setSmartDownloads(count: Int) {
+        val kept = count.coerceAtLeast(0)
+        store.putInt(KEY_SMART_DOWNLOADS, kept)
+        smartDownloadsFlow.value = kept
+    }
+
+    /** The songs Smart downloads fetched itself: the only ones it ever removes. */
+    fun smartKept(): Set<String> = readSet(KEY_SMART_KEPT)
+
+    fun setSmartKept(ids: Set<String>) = writeSet(KEY_SMART_KEPT, ids)
+
+    private val localRulesFlow = MutableStateFlow(
+        com.cosmotune.listening.LocalLibraryRules(store.getInt(KEY_LOCAL_MIN_SECONDS, 0).coerceAtLeast(0), readFolders()),
+    )
+
+    /** The rules for the songs on the device: the shortest song shown, and the folders hidden (Local music settings). */
+    val localRules: StateFlow<com.cosmotune.listening.LocalLibraryRules> = localRulesFlow.asStateFlow()
+
+    private fun readLines(key: String): List<String> = store.getString(key, "").split('\n').filter { it.isNotBlank() }
+
+    private val autoBackupFlow = MutableStateFlow(store.getInt(KEY_AUTO_BACKUP_DAYS, 0).coerceAtLeast(0))
+    private val autoBackupFolderFlow = MutableStateFlow(store.getString(KEY_AUTO_BACKUP_FOLDER, ""))
+
+    /** Days between automatic backups (0 off, 1 daily, 7 weekly), see [com.cosmotune.listening.AutoBackup]. */
+    val autoBackupDays: StateFlow<Int> = autoBackupFlow.asStateFlow()
+
+    /** Where automatic backups go: a folder path on the desktop, a document tree address on the phone; empty until chosen. */
+    val autoBackupFolder: StateFlow<String> = autoBackupFolderFlow.asStateFlow()
+
+    fun setAutoBackupDays(days: Int) {
+        store.putInt(KEY_AUTO_BACKUP_DAYS, days.coerceAtLeast(0))
+        autoBackupFlow.value = days.coerceAtLeast(0)
+    }
+
+    fun setAutoBackupFolder(folder: String) {
+        store.putString(KEY_AUTO_BACKUP_FOLDER, folder)
+        autoBackupFolderFlow.value = folder
+    }
+
+    /** When the last automatic backup was written (epoch ms), 0 for never. */
+    fun autoBackupLast(): Long = store.getString(KEY_AUTO_BACKUP_LAST, "").toLongOrNull() ?: 0L
+
+    fun setAutoBackupLast(ms: Long) = store.putString(KEY_AUTO_BACKUP_LAST, ms.toString())
+
+    private val blockedArtistsFlow = MutableStateFlow(readLines(KEY_BLOCKED_ARTISTS).toSet())
+    private val hideExplicitFlow = MutableStateFlow(store.getBoolean(KEY_HIDE_EXPLICIT, false))
+
+    /** The artists the listener blocked (a song menu's "Don't play this artist"), as they were named. */
+    val blockedArtists: StateFlow<Set<String>> = blockedArtistsFlow.asStateFlow()
+
+    /** Whether explicit songs are kept out of AutoPlay, radio and Home. */
+    val hideExplicit: StateFlow<Boolean> = hideExplicitFlow.asStateFlow()
+
+    init { publishBlocks() }
+
+    fun setArtistBlocked(name: String, blocked: Boolean) {
+        val clean = name.replace('\n', ' ').trim().ifEmpty { return }
+        val key = com.cosmotune.music.data.recommendations.MusicBlocks.key(clean)
+        val without = blockedArtistsFlow.value.filterNot { com.cosmotune.music.data.recommendations.MusicBlocks.key(it) == key }.toSet()
+        val next = if (blocked) without + clean else without
+        store.putString(KEY_BLOCKED_ARTISTS, next.joinToString("\n"))
+        blockedArtistsFlow.value = next
+        publishBlocks()
+    }
+
+    fun setHideExplicit(hide: Boolean) {
+        store.putBoolean(KEY_HIDE_EXPLICIT, hide)
+        hideExplicitFlow.value = hide
+        publishBlocks()
+    }
+
+    private fun publishBlocks() =
+        com.cosmotune.music.data.recommendations.MusicBlocks.update(blockedArtistsFlow.value, hideExplicitFlow.value)
+
+    private val hiddenHomeFlow = MutableStateFlow(readLines(KEY_HOME_HIDDEN).toSet())
+
+    /**
+     * What Home leaves out (Look and colours, Home sections; the upstream's Content preferences): shelves by their title, and
+     * [HOME_PICK_UP] (the top card) and [HOME_CHIPS] (the quick links and moods).
+     */
+    val hiddenHome: StateFlow<Set<String>> = hiddenHomeFlow.asStateFlow()
+
+    fun setHomeSectionHidden(section: String, hidden: Boolean) {
+        val next = if (hidden) hiddenHomeFlow.value + section else hiddenHomeFlow.value - section
+        store.putString(KEY_HOME_HIDDEN, next.joinToString("\n"))
+        hiddenHomeFlow.value = next
+    }
+
+    private val homeShelvesFlow = MutableStateFlow(readLines(KEY_HOME_SEEN))
+
+    /** The shelf titles Home last showed, in their order: the list the Home sections setting offers. */
+    val homeShelves: StateFlow<List<String>> = homeShelvesFlow.asStateFlow()
+
+    fun rememberHomeShelves(titles: List<String>) {
+        val next = (titles + homeShelvesFlow.value).map { it.replace('\n', ' ').trim() }.filter { it.isNotEmpty() }.distinct().take(MAX_HOME_SHELVES)
+        if (next == homeShelvesFlow.value) return
+        store.putString(KEY_HOME_SEEN, next.joinToString("\n"))
+        homeShelvesFlow.value = next
+    }
+
+    /** Folder paths can hold commas, so they are kept a line each. */
+    private fun readFolders(): Set<String> = store.getString(KEY_LOCAL_HIDDEN_FOLDERS, "").split('\n').filter { it.isNotBlank() }.toSet()
+
+    fun setLocalMinSeconds(seconds: Int) {
+        store.putInt(KEY_LOCAL_MIN_SECONDS, seconds.coerceAtLeast(0))
+        localRulesFlow.value = localRulesFlow.value.copy(minSeconds = seconds.coerceAtLeast(0))
+    }
+
+    fun setLocalFolderHidden(folder: String, hidden: Boolean) {
+        val next = if (hidden) localRulesFlow.value.hiddenFolders + folder else localRulesFlow.value.hiddenFolders - folder
+        store.putString(KEY_LOCAL_HIDDEN_FOLDERS, next.joinToString("\n"))
+        localRulesFlow.value = localRulesFlow.value.copy(hiddenFolders = next)
+    }
+
     private fun readSet(key: String): Set<String> = store.getString(key, "").split(SET_SEPARATOR).filter { it.isNotBlank() }.toSet()
 
     /** At most the last [MAX_SET] entries: a preferences value has a length limit on the desktop (8 KiB). */
@@ -151,6 +273,20 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_FULL_SCREEN_FILL = "full_screen_fill"
         const val KEY_COMPACT_ROWS = "compact_rows"
         const val KEY_KEEP_DOWNLOADED = "keep_downloaded"
+        const val KEY_SMART_DOWNLOADS = "smart_downloads"
+        const val KEY_HOME_HIDDEN = "home_hidden_sections"
+        const val KEY_BLOCKED_ARTISTS = "blocked_artists"
+        const val KEY_AUTO_BACKUP_DAYS = "auto_backup_days"
+        const val KEY_AUTO_BACKUP_FOLDER = "auto_backup_folder"
+        const val KEY_AUTO_BACKUP_LAST = "auto_backup_last"
+        const val KEY_HIDE_EXPLICIT = "hide_explicit"
+        const val KEY_HOME_SEEN = "home_seen_shelves"
+        const val HOME_PICK_UP = "@pick-up"
+        const val HOME_CHIPS = "@chips"
+        const val MAX_HOME_SHELVES = 24
+        const val KEY_LOCAL_MIN_SECONDS = "local_min_seconds"
+        const val KEY_LOCAL_HIDDEN_FOLDERS = "local_hidden_folders"
+        const val KEY_SMART_KEPT = "smart_downloads_kept"
         const val KEY_KEPT_PREFIX = "kept_songs:"
         const val KEY_KEEP_CHECKED = "keep_downloaded_checked"
         private const val SET_SEPARATOR = ","

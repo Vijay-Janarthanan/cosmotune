@@ -213,6 +213,22 @@ object WebDavClient {
             }
         }
 
+    /** The files directly inside [dirUrl], by name (folders left out). */
+    suspend fun listFiles(dirUrl: String, username: String, password: String): Result<List<Entry>> =
+        withContext(Dispatchers.IO) { propfind(dirUrl, username, password).map { list -> list.filterNot { it.isCollection } } }
+
+    /** Removes the file at [fileUrl]; one already gone counts as removed. */
+    suspend fun delete(fileUrl: String, username: String, password: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val builder = Request.Builder().url(fileUrl).delete()
+                WebDavConfig.basicAuthHeader(username, password)?.let { builder.header("Authorization", it) }
+                Http.client.newCall(builder.build()).execute().use { response ->
+                    if (response.code !in 200..299 && response.code != 404) throw WebDavException("Could not remove the file (${response.code})")
+                }
+            }
+        }
+
     private fun propfind(dirUrl: String, username: String, password: String): Result<List<Entry>> {
         return runCatching {
             val request = propfindRequest(dirUrl, depth = "1", username, password)

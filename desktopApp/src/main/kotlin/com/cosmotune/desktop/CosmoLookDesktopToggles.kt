@@ -61,6 +61,8 @@ internal fun CosmoLookDesktopToggles(row: @Composable (String, String, Boolean, 
         compact = true,
     )
     com.cosmotune.ui.settings.CosmoRowSizeSetting()
+    com.cosmotune.ui.settings.HomeSectionsSetting()
+    com.cosmotune.ui.settings.MusicBlocksRows()
     var previewOpen by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         CosmoButton(

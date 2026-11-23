@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.drop
 import androidx.compose.foundation.lazy.LazyListState
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.FollowCover
@@ -624,6 +625,11 @@ fun CosmotuneDesktopApp() {
     var replaySummary by remember { mutableStateOf(DesktopListeningStats.summary()) }
     var statsCountedSongs by remember { mutableStateOf<Set<String>>(emptySet()) }
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    // An album or playlist going into a playlist whole (its page's More, "Add to playlists"), with its songs.
+    var playlistRelease by remember { mutableStateOf<DesktopCollection?>(null) }
+    // While the rest of a long album or playlist is fetched for it: how many songs have arrived, and the fetch.
+    var playlistReleaseLoaded by remember { mutableStateOf<Int?>(null) }
+    var playlistReleaseJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     // One busy flag and one message for every playlist edit: only one of them can be in flight,
     // because each is driven by a dialog that is modal.
     var playlistBusy by remember { mutableStateOf(false) }
@@ -852,6 +858,7 @@ fun CosmotuneDesktopApp() {
         com.cosmotune.podio.PodioPlaybackPolicy.speedOnTransition(playbackEngine.state.value.song?.videoId, song.videoId, playbackSpeed)
             ?.let(playbackEngine::setPlaybackSpeed)
         selectedSong = song
+        com.cosmotune.music.playback.RepeatTimes.songChanged(song.videoId)
         history = (listOf(song) + history.filterNot { it.videoId == song.videoId }).take(50)
         saveQueue()
         persistence.saveHistory(history)
@@ -1234,8 +1241,21 @@ fun CosmotuneDesktopApp() {
 
     fun openAlbum(browseId: String) = openCollection(browseId)
 
+    /** Copies the link the listener's own server made, or the plain name with the server's reason when it would not. */
+    suspend fun copyServerShare(name: String, make: suspend () -> String?) {
+        val made = runCatching { withContext(Dispatchers.IO) { make() } }
+        DesktopExternalLinks.copy(made.getOrNull() ?: "$name\nShared from Cosmotune")
+        DesktopPlayerHost.showMessage(made.exceptionOrNull()?.let { it.message ?: "Your server didn't make a link" } ?: "Link copied")
+    }
+
     /** Copies the track's YouTube Music link. */
     fun shareSong(song: Song) {
+        // A song from the listener's own Subsonic server: the server makes a public link that plays it.
+        val server = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.first?.let(DesktopSourceRegistry::subsonicFor)
+        if (server != null) {
+            scope.launch { copyServerShare("${song.title} — ${song.artist}") { server.shareText(song) } }
+            return
+        }
         if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId) || song.localUri != null || song.localPath != null) {
             DesktopExternalLinks.copy("${song.title} — ${song.artist}\nShared from Cosmotune")
             return
@@ -1251,7 +1271,13 @@ fun CosmotuneDesktopApp() {
      */
     fun shareCollection(collection: DesktopCollection) {
         val id = collection.browseId
-        if (com.cosmotune.providers.ProviderBrowseKey.parse(id) != null || id.startsWith("local:")) {
+        val sourcePage = com.cosmotune.providers.ProviderBrowseKey.parse(id)
+        val server = sourcePage?.let { DesktopSourceRegistry.subsonicFor(it.provider) }
+        if (sourcePage != null && server != null && sourcePage.kind == "album") {
+            scope.launch { copyServerShare(collection.title) { server.shareText(sourcePage, collection.title) } }
+            return
+        }
+        if (sourcePage != null || id.startsWith("local:")) {
             DesktopExternalLinks.copy("${collection.title}\n${collection.subtitle}\n${collection.songs.size} songs · Shared from Cosmotune")
             return
         }
@@ -1300,6 +1326,24 @@ fun CosmotuneDesktopApp() {
     // this app can tell, see DesktopPlayerHost).
     suspend fun keepDownloadedPass(playlists: Collection<String>? = null, newestOnly: Boolean = false) {
         val look = com.cosmotune.ui.settings.cosmoLookSettings()
+        // Smart downloads (the most played songs kept downloaded) on the daily pass, not on a playlist's own quick one.
+        if (playlists == null && !newestOnly) runCatching {
+            com.cosmotune.ui.pages.SmartDownloads.run(
+                look,
+                ranked = {
+                    withContext(Dispatchers.IO) { DesktopListeningStats.summary(DesktopReplayPeriod.ALL_TIME) }.songs
+                        .sortedWith(compareByDescending<DesktopReplayEntry> { it.plays }.thenByDescending { it.listenedMs })
+                        .map { it.song }.filter { com.cosmotune.ui.pages.SmartDownloads.streamable(it.videoId) }
+                },
+                onDevice = { id -> downloads.any { it.videoId == id } },
+                download = { songs -> downloadAll(songs) },
+                remove = { id ->
+                    val song = downloads.firstOrNull { it.videoId == id }
+                    if (song != null) removeDownload(song)
+                    true
+                },
+            )
+        }
         if (look.keepDownloaded.value.isEmpty()) return
         runCatching {
             com.cosmotune.ui.pages.KeepDownloaded.run(
@@ -1326,6 +1370,10 @@ fun CosmotuneDesktopApp() {
                 keepDownloadedPass(listOf(com.cosmotune.ui.pages.KeepDownloaded.LIKED_MUSIC), newestOnly = true)
             }
         }
+    }
+    LaunchedEffect(Unit) {
+        // Smart downloads turned on or changed: its songs come down now, not at the next daily pass.
+        com.cosmotune.ui.settings.cosmoLookSettings().smartDownloads.drop(1).collectLatest { keepDownloadedPass() }
     }
     LaunchedEffect(Unit) {
         // Clear of the start's own work (the session, the first pages), then the pass.
@@ -1585,6 +1633,10 @@ fun CosmotuneDesktopApp() {
     fun closePlaylistDialogs() {
         overlays.playlistDialog = false
         playlistTarget = null
+        playlistRelease = null
+        playlistReleaseJob?.cancel()
+        playlistReleaseJob = null
+        playlistReleaseLoaded = null
         overlays.rename = false
         overlays.delete = false
         overlays.reorder = false
@@ -1596,11 +1648,12 @@ fun CosmotuneDesktopApp() {
     fun createPlaylist(title: String, privacy: PlaylistPrivacy) {
         val name = title.trim()
         if (name.isBlank()) return
-        val seed = playlistTarget
+        // A whole album or playlist seeds it with all its songs; a single track with that one.
+        val seeds = playlistRelease?.songs?.distinctBy(Song::videoId) ?: listOfNotNull(playlistTarget)
         // A track from another source cannot go in an account playlist, so the playlist made to
         // hold it is one kept here.
-        if (!DesktopYouTubeAuth.isSignedIn || (seed != null && !DesktopSearchClient.isVideoId(seed.videoId))) {
-            playlists = playlists + DesktopPlaylist(title = name, songs = listOfNotNull(seed))
+        if (!DesktopYouTubeAuth.isSignedIn || seeds.any { !DesktopSearchClient.isVideoId(it.videoId) }) {
+            playlists = playlists + DesktopPlaylist(title = name, songs = seeds)
             persistence.savePlaylists(playlists)
             closePlaylistDialogs()
             return
@@ -1608,7 +1661,7 @@ fun CosmotuneDesktopApp() {
         playlistBusy = true
         playlistError = null
         scope.launch {
-            DesktopSearchClient.createPlaylist(name, privacy, listOfNotNull(seed?.videoId))
+            DesktopSearchClient.createPlaylist(name, privacy, seeds.map(Song::videoId))
                 .onSuccess { playlistId ->
                     closePlaylistDialogs()
                     editPlaylistShelf { items ->
@@ -1617,8 +1670,8 @@ fun CosmotuneDesktopApp() {
                             // Only what this request itself establishes: an unseeded playlist gets
                             // a card of just its name rather than a guess at what the feed will
                             // call it.
-                            subtitle = if (seed != null) "1 song" else "",
-                            thumbnailUrl = seed?.thumbnailUrl,
+                            subtitle = when (seeds.size) { 0 -> ""; 1 -> "1 song"; else -> "${seeds.size} songs" },
+                            thumbnailUrl = seeds.firstOrNull()?.thumbnailUrl,
                             videoId = null,
                             browseId = "VL$playlistId",
                         )
@@ -1656,15 +1709,84 @@ fun CosmotuneDesktopApp() {
     }
 
     fun addToPlaylist(playlist: DesktopPlaylist) {
-        val song = playlistTarget ?: return
+        val release = playlistRelease
+        val adding = release?.songs ?: listOfNotNull(playlistTarget)
+        if (adding.isEmpty()) return
+        var grew = false
         playlists = playlists.map { current ->
-            if (current.id == playlist.id) current.copy(songs = (current.songs + song).distinctBy(Song::videoId)) else current
+            if (current.id != playlist.id) return@map current
+            val merged = (current.songs + adding).distinctBy(Song::videoId)
+            grew = merged.size > current.songs.size
+            current.copy(songs = merged)
         }
         persistence.savePlaylists(playlists)
-        playlistTarget = null
+        if (release != null) DesktopPlayerHost.showMessage(if (grew) "Added to ${playlist.title}" else "Already in ${playlist.title}")
+        closePlaylistDialogs()
+    }
+
+    /**
+     * More, "Add to playlists" on an album or playlist page: the picker opens at once, and when the page has not
+     * loaded every song yet the rest are fetched first (with a count and Cancel), so the whole list goes in.
+     */
+    fun addWholeToPlaylists(collection: DesktopCollection) {
+        playlistReleaseJob?.cancel()
+        playlistError = null
+        playlistRelease = collection
+        val token = collection.continuation ?: return
+        playlistReleaseLoaded = collection.songs.size
+        playlistReleaseJob = scope.launch {
+            val all = com.cosmotune.music.data.model.MusicCollectionPages.loadAll(
+                collection.songs, token, collection.seenContinuationTokens,
+                fetch = { DesktopSearchClient.moreCollectionSongs(it, collection.songs.firstOrNull()?.artist) },
+                onProgress = { playlistReleaseLoaded = it },
+            )
+            if (playlistRelease?.browseId != collection.browseId) return@launch
+            playlistRelease = collection.copy(songs = all.songs, continuation = null)
+            playlistReleaseLoaded = null
+            playlistReleaseJob = null
+            all.error?.let {
+                DesktopTrackLog.log("playlist: stopped loading ${collection.browseId} at ${all.songs.size}: $it")
+                playlistError = "Could not load every song. The ${all.songs.size} loaded will go in."
+            }
+            // The page now holds them all too, unless it moved on meanwhile.
+            val current = openedCollection
+            if (current != null && current.browseId == collection.browseId && current.continuation == token) {
+                openedCollection = current.copy(songs = all.songs, continuation = all.continuation,
+                    seenContinuationTokens = all.seenTokens, paginationError = all.error)
+            }
+        }
+    }
+
+    /** A whole album or playlist into one of the account's playlists: the songs it already has are left out, the rest go in at once. */
+    fun addReleaseToAccountPlaylist(playlist: UserPlaylist, release: DesktopCollection) {
+        val wanted = release.songs.filter { DesktopSearchClient.isVideoId(it.videoId) }.distinctBy(Song::videoId)
+        if (wanted.isEmpty()) return
+        playlistBusy = true
+        playlistError = null
+        scope.launch {
+            val known = DesktopSearchClient.playlistEntries(playlist.browseId).getOrNull().orEmpty().mapTo(HashSet()) { it.videoId }
+            val fresh = wanted.filterNot { it.videoId in known }
+            if (fresh.isEmpty()) {
+                closePlaylistDialogs()
+                DesktopPlayerHost.showMessage("Already in ${playlist.title}")
+                return@launch
+            }
+            DesktopSearchClient.addToPlaylist(playlist.playlistId, fresh.map(Song::videoId))
+                .onSuccess {
+                    closePlaylistDialogs()
+                    libraryStale = true
+                    DesktopPlayerHost.showMessage("Added to ${playlist.title}")
+                }
+                .onFailure {
+                    DesktopTrackLog.log("playlist: could not add ${release.browseId}: ${it.message}")
+                    playlistBusy = false
+                    playlistError = it.message ?: "Could not add to ${playlist.title}"
+                }
+        }
     }
 
     fun addToAccountPlaylist(playlist: UserPlaylist) {
+        playlistRelease?.let { addReleaseToAccountPlaylist(playlist, it); return }
         val song = playlistTarget ?: return
         playlistBusy = true
         playlistError = null
@@ -1688,8 +1810,8 @@ fun CosmotuneDesktopApp() {
                 } else if (DesktopListenTogether.inRoom) {
                     // A room moves on by its shared clock (DesktopPartySync), once for everyone; a
                     // player that finished a moment early waits for it rather than skipping too.
-                } else if (repeatMode == DesktopRepeatMode.ONE) {
-                    // Replayed in place. [startSong] makes the track a queue of one, which threw
+                } else if (repeatMode == DesktopRepeatMode.ONE || com.cosmotune.music.playback.RepeatTimes.consume(selectedSong?.videoId)) {
+                    // Replayed in place (repeat one, or one of the plays "Repeat this song" asked for). [startSong] makes the track a queue of one, which threw
                     // the rest of the queue away the first time it repeated.
                     val song = selectedSong
                     if (song != null && liveQueue.current?.videoId == song.videoId) {
@@ -1933,6 +2055,23 @@ fun CosmotuneDesktopApp() {
             }
         }
     }
+    // Settings, Player, Shortcuts in any app: Ctrl+Alt keys that reach the player whichever app is in front (Windows).
+    val globalShortcuts by com.cosmotune.settings.Extras.settings.globalShortcuts.collectAsState()
+    DisposableEffect(globalShortcuts) {
+        if (globalShortcuts) DesktopGlobalHotkeys.start { action ->
+            scope.launch {
+                when (action) {
+                    com.cosmotune.listening.GlobalShortcuts.Action.PLAY_PAUSE -> togglePlayPauseFromUser()
+                    com.cosmotune.listening.GlobalShortcuts.Action.NEXT -> playNext()
+                    com.cosmotune.listening.GlobalShortcuts.Action.PREVIOUS -> playPrevious()
+                    com.cosmotune.listening.GlobalShortcuts.Action.VOLUME_UP, com.cosmotune.listening.GlobalShortcuts.Action.VOLUME_DOWN ->
+                        volume = com.cosmotune.listening.GlobalShortcuts.stepVolume(volume, action)
+                    com.cosmotune.listening.GlobalShortcuts.Action.LIKE -> playbackEngine.state.value.song?.let(::toggleLike)
+                }
+            }
+        }
+        onDispose { DesktopGlobalHotkeys.stop() }
+    }
     LaunchedEffect(audioQuality) { playbackEngine.setAudioQuality(audioQuality.name) }
     LaunchedEffect(automixPerformance) {
         playbackEngine.setAutomixPerformance(automixPerformance)
@@ -2055,6 +2194,10 @@ fun CosmotuneDesktopApp() {
     // The shared player reads the playhead off this one object, and only where it
     // draws it — see PlaybackPosition — so a tick never recomposes the player.
     val playerPosition = remember { PlaybackPosition() }
+    val musicSkipper = remember {
+        val client = com.cosmotune.video.segments.SponsorBlockClient()
+        com.cosmotune.listening.MusicSkipper(scope) { id, duration -> client.segments(id, com.cosmotune.listening.MusicSkips.CATEGORIES, duration) }
+    }
     SideEffect { DesktopMiniPlayer.position = playerPosition }
     // The playhead run on between engine reports, for the rings drawn from it: the playing row in the queue panel.
     val livePlayhead = com.cosmotune.music.playback.rememberLivePlayhead(playerPosition, playback.isPlaying, playbackEngine.playbackRate)
@@ -2067,6 +2210,20 @@ fun CosmotuneDesktopApp() {
             playerPosition.report(it.positionMs, it.positionSampledAtNanos)
             playerPosition.seeks = it.seeks
             playerPosition.advancing = !it.awaitingAudio
+            // Settings, Player, Skip the talking in music videos.
+            if (com.cosmotune.settings.Extras.settings.musicSkips.value && it.isPlaying && !it.awaitingAudio) {
+                musicSkipper.tick(it.song?.videoId, it.positionMs, it.durationMs.takeIf { d -> d > 0 })?.let { part ->
+                    if (!DesktopListenTogether.state.value.controlsLocked) {
+                        playbackEngine.seekTo(part.endMs)
+                        DesktopPlayerHost.showMessage(com.cosmotune.listening.MusicSkips.message(part))
+                    }
+                }
+            }
+            // Stops to load and the output's clock, for the player's Audio details.
+            if (it.positionSampledAtNanos > 0L) com.cosmotune.audio.PlaybackHealth.monitor.observe(
+                it.song?.videoId, it.positionMs, it.isPlaying, it.awaitingAudio || it.isLoading, playbackEngine.playbackRate,
+                it.positionSampledAtNanos, seeks = it.seeks,
+            )
         }
     }
 
@@ -2217,6 +2374,32 @@ fun CosmotuneDesktopApp() {
     LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed) {
         DesktopDiscordRpc.onPlaybackStateChanged(playback, playbackEngine.playbackRate)
     }
+    // The window's title names the playing song: the taskbar, Alt+Tab and the Dock show it.
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying) {
+        DesktopWindowTitle.show(playback.song?.title, playback.song?.artist, playback.isPlaying)
+    }
+    // Now playing for other apps: the listener's webhook and the text file for OBS (Settings, Now playing for other apps).
+    val nowPlayingWebhook by com.cosmotune.settings.Extras.settings.nowPlayingWebhook.collectAsState()
+    val nowPlayingFileOn by com.cosmotune.settings.Extras.settings.nowPlayingFile.collectAsState()
+    // Settings, Player, Song notifications: each new song named in a system notice while the window is behind other apps.
+    val songNotices by com.cosmotune.settings.Extras.settings.songNotices.collectAsState()
+    val windowFocused by rememberUpdatedState(androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused)
+    LaunchedEffect(playback.song?.videoId) {
+        val song = playback.song ?: return@LaunchedEffect
+        if (songNotices && !windowFocused && playback.isPlaying) DesktopAwtTray.notify(song.title, song.artist)
+    }
+    LaunchedEffect(nowPlayingWebhook, nowPlayingFileOn) { com.cosmotune.listening.NowPlayingOut.reset() }
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying, nowPlayingWebhook, nowPlayingFileOn) {
+        val song = playback.song
+        val event = song?.let {
+            com.cosmotune.listening.NowPlayingEvent(it.videoId, it.title, it.artist, it.albumName, playback.isPlaying, playback.durationMs, it.thumbnailUrl)
+        }
+        com.cosmotune.listening.NowPlayingOut.publish(event, nowPlayingWebhook, DesktopNowPlayingFile.file.takeIf { nowPlayingFileOn })
+    }
+    // Settings, Player, Keep the screen on: past lyrics or a video, the display stays awake while the player is open or while music plays.
+    val screenOnPolicy by com.cosmotune.settings.Extras.settings.screenOn.collectAsState()
+    val keepAwake = screenOnPolicy.keepsOn(playerOpen = overlays.nowPlaying, lyricsOrVideo = false, isPlaying = playback.isPlaying)
+    LaunchedEffect(keepAwake) { DesktopKeepAwake.hold(keepAwake) }
     // The account's own history on YouTube Music, which is what the home feed is built out of.
     DisposableEffect(playback.song?.videoId) {
         val previous = playbackEngine.state.value.positionMs / 1_000
@@ -2988,7 +3171,7 @@ fun CosmotuneDesktopApp() {
         // Unpacks the analyser and its models on first run.
         DesktopAnalysisRuntime.ensureStarted()
         DesktopHorizontalScroll.install()
-        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() + DesktopNetworkShares.cached }
         // A download record is a claim about a folder this app does not own, so it can outlive the
         // file it names. Checked once at startup rather than trusted: a stale entry showed the
         // track as downloaded, refused to fetch it again, and then would not play.
@@ -3069,18 +3252,36 @@ fun CosmotuneDesktopApp() {
         replaySummary = withContext(Dispatchers.IO) { DesktopListeningStats.summary(replayPeriod) }
     }
 
+    // The WebDAV server and SMB share are listed at start and after an edit, apart from the folder scan so a slow server
+    // never holds the local songs back.
+    LaunchedEffect(localMusicRevision) {
+        val before = DesktopNetworkShares.cached
+        val now = DesktopNetworkShares.refresh()
+        if (now != before) localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() } + now
+    }
+
+    // Automatic backups (Settings, Storage): looked at now and every few hours.
+    LaunchedEffect(Unit) { DesktopAutoBackup.keepUp() }
+
     // Re-scanned when the filter or the folder changes, never on first composition.
     LaunchedEffect(localMusicRevision) {
         if (localMusicRevision == 0) return@LaunchedEffect
-        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() + DesktopNetworkShares.cached }
         DesktopLocalMusicWatcher.restart()
+    }
+
+    // Hidden folders and the shortest song shown (Settings, Local music) apply at once.
+    LaunchedEffect(Unit) {
+        com.cosmotune.ui.settings.cosmoLookSettings().localRules.drop(1).collectLatest {
+            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() + DesktopNetworkShares.cached }
+        }
     }
 
     // A track dropped into the folder appears without a relaunch.
     LaunchedEffect(Unit) {
         DesktopLocalMusicWatcher.restart()
         DesktopLocalMusicWatcher.changes.collect {
-            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() + DesktopNetworkShares.cached }
         }
     }
 
@@ -3705,6 +3906,16 @@ fun CosmotuneDesktopApp() {
         LaunchedEffect(sharedPlaylistLink) {
             if (sharedPlaylistLink != null) cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC)
         }
+        // A song file opened with Cosmotune from the file manager plays on its own, read from where it is.
+        val openedAudio by desktopOpenedAudio.collectAsState()
+        LaunchedEffect(openedAudio) {
+            val path = openedAudio ?: return@LaunchedEffect
+            desktopOpenedAudio.value = null
+            val song = withContext(Dispatchers.IO) { runCatching { with(DesktopLocalMusic) { java.nio.file.Path.of(path).toSong() } }.getOrNull() }
+                ?: return@LaunchedEffect
+            cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC)
+            playSongs(listOf(song))
+        }
         val windowActions = LocalDesktopWindowActions.current
         // A room's videos open in Video mode, which the room switches to through the stored mode.
         SideEffect { DesktopRoomVideo.look = cosmoShell?.settings }
@@ -3760,6 +3971,10 @@ fun CosmotuneDesktopApp() {
             LocalNowPlaying provides selectedSong,
             com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,
             com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),
+            // Up next marks the liked and downloaded songs.
+            com.cosmotune.ui.orbit.LocalQueueMarks provides remember(likedIds, downloads) {
+                com.cosmotune.ui.orbit.QueueMarks(liked = likedIds, downloaded = downloads.mapTo(HashSet()) { it.videoId })
+            },
             com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },
             com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),
         ) {
@@ -3773,6 +3988,11 @@ fun CosmotuneDesktopApp() {
             com.cosmotune.desktop.DesktopListeningTools(
                 open = listeningToolsOpen,
                 onDismiss = { listeningToolsOpen = false; listeningToolsOpenOn = null },
+                likeSongs = { songs -> songs.filterNot { it.videoId in likedIds }.forEach { rate(it, LikeStatus.LIKE) } },
+                addHistory = { songs ->
+                    history = com.cosmotune.ui.listening.LibraryExchange.mergeHistory(history, songs, max = 50)
+                    persistence.saveHistory(history)
+                },
                 openOn = listeningToolsOpenOn,
                 syncPlaylists = com.cosmotune.desktop.desktopSyncPlaylists(playlists),
                 applySyncedPlaylists = { records, files ->
@@ -4408,14 +4628,18 @@ fun CosmotuneDesktopApp() {
                             },
                         )
                     }
-                    if (overlays.playlistDialog || playlistTarget != null) {
+                    if (overlays.playlistDialog || playlistTarget != null || playlistRelease != null) {
                         DesktopPlaylistDialog(
                             song = playlistTarget,
+                            release = playlistRelease?.takeIf { playlistTarget == null }?.title,
+                            releaseLoaded = playlistReleaseLoaded.takeIf { playlistTarget == null },
                             accountPlaylists = accountPlaylists,
                             localPlaylists = playlists,
                             signedIn = youtubeSignedIn,
                             canUseAccount = playlistTarget
-                                ?.let { DesktopSearchClient.isVideoId(it.videoId) } ?: true,
+                                ?.let { DesktopSearchClient.isVideoId(it.videoId) }
+                                ?: playlistRelease?.songs?.any { DesktopSearchClient.isVideoId(it.videoId) }
+                                ?: true,
                             busy = playlistBusy,
                             error = playlistError,
                             onPickAccount = ::addToAccountPlaylist,
@@ -4982,7 +5206,13 @@ fun CosmotuneDesktopApp() {
                                 }
                             }
                         }
-                        openedCollection != null -> DesktopCollectionPage(
+                        openedCollection != null -> androidx.compose.runtime.CompositionLocalProvider(
+                            // More, "Add to playlists" on an album or playlist page: the page passes the songs it holds.
+                            LocalAddAllToPlaylists provides openedCollection
+                                ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
+                                ?.let { collection -> { songs: List<Song> -> addWholeToPlaylists(collection.copy(songs = songs)) } },
+                        ) {
+                        DesktopCollectionPage(
                             collection = openedCollection!!,
                             loadingMore = collectionLoadingMore,
                             onLoadMore = ::loadMoreCollectionSongs,
@@ -5014,6 +5244,7 @@ fun CosmotuneDesktopApp() {
                             downloadInProgress = downloadInProgress,
                             contentPadding = contentPadding,
                         )
+                        }
                         destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.home.HomeSwitch(
                             discoveryHistory = history,
                             discoveryLikedIds = likedIds + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
@@ -5348,10 +5579,11 @@ fun CosmotuneDesktopApp() {
                                 currentSong = playback.song,
                                 isPlaying = playback.isPlaying,
                             )
-                            // Only while there is a queue to look at.
-                            if (downloadInProgress.isNotEmpty()) {
+                            // While there is a queue to look at, or a history of earlier downloads.
+                            val downloadHistory by com.cosmotune.settings.Extras.settings.downloadHistory.collectAsState()
+                            if (downloadInProgress.isNotEmpty() || downloadHistory.isNotEmpty()) {
                                 DesktopActionButton(
-                                    "Queue · ${downloadInProgress.size}",
+                                    if (downloadInProgress.isNotEmpty()) "Queue · ${downloadInProgress.size}" else "Download history",
                                     CosmotuneIcons.Download,
                                     onClick = { overlays.downloadManager = true },
                                     modifier = Modifier
@@ -6180,6 +6412,21 @@ private fun DesktopSettingsScreen(
                     if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART, com.cosmotune.ui.settings.PlayerExtrasText.BEST_PART_LINE)) {
                         com.cosmotune.ui.settings.BestPartRow()
                     }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM, com.cosmotune.ui.settings.PlayerExtrasText.WAVEFORM_LINE)) {
+                        com.cosmotune.ui.settings.WaveformSeekRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.MUSIC_SKIPS, com.cosmotune.ui.settings.PlayerExtrasText.MUSIC_SKIPS_LINE)) {
+                        com.cosmotune.ui.settings.MusicSkipsRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SONG_NOTICES, com.cosmotune.ui.settings.PlayerExtrasText.SONG_NOTICES_LINE)) {
+                        com.cosmotune.ui.settings.SongNoticesRow()
+                    }
+                    if (DesktopGlobalHotkeys.supported && settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.GLOBAL_SHORTCUTS, com.cosmotune.ui.settings.PlayerExtrasText.GLOBAL_SHORTCUTS_LINE)) {
+                        com.cosmotune.ui.settings.GlobalShortcutsRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON, com.cosmotune.ui.settings.PlayerExtrasText.SCREEN_ON_LINE)) {
+                        com.cosmotune.ui.settings.ScreenOnRow()
+                    }
                     if (settingsRowVisible(com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE, com.cosmotune.ui.settings.PlayerExtrasText.SLEEP_FADE_LINE)) {
                         com.cosmotune.ui.settings.SleepFadeOutRow()
                     }
@@ -6193,6 +6440,17 @@ private fun DesktopSettingsScreen(
                     }
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.PROXY, com.cosmotune.ui.settings.SoundExtrasText.PROXY_LINE)) {
                         com.cosmotune.ui.settings.ProxyRows()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.OutsideAppsText.DNS, com.cosmotune.ui.settings.OutsideAppsText.DNS_LINE)) {
+                        com.cosmotune.ui.settings.PrivateDnsRow()
+                    }
+                }
+                SettingsGroup(com.cosmotune.ui.settings.OutsideAppsText.GROUP) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.OutsideAppsText.WEBHOOK, com.cosmotune.ui.settings.OutsideAppsText.WEBHOOK_LINE)) {
+                        com.cosmotune.ui.settings.NowPlayingWebhookRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.OutsideAppsText.FILE, com.cosmotune.ui.settings.OutsideAppsText.FILE_LINE)) {
+                        com.cosmotune.ui.settings.NowPlayingFileRow(DesktopNowPlayingFile.file.absolutePath)
                     }
                 }
                 SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_RECOGNITION) {
@@ -6310,6 +6568,50 @@ private fun DesktopSettingsScreen(
             }
             DesktopSettingsSection.STORAGE -> {
                 SettingsGroup(DesktopStrings["storage", "Storage"]) {
+                    // The listening backup on a schedule into a folder (DesktopAutoBackup).
+                    if (settingsRowVisible(com.cosmotune.ui.settings.AUTO_BACKUP_TITLE, com.cosmotune.ui.settings.AUTO_BACKUP_LINE)) {
+                        val look = com.cosmotune.ui.settings.cosmoLookSettings()
+                        val folder by look.autoBackupFolder.collectAsState()
+                        val days by look.autoBackupDays.collectAsState()
+                        var lastMade by remember(folder, days) { mutableStateOf(look.autoBackupLast()) }
+                        val backupScope = rememberCoroutineScope()
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.AUTO_BACKUP_TITLE)) {
+                            com.cosmotune.ui.settings.AutoBackupRows(
+                                webDavHost = remember { DesktopNetworkShares.webDav() }.takeIf { it.configured }?.let { com.cosmotune.music.data.webdav.WebDavConfig.hostOf(it.url) },
+                                folderLabel = folder.takeIf { it.isNotBlank() },
+                                last = lastMade.takeIf { it > 0 }?.let { java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(it)) },
+                                onChooseFolder = {
+                                    DesktopAutoBackup.chooseFolder(folder)?.let { chosen ->
+                                        look.setAutoBackupFolder(chosen.absolutePath)
+                                        // A first backup straight away, so the folder is seen to work.
+                                        backupScope.launch {
+                                            val now = System.currentTimeMillis()
+                                            if (look.autoBackupDays.value > 0 && DesktopAutoBackup.backUp(chosen, now)) { look.setAutoBackupLast(now); lastMade = now }
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
+                    // Likes YouTube lost, found against the likes kept on this computer and liked again on request.
+                    if (settingsRowVisible(com.cosmotune.ui.settings.RESTORE_LIKES_TITLE, com.cosmotune.ui.settings.RESTORE_LIKES_LINE)) {
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.RESTORE_LIKES_TITLE)) {
+                            com.cosmotune.ui.settings.RestoreLikesRows(
+                                signedIn = DesktopYouTubeAuth.isSignedIn,
+                                kept = { DesktopCloud.keptLikes() },
+                                loadLiked = {
+                                    runCatching {
+                                        val first = DesktopSearchClient.browse(com.cosmotune.music.data.YtMusicRepository.LIKED_MUSIC).getOrThrow()
+                                        val all = com.cosmotune.music.data.model.MusicCollectionPages.loadAll(first.songs, first.continuation, first.seenContinuationTokens,
+                                            fetch = { DesktopSearchClient.moreCollectionSongs(it) })
+                                        check(all.error == null) { all.error.orEmpty() }
+                                        all.songs.mapTo(HashSet()) { it.videoId }
+                                    }
+                                },
+                                like = { DesktopSearchClient.rate(it.videoId, LikeStatus.LIKE).isSuccess },
+                            )
+                        }
+                    }
                     var limitMb by remember { mutableStateOf(DesktopMediaCache.limitMb()) }
                     if (settingsRowVisible(DesktopStrings["song_cache_limit", "Song cache limit"])) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 10.dp)) {
@@ -6359,6 +6661,22 @@ private fun DesktopSettingsScreen(
                             onLocalMusicFolderChanged()
                         }
                     }
+                    // Music on the listener's own WebDAV server or SMB share joins Local music (DesktopNetworkShares).
+                    var shareDialog by remember { mutableStateOf<String?>(null) }
+                    var shareRevision by remember { mutableStateOf(0) }
+                    val webDav = remember(shareRevision) { DesktopNetworkShares.webDav() }
+                    val smb = remember(shareRevision) { DesktopNetworkShares.smb() }
+                    SettingsRow(Icons.Rounded.Cloud, "WebDAV server", if (webDav.configured) webDav.url else "Play the songs on Nextcloud, a NAS or any WebDAV server") {
+                        shareDialog = "webdav"
+                    }
+                    SettingsRow(Icons.Rounded.Folder, "SMB share", if (smb.configured) "${smb.host}/${smb.share}" else "Play the songs in a shared folder on Windows, Samba or a NAS") {
+                        shareDialog = "smb"
+                    }
+                    val shareChanged = { shareRevision++; onLocalMusicFolderChanged() }
+                    when (shareDialog) {
+                        "webdav" -> DesktopWebDavDialog(onChanged = shareChanged, onDismiss = { shareDialog = null })
+                        "smb" -> DesktopSmbDialog(onChanged = shareChanged, onDismiss = { shareDialog = null })
+                    }
                     SettingsToggle(
                         DesktopStrings["filter_non_music_audio", "Filter non-music audio"],
                         DesktopStrings[
@@ -6368,6 +6686,17 @@ private fun DesktopSettingsScreen(
                         filterNonMusicAudio,
                         onFilterNonMusicAudioChange,
                     )
+                    if (settingsRowVisible(com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_TITLE, com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_LINE)) {
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_TITLE)) {
+                            com.cosmotune.ui.settings.LocalShortSongsRows(com.cosmotune.ui.settings.cosmoLookSettings())
+                        }
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.LOCAL_FOLDERS_TITLE, com.cosmotune.ui.settings.LOCAL_FOLDERS_LINE)) {
+                        val localFolders by DesktopLocalMusic.knownFolders.collectAsState()
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.LOCAL_FOLDERS_TITLE)) {
+                            com.cosmotune.ui.settings.LocalFoldersRows(com.cosmotune.ui.settings.cosmoLookSettings(), localFolders)
+                        }
+                    }
                 }
             }
             DesktopSettingsSection.APPEARANCE -> {
@@ -6574,6 +6903,11 @@ private fun DesktopSettingsScreen(
                             )
                         }
                     }
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE, com.cosmotune.ui.settings.SMART_DOWNLOADS_LINE)) {
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE)) {
+                            com.cosmotune.ui.settings.SmartDownloadsRows(com.cosmotune.ui.settings.cosmoLookSettings())
+                        }
                     }
                 }
             }
@@ -7477,9 +7811,12 @@ private fun DesktopCollectionPage(
     /** Opens the reorder dialog; only a playlist the account owns can be rearranged (BC-35). */
     onReorder: (() -> Unit)? = null,
 ) {
-    com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, coverEditable = collection.owned == true && collection.type == BrowseType.PLAYLIST, nowPlaying = LocalNowPlaying.current)
+    com.cosmotune.desktop.CosmoDesktopCollectionPage(onAddAllToPlaylists = LocalAddAllToPlaylists.current, collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, coverEditable = collection.owned == true && collection.type == BrowseType.PLAYLIST, nowPlaying = LocalNowPlaying.current)
 }
 
+
+/** The open album or playlist page's "Add to playlists" (its More menu); null on other pages. */
+private val LocalAddAllToPlaylists = compositionLocalOf<((List<Song>) -> Unit)?> { null }
 
 /** The track playing, for rows that want to say so. */
 private val LocalNowPlaying = compositionLocalOf<Song?> { null }

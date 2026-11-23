@@ -39,6 +39,8 @@ fun PhoneListeningTools(
     /** False until the library, history and restored queue behind [library] have had a chance to load. */
     libraryKnown: Boolean = true,
     openOn: com.cosmotune.ui.listening.ListeningTab? = null,
+    /** Likes the songs another music app's backup had liked (Backup > From another music app). */
+    likeSongs: (suspend (List<Song>) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var pending by remember { mutableStateOf<CompletableDeferred<Uri?>?>(null) }
@@ -205,6 +207,32 @@ fun PhoneListeningTools(
                     output.toString("UTF-8")
                 }
             } }
+        },
+        pickBackupFile = {
+            check(pending == null) { "Finish the open file chooser first." }
+            val answer = CompletableDeferred<Uri?>().also { pending = it }
+            picker.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "*/*" })
+            answer.await()?.let { uri -> withContext(Dispatchers.IO) {
+                checkNotNull(context.contentResolver.openInputStream(uri)) { "The selected file could not be opened." }.use { it.readBytes() }
+            } }
+        },
+        openSqlite = com.cosmotune.video.importers.TempFileSqliteOpener(java.io.File(context.cacheDir, "other-app-import")) { path ->
+            com.cosmotune.video.importers.AndroidSqliteRows(path)
+        },
+        likeSongs = likeSongs,
+        // Device sync: the camera reads the code the other device's Phone remote shows (Google's scanner, no camera permission).
+        scanPairingCode = {
+            val scanner = com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(context,
+                com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build())
+            kotlinx.coroutines.suspendCancellableCoroutine<String?> { answer ->
+                scanner.startScan()
+                    .addOnSuccessListener { if (answer.isActive) answer.resumeWith(Result.success(it.rawValue)) }
+                    .addOnCanceledListener { if (answer.isActive) answer.resumeWith(Result.success(null)) }
+                    .addOnFailureListener {
+                        if (answer.isActive) answer.resumeWith(Result.failure(IllegalStateException("The camera could not read the code. Paste the link instead.")))
+                    }
+            }
         },
         importPlaylistFile = {
             check(pending == null) { "Finish the open file chooser first." }

@@ -28,12 +28,14 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Share
@@ -317,6 +319,13 @@ internal fun DesktopSongMenu(
                 DesktopMenuRow(Icons.Rounded.Person, DesktopStrings["open_artist", "Open artist"]) { onOpenArtist(artistId) }
             }
         }
+        // Keeps this artist out of AutoPlay, radio and Home (Settings, Look and colours, Blocked artists lets them back).
+        com.cosmotune.music.data.recommendations.MusicBlocks.artistsOf(song).firstOrNull()?.takeIf { song.localPath == null && song.localUri == null }?.let { artist ->
+            DesktopMenuRow(Icons.Rounded.Block, "Don't play $artist") {
+                com.cosmotune.ui.settings.cosmoLookSettings().setArtistBlocked(artist, true)
+                DesktopPlayerHost.showMessage("$artist won't play in AutoPlay, radio or Home")
+            }
+        }
 
         DesktopMenuDivider()
         DesktopMenuRow(
@@ -328,9 +337,19 @@ internal fun DesktopSongMenu(
         ) { pickingSleepTimer = true }
         if (!isOffline) {
             DesktopMenuRow(Icons.Rounded.Share, DesktopStrings["share", "Share"], onClick = onShare)
+        } else {
+            // A file on this computer: copied as a file, ready to paste into a chat, a mail or a folder.
+            DesktopMenuRow(Icons.Rounded.Share, "Copy the file") {
+                DesktopFileShare.copy(song)
+                onDismiss()
+            }
         }
         DesktopMenuRow(Icons.Rounded.Info, "Song info") {
             com.cosmotune.ui.sheets.SongInfo.open(song)
+            onDismiss()
+        }
+        DesktopMenuRow(Icons.Rounded.StarBorder, "Rate and tag") {
+            com.cosmotune.ui.sheets.SongTagging.open(song)
             onDismiss()
         }
         DesktopMenuRow(Icons.Rounded.Cast, "Play on a TV or speaker") {
