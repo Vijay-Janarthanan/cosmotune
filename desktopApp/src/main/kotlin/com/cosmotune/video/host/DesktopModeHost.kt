@@ -121,7 +121,8 @@ fun DesktopWatchPage(contentPadding: PaddingValues) {
         // rail from 600 dp), and keeps no room for Music's dock, which does not draw in Watch.
         androidx.compose.foundation.layout.BoxWithConstraints {
             val compact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
-            com.cosmotune.ui.watch.WatchApp(contentPadding = modePagePadding(contentPadding, compact), showNavigation = compact)
+            // Beside the sidebar the page keeps Music's 28 dp gutters, so its cards line up with the other modes' pages.
+            com.cosmotune.ui.watch.WatchApp(contentPadding = modePagePadding(contentPadding, compact), showNavigation = compact, side = if (compact) null else 28.dp)
         }
     }
 }
