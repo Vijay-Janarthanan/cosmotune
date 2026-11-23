@@ -141,6 +141,9 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
         if (saved) ReadSheetRow(mangaText(if (state.notes.containsKey(book.id)) "Edit note" else "Add note"), CosmoIcons.Plus, { more = false; noting = true }, Modifier.testTag("manga:note:edit"))
         if (saved) ReadSheetRow(mangaText("Edit title"), Icons.Rounded.Edit, { more = false; editing = true }, Modifier.testTag("manga:edit"))
         if (saved && state.customCovers.containsKey(book.id)) ReadSheetRow(mangaText("Use the source's cover"), CosmoIcons.Replay, { more = false; scope.action { repository.store.cover(book.id, null) } })
+        val marked = book.chapters.filter { it.id in state.bookmarks && !state.downloads.containsKey(it.id) && it.sourceId != "local" }
+        if (marked.isNotEmpty()) ReadSheetRow(mangaText("Download bookmarked") + " · ${marked.size}", CosmoIcons.Download, { more = false; mangaDownload(scope, book, marked) },
+            Modifier.testTag("manga:download:bookmarked"))
         if (book.sourceId != "local") ReadSheetRow(mangaText("Find on another source"), CosmoIcons.Search, { more = false; migrate = true }, Modifier.testTag("manga:migrate:open"))
         if (saved) ReadSheetRow(mangaText("Remove from library"), CosmoIcons.Close, onClick = {
             more = false; scope.action {
