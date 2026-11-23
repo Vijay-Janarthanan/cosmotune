@@ -81,10 +81,13 @@ fun main(args: Array<String>) {
             failure.stackTrace.take(30).joinToString("\n") { "    at $it" })
     }
     com.cosmotune.diagnostics.CrashNotes.configure(com.cosmotune.desktop.DesktopWatch.dataDir.parentFile)
+    // Rescue first when asked for, or when the last two starts never got going (DesktopRescue).
+    if (DesktopRescue.due(args, DesktopRescue.beginStart())) { DesktopRescue.show(); DesktopRescue.beginStart() }
     val shutdown = Thread({ instance.close() }, "cosmotune-instance-cleanup")
     Runtime.getRuntime().addShutdownHook(shutdown)
     try {
         instance.use { runDesktop() }
+        DesktopRescue.started()
     } finally {
         runCatching { Runtime.getRuntime().removeShutdownHook(shutdown) }
     }

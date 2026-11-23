@@ -2940,6 +2940,8 @@ fun CosmotuneDesktopApp() {
         DesktopTrayMenu.publish(title = title, playing = playback.isPlaying)
     }
     LaunchedEffect(Unit) {
+        // Up for a while: this start counts as one that got going (DesktopRescue).
+        launch { kotlinx.coroutines.delay(20_000); DesktopRescue.started() }
         DesktopMiniPlayer.actions = DesktopMiniPlayer.Actions(
             playPause = { if (selectedSong != null) togglePlayPauseFromUser() },
             next = ::playNext,

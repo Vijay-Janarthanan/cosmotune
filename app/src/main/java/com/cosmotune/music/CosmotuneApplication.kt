@@ -51,6 +51,15 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
             runCatching { com.cosmotune.diagnostics.CrashNotes.record(failure) }
             uncaught?.uncaughtException(thread, failure)
         }
+        // Rescue on the launcher icon's long-press menu, kept there from the first start so it is at hand once something breaks.
+        runCatching {
+            androidx.core.content.pm.ShortcutManagerCompat.pushDynamicShortcut(this,
+                androidx.core.content.pm.ShortcutInfoCompat.Builder(this, "rescue")
+                    .setShortLabel("Rescue").setLongLabel("Rescue: backup and crash note")
+                    .setIcon(androidx.core.graphics.drawable.IconCompat.createWithResource(this, R.mipmap.ic_launcher))
+                    .setIntent(android.content.Intent(this, RescueActivity::class.java).setAction(android.content.Intent.ACTION_VIEW))
+                    .build())
+        }
         if (android.os.Build.VERSION.SDK_INT >= 28 && Application.getProcessName().let { it.endsWith(":provider_auth") || it.endsWith(":mangaverification") }) return
         com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
         com.cosmotune.music.data.cast.dlna.DlnaDiscovery.multicastHold = {
