@@ -233,6 +233,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
     var detailsError by remember(initialPublication.id) { mutableStateOf<String?>(null) }
     var detailsRetry by remember(initialPublication.id) { mutableIntStateOf(0) }
     var transfer by remember { mutableStateOf<Job?>(null) }
+    var streaming by remember(initialPublication.id) { mutableStateOf<ReadingLink?>(null) }
     var progress by remember { mutableStateOf("") }
     var editions by remember(publication.id) { mutableStateOf(emptyList<ReadingPublication>()) }
     var editionsOffset by remember(publication.id) { mutableStateOf<Int?>(null) }
@@ -256,6 +257,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
         ?: publication.sourceLabel(emptyList()).substringBefore(" · ").takeUnless { it == "Personal library" }
         ?: publication.sourceId.ifBlank { "Personal library" }
     val (fill, _) = com.cosmotune.ui.orbit.coverFill(publication.coverUrl, publication.id)
+    streaming?.let { link -> BookPageStream(repository, publication, link, onBack = { streaming = null }); return }
     Box(Modifier.fillMaxSize()) {
         com.cosmotune.ui.orbit.OrbitPageWash(fill)
         LazyColumn(Modifier.fillMaxSize().testTag("books:details"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
@@ -295,6 +297,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
                 val format = link.downloadFormat
                 val downloadable = format != null
                 val label = when {
+                    link.kind == ReadingLinkKind.STREAM -> "Read page by page · ${link.count} pages"
                     format != null -> "Download ${format.name}" +
                         link.title.takeIf { it.isNotBlank() && it != publication.title }?.let { " · ${it.take(100)}" }.orEmpty()
                     link.kind == ReadingLinkKind.BORROW -> "Borrow from provider"
@@ -303,8 +306,10 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
                     link.requiresExternalReader -> "Open protected edition with provider"
                     else -> link.title.ifBlank { "View at source" }
                 }
-                ReadSheetRow(label, if (downloadable) CosmoIcons.Download else Icons.AutoMirrored.Rounded.OpenInNew, enabled = transfer?.isActive != true, onClick = {
-                    if (downloadable) transfer = action {
+                ReadSheetRow(label, if (link.kind == ReadingLinkKind.STREAM) CosmoIcons.Library else if (downloadable) CosmoIcons.Download else Icons.AutoMirrored.Rounded.OpenInNew,
+                    enabled = transfer?.isActive != true, onClick = {
+                    if (link.kind == ReadingLinkKind.STREAM) streaming = link
+                    else if (downloadable) transfer = action {
                         val book = repository.download(publication, link) { done, total -> progress = if (total != null && total > 0) "${done / 1024} / ${total / 1024} KB" else "${done / 1024} KB downloaded" }
                         scope.open(book)
                     } else runCatching { uri.openUri(link.url) }.onFailure { scope.onError("This source link could not be opened.") }

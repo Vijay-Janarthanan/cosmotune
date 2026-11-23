@@ -545,6 +545,26 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     suspend fun publicationDetails(publication: ReadingPublication): ReadingPublication = details(publication)
 
     /** Only an explicit server-offered full-file acquisition can become an owned EPUB/PDF. */
+    /** Page [page] (from 0) of a comic on the listener's own library, by its page stream; only from that library's server. */
+    suspend fun streamPage(publication: ReadingPublication, link: ReadingLink, page: Int, maxWidth: Int = 1600): ByteArray = withContext(Dispatchers.IO) {
+        require(link in publication.links && link.kind == ReadingLinkKind.STREAM) { "This book cannot be read page by page." }
+        val source = state.value.sources.find { it.id == publication.sourceId } ?: error("Connect this library again to read from it.")
+        val url = link.url.replace("{pageNumber}", page.coerceIn(0, maxOf(0, link.count - 1)).toString()).replace("{maxWidth}", maxWidth.toString()).toHttpUrl()
+        val origin = source.url.toHttpUrl()
+        require(url.scheme == origin.scheme && url.host == origin.host && url.port == origin.port && (url.isHttps || source.allowInsecureHttp)) {
+            "Pages must come from the library's own server."
+        }
+        val http = client.newBuilder().followRedirects(false).callTimeout(60, TimeUnit.SECONDS).build()
+        val request = Request.Builder().url(url).header("Accept", "image/*").apply {
+            source.username.takeIf(String::isNotEmpty)?.let { header("Authorization", Credentials.basic(it, source.password, Charsets.UTF_8)) }
+        }.build()
+        http.newCall(request).awaitReading { response ->
+            check(response.isSuccessful) { "The library answered HTTP ${response.code} for this page." }
+            require(response.body.contentLength() <= 32L * 1024 * 1024) { "This page is too large." }
+            response.body.bytes().also { require(it.size <= 32 * 1024 * 1024) { "This page is too large." } }
+        }
+    }
+
     suspend fun download(publication: ReadingPublication, link: ReadingLink, onProgress: (Long, Long?) -> Unit = { _, _ -> }): ReadingBook = imports.withLock {
         withContext(Dispatchers.IO) {
             require(link in publication.links && link.kind == ReadingLinkKind.ACQUIRE) { "Open borrowing, purchase and sample links on their source." }
