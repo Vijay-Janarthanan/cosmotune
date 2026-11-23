@@ -63,6 +63,7 @@ internal fun CosmoLookDesktopToggles(row: @Composable (String, String, Boolean, 
     com.cosmotune.ui.settings.CosmoRowSizeSetting()
     com.cosmotune.ui.settings.CosmoInterfaceSizeSetting()
     com.cosmotune.ui.settings.CosmoTextFontSetting()
+    com.cosmotune.ui.settings.CosmoAppIconSetting(line = com.cosmotune.ui.settings.AppIconText.LINE_DESKTOP)
     com.cosmotune.ui.settings.HomeSectionsSetting()
     com.cosmotune.ui.settings.MusicBlocksRows()
     com.cosmotune.ui.settings.PlaylistAddPlaceRow()

@@ -315,6 +315,8 @@ class MainActivity : AppCompatActivity() {
             }
             // Video is dark first: while it is the mode, "follow the system" is dark; only an explicit Light choice makes it light.
             val look = com.cosmotune.ui.settings.rememberCosmoLookSettings()
+            // A restored backup brings the chosen app icon back without its launcher entry: put that right once per start.
+            LaunchedEffect(look) { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AppIconSwitch.apply(applicationContext, look.appIcon.value) } }
             val videoMode = look.mode.collectAsStateWithLifecycle().value == com.cosmotune.design.AppMode.VIDEO &&
                 com.cosmotune.design.AppModes.available(com.cosmotune.design.AppMode.VIDEO)
             val darkTheme = when (theme) {

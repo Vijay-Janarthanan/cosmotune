@@ -83,6 +83,13 @@ class CosmoLookSettings(private val store: KeyValueStore) {
     fun setInterfaceSize(size: InterfaceSize) { store.putInt(KEY_INTERFACE_SIZE, size.percent); interfaceSizeFlow.value = size }
     fun setTextFont(font: TextFont) { store.putString(KEY_TEXT_FONT, font.name); textFontFlow.value = font }
 
+    private val appIconFlow = MutableStateFlow(AppIcon.named(store.getString(KEY_APP_ICON, AppIcon.COSMOTUNE.name)))
+
+    /** The colours of the app's icon (Look and colours, App icon): the phone's launcher icon, the desktop's window and tray. */
+    val appIcon: StateFlow<AppIcon> = appIconFlow.asStateFlow()
+
+    fun setAppIcon(icon: AppIcon) { store.putString(KEY_APP_ICON, icon.name); appIconFlow.value = icon }
+
     private val keepDownloadedFlow = MutableStateFlow(readSet(KEY_KEEP_DOWNLOADED))
 
     /**
@@ -286,6 +293,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_COMPACT_ROWS = "compact_rows"
         const val KEY_INTERFACE_SIZE = "interface_size_percent"
         const val KEY_TEXT_FONT = "text_font"
+        const val KEY_APP_ICON = "app_icon"
         const val KEY_KEEP_DOWNLOADED = "keep_downloaded"
         const val KEY_SMART_DOWNLOADS = "smart_downloads"
         const val KEY_HOME_HIDDEN = "home_hidden_sections"
@@ -334,5 +342,33 @@ enum class TextFont(val label: String) {
 
     companion object {
         fun named(name: String?): TextFont = entries.firstOrNull { it.name == name } ?: COSMOTUNE
+    }
+}
+
+/**
+ * The app icon's colours: the Cosmotune mark recoloured, nothing else changed. [ground] is the tile behind the mark, [lit] the
+ * mark itself and [shade] the moon's darker patches (on the launcher icon; the window and tray icon have only [lit]). [alias] is
+ * the phone's launcher entry that shows this icon.
+ */
+enum class AppIcon(val label: String, val ground: Long, val lit: Long, val shade: Long, val alias: String) {
+    COSMOTUNE("Cosmotune", 0xFF000000, 0xFFFFB98F, 0xFFDD8A5E, "IconCosmotune"),
+    MOONLIGHT("Moonlight", 0xFF000000, 0xFFECE8E1, 0xFFC4BEB4, "IconMoonlight"),
+    DAWN("Dawn", 0xFFFFB98F, 0xFF1C1210, 0xFF4A3329, "IconDawn"),
+    MIDNIGHT("Midnight", 0xFF101B36, 0xFFFFB98F, 0xFFDD8A5E, "IconMidnight"),
+    ;
+
+    /** The desktop logo (`logo.svg`, black tile and peach mark) in these colours. */
+    fun recolourSvg(svg: String): String =
+        if (this == COSMOTUNE) svg else svg.replace(SVG_GROUND, HELD).replace(SVG_LIT, hex(lit)).replace(HELD, hex(ground))
+
+    companion object {
+        fun named(name: String?): AppIcon = entries.firstOrNull { it.name == name } ?: COSMOTUNE
+
+        /** The two colours `logo.svg` is drawn in, as written there. */
+        const val SVG_GROUND = "#000000"
+        const val SVG_LIT = "#FFB98F"
+        private const val HELD = "#GROUND"
+
+        private fun hex(argb: Long): String = "#" + (argb and 0xFFFFFF).toString(16).padStart(6, '0').uppercase()
     }
 }
