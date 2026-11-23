@@ -1596,6 +1596,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         viewModelScope.launch {
+            // Hidden folders and the shortest song shown (Settings, Local music) re-read the device's songs too.
+            com.cosmotune.ui.settings.cosmoLookSettings(getApplication()).localRules.drop(1).collect {
+                if (_detailStack.value.any { page -> page.browseId == "local:all" }) {
+                    reloadLocalDetail("local:all")
+                }
+            }
+        }
+        viewModelScope.launch {
             AppSettings.filterNonMusicAudio.drop(1).collect {
                 if (_detailStack.value.any { page -> page.browseId == "local:all" }) {
                     reloadLocalDetail("local:all")

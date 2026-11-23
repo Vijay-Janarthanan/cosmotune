@@ -3030,6 +3030,13 @@ fun CosmotuneDesktopApp() {
         DesktopLocalMusicWatcher.restart()
     }
 
+    // Hidden folders and the shortest song shown (Settings, Local music) apply at once.
+    LaunchedEffect(Unit) {
+        com.cosmotune.ui.settings.cosmoLookSettings().localRules.drop(1).collectLatest {
+            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+        }
+    }
+
     // A track dropped into the folder appears without a relaunch.
     LaunchedEffect(Unit) {
         DesktopLocalMusicWatcher.restart()
@@ -6279,6 +6286,17 @@ private fun DesktopSettingsScreen(
                         filterNonMusicAudio,
                         onFilterNonMusicAudioChange,
                     )
+                    if (settingsRowVisible(com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_TITLE, com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_LINE)) {
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_TITLE)) {
+                            com.cosmotune.ui.settings.LocalShortSongsRows(com.cosmotune.ui.settings.cosmoLookSettings())
+                        }
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.LOCAL_FOLDERS_TITLE, com.cosmotune.ui.settings.LOCAL_FOLDERS_LINE)) {
+                        val localFolders by DesktopLocalMusic.knownFolders.collectAsState()
+                        Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.LOCAL_FOLDERS_TITLE)) {
+                            com.cosmotune.ui.settings.LocalFoldersRows(com.cosmotune.ui.settings.cosmoLookSettings(), localFolders)
+                        }
+                    }
                 }
             }
             DesktopSettingsSection.APPEARANCE -> {

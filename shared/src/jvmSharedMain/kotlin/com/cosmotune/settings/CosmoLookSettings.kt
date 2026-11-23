@@ -117,6 +117,27 @@ class CosmoLookSettings(private val store: KeyValueStore) {
 
     fun setSmartKept(ids: Set<String>) = writeSet(KEY_SMART_KEPT, ids)
 
+    private val localRulesFlow = MutableStateFlow(
+        com.cosmotune.listening.LocalLibraryRules(store.getInt(KEY_LOCAL_MIN_SECONDS, 0).coerceAtLeast(0), readFolders()),
+    )
+
+    /** The rules for the songs on the device: the shortest song shown, and the folders hidden (Local music settings). */
+    val localRules: StateFlow<com.cosmotune.listening.LocalLibraryRules> = localRulesFlow.asStateFlow()
+
+    /** Folder paths can hold commas, so they are kept a line each. */
+    private fun readFolders(): Set<String> = store.getString(KEY_LOCAL_HIDDEN_FOLDERS, "").split('\n').filter { it.isNotBlank() }.toSet()
+
+    fun setLocalMinSeconds(seconds: Int) {
+        store.putInt(KEY_LOCAL_MIN_SECONDS, seconds.coerceAtLeast(0))
+        localRulesFlow.value = localRulesFlow.value.copy(minSeconds = seconds.coerceAtLeast(0))
+    }
+
+    fun setLocalFolderHidden(folder: String, hidden: Boolean) {
+        val next = if (hidden) localRulesFlow.value.hiddenFolders + folder else localRulesFlow.value.hiddenFolders - folder
+        store.putString(KEY_LOCAL_HIDDEN_FOLDERS, next.joinToString("\n"))
+        localRulesFlow.value = localRulesFlow.value.copy(hiddenFolders = next)
+    }
+
     private fun readSet(key: String): Set<String> = store.getString(key, "").split(SET_SEPARATOR).filter { it.isNotBlank() }.toSet()
 
     /** At most the last [MAX_SET] entries: a preferences value has a length limit on the desktop (8 KiB). */
@@ -171,6 +192,8 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_COMPACT_ROWS = "compact_rows"
         const val KEY_KEEP_DOWNLOADED = "keep_downloaded"
         const val KEY_SMART_DOWNLOADS = "smart_downloads"
+        const val KEY_LOCAL_MIN_SECONDS = "local_min_seconds"
+        const val KEY_LOCAL_HIDDEN_FOLDERS = "local_hidden_folders"
         const val KEY_SMART_KEPT = "smart_downloads_kept"
         const val KEY_KEPT_PREFIX = "kept_songs:"
         const val KEY_KEEP_CHECKED = "keep_downloaded_checked"

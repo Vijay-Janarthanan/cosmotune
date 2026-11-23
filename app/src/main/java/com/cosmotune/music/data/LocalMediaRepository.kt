@@ -338,8 +338,14 @@ object LocalMediaRepository {
             }
         }.onFailure { Log.w(TAG, "Failed scanning device local music: ${it.message}") }
 
-        extraLocalMusic?.invoke(context, songs) ?: songs
+        // The listener's rules (Settings, Local music): every folder found is listed there, hidden ones included.
+        knownFolders.value = com.cosmotune.listening.LocalLibraryRules.folders(songs)
+        val kept = com.cosmotune.ui.settings.cosmoLookSettings(context).localRules.value.apply(songs)
+        extraLocalMusic?.invoke(context, kept) ?: kept
     }
+
+    /** Every folder the last scan found songs in, before the hidden ones were taken out: the settings' list of folders. */
+    val knownFolders = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
 
     /** Human-readable path for the folder setting without exposing provider internals. */
     fun selectedFolderLabel(treeUri: String): String? = selectedFolder(treeUri)?.label

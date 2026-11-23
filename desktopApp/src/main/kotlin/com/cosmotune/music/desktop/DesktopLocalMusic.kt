@@ -45,8 +45,13 @@ object DesktopLocalMusic {
         index.finish(songs.mapNotNullTo(HashSet()) { it.localPath })
         previousRoots = currentRoots; previousFilter = filterNonMusic; previousSongs = songs
         changedPaths.clear(); fullScanRequired = false
-        return songs
+        // The listener's rules (Settings, Local music): every folder found is listed there, hidden ones included.
+        knownFolders.value = com.cosmotune.listening.LocalLibraryRules.folders(songs)
+        return com.cosmotune.ui.settings.cosmoLookSettings().localRules.value.apply(songs)
     }
+
+    /** Every folder the last scan found songs in, before the hidden ones were taken out: the settings' list of folders. */
+    val knownFolders = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
 
     /**
      * Where to look: the chosen folder, or the usual two when none has been chosen.

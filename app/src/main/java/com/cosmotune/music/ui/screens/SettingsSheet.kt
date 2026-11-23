@@ -1082,6 +1082,16 @@ fun SettingsScreen(
                     )
                 }
             }
+            row(com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_TITLE, "length", "seconds", "voice notes", summary = com.cosmotune.ui.settings.LOCAL_SHORT_SONGS_LINE) {
+                val rulesContext = androidx.compose.ui.platform.LocalContext.current
+                com.cosmotune.ui.settings.LocalShortSongsRows(com.cosmotune.ui.settings.cosmoLookSettings(rulesContext))
+            }
+            row(com.cosmotune.ui.settings.LOCAL_FOLDERS_TITLE, "hide", "exclude", "blacklist", summary = com.cosmotune.ui.settings.LOCAL_FOLDERS_LINE) {
+                val rulesContext = androidx.compose.ui.platform.LocalContext.current
+                val folders by LocalMediaRepository.knownFolders.collectAsStateWithLifecycle()
+                LaunchedEffect(Unit) { if (folders.isEmpty()) runCatching { LocalMediaRepository.getLocalMusic(rulesContext) } }
+                com.cosmotune.ui.settings.LocalFoldersRows(com.cosmotune.ui.settings.cosmoLookSettings(rulesContext), folders)
+            }
             val filterNonMusicAudioTitle = stringResource(R.string.filter_non_music_audio)
             row(filterNonMusicAudioTitle, "podcast", "recording", summary = stringResource(R.string.filter_non_music_audio_subtitle)) {
                 SettingsRow(
