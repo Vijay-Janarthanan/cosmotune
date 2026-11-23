@@ -229,6 +229,9 @@ Video's own wiring. Our own files that know about the stored mode and the drawer
    the `RoomVideoPlayer` it provides out of the `DesktopPartySync` construction in `DesktopApp.kt`, and the room then plays music,
    radio and podcasts only. The phone's counterpart lives in the Video folders (`video/host/RoomVideo`), and music code only knows
    the small `RoomVideoHost` interface, so nothing else there names the package.
+   The tray and the mini player follow a video through `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopTrayVideo.kt`:
+   delete it with the Video code and, in `DesktopApp.kt`, drop the `DesktopTrayVideo` checks and the `rememberDesktopTrayVideo` line
+   (the tray and the mini player then follow Music alone).
    The phone's `app/src/main/java/com/cosmotune/music/CosmotuneApplication.kt` schedules Video's background work (new-video alerts
    and automatic backups, `com.cosmotune.video.background.VideoBackgroundWorker`): take that one line out with the Video code.
    The Video-specific Compose fixtures are `uiTests/src/test/kotlin/com/cosmotune/ui/VideoMiniPlayerInteractionTest.kt` (the transport)
