@@ -141,6 +141,8 @@ object Http {
         .addInterceptor(NetworkPolicy.offlineInterceptor)
         .proxySelector(NetworkPolicy.selector)
         .proxyAuthenticator(NetworkPolicy.proxyAuthenticator)
+        // The system's DNS, or the listener's DNS over HTTPS; see [PrivateDnsResolver].
+        .dns(PrivateDnsResolver)
         .apply { if (USAGE_LOGGING_ENABLED) addNetworkInterceptor(usageInterceptor) }
         .build()
 }

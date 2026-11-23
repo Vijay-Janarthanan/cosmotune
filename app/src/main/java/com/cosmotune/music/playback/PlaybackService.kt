@@ -6531,6 +6531,31 @@ class PlaybackService : MediaLibraryService() {
         MediaWidget.refresh(this)
         // The watch app follows the widget — same moments, same snapshot.
         WearBridge.publish(this, snapshot, reported, playing)
+        publishNowPlaying(song, snapshot.isPlaying, exoPlayer.duration.takeIf { it > 0L && it != C.TIME_UNSET } ?: 0L)
+    }
+
+    /**
+     * Now playing for other apps (Settings): the listener's webhook, and, when turned on, Android's standard music broadcasts
+     * that Tasker and scrobblers listen for, plus Cosmotune's own. Only when the song or play/pause changed.
+     */
+    private fun publishNowPlaying(song: Song, playing: Boolean, durationMs: Long) {
+        val extras = com.cosmotune.settings.Extras.settings
+        val event = com.cosmotune.listening.NowPlayingEvent(song.videoId, song.title, song.artist, song.albumName, playing, durationMs, song.thumbnailUrl)
+        if (!com.cosmotune.listening.NowPlayingOut.publish(event, extras.nowPlayingWebhook.value, null)) return
+        if (!extras.nowPlayingBroadcast.value) return
+        for (action in listOf("com.android.music.metachanged", "com.android.music.playstatechanged", "com.cosmotune.music.NOW_PLAYING")) {
+            runCatching {
+                sendBroadcast(Intent(action).apply {
+                    putExtra("id", song.videoId)
+                    putExtra("track", song.title)
+                    putExtra("artist", song.artist)
+                    putExtra("album", song.albumName.orEmpty())
+                    putExtra("playing", playing)
+                    putExtra("duration", durationMs)
+                    putExtra("package", packageName)
+                })
+            }
+        }
     }
 
     private var foreignCachePurgeJob: Job? = null

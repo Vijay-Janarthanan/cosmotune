@@ -868,6 +868,17 @@ fun SettingsScreen(
             row(com.cosmotune.ui.settings.SoundExtrasText.PROXY, "proxy", "socks", "http", summary = com.cosmotune.ui.settings.SoundExtrasText.PROXY_LINE) {
                 com.cosmotune.ui.settings.ProxyRows()
             }
+            row(com.cosmotune.ui.settings.OutsideAppsText.DNS, "dns", "https", "doh", "blocked", summary = com.cosmotune.ui.settings.OutsideAppsText.DNS_LINE) {
+                com.cosmotune.ui.settings.PrivateDnsRow()
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = com.cosmotune.ui.settings.OutsideAppsText.GROUP) {
+            row(com.cosmotune.ui.settings.OutsideAppsText.WEBHOOK, "webhook", "home assistant", "now playing", summary = com.cosmotune.ui.settings.OutsideAppsText.WEBHOOK_LINE) {
+                com.cosmotune.ui.settings.NowPlayingWebhookRow()
+            }
+            row(com.cosmotune.ui.settings.OutsideAppsText.BROADCAST, "tasker", "broadcast", "scrobble", summary = com.cosmotune.ui.settings.OutsideAppsText.BROADCAST_LINE) {
+                com.cosmotune.ui.settings.NowPlayingBroadcastRow()
+            }
         }
         SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = com.cosmotune.ui.settings.SoundExtrasText.GROUP_RECOGNITION) {
             row(com.cosmotune.ui.settings.SoundExtrasText.RECOGNITION, "shazam", "recognition", "identify", "microphone", summary = com.cosmotune.ui.settings.SoundExtrasText.RECOGNITION_LINE) {

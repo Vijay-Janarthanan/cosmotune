@@ -2269,6 +2269,17 @@ fun CosmotuneDesktopApp() {
     LaunchedEffect(playback.song?.videoId, playback.isPlaying) {
         DesktopWindowTitle.show(playback.song?.title, playback.song?.artist, playback.isPlaying)
     }
+    // Now playing for other apps: the listener's webhook and the text file for OBS (Settings, Now playing for other apps).
+    val nowPlayingWebhook by com.cosmotune.settings.Extras.settings.nowPlayingWebhook.collectAsState()
+    val nowPlayingFileOn by com.cosmotune.settings.Extras.settings.nowPlayingFile.collectAsState()
+    LaunchedEffect(nowPlayingWebhook, nowPlayingFileOn) { com.cosmotune.listening.NowPlayingOut.reset() }
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying, nowPlayingWebhook, nowPlayingFileOn) {
+        val song = playback.song
+        val event = song?.let {
+            com.cosmotune.listening.NowPlayingEvent(it.videoId, it.title, it.artist, it.albumName, playback.isPlaying, playback.durationMs, it.thumbnailUrl)
+        }
+        com.cosmotune.listening.NowPlayingOut.publish(event, nowPlayingWebhook, DesktopNowPlayingFile.file.takeIf { nowPlayingFileOn })
+    }
     // Settings, Player, Keep the screen on: past lyrics or a video, the display stays awake while the player is open or while music plays.
     val screenOnPolicy by com.cosmotune.settings.Extras.settings.screenOn.collectAsState()
     val keepAwake = screenOnPolicy.keepsOn(playerOpen = overlays.nowPlaying, lyricsOrVideo = false, isPlaying = playback.isPlaying)
@@ -6246,6 +6257,17 @@ private fun DesktopSettingsScreen(
                     }
                     if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.PROXY, com.cosmotune.ui.settings.SoundExtrasText.PROXY_LINE)) {
                         com.cosmotune.ui.settings.ProxyRows()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.OutsideAppsText.DNS, com.cosmotune.ui.settings.OutsideAppsText.DNS_LINE)) {
+                        com.cosmotune.ui.settings.PrivateDnsRow()
+                    }
+                }
+                SettingsGroup(com.cosmotune.ui.settings.OutsideAppsText.GROUP) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.OutsideAppsText.WEBHOOK, com.cosmotune.ui.settings.OutsideAppsText.WEBHOOK_LINE)) {
+                        com.cosmotune.ui.settings.NowPlayingWebhookRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.OutsideAppsText.FILE, com.cosmotune.ui.settings.OutsideAppsText.FILE_LINE)) {
+                        com.cosmotune.ui.settings.NowPlayingFileRow(DesktopNowPlayingFile.file.absolutePath)
                     }
                 }
                 SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_RECOGNITION) {

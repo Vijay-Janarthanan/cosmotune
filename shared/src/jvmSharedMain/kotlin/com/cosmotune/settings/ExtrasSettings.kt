@@ -39,6 +39,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val pitchFlow = MutableStateFlow(clampPitch(store.getInt(KEY_PITCH, 0)))
     private val offlineFlow = MutableStateFlow(store.getBoolean(KEY_OFFLINE, false))
     private val proxyFlow = MutableStateFlow(readProxy())
+    private val privateDnsFlow = MutableStateFlow(com.cosmotune.music.data.PrivateDns.named(store.getString(KEY_PRIVATE_DNS, "OFF")))
     private val autoLyricsOffsetFlow = MutableStateFlow(store.getBoolean(KEY_AUTO_LYRICS_OFFSET, true))
     private val spatialPresetFlow = MutableStateFlow(SpatialPreset.named(store.getString(KEY_SPATIAL_PRESET, SpatialPreset.DEFAULT.name)))
     private val spatialSurroundFlow = MutableStateFlow(store.getBoolean(KEY_SPATIAL_SURROUND, false))
@@ -165,7 +166,16 @@ class ExtrasSettings(private val store: KeyValueStore) {
         password = store.getString(KEY_PROXY_PASSWORD, ""),
     )
 
+    /** Look names up over HTTPS through this resolver instead of the network's DNS; see [com.cosmotune.music.data.PrivateDnsResolver]. */
+    val privateDns: StateFlow<com.cosmotune.music.data.PrivateDns> = privateDnsFlow.asStateFlow()
+    fun setPrivateDns(value: com.cosmotune.music.data.PrivateDns) {
+        privateDnsFlow.value = value
+        store.putString(KEY_PRIVATE_DNS, value.name)
+        publishNetwork()
+    }
+
     private fun publishNetwork() {
+        com.cosmotune.music.data.PrivateDnsResolver.choice = privateDnsFlow.value
         NetworkPolicy.offline = offlineFlow.value
         NetworkPolicy.apply(proxyFlow.value.takeIf { it.enabled }?.let(NetworkPolicy::configOf))
     }
@@ -227,6 +237,22 @@ class ExtrasSettings(private val store: KeyValueStore) {
         store.putString(KEY_SONG_TAGS, com.cosmotune.listening.SongTags.encode(value))
     }
 
+    private val nowPlayingWebhookFlow = MutableStateFlow(store.getString(KEY_NOW_PLAYING_WEBHOOK, ""))
+    private val nowPlayingBroadcastFlow = MutableStateFlow(store.getBoolean(KEY_NOW_PLAYING_BROADCAST, false))
+    private val nowPlayingFileFlow = MutableStateFlow(store.getBoolean(KEY_NOW_PLAYING_FILE, false))
+
+    /** A web address of the listener's own that is told each song as it starts, pauses or resumes; empty for none. See [com.cosmotune.listening.NowPlayingOut]. */
+    val nowPlayingWebhook: StateFlow<String> = nowPlayingWebhookFlow.asStateFlow()
+    fun setNowPlayingWebhook(value: String) { val tidy = value.trim().take(2_000); nowPlayingWebhookFlow.value = tidy; store.putString(KEY_NOW_PLAYING_WEBHOOK, tidy) }
+
+    /** The phone tells other apps (Tasker, scrobblers) the song with the standard music broadcasts. Off until turned on. */
+    val nowPlayingBroadcast: StateFlow<Boolean> = nowPlayingBroadcastFlow.asStateFlow()
+    fun setNowPlayingBroadcast(value: Boolean) { nowPlayingBroadcastFlow.value = value; store.putBoolean(KEY_NOW_PLAYING_BROADCAST, value) }
+
+    /** The desktop keeps a text file naming the song, for OBS and other streaming software. Off until turned on. */
+    val nowPlayingFile: StateFlow<Boolean> = nowPlayingFileFlow.asStateFlow()
+    fun setNowPlayingFile(value: Boolean) { nowPlayingFileFlow.value = value; store.putBoolean(KEY_NOW_PLAYING_FILE, value) }
+
     companion object {
         const val KEY_SONG_PLAYBACK="extras_song_playback"
         const val KEY_PREMIUM_AUDIO = "extras_youtube_premium_audio"
@@ -237,6 +263,10 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_EQ_USER_PRESETS = "extras_eq_user_presets"
         const val KEY_PLAYLIST_FOLDERS = "extras_playlist_folders"
         const val KEY_SONG_TAGS = "extras_song_tags"
+        const val KEY_PRIVATE_DNS = "extras_private_dns"
+        const val KEY_NOW_PLAYING_WEBHOOK = "extras_now_playing_webhook"
+        const val KEY_NOW_PLAYING_BROADCAST = "extras_now_playing_broadcast"
+        const val KEY_NOW_PLAYING_FILE = "extras_now_playing_file"
         const val KEY_INLINE_LYRICS="extras_inline_lyrics"
         const val KEY_LYRIC_ALIGNMENT="extras_lyric_alignment"
         const val KEY_BLUETOOTH_RESUME="extras_bluetooth_resume"
