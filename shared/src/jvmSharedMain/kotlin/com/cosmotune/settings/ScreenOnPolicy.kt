@@ -3,9 +3,8 @@ package com.cosmotune.settings
 /**
  * When the player keeps the screen from sleeping (Settings, Player, "Keep the screen on"; the idea from OuterTune's screen-on
  * policy and Echo's wakelock, own code). The lyrics, Cinema and a playing video always keep it on, as they did before; the other
- * two choices add to that.
+ * two choices add to that. [label] is the menu's words, [short] the settings row's pill.
  */
-/** [label] in the menu, [short] on the settings row's pill. */
 enum class ScreenOnPolicy(val label: String, val short: String) {
     /** Only while the lyrics, Cinema or the song's video show. */
     LYRICS_OR_VIDEO("With lyrics or a video", "Lyrics, video"),

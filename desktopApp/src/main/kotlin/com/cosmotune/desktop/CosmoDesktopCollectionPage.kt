@@ -131,10 +131,10 @@ internal fun CosmoDesktopCollectionPage(
     onReorder: (() -> Unit)? = null,
     /** One of the account's own playlists: its cover can be changed (More, or a click on the disc) and put back to the automatic one. */
     coverEditable: Boolean = false,
-    nowPlaying: Song? = null,
-    isPlaying: Boolean = LocalCosmoPlaying.current,
     /** An album or playlist into a playlist whole, from the card's More ("Add to playlists"); null where it cannot go. */
     onAddAllToPlaylists: ((List<Song>) -> Unit)? = null,
+    nowPlaying: Song? = null,
+    isPlaying: Boolean = LocalCosmoPlaying.current,
 ) {
     val songs = collection.songs
     // A cover the person picked for this playlist, kept in Cosmotune (never on YouTube Music), shows wherever its cover does.

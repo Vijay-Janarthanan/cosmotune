@@ -3779,12 +3779,12 @@ fun CosmotuneDesktopApp() {
             LocalContentColor provides (if (desktopDark) Color.White else LocalContentColor.current),
             LocalDesktopSongContextMenu provides rememberDesktopSongAction(::openMenu),
             LocalNowPlaying provides selectedSong,
+            com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,
+            com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),
             // Up next marks the liked and downloaded songs.
             com.cosmotune.ui.orbit.LocalQueueMarks provides remember(likedIds, downloads) {
                 com.cosmotune.ui.orbit.QueueMarks(liked = likedIds, downloaded = downloads.mapTo(HashSet()) { it.videoId })
             },
-            com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,
-            com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),
             com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },
             com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),
         ) {
@@ -4986,7 +4986,13 @@ fun CosmotuneDesktopApp() {
                                 }
                             }
                         }
-                        openedCollection != null -> DesktopCollectionPage(
+                        openedCollection != null -> androidx.compose.runtime.CompositionLocalProvider(
+                            // More, "Add to playlists" on an album or playlist page: the page passes the songs it holds.
+                            LocalAddAllToPlaylists provides openedCollection
+                                ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
+                                ?.let { collection -> { songs: List<Song> -> playlistRelease = collection.copy(songs = songs) } },
+                        ) {
+                        DesktopCollectionPage(
                             collection = openedCollection!!,
                             loadingMore = collectionLoadingMore,
                             onLoadMore = ::loadMoreCollectionSongs,
@@ -5017,10 +5023,8 @@ fun CosmotuneDesktopApp() {
                             downloadedIds = downloads.map(Song::videoId).toSet(),
                             downloadInProgress = downloadInProgress,
                             contentPadding = contentPadding,
-                            onAddAllToPlaylists = openedCollection
-                                ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
-                                ?.let { collection -> { songs: List<Song> -> playlistRelease = collection.copy(songs = songs) } },
                         )
+                        }
                         destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.home.HomeSwitch(
                             discoveryHistory = history,
                             discoveryLikedIds = likedIds + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
@@ -7529,12 +7533,13 @@ private fun DesktopCollectionPage(
     contentPadding: PaddingValues,
     /** Opens the reorder dialog; only a playlist the account owns can be rearranged (BC-35). */
     onReorder: (() -> Unit)? = null,
-    /** Puts the whole album or playlist into a playlist (More, "Add to playlists"). */
-    onAddAllToPlaylists: ((List<Song>) -> Unit)? = null,
 ) {
-    com.cosmotune.desktop.CosmoDesktopCollectionPage(onAddAllToPlaylists = onAddAllToPlaylists, collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, coverEditable = collection.owned == true && collection.type == BrowseType.PLAYLIST, nowPlaying = LocalNowPlaying.current)
+    com.cosmotune.desktop.CosmoDesktopCollectionPage(onAddAllToPlaylists = LocalAddAllToPlaylists.current, collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, coverEditable = collection.owned == true && collection.type == BrowseType.PLAYLIST, nowPlaying = LocalNowPlaying.current)
 }
 
+
+/** The open album or playlist page's "Add to playlists" (its More menu); null on other pages. */
+private val LocalAddAllToPlaylists = compositionLocalOf<((List<Song>) -> Unit)?> { null }
 
 /** The track playing, for rows that want to say so. */
 private val LocalNowPlaying = compositionLocalOf<Song?> { null }
