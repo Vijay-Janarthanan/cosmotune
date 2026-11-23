@@ -77,7 +77,10 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
 
     suspend fun save(book: MangaBook) = update { old ->
         val previous = old.books.find { it.id == book.id }
-        old.copy(books = old.books.filterNot { it.id == book.id } + book.copy(addedAtMs = previous?.addedAtMs ?: book.addedAtMs)).settledSyncedRead(book)
+        // A new series joins the default collection, when there is one.
+        val collections = if (previous == null && old.defaultCollection.isNotBlank()) old.collections.map { if (it.id == old.defaultCollection) it.copy(bookIds = it.bookIds + book.id) else it }
+            else old.collections
+        old.copy(books = old.books.filterNot { it.id == book.id } + book.copy(addedAtMs = previous?.addedAtMs ?: book.addedAtMs), collections = collections).settledSyncedRead(book)
     }
 
     suspend fun remove(bookId: String) = update { old ->
@@ -152,7 +155,13 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
         old.copy(collections = old.collections.map { if (it.id == id) it.copy(name = title) else it })
     }
 
-    suspend fun deleteCollection(id: String) = update { old -> old.copy(collections = old.collections.filterNot { it.id == id }) }
+    suspend fun deleteCollection(id: String) = update { old -> old.copy(collections = old.collections.filterNot { it.id == id },
+        defaultCollection = old.defaultCollection.takeUnless { it == id }.orEmpty()) }
+
+    suspend fun hideCollection(id: String, hidden: Boolean) = update { old -> old.copy(collections = old.collections.map { if (it.id == id) it.copy(hidden = hidden) else it }) }
+
+    /** New series join [id] ("" for none). */
+    suspend fun defaultCollection(id: String) = update { old -> old.copy(defaultCollection = id.takeIf { value -> old.collections.any { it.id == value } }.orEmpty()) }
 
     suspend fun assignCollection(bookId: String, collectionId: String, included: Boolean) = update { old ->
         require(old.books.any { it.id == bookId } && old.collections.any { it.id == collectionId }) { "Save the series and collection first" }

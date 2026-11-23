@@ -28,6 +28,7 @@ object SyncMangaLibrary {
         state.collections.forEach { collection ->
             put("collection:${collection.id}", buildJsonObject {
                 put("name", collection.name)
+                if (collection.hidden) put("hidden", true)
                 putJsonArray("series") { collection.bookIds.filter { id -> state.books.any { it.id == id && travels(it) } }.sorted().forEach { add(it) } }
             })
         }
@@ -86,7 +87,8 @@ object SyncMangaLibrary {
                     val localMembers = next.collections.find { it.id == key }?.bookIds.orEmpty().filter { id -> next.books.any { it.id == id && it.sourceId == "local" } }
                     val ids = members.filter { id -> next.books.any { it.id == id } }.toSet() + localMembers
                     val others = next.collections.filterNot { it.id == key || it.name.equals(name, true) }
-                    if (key.length in 1..120 && key != "unassigned" && others.size < 128) next = next.copy(collections = others + MangaCollection(key, name, ids))
+                    val hidden = (data["hidden"] as? JsonPrimitive)?.booleanOrNull == true
+                    if (key.length in 1..120 && key != "unassigned" && others.size < 128) next = next.copy(collections = others + MangaCollection(key, name, ids, hidden))
                 }
             }
         }

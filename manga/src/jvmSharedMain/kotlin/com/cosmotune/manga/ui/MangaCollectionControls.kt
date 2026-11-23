@@ -30,7 +30,8 @@ import kotlinx.coroutines.launch
     var manage by remember { mutableStateOf(false) }
     ReadChipRow(Modifier.padding(vertical = 4.dp).testTag("manga:collections")) {
         ReadChip(mangaText("All") + " ${state.books.size}", selected == "", { onSelected("") })
-        state.collections.forEach { collection -> ReadChip(collection.name + " ${state.collectionBooks(collection.id).size}", selected == collection.id, { onSelected(collection.id) }) }
+        state.collections.forEach { collection -> ReadChip(collection.name + " ${state.collectionBooks(collection.id).size}" + if (collection.hidden) " · " + mangaText("hidden") else "",
+            selected == collection.id, { onSelected(collection.id) }) }
         if (state.collections.isNotEmpty()) ReadChip(mangaText("Unassigned") + " ${state.collectionBooks("unassigned").size}", selected == "unassigned", { onSelected("unassigned") })
         ReadChip(mangaText(if (state.collections.isEmpty()) "New collection" else "Edit"), false, { manage = true }, Modifier.testTag("manga:collection:manage"), icon = CosmoIcons.Plus)
     }
@@ -55,11 +56,17 @@ import kotlinx.coroutines.launch
             }, kind = ReadKind.TONAL, modifier = Modifier.testTag("manga:collection:save"))
             error?.let { Text(it, style = ReadType.body(), color = Color(palette.danger)) }
             state.collections.forEach { collection ->
-                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f).padding(end = 4.dp)) {
                         Text(collection.name, style = ReadType.rowTitle(), color = Color(palette.textPrimary))
-                        Text(if (collection.bookIds.size == 1) "1 series" else "${collection.bookIds.size} series", style = ReadType.meta(), color = Color(palette.textSecondary))
+                        Text(listOfNotNull(if (collection.bookIds.size == 1) "1 series" else "${collection.bookIds.size} series",
+                            "hidden from All".takeIf { collection.hidden }, "new series go here".takeIf { state.defaultCollection == collection.id }).joinToString(" · "),
+                            style = ReadType.meta(), color = Color(palette.textSecondary))
                     }
+                    ReadTextButton(mangaText(if (state.defaultCollection == collection.id) "Not default" else "Default"),
+                        { action { repository.store.defaultCollection(if (state.defaultCollection == collection.id) "" else collection.id) } }, Modifier.testTag("manga:collection:default:${collection.id}"))
+                    ReadTextButton(mangaText(if (collection.hidden) "Show" else "Hide"), { action { repository.store.hideCollection(collection.id, !collection.hidden) } },
+                        Modifier.testTag("manga:collection:hide:${collection.id}"))
                     ReadTextButton(mangaText("Rename"), { editing = collection.id; name = collection.name }, Modifier.testTag("manga:collection:rename:${collection.id}"))
                     ReadTextButton(mangaText("Delete"), { deleting = collection }, Modifier.testTag("manga:collection:delete:${collection.id}"))
                 }

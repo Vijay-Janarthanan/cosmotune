@@ -156,6 +156,8 @@ data class MangaLibraryState(
     val readerTapInvert: Boolean = false,
     /** The volume keys turn pages while reading. */
     val readerVolumeKeys: Boolean = false,
+    /** The collection a series joins when it is added to the library ("" for none). */
+    val defaultCollection: String = "",
     /** Incognito: reading saves no place, no history and no read marks, and nothing is sent to reading lists. */
     val incognito: Boolean = false,
     /** Library updates skip series that are finished and fully read. */
@@ -183,10 +185,11 @@ data class MangaLibraryState(
     val serverWriteBack: Boolean = true,
 )
 
-@Serializable data class MangaCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())
+/** A collection (Mihon's category); a [hidden] one keeps its series out of All, and shows them only when it is chosen. */
+@Serializable data class MangaCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet(), val hidden: Boolean = false)
 
 fun MangaLibraryState.collectionBooks(selection: String): List<MangaBook> = when (selection) {
-    "" -> books
+    "" -> books.filter { book -> collections.none { it.hidden && book.id in it.bookIds } }
     "unassigned" -> books.filter { book -> collections.none { book.id in it.bookIds } }
     else -> books.filter { it.id in collections.find { collection -> collection.id == selection }?.bookIds.orEmpty() }
 }
