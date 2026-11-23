@@ -44,7 +44,7 @@ import com.cosmotune.watch.model.WatchProfile
 import kotlinx.coroutines.launch
 
 /** Which of the settings' small dialogs is open. */
-private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
+private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, RESTORE, SUBTITLES, CACHE, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
 
 /**
  * Watch settings on the same rows Video's settings use ([CosmoSettingsGroup], [CosmoSettingsRow]): Sources and add-ons first
@@ -69,6 +69,10 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
     fun keepTorrent(change: (com.cosmotune.watch.torrent.TorrentSettings) -> com.cosmotune.watch.torrent.TorrentSettings) =
         scope.launch { repository.setTorrentSettings(change(repository.torrentSettings.value)) }
     var dialog by remember { mutableStateOf<WatchSettingsDialog?>(null) }
+    var backupNote by remember { mutableStateOf<String?>(null) }
+    var restoring by remember { mutableStateOf<String?>(null) }
+    val saveFile = rememberTextFileSaver()
+    val openBackup = rememberTextFileOpener { text -> restoring = text; dialog = WatchSettingsDialog.RESTORE }
     var unlocking by remember { mutableStateOf<WatchProfile?>(null) }
     val side = frame.side
     LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxSize(), contentPadding = frame.padding) {
@@ -142,6 +146,13 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
             val used by androidx.compose.runtime.produceState(0L, dialog) { value = runCatching { repository.cacheBytes() }.getOrDefault(0L) }
             CosmoSettingsGroup(header = "Storage") {
                 CosmoSettingsRow(Icons.Rounded.Folder, "Cache", subtitle = "${sizeText(used) ?: "Empty"} of ${cacheLimitText(limit)}", onClick = { dialog = WatchSettingsDialog.CACHE })
+                CosmoSettingsRow(CosmoIcons.Download, "Back up to a file", subtitle = backupNote ?: "My list, where you are, playlists, channels and add-ons",
+                    onClick = { scope.launch {
+                        val text = runCatching { repository.exportBackup() }.getOrNull()
+                        if (text == null) backupNote = "The backup could not be made" else
+                            saveFile("cosmotune-watch-${java.time.LocalDate.now()}.json", text) { saved -> backupNote = if (saved) "Backup saved" else "Not saved" }
+                    } })
+                CosmoSettingsRow(CosmoIcons.Replay, "Restore from a file", subtitle = "Adds a backup to this profile; nothing is removed", onClick = openBackup)
             }
         }
         item(key = "settings:services") {
@@ -284,6 +295,16 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
         }
         WatchSettingsDialog.ANIME -> repository.animeTracking?.let { anime ->
             WatchDialog("Connected services", "Anime lists", onDismiss = { dialog = null }) { WatchAnimeTrackingCard(anime, fonts, look) }
+        }
+        WatchSettingsDialog.RESTORE -> restoring?.let { text ->
+            var done by remember(text) { mutableStateOf<String?>(null) }
+            val preview by androidx.compose.runtime.produceState<Result<String>?>(null, text) { value = runCatching { repository.readBackup(text) } }
+            val readable = preview?.isSuccess == true
+            com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = { dialog = null; restoring = null }, title = "Restore from a file",
+                message = done ?: preview?.fold({ "This backup has $it. They are added to this profile; nothing here is removed." }, { it.message ?: "This file could not be read." })
+                    ?: "Reading the backup…",
+                confirmLabel = if (done == null && readable) "Restore" else null, dismissLabel = if (done == null) "Cancel" else "Done",
+                onConfirm = { scope.launch { done = runCatching { repository.restoreBackup(text) }.getOrElse { it.message ?: "The backup could not be restored." } } })
         }
         WatchSettingsDialog.KEYS -> WatchDialog("Connected services", "Service keys", onDismiss = { dialog = null }) { ServiceKeys(fonts, look) }
         WatchSettingsDialog.DEBRID -> WatchDialog("Connected services", "Debrid", onDismiss = { dialog = null }) {

@@ -479,6 +479,39 @@ class DefaultWatchRepository(
         return addUserSource(UserSourceSpec.StremioAddon(url))
     }
 
+    private fun backupOf(state: WatchState): WatchBackup {
+        val profile = state.allProfiles()[state.activeProfile]
+        return WatchBackup(profile = profile?.name.orEmpty(), myList = state.myList, progress = state.progress.values.toList(),
+            playlists = profile?.playlists.orEmpty(), favourites = state.favourites, preferences = preferences.value)
+    }
+
+    override suspend fun exportBackup(): String {
+        val pack = exportPluginPack().takeIf { runCatching { readPluginPack(it) }.getOrDefault(emptyList()).isNotEmpty() }
+        return WatchBackup.encode(backupOf(store.state.value).copy(savedAtMs = config.now(), addons = pack))
+    }
+
+    override suspend fun readBackup(text: String): String {
+        val backup = WatchBackup.decode(text)
+        val addons = backup.addons?.let { runCatching { readPluginPack(it).count { !it.alreadyInstalled } }.getOrDefault(0) } ?: 0
+        return backup.summary(addons)
+    }
+
+    override suspend fun restoreBackup(text: String): String {
+        val incoming = WatchBackup.decode(text)
+        val merged = WatchBackup.merge(backupOf(store.state.value), incoming)
+        update { state ->
+            val all = state.allProfiles()
+            val profile = all.getValue(state.activeProfile)
+            val progress = merged.progress.associateBy { it.key.value }
+            state.copy(myList = merged.myList, progress = progress, favourites = merged.favourites,
+                profiles = all + (profile.id to profile.copy(myList = merged.myList, progress = progress, playlists = merged.playlists)))
+        }
+        merged.preferences?.let { setPreferences(it) }
+        val added = incoming.addons?.let { runCatching { importPluginPack(it).added.size }.getOrDefault(0) } ?: 0
+        WatchSyncSignals.checkpoint()
+        return "Restored " + incoming.copy(addons = null).summary(added) + "."
+    }
+
     override suspend fun exportPluginPack(): String = PluginPack.encode(store.state.value.sources.mapNotNull { s ->
         (s.spec as? UserSourceSpec.StremioAddon)?.let { PluginPack.Item(it.manifestUrl, s.name.orEmpty()) }
     })

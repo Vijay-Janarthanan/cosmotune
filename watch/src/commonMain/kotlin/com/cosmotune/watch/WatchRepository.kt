@@ -366,6 +366,12 @@ interface WatchRepository {
     suspend fun setCacheLimitMb(megabytes: Int) {}
     /** Empties the cache; everything is fetched again when next needed. */
     suspend fun clearCache() {}
+    /** This viewer's library as a backup file's text ([WatchBackup]). */
+    suspend fun exportBackup(): String = error("Backups are not offered here.")
+    /** What restoring [text] would bring, in the listener's words; fails for a file that is not a Watch backup. */
+    suspend fun readBackup(text: String): String = error("Backups are not offered here.")
+    /** Adds the backup in [text] to this viewer's library (nothing is removed) and says what came back. */
+    suspend fun restoreBackup(text: String): String = error("Backups are not offered here.")
 
     // Calendar
     /**
