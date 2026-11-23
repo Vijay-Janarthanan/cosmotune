@@ -28,6 +28,10 @@ import com.cosmotune.ui.components.cosmoFocusRing
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -44,16 +48,20 @@ import com.cosmotune.ui.components.CosmoIcons
  * ([orbitTouchOverhang]), so the look stays as drawn.
  */
 @Composable
-fun OrbitPlayButton(playing: Boolean, onClick: () -> Unit, look: OrbitLook, modifier: Modifier = Modifier, size: Dp = 66.dp, touch: Dp = 0.dp) {
+fun OrbitPlayButton(playing: Boolean, onClick: () -> Unit, look: OrbitLook, modifier: Modifier = Modifier, size: Dp = 66.dp, touch: Dp = 0.dp, shortcut: String? = null) {
     val fill = if (look.dark) PEACH else Color(0xFF1D1416)
+    val label = if (playing) "Pause" else "Play"
+    val tooltip = rememberOrbitTooltipState()
     val glyph: @Composable () -> Unit = {
-        Icon(if (playing) CosmoIcons.Pause else CosmoIcons.Play, contentDescription = if (playing) "Pause" else "Play",
+        Icon(if (playing) CosmoIcons.Pause else CosmoIcons.Play, contentDescription = label,
             tint = if (look.dark) Color(0xFF2A100A) else PEACH, modifier = Modifier.size(size * 0.38f))
+        OrbitTooltipPill(tooltip, label, shortcut)
     }
     if (touch > size) {
         val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
         Box(
             modifier.orbitTouchOverhang(size, touch).size(touch)
+                .orbitTooltip(tooltip)
                 .clickable(interactionSource = interaction, indication = null, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
@@ -65,7 +73,7 @@ fun OrbitPlayButton(playing: Boolean, onClick: () -> Unit, look: OrbitLook, modi
         return
     }
     Box(
-        modifier.size(size).clip(CircleShape).background(fill).clickable(onClick = onClick),
+        modifier.size(size).clip(CircleShape).background(fill).orbitTooltip(tooltip).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { glyph() }
 }
@@ -81,7 +89,11 @@ fun Modifier.orbitTouchOverhang(visible: Dp, target: Dp): Modifier = layout { me
     layout(v, v) { placeable.place((v - t) / 2, (v - t) / 2) }
 }
 
-/** The round tonal button of a card or a bar (previous, next, like, the screen button): [ink] at 12 %, or solid when [on]. */
+/**
+ * The round tonal button of a card or a bar (previous, next, like, the screen button): [ink] at 12 %, or solid when [on]. Its
+ * [label] is what a screen reader says and what its tooltip shows (with [shortcut] on the desktop: "Mini player (Ctrl+Shift+M)").
+ * [toggled] makes it a checkbox to a screen reader, with that state.
+ */
 @Composable
 fun OrbitRoundButton(
     icon: ImageVector,
@@ -95,11 +107,16 @@ fun OrbitRoundButton(
     enabled: Boolean = true,
     /** A touch target larger than [size] round the drawn circle (see [OrbitPlayButton]); 0 is the circle itself. */
     touch: Dp = 0.dp,
+    shortcut: String? = null,
+    toggled: Boolean? = null,
 ) {
     val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val tooltip = rememberOrbitTooltipState()
+    val toggle = if (toggled != null) Modifier.semantics { role = androidx.compose.ui.semantics.Role.Checkbox; toggleableState = ToggleableState(toggled) } else Modifier
     if (touch > size) {
         Box(
             modifier.alpha(if (enabled) 1f else 0.45f).orbitTouchOverhang(size, touch).size(touch)
+                .orbitTooltip(tooltip)
                 .clickable(
                     interactionSource = interaction,
                     indication = null,
@@ -107,7 +124,8 @@ fun OrbitRoundButton(
                     role = androidx.compose.ui.semantics.Role.Button,
                     onClickLabel = label,
                     onClick = onClick,
-                ),
+                )
+                .then(toggle),
             contentAlignment = Alignment.Center,
         ) {
             Box(
@@ -116,12 +134,14 @@ fun OrbitRoundButton(
                     .indication(interaction, androidx.compose.foundation.LocalIndication.current),
                 contentAlignment = Alignment.Center,
             ) { Icon(icon, contentDescription = label, tint = if (on) onInk else ink, modifier = Modifier.size(size * 0.45f)) }
+            OrbitTooltipPill(tooltip, label, shortcut)
         }
         return
     }
     Box(
         modifier.alpha(if (enabled) 1f else 0.45f).size(size).cosmoFocusRing(interaction, size / 2).clip(CircleShape)
             .background(if (on) ink else ink.copy(alpha = 0.12f))
+            .orbitTooltip(tooltip)
             .clickable(
                 interactionSource = interaction,
                 indication = androidx.compose.foundation.LocalIndication.current,
@@ -129,9 +149,13 @@ fun OrbitRoundButton(
                 role = androidx.compose.ui.semantics.Role.Button,
                 onClickLabel = label,
                 onClick = onClick,
-            ),
+            )
+            .then(toggle),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, contentDescription = label, tint = if (on) onInk else ink, modifier = Modifier.size(size * 0.45f)) }
+    ) {
+        Icon(icon, contentDescription = label, tint = if (on) onInk else ink, modifier = Modifier.size(size * 0.45f))
+        OrbitTooltipPill(tooltip, label, shortcut)
+    }
 }
 
 /**

@@ -28,20 +28,25 @@ fun MusicListControls(shown: Int, loaded: Int, hasMore: Boolean, order: MusicLis
     onReset: (() -> Unit)?, modifier: Modifier = Modifier,
     selectionCount: Int = 0, selecting: Boolean = false, onSelecting: (() -> Unit)? = null,
     onPlaySelection: (() -> Unit)? = null, onMoreSelection: (() -> Unit)? = null,
-    onSelectVisible: (() -> Unit)? = null, onClearSelection: (() -> Unit)? = null, hasAddedDates: Boolean = false) {
+    onSelectVisible: (() -> Unit)? = null, onClearSelection: (() -> Unit)? = null, hasAddedDates: Boolean = false,
+    /** False where the page puts [MusicListCount] itself (the desktop's, on the page's edge under a row that starts with a button). */
+    showCount: Boolean = true) {
     var expanded by remember { mutableStateOf(false) }
     val palette = LocalCosmoColors.current.palette
     Column(modifier.fillMaxWidth().testTag("music:list:controls")) {
         KitActionRow(contentPadding = PaddingValues()) {
             Box {
                 KitChip(stringResource(Res.string.music_list_sort, orderLabel(order)), selected = false, onClick = { expanded = true }, modifier = Modifier.testTag("music:list:order"), icon = CosmoIcons.Sort)
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    MusicListOrder.entries.filter { hasAddedDates || it !in setOf(MusicListOrder.ADDED, MusicListOrder.ADDED_DESC) }.forEach { option ->
-                        DropdownMenuItem(text = { Text(orderLabel(option)) }, onClick = { onOrder(option); expanded = false },
-                            modifier = Modifier.semantics { selected = order == option },
-                            trailingIcon = if (order == option) { { Icon(CosmoIcons.Check, null) } } else null)
-                    }
-                }
+                // The Orbit menu every other list uses (not Material's dropdown): the order in force is the solid line.
+                val options = MusicListOrder.entries.filter { hasAddedDates || it !in setOf(MusicListOrder.ADDED, MusicListOrder.ADDED_DESC) }
+                com.cosmotune.ui.orbit.OrbitMenu(
+                    open = expanded,
+                    onDismiss = { expanded = false },
+                    items = options.map { option -> com.cosmotune.ui.orbit.OrbitMenuItem(title = orderLabel(option), selected = order == option, onClick = { onOrder(option) }) },
+                    fonts = com.cosmotune.ui.orbit.orbitFonts(),
+                    look = com.cosmotune.ui.orbit.orbitLook(),
+                    width = 240.dp,
+                )
             }
             KitChip(stringResource(Res.string.downloaded), downloadedOnly, { onDownloadedOnly(!downloadedOnly) }, Modifier.testTag("music:list:downloaded"))
             if (onSelecting != null) KitChip(
@@ -50,9 +55,7 @@ fun MusicListControls(shown: Int, loaded: Int, hasMore: Boolean, order: MusicLis
             )
             if (onReset != null) KitTextButton(stringResource(Res.string.music_list_reset), onReset)
         }
-        Text(stringResource(if (hasMore) Res.string.music_list_loaded_count else Res.string.music_list_count, shown, loaded),
-            style = LocalCosmoType.current.meta, color = Color(palette.textSecondary),
-            modifier = Modifier.padding(bottom = 4.dp))
+        if (showCount) MusicListCount(shown, loaded, hasMore, Modifier.padding(bottom = 4.dp))
         if (selecting) KitActionRow(contentPadding = PaddingValues()) {
             if (onSelectVisible != null) KitTextButton(stringResource(Res.string.music_list_select_shown), onSelectVisible)
             if (selectionCount > 0) {
@@ -76,3 +79,10 @@ fun MusicListControls(shown: Int, loaded: Int, hasMore: Boolean, order: MusicLis
     MusicListOrder.ADDED -> Res.string.music_list_added
     MusicListOrder.ADDED_DESC -> Res.string.music_list_added_desc
 })
+
+/** "Songs · 20 / 20": how many of the list show, in the meta type and the second ink. */
+@Composable
+fun MusicListCount(shown: Int, loaded: Int, hasMore: Boolean, modifier: Modifier = Modifier) {
+    Text(stringResource(if (hasMore) Res.string.music_list_loaded_count else Res.string.music_list_count, shown, loaded),
+        style = LocalCosmoType.current.meta, color = Color(LocalCosmoColors.current.palette.textSecondary), modifier = modifier)
+}

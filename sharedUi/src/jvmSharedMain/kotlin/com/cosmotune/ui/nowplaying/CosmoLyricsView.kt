@@ -195,9 +195,11 @@ internal fun CosmoLyricsView(
     topPadding: Dp = LyricsMetrics.PORTRAIT_TOP_PADDING_DP.dp,
     selection: LyricSelection = LyricSelection.None,
     particles: State<Float>? = null,
+    /** "Search for lyrics" under the empty state when none were found; null for none. */
+    onSearchLyrics: (() -> Unit)? = null,
 ) {
     if (lines.isEmpty()) {
-        NoLyrics(emptyText, modifier)
+        NoLyrics(emptyText, modifier, missing = emptyText == stringResource(Res.string.lyrics_not_available), onSearch = onSearchLyrics)
         return
     }
     // A new song is a new list, scrolled to its own place: the state of every line starts again.
@@ -206,9 +208,25 @@ internal fun CosmoLyricsView(
     }
 }
 
-/** "No lyrics", in the middle of the space the lyrics would have had. */
+/**
+ * "No lyrics": while they load, the line in the middle of the space the lyrics would have had; when there are none, Orbit's empty
+ * state at the top of that space (what happened, and [onSearch]'s "Search for lyrics" under it), not a lone grey line in the
+ * middle of a tall panel. The search opens the lyrics sources, where another source can be tried for this song.
+ */
 @Composable
-private fun NoLyrics(text: String, modifier: Modifier) {
+private fun NoLyrics(text: String, modifier: Modifier, missing: Boolean = false, onSearch: (() -> Unit)? = null) {
+    if (missing) {
+        Box(modifier.fillMaxSize().padding(top = 8.dp)) {
+            com.cosmotune.ui.states.CosmoEmptyState(
+                message = "None of the lyrics sources has words for this song.",
+                title = text,
+                icon = com.cosmotune.ui.components.CosmoIcons.Lyrics,
+                actionLabel = if (onSearch != null) "Search for lyrics" else null,
+                onAction = onSearch,
+            )
+        }
+        return
+    }
     val type = LocalCosmoType.current
     val ink = Color(LocalCosmoColors.current.palette.textSecondary)
     val textStyle = remember(type) { type.title(TypeScale.TITLE_S).copy(textAlign = TextAlign.Center) }
@@ -960,6 +978,7 @@ internal fun CosmoLyricsPanel(
                     topPadding = topPadding,
                     selection = share?.selection ?: LyricSelection.None,
                     particles = particleProgress,
+                    onSearchLyrics = onOpenProviders,
                 )
             } else {
                 key(trackKey) {

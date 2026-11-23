@@ -94,7 +94,8 @@ internal fun MoreButton(more: List<OrbitMenuItem>, fonts: OrbitFonts, look: Orbi
 
 /**
  * Lyrics, Up next and Related as Home's chips, the one showing solid. With [closable] (the phone) a tap on the one showing closes
- * it; otherwise one is always showing.
+ * it; otherwise one is always showing. Where the three do not fit on one line (a narrow window's side column) they first drop their
+ * icons, then go on to a second line: a chip is never cut short or left out ([fitPanelChips]).
  */
 @Composable
 internal fun PanelChips(
@@ -103,7 +104,7 @@ internal fun PanelChips(
     /** How many songs are up next, shown as a small peach badge on its chip (the wide page's tabs); null for none. */
     upNextCount: Int? = null,
 ) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    val chips: @Composable (Boolean) -> Unit = { withIcons ->
         for ((which, title, icon) in listOf(
             Triple(NowPlayingPanel.LYRICS, "Lyrics", CosmoIcons.Lyrics),
             Triple(NowPlayingPanel.UP_NEXT, "Up next", CosmoIcons.Queue),
@@ -112,11 +113,47 @@ internal fun PanelChips(
             val on = panel == which
             OrbitChip(
                 title, fonts, look, onClick = { onPanel(if (on && closable) NowPlayingPanel.NONE else which) }, selected = on,
-                leading = if (icons) ({ Icon(icon, null, modifier = Modifier.size(18.dp)) }) else null,
+                leading = if (withIcons) ({ Icon(icon, null, modifier = Modifier.size(18.dp)) }) else null,
                 trailing = if (which == NowPlayingPanel.UP_NEXT && upNextCount != null && upNextCount > 0) ({ CountBadge(upNextCount, fonts, look) }) else null,
             )
         }
     }
+    androidx.compose.ui.layout.SubcomposeLayout(modifier) { constraints ->
+        val gap = 8.dp.roundToPx()
+        val loose = androidx.compose.ui.unit.Constraints()
+        fun measure(slot: String, withIcons: Boolean) = subcompose(slot) { chips(withIcons) }.map { it.measure(loose) }
+        val withIcons = if (icons) measure("icons", true) else null
+        val widths = { list: List<androidx.compose.ui.layout.Placeable> -> list.map { it.width } }
+        val chosen = if (withIcons != null && fitPanelChips(widths(withIcons), gap, constraints.maxWidth) == 1) withIcons else measure("bare", false)
+        val lines = panelChipLines(widths(chosen), gap, constraints.maxWidth)
+        val lineHeight = chosen.maxOf { it.height }
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else lines.maxOf { line -> line.sumOf { chosen[it].width } + gap * (line.size - 1) }
+        val height = lineHeight * lines.size + gap * (lines.size - 1)
+        layout(width.coerceIn(constraints.minWidth, constraints.maxWidth), height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            lines.forEachIndexed { row, line ->
+                var x = 0
+                line.forEach { index ->
+                    val chip = chosen[index]
+                    chip.placeRelative(x, row * (lineHeight + gap) + (lineHeight - chip.height) / 2)
+                    x += chip.width + gap
+                }
+            }
+        }
+    }
+}
+
+/** How many lines chips of [widths] take in [max] pixels with [gap] between them. */
+internal fun fitPanelChips(widths: List<Int>, gap: Int, max: Int): Int = panelChipLines(widths, gap, max).size
+
+/** The chips' indexes line by line: as many on a line as fit in [max], the rest on the next; a chip wider than [max] has a line alone. */
+internal fun panelChipLines(widths: List<Int>, gap: Int, max: Int): List<List<Int>> {
+    val lines = mutableListOf<MutableList<Int>>()
+    var used = 0
+    widths.forEachIndexed { index, w ->
+        val line = lines.lastOrNull()
+        if (line == null || used + gap + w > max) { lines += mutableListOf(index); used = w } else { line += index; used += gap + w }
+    }
+    return lines
 }
 
 /** A count on a chip: the number in a small peach badge. */

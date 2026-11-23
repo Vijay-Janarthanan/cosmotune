@@ -235,6 +235,8 @@ fun SettingsScreen(
     handleBack: Boolean = true,
     /** The mode Settings was opened from (its page is tagged "This mode" on the settings home); null from Music. */
     openedFrom: AppMode? = null,
+    /** Closes Settings (the settings home's Watch row leaves for Watch's own settings page). */
+    onClose: () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -488,7 +490,10 @@ fun SettingsScreen(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             )
             if (collector == null) {
+                val shellSettings = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings
                 SettingsHub(
+                    onOpenWatch = com.cosmotune.ui.settings.watchSettingsOpener(shellSettings, onClose),
+                    watchCurrent = (openedFrom ?: shellMode) == AppMode.WATCH,
                     entries = hubEntries,
                     onOpen = { selectedCategory = it },
                     current = thisMode,
@@ -502,6 +507,8 @@ fun SettingsScreen(
                             onSignIn = onSignIn,
                             onClick = { selectedCategory = SettingsCategory.ACCOUNT },
                             syncLine = if (cloudEnabled) cloudStatusLine(cloudStatus) else stringResource(R.string.cloud_sync_off),
+                            // The hub's column already keeps the page's margin: the card's own would set it in twice as far as the rows.
+                            grouped = true,
                         )
                     },
                 )

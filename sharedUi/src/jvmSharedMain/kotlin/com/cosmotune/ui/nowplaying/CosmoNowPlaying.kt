@@ -50,6 +50,7 @@ import com.cosmotune.music.data.lyrics.LyricsSource
 import com.cosmotune.music.data.model.LikeStatus
 import com.cosmotune.music.data.model.PlaybackSourceType
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.durationMillis
 import com.cosmotune.music.data.settings.LastPlayerScreen
 import com.cosmotune.music.playback.BACK_RESTARTS_AFTER_MS
 import com.cosmotune.music.playback.PlaybackPosition
@@ -208,11 +209,15 @@ fun CosmoNowPlaying(
         PlayerPlatform.host.prefetchCanvas(upNext)
     }
     val reconnecting by com.cosmotune.music.playback.recovery.PlaybackReconnectStatus.reconnecting.collectAsState()
-    val scrub = rememberPlayerScrub(song.videoId, position, durationMs)
+    // Restored from the last session, the player does not know the length until the song is prepared: the song's own length
+    // stands in, so the seek line's end says how long it is from the start, as on a fresh play.
+    val songLengthMs = remember(song.videoId, song.durationText) { song.durationMillis() }
+    val shownDurationMs = if (durationMs > 0) durationMs else songLengthMs
+    val scrub = rememberPlayerScrub(song.videoId, position, shownDurationMs)
     val controlsLocked = rememberControlsLocked()
     val skipHaptics = rememberHaptics()
     val transport = NowPlayingTransport(
-        song = song, coverUrl = remoteArt, isPlaying = isPlaying, position = position, durationMs = durationMs, scrub = scrub,
+        song = song, coverUrl = remoteArt, isPlaying = isPlaying, position = position, durationMs = shownDurationMs, scrub = scrub,
         liked = likeStatus == LikeStatus.LIKE, shuffle = shuffleEnabled, repeatMode = repeatMode, hasPrevious = hasPrevious, hasNext = hasNext,
         onPlayPause = onPlayPause,
         onPrevious = { if (controlsLocked) onBlockedControl() else { skipHaptics.play(Haptic.SkipPrevious); onPrevious() } },

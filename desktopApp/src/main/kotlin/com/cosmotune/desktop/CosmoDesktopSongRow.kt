@@ -86,10 +86,17 @@ import com.cosmotune.music.desktop.DesktopStrings
  */
 
 /** The size of an action button of a row: the desktop's pointer does not need the phone's 48 dp. */
-internal val DESKTOP_ROW_ACTION: Dp = 32.dp
+internal val DESKTOP_ROW_ACTION: Dp = 36.dp
 
-/** `.d2-tracks li` columns: the duration takes 60 dp. */
-internal val DESKTOP_DURATION_COLUMN: Dp = 60.dp
+/** The air between two action buttons of a row, so they read as separate buttons. */
+internal val DESKTOP_ROW_ACTION_GAP: Dp = 8.dp
+
+/** The width of [n] action buttons with their gaps, for a row that keeps their place empty. */
+internal fun desktopRowActionsWidth(n: Int): Dp = if (n <= 0) 0.dp else DESKTOP_ROW_ACTION * n + DESKTOP_ROW_ACTION_GAP * (n - 1)
+
+/** The duration's column: 12 dp of air after the last button, then the time, right-aligned so a column of them lines up. */
+internal val DESKTOP_DURATION_GAP: Dp = 12.dp
+internal val DESKTOP_DURATION_COLUMN: Dp = 44.dp
 
 /**
  * Whether the audio is playing right now (not paused), for the bars of the playing row. The old pages cannot see it (`playback` is a
@@ -110,10 +117,6 @@ internal fun rememberStableAction(action: () -> Unit): () -> Unit {
     val latest by rememberUpdatedState(action)
     return remember { { latest() } }
 }
-
-/** The duration and the other faint numbers of a row: 13 sp with tabular figures, so a column of them lines up. */
-internal fun CosmoType.desktopRowDuration(): TextStyle =
-    TextStyle(fontFamily = textFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 13.sp * 1.3f).tabular()
 
 // ---- the surface of a row ----
 
@@ -145,13 +148,13 @@ internal fun rememberCosmoRowChrome(current: Boolean): CosmoRowChrome {
 // ---- the actions of a row ----
 
 /**
- * The like, download, add and remove buttons of a row, 32 dp each and PLAIN, in that order, before the duration. A button that
+ * The like, download, add and remove buttons of a row, 36 dp each with 8 dp between them, in that order, before the duration. A button that
  * has nothing to say stays out of the way until the pointer is over the row or the keyboard is in it ([reveal]); the heart of a
  * liked song and the download of a song that is downloading or downloaded are always shown. Every button that can exist on the page
  * keeps its place whether it shows or not, so the duration column lines up from row to row: [reserveRemove] keeps the remove
  * button's place on a row that cannot be removed.
  *
- * A button is 32 dp in the row's layout: the 48 dp touch target is for fingers, and the desktop's pointer is not one.
+ * A button is 36 dp in the row's layout: the 48 dp touch target is for fingers, and the desktop's pointer is not one.
  */
 @Composable
 internal fun CosmoDesktopRowActions(
@@ -167,7 +170,7 @@ internal fun CosmoDesktopRowActions(
     reserveRemove: Boolean,
 ) {
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides DESKTOP_ROW_ACTION) {
-        Row(horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DESKTOP_ROW_ACTION_GAP, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
             onToggleLike?.let { toggle ->
                 CosmoIconButton(
                     icon = if (liked) CosmoIcons.HeartFill else CosmoIcons.Heart,

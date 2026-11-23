@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -101,7 +102,8 @@ class WhatsNewAction(val label: String, val onClick: () -> Unit)
  * action, [secondary] the quiet one beside it (none for the welcome's single Got it). [meta] is the size or version line over the
  * actions ("1.0.20 → 1.0.21 · 38 MB"); [progress] replaces it with a download's orbit while one runs (a fraction, or a negative
  * number while the size is not known); [problem] is a failed download's reason, in place of both. [onFullNotes] is the quiet link
- * to the release page; null leaves it out.
+ * to the release page; null leaves it out. [earlier] are the releases the listener skipped on the way here, newest first, each
+ * under its own small heading after [highlights] (com.cosmotune.SkippedReleases keeps them short).
  */
 class WhatsNew(
     val version: String,
@@ -115,6 +117,7 @@ class WhatsNew(
     val title: String = "Fresh in Cosmotune",
     val overline: String = "What's new · $version",
     val fullNotesLabel: String = "Full release notes",
+    val earlier: List<com.cosmotune.ReleaseHighlightSet> = emptyList(),
 )
 
 /** The card's padding, the space between its rows and the space before its actions (the spacing scale). */
@@ -312,6 +315,17 @@ fun WhatsNewBody(
                 }
             } else {
                 whatsNew.highlights.forEachIndexed { index, item -> HighlightRow(item, index, fonts, look, tv, Modifier.fillMaxWidth()) }
+            }
+            // The releases skipped on the way here, newest first, each under its version.
+            var tint = whatsNew.highlights.size
+            whatsNew.earlier.forEach { release ->
+                Column(Modifier.fillMaxWidth().padding(top = 8.dp).testTag("whatsnew:earlier")) {
+                    // 8 dp from the heading to its rows, as from a label to its control; the rows 12 apart as above.
+                    OrbitOverline("Also new in ${release.version}", fonts, look)
+                    release.highlights.forEachIndexed { i, item ->
+                        HighlightRow(item, tint++, fonts, look, tv, Modifier.fillMaxWidth().padding(top = if (i == 0) 8.dp else ROW_GAP))
+                    }
+                }
             }
             extra?.invoke(this)
             SignOff(fonts, look, tv)

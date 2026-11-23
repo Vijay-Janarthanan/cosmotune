@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+
 package com.cosmotune.music.desktop
 
 import androidx.compose.ui.graphics.toComposeImageBitmap
@@ -69,9 +71,12 @@ fun main(args: Array<String>) {
         }
     }
     // Cosmotune already running: the link goes to that process (its Install sheet opens there) and this one ends.
+    // One that holds the lock but does not answer is offered to be closed, rather than this launch failing with the Windows
+    // launcher's bare "Failed to launch JVM".
     val instance = com.cosmotune.desktop.DesktopSingleInstance.acquire(
         link = openLink,
         onLink = ::offerDesktopLink,
+        onStuck = com.cosmotune.desktop.DesktopStuckInstance::offerToClose,
         onActivate = DesktopWindowVisibility::show,
     ) ?: return
     // An exception nobody caught used to leave no line anywhere: a window that froze mid-song had nothing to read afterwards.
@@ -226,6 +231,12 @@ private fun desktopMain() = application {
     }
     // Ctrl/Cmd + 1 to 6 switch modes (DESIGN_SYSTEM.md 4.2), in every mode.
     val lookSettings = com.cosmotune.ui.settings.rememberCosmoLookSettings()
+    // A window whose page failed is not left blank or gone while the process (and its lock) lives on: a fresh one takes its
+    // place, or, after a second failure in a row, the next launch or the tray brings one back. See [DesktopWindowVisibility].
+    val windowGeneration by DesktopWindowVisibility.generation.collectAsState()
+    val windowCrashed by DesktopWindowVisibility.crashed.collectAsState()
+    if (!windowCrashed) androidx.compose.runtime.key(windowGeneration) {
+    CompositionLocalProvider(androidx.compose.ui.window.LocalWindowExceptionHandlerFactory provides DesktopWindowVisibility.crashHandler) {
     Window(
         onCloseRequest = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
         onPreviewKeyEvent = { event -> com.cosmotune.ui.kit.modeShortcut(event) { lookSettings.setMode(it) } },
@@ -344,11 +355,14 @@ private fun desktopMain() = application {
             com.cosmotune.ui.shell.LocalWindowCaptionArea provides { modifier, content ->
                 val fullscreen by DesktopWindowMode.fullScreen.collectAsState()
                 if (fullscreen) androidx.compose.foundation.layout.Box(modifier) { content() }
-                else DesktopTitleBarDragArea(modifier, content)
+                // A caption row at the window's top end (the player's) keeps clear of Windows' caption buttons there.
+                else DesktopTitleBarDragArea(modifier) { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.desktopCaptionClearance()) { content() } }
             },
         ) {
             CosmotuneDesktopApp()
         }
+    }
+    }
     }
     // The compact always-on-top mini player, beside the main window.
     DesktopMiniPlayerWindow()

@@ -420,13 +420,9 @@ private fun BlockTitleArt(
             val firstLayout = plan.first[step.coerceIn(0, plan.first.size - 1)]
             val top = plan.sizePx * PAD
             when (style) {
-                TitleArt.Style.CUT -> {
-                    drawText(firstLayout, color = ink, topLeft = Offset(0f, top))
-                    if (cover != null) {
-                        drawCoverInto(cover.image, textBounds(firstLayout, top))
-                        if (shownWash > 0f) drawRect(ink.copy(alpha = shownWash), blendMode = BlendMode.SrcAtop)
-                    }
-                }
+                // The title is solid ink (the card's readable ink), never filled with the cover: a cover with words or detail in it
+                // made the letters unreadable.
+                TitleArt.Style.CUT -> drawText(firstLayout, color = ink, topLeft = Offset(0f, top))
                 TitleArt.Style.SPLIT -> {
                     drawText(firstLayout, color = ink, topLeft = Offset(0f, top))
                     val rest = plan.rest?.let { it[step.coerceIn(0, it.size - 1)] }

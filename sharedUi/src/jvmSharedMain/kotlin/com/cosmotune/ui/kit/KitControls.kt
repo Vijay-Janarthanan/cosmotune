@@ -1,5 +1,6 @@
 package com.cosmotune.ui.kit
 
+import com.cosmotune.ui.orbit.orbitTooltip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -119,7 +120,7 @@ fun KitPill(text: String, modifier: Modifier = Modifier, icon: ImageVector? = nu
 }
 
 /**
- * A text-only button ("See all", "Retry") in Orbit: the words in the chip face and the accent, as a page section's "Show all"
+ * A text-only button ("Show all", "Retry") in Orbit: the words in the chip face and the accent, as a page section's "Show all"
  * ([com.cosmotune.ui.orbit.OrbitPageSection]); a 48 dp target; disabled at 40 %.
  */
 @Composable
@@ -182,6 +183,7 @@ fun KitPlayCircle(label: String, onClick: () -> Unit, modifier: Modifier = Modif
     val palette = LocalCosmoColors.current.palette
     val haptics = rememberHaptics()
     val interaction = remember { MutableInteractionSource() }
+    val tooltip = com.cosmotune.ui.orbit.rememberOrbitTooltipState()
     Box(
         modifier
             .size(56.dp)
@@ -189,11 +191,13 @@ fun KitPlayCircle(label: String, onClick: () -> Unit, modifier: Modifier = Modif
             .alpha(if (enabled) 1f else 0.38f)
             .clip(CircleShape)
             .background(Color(palette.accent))
+            .orbitTooltip(tooltip)
             .clickable(interactionSource = interaction, indication = ripple(), enabled = enabled, role = Role.Button, onClickLabel = label) { haptics.play(Haptic.Select); onClick() }
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = Color(palette.onAccent), modifier = Modifier.size(28.dp))
+        com.cosmotune.ui.orbit.OrbitTooltipPill(tooltip, label)
     }
 }
 

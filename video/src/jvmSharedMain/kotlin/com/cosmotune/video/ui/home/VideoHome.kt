@@ -59,6 +59,7 @@ import com.cosmotune.video.ui.shell.rememberKept
 import com.cosmotune.video.feed.StableFeed
 import com.cosmotune.video.ui.blocks.VideoCardBody
 import com.cosmotune.video.ui.blocks.VideoSheetContext
+import com.cosmotune.video.ui.blocks.VideoAction
 import com.cosmotune.video.ui.blocks.uniqueKeys
 import com.cosmotune.video.ui.blocks.videoSolidGround
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
@@ -123,6 +124,7 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     val followsChannels by remember(graph) { graph.library.subscriptions.map { it.isNotEmpty() }.distinctUntilChanged() }
         .collectAsState(graph.library.subscriptions.value.isNotEmpty())
     val downloaded by rememberDownloadedIds()
+    val watchLater by graph.library.watchLater.collectAsState()
 
     // A bounded window of diverse recent watch interests.
     val recent = remember(history, settings.homeHiddenVideos, settings.homeHiddenChannels) {
@@ -223,14 +225,14 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     val openShorts = { navigator.push(VideoRoute.Shorts(ShortsOrigin.Home)) }
 
     val refreshAll: () -> Unit = {
-        homeKeep.reset(); graph.account.invalidate(); accountFeed?.start(force = true); model.retry()
+        homeKeep.reset(); graph.account.invalidate(); accountFeed?.start(force = true); model.retry(fallback = all)
         scope.launch { refreshFeed(graph.feed, force = true) }
     }
     val chips: @Composable (Modifier) -> Unit = { modifier ->
         HomeChips(
             kiosks = model.kiosks,
             selectedId = if (all) null else model.selectedId,
-            onAll = { all = true },
+            onAll = { all = true; model.showAll() },
             onSelect = { kiosk ->
                 all = false
                 graph.settings.update { it.copy(homeKiosk = kiosk.id) }
@@ -280,6 +282,9 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
                 title = shown.title,
                 onPlay = { actions.play(item, stream) },
                 onChannel = item.channelId?.let { id -> { navigator.push(VideoRoute.Channel(id)) } },
+                onWatchLater = { actions.handle(item, VideoAction.WatchLater, VideoSheetContext.DEFAULT, list = stream) },
+                onSave = { actions.handle(item, VideoAction.SaveToPlaylist, VideoSheetContext.DEFAULT, list = stream) },
+                inWatchLater = watchLater.any { it.id == item.id },
                 modifier = modifier,
             )
         }
@@ -300,23 +305,28 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
         loadingMore = loadingMore,
         hasContinue = all && continueItems.isNotEmpty(),
         hasShorts = shorts.isNotEmpty(),
-        exhausted = phase == KioskPhase.READY && !model.hasMore && (!all || accountFeed == null || accountFeed.exhausted),
+        // The end-of-list note follows cards; a page with nothing on it is the empty state with "Try again" instead.
+        exhausted = phase == KioskPhase.READY && stream.isNotEmpty() && !model.hasMore && (!all || accountFeed == null || accountFeed.exhausted),
+        empty = phase == KioskPhase.READY && stream.isEmpty() && shorts.isEmpty() && !(all && continueItems.isNotEmpty()) && !loadingMore && !model.hasMore,
+        emptyText = stringResource(Res.string.video_home_empty),
     )
     val onOpen: (VideoItem) -> Unit = { actions.play(it, stream) }
     val onMore: (VideoItem) -> Unit = { if (!it.isPlaylistCard) sheet = HomeSheet(it, stream) }
     val onChannel: (VideoItem) -> Unit = { item -> item.channelId?.let { navigator.push(VideoRoute.Channel(it)) } }
     val refreshing = phase == KioskPhase.LOADING
+    // All tries the next chart when the chosen one comes back empty; a topic's chip asks for that topic again.
+    val retryHome: () -> Unit = { model.retry(fallback = all) }
     val isDownloaded: (VideoItem) -> Boolean = { it.id in downloaded }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         if (wide) {
             val columns = homeColumns(maxWidth)
-            HomeFeedWide(feed, columns, contentPadding, chips, status, HomeBlocks(heroCard, continueShelf, subscriptionShelf, shortsShelf), onOpen, onMore, onChannel, isDownloaded, titleError, titleRetry, model::retry, loadMore)
+            HomeFeedWide(feed, columns, contentPadding, chips, status, HomeBlocks(heroCard, continueShelf, subscriptionShelf, shortsShelf), onOpen, onMore, onChannel, isDownloaded, titleError, titleRetry, retryHome, loadMore)
         } else {
             val pullState = rememberPullToRefreshState()
             PullToRefresh(refreshing = refreshing, onRefresh = refreshAll, state = pullState) {
                 Box(Modifier.fillMaxSize()) {
-                    HomeFeedPhone(feed, contentPadding, chips, status, HomeBlocks(heroCard, continueShelf, subscriptionShelf, shortsShelf), onOpen, onMore, onChannel, isDownloaded, titleError, titleRetry, model::retry, loadMore)
+                    HomeFeedPhone(feed, contentPadding, chips, status, HomeBlocks(heroCard, continueShelf, subscriptionShelf, shortsShelf), onOpen, onMore, onChannel, isDownloaded, titleError, titleRetry, retryHome, loadMore)
                     CosmoPullIndicator(
                         fraction = { pullState.distanceFraction },
                         refreshing = refreshing,
@@ -373,6 +383,9 @@ private class HomeFeed(
     val hasContinue: Boolean,
     val hasShorts: Boolean,
     val exhausted: Boolean,
+    /** Nothing at all to show (no cards, no shelves): [emptyText] with "Try again". */
+    val empty: Boolean,
+    val emptyText: String,
 )
 
 /** The blocks over the feed, each drawn into the modifier its layout gives it: the colour card and the three shelves. */
@@ -423,6 +436,9 @@ private fun HomeFeedPhone(
                 CosmoEmptyState(message = errorText, actionLabel = retryText, onAction = onRetry)
             }
             KioskPhase.READY -> {
+                if (feed.empty) item(key = "empty", contentType = "error") {
+                    CosmoEmptyState(message = feed.emptyText, actionLabel = retryText, onAction = onRetry)
+                }
                 // Continue watching first, the thing most people come back for; the colour card under it.
                 if (feed.hasContinue) item(key = "continue", contentType = "shelf") { blocks.continueShelf(Modifier) }
                 if (feed.hasHero) item(key = "hero", contentType = "hero") { blocks.hero(Modifier.padding(start = margin, end = margin, top = if (feed.hasContinue) 12.dp else 10.dp, bottom = 4.dp)) }
@@ -500,6 +516,9 @@ private fun HomeFeedWide(
                     CosmoEmptyState(message = errorText, actionLabel = retryText, onAction = onRetry)
                 }
                 KioskPhase.READY -> {
+                    if (feed.empty) item(key = "empty", span = { GridItemSpan(maxLineSpan) }, contentType = "error") {
+                        CosmoEmptyState(message = feed.emptyText, actionLabel = retryText, onAction = onRetry)
+                    }
                     if (feed.hasContinue) item(key = "continue", span = { GridItemSpan(maxLineSpan) }, contentType = "shelf") {
                         blocks.continueShelf(Modifier.bleedBy(margin).padding(horizontal = inset))
                     }
@@ -515,7 +534,8 @@ private fun HomeFeedWide(
                     }
                     items(count = feed.items.size, key = { "feed:${keys[it]}" }, contentType = { "card" }) { index -> WideCard(feed.items[index], feed.watched[feed.items[index].id], onOpen, onMore, onChannel, downloaded) }
                     if (feed.loadingMore) items(count = columns, key = { "more-$it" }, contentType = { "skeleton" }) { CardSkeleton() }
-                    if (feed.exhausted) item(key = "end", span = { GridItemSpan(maxLineSpan) }, contentType = "status") { HomeNotice(stringResource(Res.string.video_home_exhausted)) }
+                    // The grid already keeps the page margin: the notice starts where the cards do.
+                    if (feed.exhausted) item(key = "end", span = { GridItemSpan(maxLineSpan) }, contentType = "status") { HomeNotice(stringResource(Res.string.video_home_exhausted), side = 0.dp) }
                 }
             }
         }

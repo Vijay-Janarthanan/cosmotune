@@ -118,4 +118,13 @@ class SettingsHubContractTest {
         assertTrue(Regex("""DesktopModeLink\(AppMode\.READ\b[^\n]*OPEN_READ\b""").containsMatchIn(desktop), "the desktop's Read page opens Read mode")
         assertFalse(Regex("""AppMode\.MANGA[^\n]*(openReadTitle|OPEN_READ\b)""").containsMatchIn(sheet + desktop), "no Read link opens Manga")
     }
+
+    @Test fun theModesListWatchAndItsRowOpensWatchsOwnSettings() {
+        val hub = SourceContract.code(SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/settings/SettingsHub.kt"))
+        assertTrue(hub.contains("if (onOpenWatch != null) WatchSettingsRow(onOpenWatch, watchCurrent)"), "Watch follows Video under Modes")
+        assertTrue(hub.contains("com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.SETTINGS)") &&
+            hub.contains("settings.setMode(com.cosmotune.design.AppMode.WATCH)"), "its row switches to Watch on Watch's settings page")
+        assertTrue(sheet.contains("onOpenWatch = com.cosmotune.ui.settings.watchSettingsOpener(shellSettings, onClose)"), "the phone offers it")
+        assertTrue(desktop.contains("onOpenWatch = com.cosmotune.ui.settings.watchSettingsOpener(shellSettings, onCloseSettings)"), "and so does the desktop")
+    }
 }

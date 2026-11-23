@@ -32,20 +32,37 @@ object LrcLib {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** Synced lyrics for a track, or null when nothing usable is published. */
-    suspend fun lyrics(title: String, artist: String, durationMs: Long): List<LyricLine>? =
+    /**
+     * Synced lyrics for a track, or null when nothing usable is published. [credits] are more names the song is credited to
+     * (an upload's piped credits), any of which may be the artist LRCLIB files it under. When LRCLIB has the song only at
+     * another length (a video's intro, another edit), its words come back untimed ([untimed]): its timing would run out of
+     * step with what is playing. That is the only untimed answer LRCLIB gives, which is how the player knows to say why.
+     */
+    suspend fun lyrics(title: String, artist: String, durationMs: Long, credits: List<String> = emptyList()): List<LyricLine>? =
         withContext(Dispatchers.IO) {
             val cleanTitle = title.clean()
             val cleanArtist = artist.clean()
             val seconds = (durationMs / 1000).toInt()
 
             val exact = runCatching { exactMatch(cleanTitle, cleanArtist, seconds) }.getOrNull()
-            val synced = exact ?: runCatching { bestSearchHit(cleanTitle, cleanArtist, seconds) }
-                .getOrNull()
-            synced?.let(::parseLrc)?.takeIf { it.isNotEmpty() }
+            val hit = exact?.takeIf { it.timed } ?: run {
+                val byArtist = runCatching { bestSearchHit(cleanTitle, cleanArtist, seconds, credits) }.getOrNull()
+                // The uploader may not be who the song is filed under: ask for the name alone before settling for less.
+                if (byArtist?.timed == true) return@run byArtist
+                val byName = runCatching { bestSearchHit(cleanTitle, null, seconds, credits, cleanArtist) }.getOrNull()
+                byName?.takeIf { it.timed } ?: exact ?: byArtist ?: byName
+            }
+            when {
+                hit == null -> null
+                hit.timed -> parseLrc(hit.text).takeIf { it.isNotEmpty() }
+                else -> untimed(hit.text).takeIf { lines -> lines.any { !it.isGap } }
+            }
         }
 
-    private fun exactMatch(title: String, artist: String, seconds: Int): String? {
+    /** A hit's lyrics: the synced LRC when [timed], else the words alone (plain text, or LRC whose timing is not this song's). */
+    data class Hit(val text: String, val timed: Boolean)
+
+    private fun exactMatch(title: String, artist: String, seconds: Int): Hit? {
         val url = "$BASE/get".toHttpUrl().newBuilder()
             .addQueryParameter("track_name", title)
             .addQueryParameter("artist_name", artist)
@@ -59,31 +76,44 @@ object LrcLib {
     /**
      * Fuzzy fallback. Prefers whichever hit is closest in length to what we're
      * actually playing — same song, different edit, would drift otherwise.
+     * [artist] null searches by the name alone; [wanted] is then the artist to match.
      */
-    private fun bestSearchHit(title: String, artist: String, seconds: Int): String? {
+    private fun bestSearchHit(title: String, artist: String?, seconds: Int, credits: List<String>, wanted: String = artist.orEmpty()): Hit? {
         val url = "$BASE/search".toHttpUrl().newBuilder()
             .addQueryParameter("track_name", title)
-            .addQueryParameter("artist_name", artist)
+            .apply { if (artist != null) addQueryParameter("artist_name", artist) }
             .build()
         val body = get(url.toString()) ?: return null
         val hits = json.parseToJsonElement(body) as? JsonArray ?: return null
-        return bestHit(hits.mapNotNull { it as? JsonObject }, title, artist, seconds * 1_000L)
+        return bestHit(hits.mapNotNull { it as? JsonObject }, title, wanted, seconds * 1_000L, credits)
     }
 
-    internal fun bestHit(hits: List<JsonObject>, title: String, artist: String, durationMs: Long): String? =
-        hits
-            .filter { it["syncedLyrics"]?.jsonPrimitive?.contentOrNull?.isNotBlank() == true }
-            .filter {
-                RecordingMatch.accepts(title, artist, durationMs,
-                    it["trackName"]?.jsonPrimitive?.contentOrNull,
-                    it["artistName"]?.jsonPrimitive?.contentOrNull,
-                    it["duration"]?.jsonPrimitive?.doubleOrNull?.takeIf(Double::isFinite)?.times(1_000)?.toLong())
-            }
-            .minByOrNull {
-                val d = it["duration"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                abs(d * 1_000 - durationMs)
-            }
-            ?.get("syncedLyrics")?.jsonPrimitive?.contentOrNull
+    /**
+     * The closest-length hit that is this recording, with its timing; failing that, the closest one that is the same song and
+     * artist at another length, with its words only. Null when no hit is the song.
+     */
+    internal fun bestHit(hits: List<JsonObject>, title: String, artist: String, durationMs: Long, credits: List<String> = emptyList()): Hit? {
+        fun JsonObject.text(key: String) = this[key]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+        fun JsonObject.seconds() = this["duration"]?.jsonPrimitive?.doubleOrNull?.takeIf(Double::isFinite)
+        fun JsonObject.verdict() = RecordingMatch.judge(title, artist, durationMs, text("trackName"), text("artistName"),
+            seconds()?.times(1_000)?.toLong(), credits)
+        fun JsonObject.gap() = abs((seconds() ?: 0.0) * 1_000 - durationMs)
+        hits.filter { it.text("syncedLyrics") != null && it.verdict() == RecordingMatch.Verdict.SAME }
+            .minByOrNull { it.gap() }?.let { return Hit(it.text("syncedLyrics")!!, timed = true) }
+        return hits.filter { (it.text("plainLyrics") ?: it.text("syncedLyrics")) != null && it.verdict() == RecordingMatch.Verdict.OTHER_LENGTH }
+            .minByOrNull { it.gap() }?.let { Hit(it.text("plainLyrics") ?: it.text("syncedLyrics")!!, timed = false) }
+    }
+
+    /**
+     * Words without timing: LRC's lines with their stamps taken off (the breaks between them dropped), or plain text line for
+     * line with one empty line kept between verses. Every line at zero, so the player shows them still and never scrolls them.
+     */
+    internal fun untimed(text: String): List<LyricLine> {
+        if (STAMP.containsMatchIn(text)) return parseLrc(text).filter { !it.isGap }.map { LyricLine(0L, it.text) }
+        val rows = text.lines().map { it.trim() }
+        return rows.filterIndexed { i, row -> row.isNotEmpty() || (i > 0 && rows[i - 1].isNotEmpty()) }
+            .dropWhile { it.isEmpty() }.dropLastWhile { it.isEmpty() }.map { LyricLine(0L, it) }
+    }
 
     private fun get(url: String): String? {
         val request = Request.Builder().url(url).header("User-Agent", AGENT).build()

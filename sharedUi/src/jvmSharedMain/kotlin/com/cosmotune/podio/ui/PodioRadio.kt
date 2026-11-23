@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Satellite
@@ -151,7 +152,7 @@ internal fun stationCells(width: Dp, side: Dp, wide: Boolean): Pair<Int, Dp> {
 
 /** The region and language chips (and Clear while a filter is on), shared by Radio, Podcasts and the search. */
 @Composable internal fun FilterChips(m: PodioModel, fonts: OrbitFonts, look: OrbitLook, stations: Boolean = false) {
-    OrbitChoiceChip("Region", m.country, REGIONS, { m.browse(); m.country = it }, fonts, look, icon = Icons.Outlined.Public)
+    OrbitChoiceChip("Region", m.country, REGIONS, { m.browse(); m.country = it }, fonts, look, icon = Icons.Outlined.Place)
     OrbitChoiceChip("Language", m.language, LANGUAGES, { m.browse(); m.language = it }, fonts, look, icon = Icons.Outlined.Translate)
     // Stations by genre (Radio Browser's tags).
     if (stations) OrbitChoiceChip("Genre", m.tag, STATION_TAGS, { m.browse(); m.tag = it }, fonts, look, icon = Icons.Outlined.GraphicEq)

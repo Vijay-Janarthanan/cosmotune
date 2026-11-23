@@ -92,12 +92,14 @@ object LyricsRepository {
         val searchTitle = title.forLyricsSearch()
         val searchArtist = artist.artistForLyricsSearch()
         val recording = isrc?.takeIf { it.isNotBlank() }
+        // An upload names its singers after the title's pipes; any of them may be who the song is filed under.
+        val credits = title.uploadCredits()
 
         val racing: List<Pair<LyricsSource, Deferred<Result?>>> = sequence.map { source ->
             source to async(Dispatchers.IO) {
                 onSourceStarted?.invoke(source)
                 try {
-                    val found = fetch(source, videoId, searchTitle, searchArtist, durationMs, album, recording)
+                    val found = fetch(source, videoId, searchTitle, searchArtist, durationMs, album, recording, credits)
                         ?.let { result(source, it, title, artist) }
                     onSourceResult?.invoke(source, found)
                     found
@@ -120,6 +122,13 @@ object LyricsRepository {
             racing.forEach { it.second.cancel() }
         }
     }
+
+    /**
+     * Whether [lines] from [source] are words whose timing was left off because it belongs to another length of the song: the
+     * only untimed answer [LrcLib] gives ([LrcLib.lyrics]). The player says so in its one status line.
+     */
+    fun untimedForAnotherLength(source: LyricsSource?, lines: List<LyricLine>?): Boolean =
+        source == LyricsSource.LRCLIB && !lines.isNullOrEmpty() && lines.none { it.timeMs > 0L }
 
     /** How a source's answer is timed, judged on what it actually holds rather than what the source claims. */
     internal enum class Timing { NONE, LINE, WORD }
@@ -188,12 +197,13 @@ object LyricsRepository {
         durationMs: Long,
         album: String?,
         isrc: String?,
+        credits: List<String> = emptyList(),
     ): List<LyricLine>? = when (source) {
         LyricsSource.LRC_RED -> LrcRed.lyrics(title, artist, durationMs, isrc)
         LyricsSource.BETTER_LYRICS -> BetterLyrics.lyrics(title, artist, durationMs, album)
         LyricsSource.BETTER_LYRICS_PORTATO -> BetterLyrics.portato(title, artist, durationMs, album)
         LyricsSource.YOUTUBE_MUSIC -> YouTubeMusicLyrics.lyrics(videoId)
-        LyricsSource.LRCLIB -> LrcLib.lyrics(title, artist, durationMs)
+        LyricsSource.LRCLIB -> LrcLib.lyrics(title, artist, durationMs, credits)
     }
 
     /**

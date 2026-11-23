@@ -143,7 +143,8 @@ fun OrbitSearchPill(
         if (query.isNotEmpty()) {
             OrbitRoundButton(CosmoIcons.Close, "Clear", look.ink, onClick = { onQueryChange("") }, size = minOf(40.dp, height - 8.dp))
         } else if (keyHint != null) {
-            OrbitLabel(keyHint, fonts, look.dim, Modifier.clip(CircleShape).background(look.chip).padding(horizontal = 10.dp, vertical = 5.dp))
+            // The same key cap as the sidebar's search ("Ctrl K" as written, not the shouted mono "CTRL K").
+            com.cosmotune.ui.blocks.KeyCap(keyHint, Modifier.padding(end = 6.dp))
             Spacer(Modifier.width(6.dp))
         } else if (trailing == null) Spacer(Modifier.width(12.dp))
         if (trailing != null) {

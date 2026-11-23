@@ -83,6 +83,22 @@ class WhatsNewRenderTest {
         onFullNotes = {},
     )
 
+    /** 1.0.31 straight to 1.0.33: 1.0.33's highlights, then 1.0.32's first two under their own heading. */
+    private fun skipped(): WhatsNew {
+        val sets = com.cosmotune.SkippedReleases.of(listOf("1.0.31", "1.0.32", "1.0.33").map { it to notes(it) }, since = "1.0.31", current = "1.0.33")
+        assertEquals(listOf("1.0.33", "1.0.32"), sets.map { it.version })
+        return WhatsNew("1.0.33", sets.first().highlights, WhatsNewAction("Got it") {}, onFullNotes = {}, earlier = sets.drop(1))
+    }
+
+    @Test fun skippedReleases() {
+        for (dark in listOf(true, false)) {
+            shoot("phone-welcome-1.0.33-only", dark, 390, 844) { WhatsNewSheet(welcome("1.0.33"), {}) }
+            shoot("phone-welcome-1.0.31-to-1.0.33", dark, 390, 844) { WhatsNewSheet(skipped(), {}) }
+            shoot("desktop-welcome-1.0.33-only", dark, 1100, 760) { WhatsNewCard(welcome("1.0.33"), {}, WhatsNewSurface.DESKTOP) }
+            shoot("desktop-welcome-1.0.31-to-1.0.33", dark, 1100, 760) { WhatsNewCard(skipped(), {}, WhatsNewSurface.DESKTOP) }
+        }
+    }
+
     @Test fun phoneSheet() {
         for (dark in listOf(true, false)) {
             shoot("phone-update-1.0.21", dark, 390, 844) { WhatsNewSheet(update("1.0.21"), {}) }

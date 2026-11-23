@@ -155,7 +155,7 @@ fun KitSectionHeader(
     title: String,
     modifier: Modifier = Modifier,
     overline: String? = null,
-    seeAllLabel: String = "See all",
+    seeAllLabel: String = "Show all",
     onSeeAll: (() -> Unit)? = null,
 ) {
     val look = orbitLook()

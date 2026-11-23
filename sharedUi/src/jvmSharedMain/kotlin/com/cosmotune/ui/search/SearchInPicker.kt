@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.kit.KitChip
 import com.cosmotune.ui.kit.KitSectionHeader
 import com.cosmotune.ui.kit.KitSkeletonRows
 import com.cosmotune.ui.orbit.orbitLook
@@ -74,7 +73,7 @@ fun searchInChoices(
     progress: AddonSearchProgress?,
     verifications: Map<String, ProviderVerificationStatus> = emptyMap(),
     access: (String) -> ProviderAccessState? = { null },
-    allLabel: String = "All",
+    allLabel: String = ALL_SOURCES,
     youTubeLabel: String = "YouTube Music",
 ): List<SearchInChoice> = buildList {
     add(SearchInChoice(AddonSearch.ALL, allLabel, if (progress?.searching == true) SearchInStatus.SEARCHING else SearchInStatus.IDLE))
@@ -112,7 +111,7 @@ fun rememberSearchInState(
     selected: String,
     onSelect: (String) -> Unit,
     progress: AddonSearchProgress?,
-    allLabel: String = "All",
+    allLabel: String = ALL_SOURCES,
     youTubeLabel: String = "YouTube Music",
 ): SearchInState {
     val hub by ProviderHub.state.collectAsState()
@@ -129,14 +128,17 @@ fun rememberSearchInState(
 /** The dot's look: a filled dot in [color], or a ring ([hollow]) for "needs verification" so it differs by shape too. */
 private data class Dot(val color: Color, val hollow: Boolean = false)
 
-/** The dot in Orbit's colours: ready in the dim ink, at work in the ink, a ring of the ink to verify, the theme's danger for a failure. */
+/**
+ * The dot in Orbit's colours, only where it says something: at work in the ink, a ring of the ink to verify, the theme's danger for a
+ * failure. A source that is simply ready has none (a dot on every chip read as a stray mark).
+ */
 @Composable
 private fun dotFor(status: SearchInStatus): Dot? {
     val look = orbitLook()
     val danger = Color(LocalCosmoColors.current.palette.danger)
     return when (status) {
         SearchInStatus.IDLE -> null
-        SearchInStatus.READY -> Dot(look.dim)
+        SearchInStatus.READY -> null
         SearchInStatus.SEARCHING, SearchInStatus.VERIFYING -> Dot(look.ink)
         SearchInStatus.NEEDS_VERIFICATION -> Dot(look.ink, hollow = true)
         SearchInStatus.ERROR -> Dot(danger)
@@ -161,20 +163,25 @@ private fun statusWords(status: SearchInStatus): String = when (status) {
 }
 
 /**
- * "Search in" in Orbit: Orbit chips ([KitChip], 40 dp, the chosen one solid ink), each with the source's status dot at its top end,
- * for the one sideways row of chips under Search's field (after the filters).
+ * "Search in" in Orbit: Orbit chips ([OrbitChip], 40 dp, the chosen one solid ink), each with its source's status dot after the name
+ * when there is one, for the one sideways row of chips under Search's field: after the filters, parted from them by a short line,
+ * and led by "All sources" so it is not taken for the filters' own "All".
  */
 @Composable
 fun SearchInChipsInRow(state: SearchInState) {
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    val look = orbitLook()
+    if (state.choices.isNotEmpty()) Box(Modifier.size(width = 1.dp, height = 40.dp).testTag("search-in:divider"), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(width = 1.dp, height = 24.dp).background(look.dim.copy(alpha = 0.35f)))
+    }
     state.choices.forEach { choice ->
         val selected = choice.key == state.selected
         val dot = dotFor(choice.status)
         val description = listOf(choice.label, statusWords(choice.status)).filter(String::isNotEmpty).joinToString(", ")
-        // The chip has no badge slot: the status dot is laid over its top end.
         Box(Modifier.testTag("search-in:${choice.key}").semantics(mergeDescendants = true) { contentDescription = description }) {
-            KitChip(label = choice.label, selected = selected, onClick = { state.onSelect(choice.key) })
-            if (dot != null) StatusDot(dot, Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 6.dp)
-                .testTag("search-in:${choice.key}:${choice.status.name.lowercase()}"))
+            com.cosmotune.ui.orbit.OrbitChip(choice.label, fonts, look, onClick = { state.onSelect(choice.key) }, selected = selected, leading = null,
+                // On the chosen chip (solid ink) an ink dot takes the ground's colour, so it still shows.
+                trailing = dot?.let { d -> { StatusDot(if (selected && d.color == look.ink) d.copy(color = look.ground) else d, Modifier.testTag("search-in:${choice.key}:${choice.status.name.lowercase()}")) } })
         }
     }
 }
@@ -220,3 +227,6 @@ internal fun LazyListScope.addonSourceSections(
         }
     }
 }
+
+/** The first "Search in" chip's name: every source at once, worded apart from the filters' "All" in the same row. */
+const val ALL_SOURCES = "All sources"

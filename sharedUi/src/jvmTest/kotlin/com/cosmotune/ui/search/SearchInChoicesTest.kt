@@ -27,6 +27,8 @@ class SearchInChoicesTest {
         val choices = searchInChoices(sources + source("addon-1", "Duplicate"), progress = null)
         assertEquals(listOf(AddonSearch.ALL, AddonSearch.YOUTUBE, "addon-1", "sflx-qobuz", "sflx-tidal", "sflx-amazon"), choices.map { it.key })
         assertEquals("Qobuz", choices[3].label)
+        // Named apart from the filters' own "All", which stands in the same row.
+        assertEquals("All sources", choices[0].label)
     }
 
     @Test fun eachChipShowsItsSourcesStateInTheCurrentSearch() {

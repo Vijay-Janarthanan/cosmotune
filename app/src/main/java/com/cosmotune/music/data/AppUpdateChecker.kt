@@ -57,6 +57,8 @@ object AppUpdateChecker {
         val version: String,
         val releaseUrl: String,
         val highlights: List<ReleaseHighlight>,
+        /** The releases skipped since the version last run, newest first and short ([com.cosmotune.SkippedReleases]). */
+        val earlier: List<com.cosmotune.ReleaseHighlightSet> = emptyList(),
     )
 
     private const val CACHE_SUBDIR = "updates"
@@ -70,6 +72,9 @@ object AppUpdateChecker {
     /** The welcome card's own small store: whether the first launch after an update still owes the listener one. */
     private const val WELCOME_PREFS = "cosmotune_whats_new"
     private const val KEY_WELCOME_PENDING = "welcome_pending"
+
+    /** The version name last run, so the welcome after a jump over releases can say what each of them brought. */
+    private const val KEY_LAST_VERSION_NAME = "last_version_name"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -130,8 +135,12 @@ object AppUpdateChecker {
      */
     suspend fun checkWelcome(context: Context) = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences(WELCOME_PREFS, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean(KEY_WELCOME_PENDING, false)) return@withContext
         val version = BuildConfig.VERSION_NAME
+        if (!prefs.getBoolean(KEY_WELCOME_PENDING, false)) {
+            prefs.edit().putString(KEY_LAST_VERSION_NAME, version).apply()
+            return@withContext
+        }
+        val since = prefs.getString(KEY_LAST_VERSION_NAME, null)?.takeIf { it != version }
         runCatching {
             val request = Request.Builder().url(releaseForTagUrl(version)).build()
             Http.client.newCall(request).execute().use { response ->
@@ -144,16 +153,28 @@ object AppUpdateChecker {
                 val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching
                 val highlights = ReleaseHighlights.of(release["body"]?.jsonPrimitive?.contentOrNull)
                 if (highlights.isEmpty()) prefs.edit().putBoolean(KEY_WELCOME_PENDING, false).apply()
-                else _welcome.value = WelcomeInfo(version, url, highlights)
+                else _welcome.value = WelcomeInfo(version, url, highlights, earlier = since?.let { skippedSince(it, version) }.orEmpty())
             }
         }
         Unit
     }
 
+    /** The releases between [since] and [version], from the recent releases' notes; nothing without the network. */
+    private fun skippedSince(since: String, version: String): List<com.cosmotune.ReleaseHighlightSet> = runCatching {
+        val request = Request.Builder().url("https://api.github.com/repos/${com.cosmotune.CosmoConfig.PROJECT_REPO}/releases?per_page=30").build()
+        val body = Http.client.newCall(request).execute().use { response -> if (response.isSuccessful) response.body?.string() else null }
+            ?: return@runCatching emptyList()
+        val releases = json.parseToJsonElement(body).jsonArray.mapNotNull { it as? JsonObject }
+            .filter { it["draft"]?.jsonPrimitive?.contentOrNull != "true" && it["prerelease"]?.jsonPrimitive?.contentOrNull != "true" }
+            .mapNotNull { r -> r["tag_name"]?.jsonPrimitive?.contentOrNull?.let { it to r["body"]?.jsonPrimitive?.contentOrNull } }
+        com.cosmotune.SkippedReleases.of(releases, since = since, current = version).filter { it.version != version }
+    }.getOrDefault(emptyList())
+
     /** The welcome card was closed: it is not shown again for this build. */
     fun welcomeSeen(context: Context) {
         _welcome.value = null
-        context.getSharedPreferences(WELCOME_PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_WELCOME_PENDING, false).apply()
+        context.getSharedPreferences(WELCOME_PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_WELCOME_PENDING, false)
+            .putString(KEY_LAST_VERSION_NAME, BuildConfig.VERSION_NAME).apply()
     }
 
     /** The size in bytes the release gives for the asset downloaded from [url]. */

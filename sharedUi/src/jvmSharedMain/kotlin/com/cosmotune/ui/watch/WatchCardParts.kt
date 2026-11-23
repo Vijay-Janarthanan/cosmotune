@@ -46,8 +46,9 @@ internal class WatchCardAction(
  */
 @Composable
 internal fun WatchCardActions(actions: List<WatchCardAction>, ink: Color, fill: Color, fonts: OrbitFonts, modifier: Modifier = Modifier, biteRoom: androidx.compose.ui.unit.Dp = 84.dp) {
-    // Each action takes an equal share of the row, at most 64 dp, so five still fit beside the bite on a phone.
-    Row(modifier.fillMaxWidth().padding(end = biteRoom), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    // Each action takes an equal share of the row, at most 64 dp, so five still fit beside the bite on a phone; 8 dp between them
+    // keeps two round buttons from touching.
+    Row(modifier.fillMaxWidth().padding(end = biteRoom), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         actions.forEach { a ->
             Column(Modifier.weight(1f, fill = false).widthIn(max = 64.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box {

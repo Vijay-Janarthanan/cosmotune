@@ -1,6 +1,7 @@
 package com.cosmotune.music.desktop
 
 import com.cosmotune.ui.browse.musicRadio
+import androidx.compose.ui.draw.clipToBounds
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -3693,6 +3694,7 @@ fun CosmotuneDesktopApp() {
                     highlights = welcome.highlights,
                     primary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_got_it", "Got it"], close),
                     onFullNotes = { DesktopExternalLinks.open(welcome.releaseUrl) },
+                    earlier = welcome.earlier,
                 ),
                 onDismiss = close,
             )
@@ -4874,6 +4876,7 @@ fun CosmotuneDesktopApp() {
                                     },
                                     onOpenIntegrations = { overlays.settingsPage = DesktopSettingsPage.INTEGRATIONS },
                                     onOpenLicenses = { overlays.settingsPage = DesktopSettingsPage.LICENSES },
+                                    onCloseSettings = { overlays.settingsPage = null },
                                 )
                                 DesktopSettingsPage.EQUALIZER -> DesktopEqualizerDialog(onDismiss = ::goBack)
                                 DesktopSettingsPage.AUDIO_OUTPUT -> DesktopAudioOutputDialog(onDismiss = ::goBack)
@@ -5560,7 +5563,10 @@ private fun DesktopFrame(
     val roundCorners = DesktopPlatform.isMac && !maximized
     // The window's one "Removed · Undo" snackbar: the bottom chrome draws it in a narrow window, the frame over the player bar here.
     val orbitUndo = com.cosmotune.ui.orbit.rememberOrbitUndo()
-    CompositionLocalProvider(LocalDesktopHaze provides haze, com.cosmotune.ui.orbit.LocalOrbitUndo provides orbitUndo) {
+    // A page's top wash (Watch's) is painted here, from the window's top behind the sidebar and the top bar too, so the colour
+    // does not start in a hard line under the bar.
+    val frameWash = remember { mutableStateOf<com.cosmotune.ui.orbit.OrbitWashSpec?>(null) }
+    CompositionLocalProvider(LocalDesktopHaze provides haze, com.cosmotune.ui.orbit.LocalOrbitUndo provides orbitUndo, com.cosmotune.ui.orbit.LocalOrbitFrameWash provides frameWash) {
         Box(
             modifier
                 .fillMaxSize()
@@ -5569,14 +5575,14 @@ private fun DesktopFrame(
         ) {
             // Both sources of the same state: the chrome blurs the backdrop behind it, and the
             // floating bottom bar blurs the page scrolling under it.
-            if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }
+            if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(); com.cosmotune.ui.orbit.OrbitFrameWash(frameWash.value) }
             Column(Modifier.fillMaxSize()) {
                 // Above everything, and outside the box the rest of the window is drawn in, because
                 // that is what a title bar is.
                 DesktopTitleBar()
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     // With a material the look's ground lies here, below the title bar (without one, the window's own ground above is it).
-                    if (glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }
+                    if (glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(); com.cosmotune.ui.orbit.OrbitFrameWash(frameWash.value) }
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val compact = maxWidth < 980.dp
                         // The navigation rule (CosmoNav): under 600 dp the bottom bar, from 600 dp the side rail, and from the
@@ -5596,14 +5602,16 @@ private fun DesktopFrame(
                                         .weight(1f)
                                         .fillMaxHeight(),
                                 ) {
-                                    Box(Modifier.fillMaxSize().hazeSource(haze)) {
+                                    // The page ends where the floating bar ends: nothing of it shows in the strip under the bar.
+                                    val underBar = if (!compact && LocalNowPlaying.current != null) com.cosmotune.design.ShellMetrics.DESKTOP_BAR_MARGIN_DP.dp else 0.dp
+                                    Box(Modifier.fillMaxSize().padding(bottom = underBar).clipToBounds().hazeSource(haze)) {
                                         (page ?: content)(
                                             PaddingValues(
                                                 start = 0.dp,
                                                 end = 0.dp,
                                                 // Room for the bar that floats over this, so the
                                                 // last row can still be scrolled clear of it.
-                                                bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp,
+                                                bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp - underBar,
                                             ),
                                         )
                                     }
@@ -5628,6 +5636,8 @@ private fun DesktopFrame(
                     overlay()
                 }
             }
+            // Windows' minimise, maximise and close over the top end corner, above every page and the player (none on macOS or Linux).
+            DesktopCaptionOverlay(Modifier.align(Alignment.TopEnd))
         }
     }
 }
@@ -5959,6 +5969,8 @@ private fun DesktopSettingsScreen(
     onTestSource: (DesktopSourceConfig) -> Unit,
     onOpenIntegrations: () -> Unit,
     onOpenLicenses: () -> Unit,
+    /** Closes Settings (the settings home's Watch row leaves for Watch's own settings page). */
+    onCloseSettings: () -> Unit = {},
 ) {
     val settingsInset = 16.dp
     val settingsScope = rememberCoroutineScope()
@@ -7069,8 +7081,12 @@ private fun DesktopSettingsScreen(
                                         .verticalScroll(rememberScrollState())
                                         .padding(bottom = 28.dp + LocalDesktopBottomInset.current),
                                 ) {
+                                    val shellSettings = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings
+                                    val shellMode = shellSettings?.mode?.collectAsState()?.value
                                     com.cosmotune.ui.settings.SettingsHub(entries = hubEntries, onOpen = openCategory, accountCard = { settingsAccountCard(false) },
-                                        current = com.cosmotune.ui.settings.settingsCategoryOf(com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value))
+                                        current = com.cosmotune.ui.settings.settingsCategoryOf(shellMode),
+                                        onOpenWatch = com.cosmotune.ui.settings.watchSettingsOpener(shellSettings, onCloseSettings),
+                                        watchCurrent = shellMode == com.cosmotune.design.AppMode.WATCH)
                                 }
                             }
                             else -> CompositionLocalProvider(

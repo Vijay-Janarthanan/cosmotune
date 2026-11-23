@@ -108,7 +108,7 @@ class WatchPagesContractTest {
 
     @Test fun theStatusBarBandIsSolidOverTheBar() {
         val app = read(dir + "WatchApp.kt")
-        assertTrue("Brush.verticalGradient(0f to look.ground, bar / (bar + fade) to look.ground, 1f to look.ground.copy(alpha = 0f))" in app, "solid over the bar, fading only below it")
+        assertTrue("height(with(density) { bar.toDp() }).then(Modifier.cosmoTopGround(shown = { 1f }))" in app, "solid over the bar in the app's own ground, fading only below it")
         assertFalse("OrbitStatusBarScrim(" in app, "not the see-through scrim")
     }
 
@@ -130,7 +130,7 @@ class WatchPagesContractTest {
         assertTrue(home.indexOf("item(key = \"watch:continue\")") in 0 until home.indexOf("item(key = \"watch:featured\")"), "Continue watching before the featured card")
         assertTrue("height(if (wide) 250.dp else 220.dp)" in home, "the featured card is about 220 dp on a phone")
         assertFalse("WatchCardChip(if (inList)" in home, "My list is a round action, not a chip")
-        assertTrue("WatchNav.go(WatchTab.LIVE)" in home && "items.take(if (wide) 6 else 3)" in home, "Live now: three rows and See all")
+        assertTrue("WatchNav.go(WatchTab.LIVE)" in home && "items.take(if (wide) 6 else 3)" in home, "Live now: three rows and Show all")
         assertTrue("progress = watched[s.key]" in home, "posters in the rows show how far they were watched")
     }
 
@@ -188,5 +188,13 @@ class WatchPagesContractTest {
         for (name in listOf("\"Country\"", "\"Language\"", "\"Category\"")) assertTrue("FacetChip($name" in live, "the $name dropdown")
         assertTrue("val channelWidth = if (wide) 220.dp else 68.dp" in live, "the phone's channel column is the logo")
         assertTrue("GuideList(window, now, fonts, look, clock, playChannel)" in live, "and the guide can be a list")
+    }
+
+    @Test fun aBackBarNeverRepeatsTheHeadingUnderIt() {
+        val app = read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/WatchApp.kt")
+        assertTrue("showNavigation && tab in WATCH_MENU_PAGES -> ({ WatchBackHeader(\"\", fonts, look) })" in app, "Plugins and Watch settings: the back button alone")
+        assertTrue("top is WatchRoute.Playlists -> if (top.id == null) \"\" else \"Watch playlists\"" in app, "the list of playlists has its own heading")
+        assertFalse("\"Watch settings\" else tab.label" in app)
+        assertTrue("OrbitPageHeading(\"Watch settings\"" in read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/watch/WatchSettingsPage.kt"), "the page itself is named in its heading")
     }
 }

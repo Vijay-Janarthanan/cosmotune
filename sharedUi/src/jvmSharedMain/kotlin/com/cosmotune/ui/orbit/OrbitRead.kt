@@ -74,7 +74,35 @@ fun OrbitPageWash(
     lightAlpha: Float = 0.2f,
     tail: Float = 0.3f,
 ) {
+    // Inside a host that paints the wash across its whole window (the desktop's frame), the page hands it over: drawn here it
+    // would start under the top bar and stop at the sidebar, a hard edge across the top of the page.
+    val frame = LocalOrbitFrameWash.current
+    if (frame != null) {
+        val spec = OrbitWashSpec(color, height, darkAlpha, lightAlpha, tail)
+        androidx.compose.runtime.DisposableEffect(frame, spec) {
+            frame.value = spec
+            onDispose { if (frame.value == spec) frame.value = null }
+        }
+        return
+    }
     Box(modifier.fillMaxWidth().height(height).background(orbitWash(color, look, darkAlpha, lightAlpha, tail)))
+}
+
+/** An [OrbitPageWash] as a page hands it to the window's frame. */
+data class OrbitWashSpec(val color: Color, val height: Dp, val darkAlpha: Float, val lightAlpha: Float, val tail: Float)
+
+/**
+ * Where a host that frames the pages (the desktop window, with its top bar and sidebar over the same ground) takes a page's wash, to
+ * paint it with [OrbitFrameWash] from the window's top behind everything; null where the page paints its own.
+ */
+val LocalOrbitFrameWash = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.MutableState<OrbitWashSpec?>?> { null }
+
+/** The wash a page handed to the frame ([LocalOrbitFrameWash]), across the whole window, [above] taller for the bar over the page. */
+@Composable
+fun OrbitFrameWash(spec: OrbitWashSpec?, modifier: Modifier = Modifier, above: Dp = 56.dp) {
+    if (spec == null) return
+    val look = orbitLook()
+    Box(modifier.fillMaxWidth().height(spec.height + above).background(orbitWash(spec.color, look, spec.darkAlpha, spec.lightAlpha, spec.tail)))
 }
 
 /**

@@ -282,9 +282,11 @@ internal fun OrbitVolumeButton(ink: Color, fill: Color, size: Dp, modifier: Modi
  * The song card (Home's hero card, board sections 1, 3 and 5): the cover's colour, flat, with play / pause in the bite. The mono
  * "NOW ORBITING" line, the title in the wide face and the artists (a tap opens the artist).
  *
- * [wide] (the desktop with a video, section 1): the title on the left, [buttons] top right, the [volume] under them, the
- * [format] under the artists and the seek line across the foot. Otherwise (the record, the phone, sections 3 and 5): one column,
- * the format under the artists, the seek line when [showLine], the buttons along the foot beside the bite and the volume after them.
+ * [wide] (the desktop with a video, section 1): the title on the left and, on its right, [buttons] with the [volume] at the end of
+ * the same row; the [format] under the artists and the seek line across the foot. Otherwise (the record, the phone, sections 3
+ * and 5): one column, the format under the artists, the seek line when [showLine], the buttons along the foot with the volume at
+ * their end. In both, whatever sits beside the bite (the seek line, its times and the buttons) ends [BITE_GAP] before the bite's
+ * ring, so nothing runs under play / pause.
  */
 @Composable
 internal fun NowPlayingSongCard(
@@ -308,8 +310,13 @@ internal fun NowPlayingSongCard(
     val (fill, ink) = coverFill(t.coverUrl, t.song.title)
     OrbitBiteCard(fill, modifier, bite = { NowPlayingPlayButton(t, look, 66.dp, HERO_BITE_RING) }) {
         if (wide) {
-            Box(Modifier.fillMaxSize().padding(start = 24.dp, top = 22.dp, end = 24.dp, bottom = 22.dp)) {
-                Row(Modifier.fillMaxWidth()) {
+            BoxWithConstraints(Modifier.fillMaxSize().padding(start = WIDE_PAD, top = 22.dp, end = WIDE_PAD, bottom = 22.dp)) {
+                val clear = BITE_CLEAR - WIDE_PAD
+                // The controls' row takes what the title leaves it; the volume shortens, then turns into the speaker button,
+                // before any button moves into More.
+                val room = maxWidth - clear - WIDE_TITLE_MIN - 16.dp
+                val fit = if (volume) volumeFit(room, buttons.size, buttonSize, WIDE_GAP) else null
+                Row(Modifier.fillMaxWidth().padding(end = clear)) {
                     Column(Modifier.weight(1f)) {
                         OrbitingLabel(t, fonts, ink)
                         Spacer(Modifier.height(14.dp))
@@ -318,25 +325,27 @@ internal fun NowPlayingSongCard(
                         else if (format && quality == null) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 8.dp))
                     }
                     Spacer(Modifier.width(16.dp))
-                    Column(Modifier.padding(end = 64.dp, top = 12.dp), horizontalAlignment = Alignment.End) {
-                        CardButtons(buttons, ink, fill, buttonSize, 6.dp)
-                        if (volume) OrbitVolume(ink, Modifier.padding(top = 14.dp), source = volumeSource)
+                    Row(Modifier.padding(top = 12.dp).testTag("nowplaying:card:controls"), verticalAlignment = Alignment.CenterVertically) {
+                        CardButtons(buttons, ink, fill, buttonSize, WIDE_GAP, available = room - (fit?.width(buttonSize) ?: 0.dp))
+                        if (fit != null) CardVolume(fit, ink, fill, buttonSize, volumeSource)
                     }
                 }
-                Column(Modifier.align(Alignment.BottomStart).padding(end = 64.dp)) {
+                Column(Modifier.align(Alignment.BottomStart).padding(end = clear + SEEK_MOON_REACH).testTag("nowplaying:card:seek")) {
                     OrbitProgressLine(t::progress, ink, onSeek = t::seek)
                     CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
                 }
             }
         } else {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                // The volume is always there. Beside the buttons where they leave room for it; otherwise at the top right on the
-                // label's row, as the short line where that row is wide enough and as the speaker button (its line in a popover) where not.
-                val inner = maxWidth - 44.dp
-                val footer = inner - 70.dp
+                // The volume is always there. At the end of the buttons' row where they leave room for it; otherwise at the top
+                // right on the label's row, as the short line where that row is wide enough and as the speaker button (its line
+                // in a popover) where not.
+                val inner = maxWidth - COLUMN_PAD * 2
+                val clear = BITE_CLEAR - COLUMN_PAD
+                val footer = inner - clear
                 val roomBesideButtons = footer >= buttonSize * buttons.size + 8.dp * buttons.size + VOLUME_WIDTH
                 val topRight = volume && !roomBesideButtons
-                Column(Modifier.fillMaxWidth().padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 22.dp)) {
+                Column(Modifier.fillMaxWidth().padding(COLUMN_PAD)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         OrbitingLabel(t, fonts, ink, Modifier.weight(1f))
                         if (topRight) {
@@ -354,15 +363,17 @@ internal fun NowPlayingSongCard(
                     }
                     if (showLine) {
                         Spacer(Modifier.height(16.dp))
-                        OrbitProgressLine(t::progress, ink, onSeek = t::seek)
-                        CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
+                        Column(Modifier.padding(end = clear + SEEK_MOON_REACH).testTag("nowplaying:card:seek")) {
+                            OrbitProgressLine(t::progress, ink, onSeek = t::seek)
+                            CardTimes(t, fonts, ink, quality, Modifier.padding(top = 6.dp))
+                        }
                     }
                     Spacer(Modifier.height(16.dp))
-                    Row(Modifier.fillMaxWidth().padding(end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(end = clear).testTag("nowplaying:card:controls"), verticalAlignment = Alignment.CenterVertically) {
                         CardButtons(buttons, ink, fill, buttonSize, 8.dp, available = footer)
                         if (volume && roomBesideButtons) {
                             Spacer(Modifier.weight(1f))
-                            OrbitVolume(ink, Modifier.padding(start = 12.dp), source = volumeSource)
+                            OrbitVolume(ink, Modifier.padding(start = 12.dp, end = SEEK_MOON_REACH), source = volumeSource)
                         }
                     }
                 }
@@ -370,6 +381,59 @@ internal fun NowPlayingSongCard(
         }
     }
 }
+
+/** How the volume fits at the end of the wide card's row: the full line, the short line, or the speaker button. */
+internal enum class VolumeFit {
+    Line, Short, Button;
+
+    /** What it takes in the row, with the gap before it. */
+    fun width(buttonSize: Dp): Dp = when (this) {
+        Line -> VOLUME_GAP + 18.dp + 8.dp + 104.dp + SEEK_MOON_REACH
+        Short -> VOLUME_GAP + 18.dp + 8.dp + 72.dp + SEEK_MOON_REACH
+        Button -> VOLUME_GAP + buttonSize
+    }
+}
+
+/** The roomiest volume that still leaves [count] buttons of [size] (with [gap]s) in [room]; the speaker button when none does. */
+internal fun volumeFit(room: Dp, count: Int, size: Dp, gap: Dp): VolumeFit {
+    val buttons = size * count + gap * (count - 1).coerceAtLeast(0)
+    return listOf(VolumeFit.Line, VolumeFit.Short).firstOrNull { buttons + it.width(size) <= room } ?: VolumeFit.Button
+}
+
+@Composable
+private fun CardVolume(fit: VolumeFit, ink: Color, fill: Color, buttonSize: Dp, source: SystemVolume?) {
+    Spacer(Modifier.width(VOLUME_GAP))
+    when (fit) {
+        // Its line ends where the seek line does, its moon's reach short of the row's end.
+        VolumeFit.Line -> OrbitVolume(ink, Modifier.padding(end = SEEK_MOON_REACH), source = source)
+        VolumeFit.Short -> OrbitVolume(ink, Modifier.padding(end = SEEK_MOON_REACH), style = VolumeStyle.Compact, source = source)
+        VolumeFit.Button -> OrbitVolumeButton(ink, fill, buttonSize, source = source)
+    }
+}
+
+/** The song card's inner padding, wide and in one column, and the gaps in the wide card's row. */
+private val WIDE_PAD = 24.dp
+private val COLUMN_PAD = 22.dp
+private val WIDE_GAP = 6.dp
+private val VOLUME_GAP = 12.dp
+
+/** The narrowest the wide card lets its title column get before its controls give way. */
+private val WIDE_TITLE_MIN = 240.dp
+
+/** The air between what sits beside the bite and the bite's ring. */
+internal val BITE_GAP = 16.dp
+
+/**
+ * How far from the card's end edge the seek line, its times and the buttons stop: the bite's ring (its centre 46 dp in, 41 dp
+ * round: [com.cosmotune.ui.orbit.HeroBite]) and [BITE_GAP] before it.
+ */
+internal val BITE_CLEAR = 46.dp + 41.dp + BITE_GAP
+
+/**
+ * How far the seek line's moon (6 dp, with its 4 dp halo) reaches past the line's end at the song's last second: the line stops
+ * that much sooner, so even then the moon keeps [BITE_GAP] from the ring. Its times stand under the line's own ends.
+ */
+private val SEEK_MOON_REACH = 10.dp
 
 /**
  * The phone's song card (the Now Playing board, B1 to B3): the cover's colour, flat, no bite. At the top the mono eyebrow, the
@@ -467,7 +531,7 @@ internal fun NowPlayingPlayButton(t: NowPlayingTransport, look: OrbitLook, size:
 internal val HERO_BITE_RING = 82.dp
 
 /** What the volume takes beside the buttons: the speaker, the gap and the line. */
-private val VOLUME_WIDTH = 150.dp
+private val VOLUME_WIDTH = 152.dp
 
 /** The card width (inside its padding) from which the short volume line fits on the label's row; below it the speaker is a button. */
 private val COMPACT_VOLUME_MIN_WIDTH = 300.dp

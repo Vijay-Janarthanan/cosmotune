@@ -120,8 +120,13 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = frame.padding) {
             frame.header?.let { header -> item(key = "watch:header") { header() } }
             item(key = "watch:heading") {
-                val label = remember(filter) {
-                    Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEE dd MMM — HH:mm", Locale.ENGLISH))
+                // The line's clock moves on with the minute, as Home's does.
+                val label by androidx.compose.runtime.produceState(watchDateLine(clock()), filter) {
+                    while (true) {
+                        val now = clock()
+                        value = watchDateLine(now)
+                        kotlinx.coroutines.delay((60_000L - now % 60_000L).coerceAtLeast(1_000L))
+                    }
                 }
                 val title = when (fixed) { HomeFilter.FILMS -> "Films"; HomeFilter.SERIES -> "Series"; else -> "Tonight" }
                 val chips: @Composable () -> Unit = {
@@ -191,7 +196,7 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                         Column {
                             Row(Modifier.fillMaxWidth().padding(end = side), verticalAlignment = Alignment.Bottom) {
                                 Section("Live now", null, fonts, look, side, Modifier.weight(1f))
-                                WatchCardChip("See all", look.ink, fonts, onClick = { WatchNav.go(WatchTab.LIVE) }, modifier = Modifier.padding(bottom = 6.dp))
+                                WatchCardChip("Show all", look.ink, fonts, onClick = { WatchNav.go(WatchTab.LIVE) }, modifier = Modifier.padding(bottom = 6.dp))
                             }
                             LiveNow(data.liveNow, frame.wide, fonts, look, actions, clock, Modifier.padding(horizontal = side))
                         }
@@ -454,3 +459,7 @@ internal fun watchHomeEntry(repository: com.cosmotune.watch.WatchRepository, fil
         }
     }
 }
+
+/** "MON 23 NOV · 13:26" as Home writes it (upper-cased by the label). */
+private fun watchDateLine(ms: Long): String =
+    Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEE d MMM · HH:mm", Locale.ENGLISH))

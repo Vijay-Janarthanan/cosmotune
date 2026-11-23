@@ -110,7 +110,7 @@ class PodioReadMangaContractTest {
     @Test fun mangaOpensOnTheGridWithCountsAndChoosesChaptersByHold() {
         val library = body("$manga/MangaApp.kt", "MangaLibrary")
         assertTrue(library.contains("MangaContinueRow(") && !library.contains("MangaHero(") && !library.contains("\"New chapters\""), "one Continue row, no hero")
-        assertTrue(code("$manga/MangaApp.kt").contains("MangaCountBadge(counts.unread, peach = true"), "unread in peach on the cover")
+        assertTrue(code("$manga/MangaApp.kt").contains("counts?.let(::mangaCountsLine)") && !code("$manga/MangaApp.kt").contains("MangaCountBadge"), "the counts in the line under the cover, nothing on it")
         val details = code("$manga/MangaDetails.kt")
         assertTrue(details.contains("SelectionBar(") && details.contains("selection = selection.toggle(chapter.id)"), "a hold chooses several")
         assertTrue(details.contains("number = chapterNumber(item, index + 1)"), "the chapter number's tile")
@@ -131,7 +131,7 @@ class PodioReadMangaContractTest {
         val desktop = code("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt")
         assertTrue(desktop.contains("com.cosmotune.podio.ui.PodioSettingsSection(") && desktop.contains("com.cosmotune.manga.ui.MangaSettingsSection()"), "the desktop's too")
         val hub = body("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/settings/SettingsHub.kt", "SettingsHub")
-        assertTrue(hub.contains("SettingsText.GROUP_MODES") && hub.contains("SettingsText.GROUP_GENERAL") && hub.contains("current = current"), "Modes above General, this mode tagged")
+        assertTrue(hub.contains("SettingsText.GROUP_MODES") && hub.contains("SettingsText.GROUP_GENERAL") && hub.contains("current = shownCurrent"), "Modes above General, this mode tagged")
         val sources = body("$manga/MangaSources.kt", "MangaSources")
         assertFalse(sources.contains("Connect Komga library") || sources.contains("Check parser updates") || sources.contains("MangaLibraryTools("), "the Sources tab is the catalogue only")
         assertTrue(code("$manga/MangaSettings.kt").contains("Connect Komga library"), "Komga lives in Settings › Manga")

@@ -131,6 +131,7 @@ import com.cosmotune.music.data.lyrics.GrowingWord
 import com.cosmotune.music.data.lyrics.LyricAlignment
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.data.lyrics.LyricsSource
+import com.cosmotune.music.data.lyrics.LyricsRepository
 import com.cosmotune.music.data.lyrics.translationLanguageName
 import com.cosmotune.music.ui.haptics.Haptic
 import com.cosmotune.music.ui.haptics.Haptics
@@ -3134,6 +3135,9 @@ internal fun rememberLyricsTranslation(
             stringResource(Res.string.lyrics_already_in_language, translationLanguageName)
         romanizationState is LyricsTranslationUiState.SameLanguage ->
             stringResource(Res.string.lyrics_already_romanized)
+        // Words whose timing belongs to another length of the song are shown still: say why, so they are not taken for broken.
+        LyricsRepository.untimedForAnotherLength(lyricsSource, lyrics) ->
+            stringResource(Res.string.lyrics_untimed_other_length, lyricsSource!!.label)
         lyricsSource != null -> stringResource(Res.string.lyrics_by, lyricsSource.label)
         lyricsUnavailable -> stringResource(Res.string.no_lyrics_found)
         lyrics.isNullOrEmpty() -> loadingText

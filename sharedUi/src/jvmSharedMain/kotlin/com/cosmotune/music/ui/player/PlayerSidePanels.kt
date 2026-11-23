@@ -164,8 +164,10 @@ fun QueueSidePanel(
         onRestore = onRestore,
         onPlayNext = onPlayNext,
         onDownload = onDownload,
-        // The side panel's own head says "Up next"; the chips and the groups stay.
+        // The side panel's own head says "Up next": no second big title, only the "Playing from … · 19 songs · 66 min" line; the
+        // chips and the groups stay.
         header = true,
+        title = false,
         playingFrom = queue.getOrNull(queueIndex + 1)?.playbackSource?.takeIf { it.isNotBlank() },
     )
 }

@@ -220,7 +220,7 @@ class BlocksStructureTest {
         val field = SourceContract.parameters(block("CosmoSearchField"), "CosmoSearchField")
         assertTrue("height: Dp = 52.dp" in field && "keyHint: String? = null" in field && "onFocusChanged: ((Boolean) -> Unit)? = null" in field)
         val header = SourceContract.parameters(block("CosmoHeaders"), "CosmoPageHeader")
-        assertTrue("large: Boolean = false" in header && "actions: @Composable RowScope.() -> Unit = {}" in header)
+        assertTrue("large: Boolean = false" in header && "actions: (@Composable RowScope.() -> Unit)? = null" in header)
         val leading = block("CosmoListRow")
         for (member in listOf("data class Cover(val url: String?, val circle: Boolean = false)", "data class Number(val number: Int)", "data class Icon(val icon: ImageVector)", "data class IconPainter(val painter: Painter)", "data object None")) {
             assertTrue(member in leading, "CosmoRowLeading has $member")

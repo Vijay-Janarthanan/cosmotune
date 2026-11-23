@@ -233,6 +233,14 @@ class PhoneChromeContractTest {
         assertTrue("selectedTab = if (selectedTab == TAB_SEARCH) searchReturnTab else TAB_HOME" in text, "and so does the system's")
     }
 
+    @Test fun aPageWithItsOwnBigHeadingDoesNotRepeatItInTheBar() {
+        val text = main
+        assertTrue("selectedTab == TAB_SEARCH -> false" in text, "Search's heading never scrolls away, so the bar never shows its title")
+        assertTrue("showSettings -> headingGone" in text, "Settings' heading owns the title until it has scrolled away")
+        assertTrue("selectedMoodGenre != null -> headingGone" in text, "and so does a mood's page")
+        assertTrue(".nestedScroll(headingScroll.connection)" in text, "heard from the pages' own scrolling")
+    }
+
     @Test fun theTabConstantsAreUntouched() {
         val text = main
         for (line in listOf("private const val TAB_HOME = 0", "private const val TAB_EXPLORE = 1", "private const val TAB_LIBRARY = 2", "private const val TAB_SEARCH = 3", "private const val TAB_RELEASES = 4")) {

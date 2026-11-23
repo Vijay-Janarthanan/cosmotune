@@ -111,6 +111,8 @@ internal fun OrbitDockTab(
 ) {
     val fill by animateColorAsState(if (selected) look.ink else Color.Transparent, tween(180), label = "tab-fill")
     val ink by animateColorAsState(if (selected) look.ground else look.dim, tween(180), label = "tab-ink")
+    // A tab that shows only its icon names itself in a tooltip (the selected one has its name written out).
+    val tooltip = rememberOrbitTooltipState()
     Row(
         modifier
             .height(OrbitDockMetrics.TAB_DP.dp)
@@ -118,6 +120,7 @@ internal fun OrbitDockTab(
             .cosmoFocusRing(interaction, (OrbitDockMetrics.TAB_DP / 2).dp, floating = true)
             .clip(CircleShape)
             .background(fill)
+            .orbitTooltip(tooltip, enabled = !selected)
             .selectable(selected = selected, interactionSource = interaction, indication = null, role = Role.Tab, onClick = onClick)
             .then(if (selected) Modifier else Modifier.semantics { contentDescription = orbitTabName(label, count) })
             .animateContentSize(tween(180))
@@ -128,6 +131,7 @@ internal fun OrbitDockTab(
             Icon(if (selected) selectedIcon else icon, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
             if (!selected && count != null && count > 0) OrbitBadge(count, look, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp), ring = orbitDockFill(look))
         }
+        if (!selected) OrbitTooltipPill(tooltip, orbitTabName(label, count))
         if (selected) {
             Spacer(Modifier.width(8.dp))
             Text(label, style = fonts.chip, color = ink, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)

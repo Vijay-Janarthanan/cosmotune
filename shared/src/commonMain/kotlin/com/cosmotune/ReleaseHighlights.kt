@@ -188,3 +188,34 @@ object ReleaseHighlights {
         .trim()
         .let { if (it.matches(Regex("""^[\p{P}\s]*$"""))) "" else it }
 }
+
+/** One release's highlights, under its [version]. */
+data class ReleaseHighlightSet(val version: String, val highlights: List<ReleaseHighlight>)
+
+/**
+ * What a listener who skipped releases is told on the first launch after updating (1.0.31 straight to 1.0.33 skips 1.0.32): of
+ * [releases] (version and notes, in any order), the ones newer than [since] up to [current], newest first. [current] keeps all its
+ * highlights; each earlier one gives at most [EARLIER_HIGHLIGHTS], and at most [EARLIER_RELEASES] earlier ones are named, so
+ * the card stays short. A release whose notes give nothing is left out. With [since] unknown, [current] alone.
+ */
+object SkippedReleases {
+    const val EARLIER_HIGHLIGHTS = 2
+    const val EARLIER_RELEASES = 3
+
+    fun of(releases: List<Pair<String, String?>>, since: String?, current: String): List<ReleaseHighlightSet> {
+        val wanted = releases
+            .map { (version, notes) -> version.removePrefix("v") to notes }
+            .filter { (version, _) ->
+                version == current || (since != null && ReleaseVersion.isNewer(version, since) && ReleaseVersion.isNewer(current, version))
+            }
+            .distinctBy { it.first }
+            .sortedWith { a, b -> if (ReleaseVersion.isNewer(a.first, b.first)) -1 else if (ReleaseVersion.isNewer(b.first, a.first)) 1 else 0 }
+        val sets = wanted.mapNotNull { (version, notes) ->
+            val highlights = ReleaseHighlights.of(notes)
+            if (highlights.isEmpty()) null
+            else ReleaseHighlightSet(version, if (version == current) highlights else highlights.take(EARLIER_HIGHLIGHTS))
+        }
+        val (now, earlier) = sets.partition { it.version == current }
+        return now + earlier.take(EARLIER_RELEASES)
+    }
+}

@@ -292,7 +292,14 @@ private const val CONTROLS_AFTER = 3
 
 @Composable
 private fun OrbitGreeting(fonts: OrbitFonts, look: OrbitLook, modifier: Modifier, onSurprise: (() -> Unit)?) {
-    val now = remember { LocalDateTime.now() }
+    // The clock in the line moves on with the minute (it stood at the time Home was first drawn), and the greeting with the hour.
+    val now by produceState(LocalDateTime.now()) {
+        while (true) {
+            val current = LocalDateTime.now()
+            value = current
+            kotlinx.coroutines.delay(((60 - current.second) * 1000L).coerceAtLeast(1000L))
+        }
+    }
     val part = when (now.hour) {
         in 5..11 -> "Good morning"
         in 12..16 -> "Good afternoon"

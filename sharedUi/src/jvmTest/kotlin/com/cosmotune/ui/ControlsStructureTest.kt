@@ -53,7 +53,9 @@ class ControlsStructureTest {
 
     @Test fun everyControlCarriesItsRoleAndAName() {
         assertTrue("Role.Button" in source("MorphBox"), "buttons are Role.Button by default")
-        assertTrue("Role.Checkbox" in source("CosmoIconButton") && "contentDescription" in signature(source("CosmoIconButton"), "CosmoIconButton"), "an icon button toggles as a checkbox and needs a description")
+        assertTrue("toggled = on" in source("CosmoIconButton") && "contentDescription" in signature(source("CosmoIconButton"), "CosmoIconButton"), "an icon button toggles as a checkbox and needs a description")
+        val round = SourceContract.code(SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitControls.kt"))
+        assertTrue("role = androidx.compose.ui.semantics.Role.Checkbox; toggleableState = ToggleableState(toggled)" in round, "the round button is the checkbox, with its state")
         assertTrue("Res.string.play" in source("PlayMorphButton") && "Res.string.pause" in source("PlayMorphButton"), "the play button says Play or Pause")
         assertTrue("Role.Checkbox" in source("CosmoChip"), "a chip is a checkbox")
         assertTrue("selectableGroup()" in source("CosmoSegmented") && "Role.Tab" in source("CosmoSegmented"), "a segmented control is a group of tabs")

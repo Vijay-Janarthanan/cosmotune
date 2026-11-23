@@ -1,5 +1,6 @@
 package com.cosmotune.ui.nowplaying
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
@@ -24,6 +25,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -81,7 +84,7 @@ internal fun NowPlayingPhone(
  * media starts right under the top row. The video takes all the room above the card (Whole sits in the middle of it with its glow
  * round it, Fill is cut to it); the cover is a square of the screen's width at the top of the room, cut at the room's foot on a
  * short screen. Both run past the page's side margins to the screen's edges, and over them the page's ground fades in at the top
- * and the bottom ([cosmoPlayerGroundEdges]). The panel keeps the margins and has no fade.
+ * and the bottom ([cosmoPlayerGroundEdges]). The panel keeps the margins and fades out over its last [PANEL_FOOT_FADE].
  */
 @Composable
 private fun MediaOverCard(
@@ -94,8 +97,10 @@ private fun MediaOverCard(
     val bleed = kind != PhoneMedia.PANEL
     Layout(
         content = {
-            Box { media(Modifier.fillMaxSize()) }
-            Box { card(Modifier.fillMaxWidth()) }
+            // A panel (Up next, Related, the lyrics) fades out at its foot instead of ending in a hard cut over the card.
+            Box(if (bleed) Modifier else Modifier.panelFoot()) { media(Modifier.fillMaxSize()) }
+            // On a tablet held upright the card keeps a phone's measure, centred, instead of stretching its few controls across.
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) { card(Modifier.widthIn(max = CARD_MAX_WIDTH).fillMaxWidth()) }
             Box { chips(Modifier.fillMaxWidth().padding(bottom = 18.dp)) }
             if (bleed) Box(Modifier.testTag("nowplaying:soft-edges").cosmoPlayerGroundEdges(top = SOFT_TOP, bottom = SOFT_BOTTOM))
         },
@@ -190,3 +195,25 @@ internal fun PhoneChips(
 private val PHONE_SIDE = 14.dp
 private val PHONE_GAP = 18.dp
 private val PHONE_CHIPS_GAP = 14.dp
+
+/** The widest the phone layout's card grows (a tablet held upright). */
+private val CARD_MAX_WIDTH = 600.dp
+
+/** How tall the fade at a panel's foot is, over the gap to the card. */
+private val PANEL_FOOT_FADE = 24.dp
+
+/** Fades the last [PANEL_FOOT_FADE] of the content out, over an offscreen copy of it. */
+private fun Modifier.panelFoot(): Modifier = this
+    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val fade = PANEL_FOOT_FADE.toPx().coerceAtMost(size.height / 2f)
+        drawRect(
+            androidx.compose.ui.graphics.Brush.verticalGradient(
+                listOf(androidx.compose.ui.graphics.Color.Black, androidx.compose.ui.graphics.Color.Transparent),
+                startY = size.height - fade, endY = size.height,
+            ),
+            topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - fade),
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+        )
+    }

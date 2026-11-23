@@ -1,5 +1,6 @@
 package com.cosmotune.ui.shell
 
+import com.cosmotune.ui.orbit.orbitTooltip
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -165,25 +166,30 @@ fun CosmoNavRail(
     // The start inset (a camera cutout or the navigation bar on that side, a tablet turned sideways) is kept outside the rail's width,
     // so the rail never loses its own room to it and its labels are never cut.
     Row(modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)).width(CosmoNav.RAIL_WIDTH_DP.dp).testTag(NAV_RAIL_TAG)) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+        // A short window (a phone on its side, about 410 dp) keeps the rail's gaps tight, so every tab and its name fit above the
+        // navigation bar instead of the last one being cut off at the foot; it still scrolls if even that is too tall.
+        val short = maxHeight < RAIL_SHORT_HEIGHT
         Column(
-            Modifier.weight(1f).fillMaxHeight()
+            Modifier.fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Bottom))
                 .verticalScroll(rememberScrollState())
-                .padding(top = 14.dp, bottom = 16.dp),
+                .padding(top = if (short) 8.dp else 14.dp, bottom = if (short) 8.dp else 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            header?.let { it(); Spacer(Modifier.height(14.dp)) }
+            header?.let { it(); Spacer(Modifier.height(if (short) 8.dp else 14.dp)) }
             if (search != null) {
                 CosmoSearchButton(search, size = 44.dp, look = look, fill = look.chip)
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(if (short) 8.dp else 18.dp))
             }
-            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(if (short) 4.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 tabs.forEachIndexed { index, tab -> RailItem(tab, index == selectedIndex && search?.selected != true, { onTabSelected(index) }, look) }
             }
             if (footer != null) {
-                Spacer(Modifier.weight(1f).height(24.dp))
+                Spacer(Modifier.weight(1f).height(if (short) 12.dp else 24.dp))
                 footer()
             }
+        }
         }
         Box(Modifier.fillMaxHeight().width(1.dp).background(look.ink.copy(alpha = if (look.dark) 0.08f else 0.09f)))
     }
@@ -230,13 +236,18 @@ internal fun CosmoSearchButton(search: CosmoNavSearch, size: Dp, look: OrbitLook
     val interaction = remember { MutableInteractionSource() }
     val ground by animateColorAsState(if (search.selected) look.ink else fill, tween(180), label = "search-fill")
     val ink by animateColorAsState(if (search.selected) look.ground else look.dim, tween(180), label = "search-ink")
+    val tooltip = com.cosmotune.ui.orbit.rememberOrbitTooltipState()
     Box(
         modifier.size(size).cosmoFocusRing(interaction, size / 2, floating = true).clip(CircleShape).background(ground)
+            .orbitTooltip(tooltip)
             .selectable(selected = search.selected, interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = { haptics.play(Haptic.Select); search.onClick() })
             .semantics { contentDescription = search.label; selected = search.selected }
             .testTag(NAV_SEARCH_TAG),
         contentAlignment = Alignment.Center,
-    ) { Icon(CosmoIcons.Search, contentDescription = null, tint = ink, modifier = Modifier.size(24.dp)) }
+    ) {
+        Icon(CosmoIcons.Search, contentDescription = null, tint = ink, modifier = Modifier.size(24.dp))
+        com.cosmotune.ui.orbit.OrbitTooltipPill(tooltip, search.label)
+    }
 }
 
 /** The bottom bar's search button, at the tab bar's height on its fill. */
@@ -248,3 +259,6 @@ internal fun DockSearchButton(search: CosmoNavSearch, modifier: Modifier = Modif
 
 const val NAV_RAIL_TAG = "nav:rail"
 const val NAV_SEARCH_TAG = "nav:search"
+
+/** Under this height (with the system bars) the rail keeps its gaps tight: a phone on its side. */
+internal val RAIL_SHORT_HEIGHT = 440.dp

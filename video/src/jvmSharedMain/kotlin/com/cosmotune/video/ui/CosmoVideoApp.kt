@@ -40,6 +40,8 @@ import com.cosmotune.ui.kit.KitIconButton
 import com.cosmotune.ui.kit.KitRootActions
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.theme.LocalCosmoColors
+import com.cosmotune.ui.theme.cosmoAmbientGround
+import com.cosmotune.ui.theme.cosmoTopGround
 import com.cosmotune.video.account.AccountState
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.graph.LocalVideoGraph
@@ -151,9 +153,10 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
     val scrolledAt = with(density) { SCROLLED_AT.toPx() }
     val scrolled = remember(tracker, scrolledAt) { derivedStateOf { tracker.offset > scrolledAt } }
     SideEffect { tracker.show(navigator.topPageKey()) }
+    // The app's own ground, as every other mode stands on ([cosmoAmbientGround]: the theme's gradient, light or dark, and the cover's
+    // wash while a song plays), not a flat dark fill of its own. The watch page keeps the plain ground: the player is its colour.
     val palette = LocalCosmoColors.current.palette
-
-    Box(modifier.fillMaxSize().background(Color(palette.backgroundBottom))) {
+    Box(modifier.fillMaxSize().then(if (onWatch) Modifier.background(Color(palette.backgroundBottom)) else Modifier.cosmoAmbientGround())) {
     // Video's tabs in the bar (with the small player above it) or the rail (the small player alone along the foot of the page).
     com.cosmotune.ui.shell.CosmoNavShell(
         windowWidth = windowWidth,
@@ -221,10 +224,11 @@ internal fun VideoBar(
         modifier
             .fillMaxWidth()
             .height(height)
+            // As the page scrolls under it the bar takes the page's own ground there (the app's, as the other modes' bars do).
+            .cosmoTopGround(shown = { tracker.offset / fadeRun })
             .drawBehind {
                 val shown = (tracker.offset / fadeRun).coerceIn(0f, 1f)
                 if (shown > 0f) {
-                    drawRect(colors.live(CoverField.BACKGROUND_BOTTOM).copy(alpha = shown))
                     drawRect(colors.live(CoverField.TEXT_PRIMARY).copy(alpha = HAIRLINE * shown), Offset(0f, size.height - 1f), Size(size.width, 1f))
                 }
             },

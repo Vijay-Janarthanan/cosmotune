@@ -207,7 +207,7 @@ internal fun CosmoDesktopCollectionPage(
                         .takeIf { coverEditable && picked != null },
                 )
             }
-            item(key = "collection-controls") {
+            item(key = "collection-controls") { Column {
                 Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
                     OrbitPageButton(
                         if (searching) CosmoIcons.Close else CosmoIcons.Search,
@@ -227,7 +227,8 @@ internal fun CosmoDesktopCollectionPage(
                             onPlaySelection = { if (selectedSongs.isNotEmpty()) onPlaySongs(selectedSongs, 0) },
                             onMoreSelection = { selectionMenu = true },
                             onSelectVisible = { selection = shownSongs.filterNot { it.value.isMatchPending || it.value.isMatchMissing }.map(MusicSongList::occurrence) },
-                            onClearSelection = { selection = emptyList() }, hasAddedDates = songs.any { it.localDateAddedSeconds != null })
+                            onClearSelection = { selection = emptyList() }, hasAddedDates = songs.any { it.localDateAddedSeconds != null },
+                            showCount = false)
                         DropdownMenu(expanded = selectionMenu, onDismissRequest = { selectionMenu = false }) {
                             DropdownMenuItem(text = { Text(DesktopStrings["download", "Download"]) }, onClick = {
                                 selectionMenu = false; onDownloadAll(selectedSongs)
@@ -238,7 +239,9 @@ internal fun CosmoDesktopCollectionPage(
                         }
                     }
                 }
-            }
+                // The count sits on the page's edge, with the rows, not after the search button.
+                com.cosmotune.ui.blocks.MusicListCount(shownSongs.size, songs.size, collection.continuation != null, Modifier.padding(top = 8.dp, bottom = 4.dp))
+            } }
             if (searching) {
                 item(key = "collection-search") {
                     val focus = remember { FocusRequester() }
@@ -558,13 +561,14 @@ private fun CollectionTrackRow(
                     reserveRemove = reserveRemove,
                 )
             } else {
-                Spacer(Modifier.width(DESKTOP_ROW_ACTION * (if (reserveRemove) 4 else 3)))
+                Spacer(Modifier.width(desktopRowActionsWidth(if (reserveRemove) 4 else 3)))
             }
             Text(
                 text = song.durationText ?: "—",
-                modifier = Modifier.width(DESKTOP_DURATION_COLUMN),
-                style = type.desktopRowDuration(),
-                color = Color(palette.textSecondary),
+                modifier = Modifier.padding(start = DESKTOP_DURATION_GAP, end = 4.dp).width(DESKTOP_DURATION_COLUMN),
+                // The Orbit rows' time (search, Home, the player bar): the mono label in the dim ink, so a length reads the same everywhere.
+                style = com.cosmotune.ui.orbit.orbitFonts().label,
+                color = com.cosmotune.ui.orbit.orbitLook().dim,
                 textAlign = TextAlign.End,
                 maxLines = 1,
             )

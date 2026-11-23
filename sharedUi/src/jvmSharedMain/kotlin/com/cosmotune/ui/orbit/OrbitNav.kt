@@ -25,12 +25,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -49,7 +53,7 @@ import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.cosmo_mode_switch
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.cosmoFocusRing
-import com.cosmotune.ui.kit.KitModeMenuList
+import com.cosmotune.ui.kit.KitModeMenu
 import com.cosmotune.ui.kit.modeName
 import com.cosmotune.ui.room.LocalRoomLauncher
 import com.cosmotune.ui.theme.LocalCosmoShell
@@ -81,8 +85,10 @@ private fun OrbitMark(color: Color, size: Dp = 20.dp) {
 }
 
 /**
- * The mode switcher as the navigation's first chip: the orbit mark, the mode's name and a chevron, on the chip fill. A click opens
- * the list of modes under it ([KitModeMenuList], with its shortcuts); picking one switches. Nothing without a shell.
+ * The mode switcher as the navigation's first chip: the orbit mark, the mode's name and a chevron, on the chip fill (a little more
+ * under the pointer; the ring under the keyboard). A click opens the list of modes as a popup menu under it ([KitModeMenu], with
+ * its shortcuts), over the sidebar rather than in it; picking one switches. A click on the chip while the menu is open closes it.
+ * Nothing without a shell.
  */
 @Composable
 fun OrbitNavModeChip(modifier: Modifier = Modifier) {
@@ -91,10 +97,21 @@ fun OrbitNavModeChip(modifier: Modifier = Modifier) {
     val fonts = orbitFonts()
     val mode by settings.mode.collectAsState()
     var open by remember { mutableStateOf(false) }
-    Column(modifier.fillMaxWidth()) {
+    // The press that lands on the chip while the menu is open closes the menu first (a press outside it); the click that follows
+    // must not open it again.
+    var closedAt by remember { mutableLongStateOf(0L) }
+    var width by remember { mutableIntStateOf(0) }
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val density = LocalDensity.current
+    Box(modifier.fillMaxWidth().onSizeChanged { width = it.width }) {
         Row(
-            Modifier.fillMaxWidth().height(CHIP).clip(CircleShape).background(look.chip)
-                .clickable(role = Role.Button, onClickLabel = stringResource(Res.string.cosmo_mode_switch)) { open = !open }
+            // While the menu is open the keyboard's ring is on its line, not on the chip too.
+            Modifier.fillMaxWidth().height(CHIP).then(if (open) Modifier else Modifier.cosmoFocusRing(interaction, CHIP / 2)).clip(CircleShape)
+                .background(if (hovered || open) look.ink.copy(alpha = if (look.dark) 0.12f else 0.10f) else look.chip)
+                .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClickLabel = stringResource(Res.string.cosmo_mode_switch)) {
+                    if (!open && System.currentTimeMillis() - closedAt > REOPEN_GUARD_MS) open = true
+                }
                 .pointerHoverIcon(PointerIcon.Hand)
                 .padding(start = 10.dp, end = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -104,7 +121,15 @@ fun OrbitNavModeChip(modifier: Modifier = Modifier) {
             Text(modeName(mode), style = fonts.chip, color = look.ink, maxLines = 1, modifier = Modifier.weight(1f))
             Icon(if (open) CosmoIcons.ChevronUp else CosmoIcons.ChevronDown, contentDescription = null, tint = look.dim, modifier = Modifier.size(16.dp))
         }
-        if (open) KitModeMenuList(mode, onSelect = { settings.setMode(it); open = false }, modifier = Modifier.padding(top = 4.dp))
+        if (open) {
+            val menuWidth = with(density) { width.toDp() }.coerceAtLeast(MODE_MENU_MIN)
+            KitModeMenu(
+                current = mode,
+                onSelect = { settings.setMode(it); open = false; closedAt = System.currentTimeMillis() },
+                onDismiss = { open = false; closedAt = System.currentTimeMillis() },
+                width = menuWidth,
+            )
+        }
     }
 }
 
@@ -236,4 +261,6 @@ fun OrbitNavRoomCard(modifier: Modifier = Modifier, onOpen: () -> Unit = {}) {
 }
 
 private val CHIP = 40.dp
+private val MODE_MENU_MIN = 220.dp
+private const val REOPEN_GUARD_MS = 250L
 private val PLAYLIST_DISC = 34.dp

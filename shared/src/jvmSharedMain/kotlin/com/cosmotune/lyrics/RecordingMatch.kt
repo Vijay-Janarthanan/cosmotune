@@ -8,6 +8,12 @@ import kotlin.math.abs
 
 /** Conservative fallback matching: a nearby duration alone does not identify a recording. */
 internal object RecordingMatch {
+    /**
+     * What a candidate is to the playing song: the same recording; the same song and artist at a length more than
+     * [MAX_DURATION_GAP_MS] away (another edit, or a video with an intro), whose words fit but whose timing does not; or not it.
+     */
+    enum class Verdict { SAME, OTHER_LENGTH, NO }
+
     fun accepts(
         title: String,
         artist: String,
@@ -15,17 +21,30 @@ internal object RecordingMatch {
         candidateTitle: String?,
         candidateArtist: String?,
         candidateDurationMs: Long?,
-    ): Boolean {
+        /** More names the song is credited to, as an upload lists them after pipes ([uploadCredits]). */
+        credits: Collection<String> = emptyList(),
+    ): Boolean = judge(title, artist, durationMs, candidateTitle, candidateArtist, candidateDurationMs, credits) == Verdict.SAME
+
+    fun judge(
+        title: String,
+        artist: String,
+        durationMs: Long,
+        candidateTitle: String?,
+        candidateArtist: String?,
+        candidateDurationMs: Long?,
+        credits: Collection<String> = emptyList(),
+    ): Verdict {
         val wantedTitle = titleKey(title)
-        if (wantedTitle.isEmpty() || wantedTitle != candidateTitle?.let(::titleKey)) return false
-        val wantedArtists = artistKeys(artist)
+        if (wantedTitle.isEmpty() || wantedTitle != candidateTitle?.let(::titleKey)) return Verdict.NO
+        val wantedArtists = artistKeys(artist) + credits.flatMap(::artistKeys)
         if (wantedArtists.isEmpty() || artistKeys(candidateArtist.orEmpty()).none { it in wantedArtists }) {
-            return false
+            return Verdict.NO
         }
         // Video intros, radio edits and dubbed recordings can have the same composer.
         // Unknown duration cannot establish that a timed document fits a known recording.
-        return durationMs <= 0 || (candidateDurationMs != null && candidateDurationMs > 0 &&
-            abs(candidateDurationMs - durationMs) <= MAX_DURATION_GAP_MS)
+        if (durationMs <= 0) return Verdict.SAME
+        if (candidateDurationMs == null || candidateDurationMs <= 0) return Verdict.NO
+        return if (abs(candidateDurationMs - durationMs) <= MAX_DURATION_GAP_MS) Verdict.SAME else Verdict.OTHER_LENGTH
     }
 
     private fun titleKey(value: String): String = normalize(

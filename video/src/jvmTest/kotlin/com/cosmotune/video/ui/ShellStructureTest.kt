@@ -389,8 +389,12 @@ class ShellStructureTest {
         for (file in sources) {
             val code = VideoSourceContract.code(file.readText())
             assertFalse("followCover" in code, "${file.name} hands a picture to the palette")
-            assertFalse("cosmoAmbientGround" in code || "videoGround()" in code, "${file.name} paints a ground other than the flat page")
+            // The phone shell stands on the app's own ground, as every mode does; no page paints one of its own.
+            if (file.name != "CosmoVideoApp.kt") assertFalse("cosmoAmbientGround" in code || "videoGround()" in code, "${file.name} paints a ground of its own")
         }
+        val shell = VideoSourceContract.code(read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/CosmoVideoApp.kt"))
+        assertTrue("if (onWatch) Modifier.background(Color(palette.backgroundBottom)) else Modifier.cosmoAmbientGround()" in shell,
+            "the phone's Video stands on the theme's ground, light or dark; the watch page keeps the plain one (DESIGN_SYSTEM.md 2.3)")
         assertFalse("VIDEO" in read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/theme/FollowCover.kt"), "Music's cover is not stopped for Video: nothing of Video follows it")
     }
 

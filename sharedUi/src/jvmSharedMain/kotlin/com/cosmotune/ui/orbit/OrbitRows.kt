@@ -1,5 +1,6 @@
 package com.cosmotune.ui.orbit
 
+import com.cosmotune.music.ui.player.bleedHorizontally
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -113,7 +114,9 @@ fun OrbitSongRow(
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     Row(
-        modifier.height(height).clip(ROW_PRESS_SHAPE)
+        // The card a press (or the desktop's pointer) lights reaches [ROW_CARD_BLEED] past the row on both sides, so the disc and the
+        // row's end keep air inside it while the words stay on the page's edge.
+        modifier.height(height).bleedHorizontally(ROW_CARD_BLEED).clip(ROW_PRESS_SHAPE)
             .then(
                 if (onClick != null || onLongClick != null) Modifier.longPressMenuClickable(onClick = { onClick?.invoke() }, onLongClick = onLongClick, enabled = enabled)
                 else Modifier,
@@ -121,7 +124,7 @@ fun OrbitSongRow(
             .contextClick(onLongClick.takeIf { enabled })
             // A screen reader hears which row plays, as the eye sees its peach.
             .then(if (now) Modifier.semantics { stateDescription = "Now playing" } else Modifier)
-            .padding(end = endPadding),
+            .padding(start = ROW_CARD_BLEED, end = ROW_CARD_BLEED + endPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading?.invoke(this)
@@ -160,6 +163,9 @@ fun OrbitSongRow(
 
 /** What a press lights under a flat row: the row's own bounds, softly rounded (nothing is drawn there at rest). */
 private val ROW_PRESS_SHAPE = RoundedCornerShape(16.dp)
+
+/** How far a row's lit card reaches past the row on each side. */
+internal val ROW_CARD_BLEED = 8.dp
 
 /** A duration at a row's end, in the mono label face. */
 @Composable

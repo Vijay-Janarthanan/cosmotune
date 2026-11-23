@@ -1,6 +1,16 @@
 package com.cosmotune.ui.kit
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import com.cosmotune.ui.components.trackFocusModality
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,8 +75,8 @@ import org.jetbrains.compose.resources.stringResource
 
 /*
  * The mode switcher (DESIGN_SYSTEM.md 4.2): one control, in the same place, with the same behaviour in every mode. On the phone a
- * pill top-left on every root page opens the mode sheet; on the desktop the sidebar's first row opens the same list as a menu, and
- * Ctrl/Cmd + 1 to 6 switches directly. Modes keep their own back stacks; the order is fixed (AppModes.switcherOrder) and the
+ * pill top-left on every root page opens the mode sheet; on the desktop the sidebar's mode chip opens the same list as a popup menu
+ * ([KitModeMenu]), and Ctrl (Cmd on macOS) + 1 to 6 switches directly. Modes keep their own back stacks; the order is fixed (AppModes.switcherOrder) and the
  * unavailable ones are hidden.
  */
 
@@ -183,47 +193,132 @@ fun KitModeSwitcher(modifier: Modifier = Modifier, collapsed: Boolean = false, s
     if (open) KitModeSheet(current = mode, onSelect = settings::setMode, onDismiss = { open = false }, status = status, onManage = onManage)
 }
 
+/** The shortcut a mode's line names: "⌘1" on macOS, "Ctrl+1" elsewhere; none past the sixth (the keys stop at 6). */
+fun modeShortcutLabel(index: Int, mac: Boolean = com.cosmotune.ui.orbit.orbitIsMac): String? =
+    if (index in 0 until 6) com.cosmotune.ui.orbit.orbitShortcut("${index + 1}", mac) else null
+
 /**
- * The desktop sidebar's first row (DESIGN_SYSTEM.md 4.2): 56 dp, the mode's glyph, its name and a chevron; it opens the same list
- * as a menu ([KitModeMenuList], shown under it while open).
+ * The desktop's list of modes as a menu: a popup under its anchor (the sidebar's mode chip), [width] wide, on the Orbit menu's
+ * ground with its shadow and radius, over the page (the sidebar under it does not move). A line is the mode's small glyph, its name
+ * and its shortcut at the end; the [current] one has a check and a faint fill, the pointer's a fainter wash, and the keyboard's
+ * focus its ring (only when the keyboard put it there). The arrows move, Enter picks, Esc or a click outside closes.
  */
 @Composable
-fun KitModeMenuButton(modifier: Modifier = Modifier) {
-    val settings = LocalCosmoShell.current?.settings ?: return
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val mode by settings.mode.collectAsState()
-    var open by remember { mutableStateOf(false) }
-    Column(modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(CosmoRadii.rMd))
-                .clickable(role = Role.Button, onClickLabel = stringResource(Res.string.cosmo_mode_switch)) { open = !open }
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+fun KitModeMenu(current: AppMode, onSelect: (AppMode) -> Unit, onDismiss: () -> Unit, width: androidx.compose.ui.unit.Dp) {
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    val modes = AppModes.shown()
+    val requesters = remember(modes) { modes.map { androidx.compose.ui.focus.FocusRequester() } }
+    var focused by remember { androidx.compose.runtime.mutableIntStateOf(modes.indexOf(current).coerceAtLeast(0)) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val position = remember(density) { ModeMenuPosition(with(density) { 6.dp.roundToPx() }, with(density) { 8.dp.roundToPx() }) }
+    val shape = RoundedCornerShape(20.dp)
+    fun move(to: Int) {
+        if (modes.isEmpty()) return
+        focused = (to + modes.size) % modes.size
+        runCatching { requesters[focused].requestFocus() }
+    }
+    androidx.compose.ui.window.Popup(
+        popupPositionProvider = position,
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+    ) {
+        Column(
+            Modifier
+                .width(width)
+                .trackFocusModality()
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.Escape -> { onDismiss(); true }
+                        Key.DirectionDown -> { move(focused + 1); true }
+                        Key.DirectionUp -> { move(focused - 1); true }
+                        Key.MoveHome -> { move(0); true }
+                        Key.MoveEnd -> { move(modes.size - 1); true }
+                        Key.Enter, Key.NumPadEnter -> { modes.getOrNull(focused)?.let(onSelect); true }
+                        else -> false
+                    }
+                }
+                .shadow(24.dp, shape, clip = false)
+                .clip(shape)
+                .background(com.cosmotune.ui.orbit.orbitFloatGround(look))
+                .border(1.dp, com.cosmotune.ui.orbit.orbitFloatEdge(look), shape)
+                .padding(6.dp)
+                .selectableGroup(),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Icon(modeIcon(mode), contentDescription = null, tint = Color(palette.textPrimary), modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(12.dp))
-            Text(modeName(mode), style = type.rowTitle, color = Color(palette.textPrimary), modifier = Modifier.weight(1f), maxLines = 1)
-            Icon(if (open) CosmoIcons.ChevronUp else CosmoIcons.ChevronDown, contentDescription = null, tint = Color(palette.textSecondary), modifier = Modifier.size(18.dp))
+            modes.forEachIndexed { index, mode ->
+                ModeMenuLine(
+                    mode = mode,
+                    shortcut = modeShortcutLabel(index),
+                    current = mode == current,
+                    look = look,
+                    fonts = fonts,
+                    modifier = Modifier.focusRequester(requesters[index]).onFocusChanged { if (it.isFocused) focused = index },
+                    onClick = { onSelect(mode) },
+                )
+            }
         }
-        if (open) KitModeMenuList(mode, onSelect = { settings.setMode(it); open = false })
+        LaunchedEffect(Unit) { runCatching { requesters[focused].requestFocus() } }
     }
 }
 
-/** The list of modes as rows (the desktop's menu): glyph, name, the shortcut ("Ctrl+1"), the current one on `surface3`. */
 @Composable
-fun KitModeMenuList(current: AppMode, onSelect: (AppMode) -> Unit, modifier: Modifier = Modifier, shortcutPrefix: String = "Ctrl+") {
-    val palette = LocalCosmoColors.current.palette
-    Column(modifier.fillMaxWidth().selectableGroup()) {
-        AppModes.shown().forEachIndexed { index, mode ->
-            KitSettingsRow(
-                title = modeName(mode),
-                icon = modeIcon(mode),
-                selected = mode == current,
-                onClick = { onSelect(mode) },
-                trailing = { Text("$shortcutPrefix${index + 1}", style = LocalCosmoType.current.meta, color = Color(palette.textTertiary)) },
-            )
+private fun ModeMenuLine(
+    mode: AppMode,
+    shortcut: String?,
+    current: Boolean,
+    look: com.cosmotune.ui.orbit.OrbitLook,
+    fonts: com.cosmotune.ui.orbit.OrbitFonts,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val fill = when {
+        current && hovered -> look.ink.copy(alpha = 0.12f)
+        current -> look.ink.copy(alpha = 0.08f)
+        hovered -> look.ink.copy(alpha = 0.05f)
+        else -> Color.Transparent
+    }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .cosmoFocusRing(interaction, 14.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(fill)
+            .selectable(selected = current, interactionSource = interaction, indication = null, role = Role.RadioButton, onClick = onClick)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .padding(start = 12.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(modeIcon(mode), contentDescription = null, tint = if (current) look.ink else look.dim, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(modeName(mode), style = fonts.chip, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (current) {
+            Icon(CosmoIcons.Check, contentDescription = null, tint = look.accent, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
         }
+        if (shortcut != null) Text(shortcut, style = fonts.label, color = look.dim, maxLines = 1)
+    }
+}
+
+/** Under its anchor with their start edges together, 6 dp down; over it when there is no room under; always on screen. */
+private class ModeMenuPosition(private val gap: Int, private val margin: Int) : androidx.compose.ui.window.PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: androidx.compose.ui.unit.IntRect,
+        windowSize: androidx.compose.ui.unit.IntSize,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        popupContentSize: androidx.compose.ui.unit.IntSize,
+    ): androidx.compose.ui.unit.IntOffset {
+        val maxX = (windowSize.width - popupContentSize.width - margin).coerceAtLeast(0)
+        val start = if (layoutDirection == androidx.compose.ui.unit.LayoutDirection.Ltr) anchorBounds.left else anchorBounds.right - popupContentSize.width
+        val x = start.coerceIn(0, maxX.coerceAtLeast(0))
+        val below = anchorBounds.bottom + gap
+        val y = if (below + popupContentSize.height <= windowSize.height - margin) below
+        else (anchorBounds.top - gap - popupContentSize.height).coerceAtLeast(0)
+        return androidx.compose.ui.unit.IntOffset(x, y)
     }
 }
 

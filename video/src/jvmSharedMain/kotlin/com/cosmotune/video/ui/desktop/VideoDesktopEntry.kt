@@ -167,7 +167,9 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
                 }
             },
         ) {
-            Column(Modifier.fillMaxSize().hazeSource(hazeState).background(Color(LocalCosmoColors.current.palette.backgroundBottom))) {
+            // No ground of its own: the window's ground runs on behind the page, as under its top bar and sidebar (a flat one made
+            // a band of the cover's colour across the top bar over a black page).
+            Column(Modifier.fillMaxSize().hazeSource(hazeState)) {
                 // The header (menu, search, account) stands over every page but the Shorts pager; a narrow window has no guide and no header.
                 if (!compact && !fullPage) VideoDesktopHeader()
                 Box(Modifier.weight(1f).fillMaxWidth()) {

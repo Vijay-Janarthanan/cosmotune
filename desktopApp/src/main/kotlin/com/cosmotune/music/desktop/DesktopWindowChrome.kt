@@ -2,6 +2,12 @@ package com.cosmotune.music.desktop
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -51,12 +57,130 @@ internal fun DesktopTitleBar() {
     DesktopTitleBarDragArea(
         Modifier
             .fillMaxWidth()
-            .height(CAPTION_HEIGHT)
+            .height(if (DesktopPlatform.isMac) CAPTION_HEIGHT else WINDOWS_CAPTION_HEIGHT)
             .then(if (lightLook) Modifier else Modifier.desktopWindowGlass()),
     ) {
         Box(Modifier.fillMaxSize()) {
-            DesktopWindowButtons(Modifier.align(Alignment.CenterStart))
+            // macOS: the traffic lights at the start. Windows: minimise, maximise and close at the end, as every Windows app has them.
+            if (DesktopPlatform.isMac) DesktopWindowButtons(Modifier.align(Alignment.CenterStart))
+            else WindowsCaptionButtons(Modifier.align(Alignment.TopEnd))
         }
+    }
+}
+
+/**
+ * Windows' caption buttons over the window's top end corner when there is no title bar (and not in full screen): drawn last, over
+ * every page and the player. [desktopCaptionClearance] keeps what stands there clear of them.
+ */
+@Composable
+internal fun DesktopCaptionOverlay(modifier: Modifier = Modifier) {
+    if (!windowsCaptionInline()) return
+    WindowsCaptionButtons(modifier)
+}
+
+/** Whether Windows' caption buttons stand over the window's top end corner: Windows draws the frame, no title bar, not full screen. */
+@Composable
+private fun windowsCaptionInline(): Boolean {
+    if (!DesktopPlatform.drawsOwnWindowFrame || DesktopPlatform.isMac) return false
+    val titleBar by DesktopTitleBarSetting.enabled.collectAsState()
+    val fullScreen by DesktopWindowMode.fullScreen.collectAsState()
+    return !titleBar && !fullScreen
+}
+
+/**
+ * Room at the end of a row at the top of the window for Windows' caption buttons: the end padding that keeps this row's content
+ * out from under them, measured from where the row stands (none for a row that ends short of them or starts below them).
+ */
+@Composable
+internal fun Modifier.desktopCaptionClearance(): Modifier {
+    if (!windowsCaptionInline()) return this
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    var overlap by remember { mutableStateOf(0.dp) }
+    return this
+        .onGloballyPositioned { coordinates ->
+            val bounds = coordinates.boundsInWindow()
+            val windowWidth = coordinates.findRootCoordinates().size.width
+            val reach = with(density) { WINDOWS_CAPTION_WIDTH.toPx() }
+            val below = bounds.top >= with(density) { WINDOWS_CAPTION_HEIGHT.toPx() }
+            val px = if (below) 0f else (reach - (windowWidth - bounds.right)).coerceAtLeast(0f)
+            val next = with(density) { px.toDp() }
+            if (next != overlap) overlap = next
+        }
+        .padding(end = overlap)
+}
+
+/**
+ * Minimise, maximise (restore when maximised) and close, Windows' own way: 46 by 32 dp each at the end of the caption, a thin glyph
+ * in the ink, a faint wash on hover and Windows' red under close. Each names itself in a tooltip.
+ */
+@Composable
+private fun WindowsCaptionButtons(modifier: Modifier = Modifier) {
+    val actions = LocalDesktopWindowActions.current ?: return
+    val maximized by DesktopWindowMode.maximized.collectAsState()
+    val focused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
+    val dark = com.cosmotune.ui.theme.LocalCosmoColors.current.dark
+    val ink = (if (dark) Color.White else Color.Black).copy(alpha = if (focused) 0.9f else 0.45f)
+    Row(modifier.height(WINDOWS_CAPTION_HEIGHT)) {
+        WindowsCaptionButton("Minimize", ink, dark, close = false, onClick = actions.minimize) { glyph ->
+            val reach = WINDOWS_GLYPH_HALF.toPx()
+            drawLine(glyph, Offset(center.x - reach, center.y), Offset(center.x + reach, center.y), WINDOWS_GLYPH_LINE.toPx())
+        }
+        WindowsCaptionButton(if (maximized) "Restore" else "Maximize", ink, dark, close = false, onClick = actions.toggleMaximize) { glyph ->
+            val reach = WINDOWS_GLYPH_HALF.toPx()
+            val line = WINDOWS_GLYPH_LINE.toPx()
+            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(line)
+            if (maximized) {
+                // Restore: the front square, and the corner of the one behind it.
+                val step = 2.dp.toPx()
+                val front = androidx.compose.ui.geometry.Size(2 * reach - step, 2 * reach - step)
+                drawRect(glyph, Offset(center.x - reach, center.y - reach + step), front, style = stroke)
+                drawLine(glyph, Offset(center.x - reach + step, center.y - reach), Offset(center.x + reach, center.y - reach), line)
+                drawLine(glyph, Offset(center.x + reach, center.y - reach), Offset(center.x + reach, center.y + reach - step), line)
+            } else {
+                drawRect(glyph, Offset(center.x - reach, center.y - reach), androidx.compose.ui.geometry.Size(2 * reach, 2 * reach), style = stroke)
+            }
+        }
+        WindowsCaptionButton("Close", ink, dark, close = true, onClick = actions.close) { glyph ->
+            val reach = WINDOWS_GLYPH_HALF.toPx()
+            val line = WINDOWS_GLYPH_LINE.toPx()
+            drawLine(glyph, Offset(center.x - reach, center.y - reach), Offset(center.x + reach, center.y + reach), line)
+            drawLine(glyph, Offset(center.x + reach, center.y - reach), Offset(center.x - reach, center.y + reach), line)
+        }
+    }
+}
+
+@Composable
+private fun WindowsCaptionButton(
+    label: String,
+    ink: Color,
+    dark: Boolean,
+    close: Boolean,
+    onClick: () -> Unit,
+    glyph: androidx.compose.ui.graphics.drawscope.DrawScope.(Color) -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val pressed by interaction.collectIsPressedAsState()
+    val wash = when {
+        close && (hovered || pressed) -> if (pressed) WINDOWS_CLOSE_PRESSED else WINDOWS_CLOSE
+        pressed -> (if (dark) Color.White else Color.Black).copy(alpha = 0.12f)
+        hovered -> (if (dark) Color.White else Color.Black).copy(alpha = 0.08f)
+        else -> Color.Transparent
+    }
+    val glyphColor = if (close && (hovered || pressed)) Color.White else ink
+    com.cosmotune.ui.orbit.OrbitTooltip(label) {
+        Box(
+            Modifier
+                .size(width = WINDOWS_CAPTION_BUTTON_WIDTH, height = WINDOWS_CAPTION_HEIGHT)
+                .hoverable(interaction)
+                .pointerHoverIcon(PointerIcon.Default)
+                .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                .semantics { contentDescription = label }
+                .drawBehind {
+                    drawRect(wash)
+                    glyph(glyphColor)
+                },
+        )
     }
 }
 
@@ -110,10 +234,13 @@ internal fun DesktopTitleBarDragArea(
     }
 }
 
-/** The caption buttons. In the title bar when there is one, otherwise on the toolbar. */
+/**
+ * macOS' traffic lights: in the title bar when there is one, otherwise at the head of the sidebar or the toolbar. Only on macOS:
+ * Windows has its own caption buttons at the other end ([WindowsCaptionButtons]), and Linux keeps the system's frame.
+ */
 @Composable
 internal fun DesktopWindowButtons(modifier: Modifier = Modifier) {
-    if (!DesktopPlatform.drawsOwnWindowFrame) return
+    if (!DesktopPlatform.drawsOwnWindowFrame || !DesktopPlatform.isMac) return
     val actions = LocalDesktopWindowActions.current ?: return
     val maximized by DesktopWindowMode.maximized.collectAsState()
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
@@ -221,6 +348,15 @@ private val MAC_CLOSE = Color(0xFFFF5F57)
 private val MAC_MINIMIZE = Color(0xFFFFBD2E)
 private val MAC_MAXIMIZE = Color(0xFF28C840)
 private val MAC_GLYPH = Color(0xB3000000)
+
+/** Windows 11's caption buttons: 46 by 32 each, a 10 dp glyph drawn 1 dp thin, and its red under close. */
+private val WINDOWS_CAPTION_HEIGHT = 32.dp
+private val WINDOWS_CAPTION_BUTTON_WIDTH = 46.dp
+internal val WINDOWS_CAPTION_WIDTH = WINDOWS_CAPTION_BUTTON_WIDTH * 3
+private val WINDOWS_GLYPH_HALF = 5.dp
+private val WINDOWS_GLYPH_LINE = 1.dp
+private val WINDOWS_CLOSE = Color(0xFFC42B1C)
+private val WINDOWS_CLOSE_PRESSED = Color(0xFFB2271A)
 
 /**
  * A press on empty caption: moves the window, and a second one in quick succession maximizes it,

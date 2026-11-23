@@ -497,7 +497,7 @@
     <string name="video_set_contacts_text">Signed out, Video mode looks videos up with no account and no cookies; signed in, it uses your sign-in to play and show what your account can see. SponsorBlock gets four characters of a hash of each video you open, DeArrow the same for titles and the video for thumbnails, and returnyoutubedislike.com each video page you open. Each can be switched off here. Your history, subscriptions and playlists stay on this device.</string>
     <!-- Shorts -->
     <string name="video_shorts">Shorts</string>
-    <string name="video_see_all">See all</string>
+    <string name="video_see_all">Show all</string>
     <string name="video_filter_shorts">Shorts</string>
     <string name="video_mute">Mute</string>
     <string name="video_unmute">Unmute</string>
@@ -564,7 +564,7 @@
     <!-- Home, search and subscriptions layout (the redesign) -->
     <string name="video_featured">Featured</string>
     <string name="video_tab_you">Library</string>
-    <string name="video_view_all">View all</string>
+    <string name="video_view_all">Show all</string>
     <string name="video_sign_in">Sign in</string>
     <string name="video_sign_out">Sign out</string>
     <string name="video_switch_account">Switch account</string>
@@ -650,6 +650,7 @@
     <string name="video_home_kiosk_next_failed">More source-topic videos could not load. Retry without clearing the feed.</string>
     <string name="video_home_repeated">The source repeated a page. Paging has stopped; refresh for a new list.</string>
     <string name="video_home_exhausted">You have reached the available suggestions. Refresh or choose another topic.</string>
+    <string name="video_home_empty">No videos to show right now. Try again or pick another topic.</string>
     <string name="video_home_not_interested">Not interested in this video</string>
     <string name="video_home_hide_channel">Show less from this channel</string>
     <string name="video_home_why">Why this video?</string>

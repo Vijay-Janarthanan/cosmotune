@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.Radio
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -119,8 +120,7 @@ internal fun CosmoDesktopSidebar(
     if (com.cosmotune.video.host.desktopVideoShown()) return VideoSidebar(focusSearch = focusSearch, onSearchFocused = onSearchFocused)
     if (com.cosmotune.video.host.desktopWatchShown()) return WatchSidebar()
     if (com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown()) {
-        // Podio and Manga keep the shape of Music's and Video's sidebar: the window caption, then rows. Which mode is open is chosen from the
-        // profile menu, as everywhere else, so no row here switches mode.
+        // Podio, Read and Manga keep the shape of Music's and Video's sidebar: the window caption, the mode chip, then rows.
         val podio = com.cosmotune.video.host.desktopPodioShown()
         val podioTab by com.cosmotune.ui.blocks.ModeNav.podioTab.collectAsState()
         val podioSaved by com.cosmotune.ui.blocks.ModeNav.podioSaved.collectAsState()
@@ -296,7 +296,8 @@ private fun WatchSidebar() {
                 OrbitNavRow(CosmoIcons.Download, "Downloads", null, lit == com.cosmotune.ui.watch.WatchTab.DOWNLOADS) { go(com.cosmotune.ui.watch.WatchTab.DOWNLOADS) }
             }
             OrbitNavSectionLabel("Sources", Modifier.padding(start = 12.dp, end = 2.dp, top = 20.dp, bottom = 6.dp))
-            OrbitNavRow(CosmoIcons.Settings, "Plugins", "${plugins.count { it.enabled }} on", lit == com.cosmotune.ui.watch.WatchTab.PLUGINS) {
+            // The plugins' own glyph: the gear is Watch settings', just under it.
+            OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Extension, "Plugins", "${plugins.count { it.enabled }} on", lit == com.cosmotune.ui.watch.WatchTab.PLUGINS) {
                 com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.PLUGINS)
             }
             OrbitNavRow(CosmoIcons.Settings, "Watch settings", null, lit == com.cosmotune.ui.watch.WatchTab.SETTINGS) {
