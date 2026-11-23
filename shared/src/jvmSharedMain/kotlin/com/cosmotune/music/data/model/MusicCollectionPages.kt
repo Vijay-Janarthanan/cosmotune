@@ -14,4 +14,32 @@ object MusicCollectionPages {
         return Joined(current + additions, next.takeUnless { loop }, consumed,
             if (loop) "The source repeated its next-page token. Reopen this collection to refresh it." else null)
     }
+
+    /**
+     * Every page after [songs], fetched one after another, so a whole album or playlist can go somewhere at once
+     * (Add to playlists). [onProgress] hears the count after each page. A failed page stops the walk and keeps what
+     * arrived, with the token still set and an error to say so; cancelling the caller's coroutine stops it too.
+     */
+    suspend fun loadAll(
+        songs: List<Song>,
+        continuation: String?,
+        seen: Set<String>,
+        fetch: suspend (String) -> Result<Pair<List<Song>, String?>>,
+        onProgress: (Int) -> Unit = {},
+    ): Joined {
+        var joined = Joined(songs, continuation, seen, null)
+        while (true) {
+            val token = joined.continuation ?: return joined
+            val page = fetch(token)
+            val failure = page.exceptionOrNull()
+            if (failure != null) {
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                return joined.copy(error = "Could not load every song. Try again.")
+            }
+            val (incoming, next) = page.getOrThrow()
+            joined = append(joined.songs, incoming, token, next, joined.seenTokens)
+            onProgress(joined.songs.size)
+            if (joined.error != null) return joined
+        }
+    }
 }

@@ -607,6 +607,9 @@ fun CosmotuneDesktopApp() {
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
     // An album or playlist going into a playlist whole (its page's More, "Add to playlists"), with its songs.
     var playlistRelease by remember { mutableStateOf<DesktopCollection?>(null) }
+    // While the rest of a long album or playlist is fetched for it: how many songs have arrived, and the fetch.
+    var playlistReleaseLoaded by remember { mutableStateOf<Int?>(null) }
+    var playlistReleaseJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     // One busy flag and one message for every playlist edit: only one of them can be in flight,
     // because each is driven by a dialog that is modal.
     var playlistBusy by remember { mutableStateOf(false) }
@@ -1588,6 +1591,9 @@ fun CosmotuneDesktopApp() {
         overlays.playlistDialog = false
         playlistTarget = null
         playlistRelease = null
+        playlistReleaseJob?.cancel()
+        playlistReleaseJob = null
+        playlistReleaseLoaded = null
         overlays.rename = false
         overlays.delete = false
         overlays.reorder = false
@@ -1673,6 +1679,39 @@ fun CosmotuneDesktopApp() {
         persistence.savePlaylists(playlists)
         if (release != null) DesktopPlayerHost.showMessage(if (grew) "Added to ${playlist.title}" else "Already in ${playlist.title}")
         closePlaylistDialogs()
+    }
+
+    /**
+     * More, "Add to playlists" on an album or playlist page: the picker opens at once, and when the page has not
+     * loaded every song yet the rest are fetched first (with a count and Cancel), so the whole list goes in.
+     */
+    fun addWholeToPlaylists(collection: DesktopCollection) {
+        playlistReleaseJob?.cancel()
+        playlistError = null
+        playlistRelease = collection
+        val token = collection.continuation ?: return
+        playlistReleaseLoaded = collection.songs.size
+        playlistReleaseJob = scope.launch {
+            val all = com.cosmotune.music.data.model.MusicCollectionPages.loadAll(
+                collection.songs, token, collection.seenContinuationTokens,
+                fetch = { DesktopSearchClient.moreCollectionSongs(it, collection.songs.firstOrNull()?.artist) },
+                onProgress = { playlistReleaseLoaded = it },
+            )
+            if (playlistRelease?.browseId != collection.browseId) return@launch
+            playlistRelease = collection.copy(songs = all.songs, continuation = null)
+            playlistReleaseLoaded = null
+            playlistReleaseJob = null
+            all.error?.let {
+                DesktopTrackLog.log("playlist: stopped loading ${collection.browseId} at ${all.songs.size}: $it")
+                playlistError = "Could not load every song. The ${all.songs.size} loaded will go in."
+            }
+            // The page now holds them all too, unless it moved on meanwhile.
+            val current = openedCollection
+            if (current != null && current.browseId == collection.browseId && current.continuation == token) {
+                openedCollection = current.copy(songs = all.songs, continuation = all.continuation,
+                    seenContinuationTokens = all.seenTokens, paginationError = all.error)
+            }
+        }
     }
 
     /** A whole album or playlist into one of the account's playlists: the songs it already has are left out, the rest go in at once. */
@@ -4438,6 +4477,7 @@ fun CosmotuneDesktopApp() {
                         DesktopPlaylistDialog(
                             song = playlistTarget,
                             release = playlistRelease?.takeIf { playlistTarget == null }?.title,
+                            releaseLoaded = playlistReleaseLoaded.takeIf { playlistTarget == null },
                             accountPlaylists = accountPlaylists,
                             localPlaylists = playlists,
                             signedIn = youtubeSignedIn,
@@ -4990,7 +5030,7 @@ fun CosmotuneDesktopApp() {
                             // More, "Add to playlists" on an album or playlist page: the page passes the songs it holds.
                             LocalAddAllToPlaylists provides openedCollection
                                 ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
-                                ?.let { collection -> { songs: List<Song> -> playlistRelease = collection.copy(songs = songs) } },
+                                ?.let { collection -> { songs: List<Song> -> addWholeToPlaylists(collection.copy(songs = songs)) } },
                         ) {
                         DesktopCollectionPage(
                             collection = openedCollection!!,
