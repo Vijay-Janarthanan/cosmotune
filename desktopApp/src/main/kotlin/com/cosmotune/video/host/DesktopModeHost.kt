@@ -12,6 +12,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
 import com.cosmotune.design.AppMode
 import com.cosmotune.design.AppModes
 import com.cosmotune.desktop.LocalCosmoPlayPause
@@ -167,10 +169,18 @@ fun DesktopMangaPage(contentPadding: PaddingValues) {
         val compact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
         val padding = modePagePadding(contentPadding, compact)
         val reader: (Boolean) -> Unit = { DesktopModeHost.readerOpen = it }
-        if (mode == AppMode.READ) com.cosmotune.reading.ui.ReadApp(contentPadding = padding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact, onReaderVisibility = reader)
-        else com.cosmotune.manga.ui.MangaApp(padding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact, onReaderVisibility = reader)
+        // Beside the sidebar the pages keep Music's 28 dp gutters (their own 16 and 12 more), so they line up with the other modes;
+        // an open chapter or book keeps the whole width.
+        val gutter = if (compact || DesktopModeHost.readerOpen) 0.dp else MODE_PAGE_EXTRA_GUTTER
+        androidx.compose.foundation.layout.Box(Modifier.padding(horizontal = gutter)) {
+            if (mode == AppMode.READ) com.cosmotune.reading.ui.ReadApp(contentPadding = padding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact, onReaderVisibility = reader)
+            else com.cosmotune.manga.ui.MangaApp(padding, onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showNavigation = compact, onReaderVisibility = reader)
+        }
     }
 }
+
+/** What Manga and Read add to their own 16 dp page gutters beside the sidebar, to make Music's 28. */
+private val MODE_PAGE_EXTRA_GUTTER = 12.dp
 
 /**
  * The padding a mode page that draws its own navigation gets: in a compact window the frame keeps room for Music's dock, which
