@@ -124,6 +124,34 @@ class CosmoLookSettings(private val store: KeyValueStore) {
     /** The rules for the songs on the device: the shortest song shown, and the folders hidden (Local music settings). */
     val localRules: StateFlow<com.cosmotune.listening.LocalLibraryRules> = localRulesFlow.asStateFlow()
 
+    private fun readLines(key: String): List<String> = store.getString(key, "").split('\n').filter { it.isNotBlank() }
+
+    private val hiddenHomeFlow = MutableStateFlow(readLines(KEY_HOME_HIDDEN).toSet())
+
+    /**
+     * What Home leaves out (Look and colours, Home sections; the upstream's Content preferences): shelves by their title, and
+     * [HOME_PICK_UP] (the top card) and [HOME_CHIPS] (the quick links and moods).
+     */
+    val hiddenHome: StateFlow<Set<String>> = hiddenHomeFlow.asStateFlow()
+
+    fun setHomeSectionHidden(section: String, hidden: Boolean) {
+        val next = if (hidden) hiddenHomeFlow.value + section else hiddenHomeFlow.value - section
+        store.putString(KEY_HOME_HIDDEN, next.joinToString("\n"))
+        hiddenHomeFlow.value = next
+    }
+
+    private val homeShelvesFlow = MutableStateFlow(readLines(KEY_HOME_SEEN))
+
+    /** The shelf titles Home last showed, in their order: the list the Home sections setting offers. */
+    val homeShelves: StateFlow<List<String>> = homeShelvesFlow.asStateFlow()
+
+    fun rememberHomeShelves(titles: List<String>) {
+        val next = (titles + homeShelvesFlow.value).map { it.replace('\n', ' ').trim() }.filter { it.isNotEmpty() }.distinct().take(MAX_HOME_SHELVES)
+        if (next == homeShelvesFlow.value) return
+        store.putString(KEY_HOME_SEEN, next.joinToString("\n"))
+        homeShelvesFlow.value = next
+    }
+
     /** Folder paths can hold commas, so they are kept a line each. */
     private fun readFolders(): Set<String> = store.getString(KEY_LOCAL_HIDDEN_FOLDERS, "").split('\n').filter { it.isNotBlank() }.toSet()
 
@@ -192,6 +220,11 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_COMPACT_ROWS = "compact_rows"
         const val KEY_KEEP_DOWNLOADED = "keep_downloaded"
         const val KEY_SMART_DOWNLOADS = "smart_downloads"
+        const val KEY_HOME_HIDDEN = "home_hidden_sections"
+        const val KEY_HOME_SEEN = "home_seen_shelves"
+        const val HOME_PICK_UP = "@pick-up"
+        const val HOME_CHIPS = "@chips"
+        const val MAX_HOME_SHELVES = 24
         const val KEY_LOCAL_MIN_SECONDS = "local_min_seconds"
         const val KEY_LOCAL_HIDDEN_FOLDERS = "local_hidden_folders"
         const val KEY_SMART_KEPT = "smart_downloads_kept"

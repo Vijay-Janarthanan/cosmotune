@@ -90,6 +90,8 @@ internal fun CosmoLookSettingsRows() {
         RowDivider()
         com.cosmotune.ui.settings.CosmoRowSizeSetting()
         RowDivider()
+        com.cosmotune.ui.settings.HomeSectionsSetting()
+        RowDivider()
         SettingsRow(
             icon = Icons.Rounded.Visibility,
             title = stringResource(SharedRes.string.cosmo_look_preview),
