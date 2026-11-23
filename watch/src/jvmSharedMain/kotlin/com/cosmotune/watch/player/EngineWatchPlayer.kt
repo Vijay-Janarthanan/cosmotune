@@ -91,9 +91,12 @@ class EngineWatchPlayer(
     /** The room host's length for what plays (a room item); a copy that differs by more than a minute is noted in the state. */
     @Volatile var roomDurationMs: Long? = null
     private var fallback: Stream? = null
+    /** What plays after this item in its queue (the next video of the same torrent). */
+    @Volatile private var queued: Pair<PlayTarget, Stream>? = null
 
     override fun open(target: PlayTarget, summary: TitleSummary?, stream: Stream?, startMs: Long?, hint: StreamHint?, fallback: Stream?) {
         this.fallback = fallback
+        queued = null
         remotePlayback = false
         skipLookupKey = null
         saveNow(stopping = true)
@@ -114,6 +117,13 @@ class EngineWatchPlayer(
             if (target is PlayTarget.EpisodeOf) {
                 val next = runCatching { repository.nextEpisode(target.key) }.getOrNull()
                 mutable.update { it.copy(nextEpisode = next) }
+            } else if (target is PlayTarget.Item) {
+                // A torrent of several videos (a season, a course) plays straight through: the next one counts down like an episode.
+                val next = runCatching { repository.queueNext(target) }.getOrNull()
+                queued = next
+                (next?.first as? PlayTarget.Item)?.let { item ->
+                    mutable.update { it.copy(nextEpisode = com.cosmotune.watch.model.Episode(item.key, item.key, 1, 1, item.name)) }
+                }
             }
         }
     }
@@ -286,6 +296,7 @@ class EngineWatchPlayer(
         val skipTarget = s.target
         if (!s.isLive && skipTarget != null && skipTarget !is PlayTarget.Live && duration > 0 && skipLookupKey != skipKey) {
             skipLookupKey = skipKey
+            val stream = s.stream
             scope.launch {
                 val extras = runCatching { repository.playbackExtras(skipTarget, stream, duration) }.getOrDefault(com.cosmotune.watch.model.PlaybackExtras())
                 mutable.update { if (it.target?.key == skipTarget.key && it.stream?.url == stream?.url) it.copy(skipIntervals = extras.skips, chapters = extras.chapters) else it }
@@ -296,7 +307,6 @@ class EngineWatchPlayer(
         val countdown = if (next != null && !countdownCancelled && !s.isLive && duration > 0 && remaining in 0..countdownMs) remaining else null
         val note = if (s.isLive) null else com.cosmotune.watch.WatchRoom.lengthNote(roomDurationMs, snap.durationMs.takeIf { it > 0 })
         mutable.update { it.copy(status = status, durationMs = duration, nextEpisodeInMs = countdown, lengthNote = note,
-            val stream = s.stream
             failover = if (status == WatchPlayerStatus.PLAYING) null else it.failover) }
         if (!s.isLive && (status == WatchPlayerStatus.PLAYING) && now() - lastSavedAt >= saveEveryMs) saveNow()
         if (status == WatchPlayerStatus.PAUSED && (s.status != WatchPlayerStatus.PAUSED || now() - lastSavedAt >= saveEveryMs)) saveNow()
@@ -363,6 +373,12 @@ class EngineWatchPlayer(
 
     override fun playNextEpisode() {
         val s = state.value
+        queued?.let { (target, stream) ->
+            saveNow(ended = true)
+            val summary = s.summary?.copy(key = target.key, name = (target as? PlayTarget.Item)?.name ?: target.key.value)
+            open(target, summary, stream = stream, startMs = 0)
+            return
+        }
         val next = s.nextEpisode ?: return
         val current = s.target as? PlayTarget.EpisodeOf ?: return
         saveNow(ended = true)

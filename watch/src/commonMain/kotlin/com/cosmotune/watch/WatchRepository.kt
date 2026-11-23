@@ -237,6 +237,9 @@ interface WatchRepository {
     suspend fun setPlaylistItem(id: String, title: TitleSummary, included: Boolean) {}
     suspend fun setAnimeMapping(series: WatchKey, season: Int, malId: Int?) {}
     suspend fun skipIntervals(target: PlayTarget, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> = emptyList()
+    /** The skips and chapters of [stream]: the server's own markers first, then [skipIntervals]' databases where they do not overlap. */
+    suspend fun playbackExtras(target: PlayTarget, stream: Stream?, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras =
+        com.cosmotune.watch.model.PlaybackExtras(skipIntervals(target, durationMs))
     val configuredServices: StateFlow<Set<String>> get() = DEFAULT_WATCH_SERVICES
     suspend fun setServiceKey(service: String, key: String) {}
     val tracking: WatchTracking? get() = null
@@ -273,9 +276,6 @@ interface WatchRepository {
     /** The film or series page; null when nothing knows the key. */
     suspend fun title(key: WatchKey): Title?
     suspend fun episodes(series: WatchKey, season: Int): List<Episode>
-    /** The skips and chapters of [stream]: the server's own markers first, then [skipIntervals]' databases where they do not overlap. */
-    suspend fun playbackExtras(target: PlayTarget, stream: Stream?, durationMs: Long): com.cosmotune.watch.model.PlaybackExtras =
-        com.cosmotune.watch.model.PlaybackExtras(skipIntervals(target, durationMs))
     suspend fun nextUp(series: WatchKey): NextUp?
     /** The target Play uses for a card, a page or an episode row. */
     fun targetOf(summary: TitleSummary): PlayTarget
@@ -348,6 +348,43 @@ interface WatchRepository {
     val recentSearches: StateFlow<List<String>> get() = DEFAULT_RECENT_SEARCHES
     suspend fun setRecentSearches(searches: List<String>) {}
 
+    // Calendar
+    /**
+     * The episodes of the series this viewer follows (in My list or Continue watching) that came out in the [pastDays] before
+     * [today] or come out in the [days] after it (ISO dates, "2026-11-23"), soonest first; the latest two seasons of each are read.
+     */
+    suspend fun calendar(today: String, pastDays: Int = 7, days: Int = 60): List<CalendarEntry> {
+        val from = WatchCalendar.shift(today, -pastDays)
+        val to = WatchCalendar.shift(today, days)
+        val followed = (myList.value.map { it.summary } + continueWatching.value.map { it.summary })
+            .filter { it.type == com.cosmotune.watch.model.TitleType.SERIES }.distinctBy { it.key }.take(40)
+        return followed.flatMap { series ->
+            val page = runCatching { title(series.key) }.getOrNull() ?: return@flatMap emptyList()
+            page.seasons.filter { it.number > 0 }.sortedByDescending { it.number }.take(2).flatMap { season ->
+                runCatching { episodes(series.key, season.number) }.getOrDefault(emptyList())
+            }.mapNotNull { e ->
+                val date = e.airDate?.take(10)?.takeIf { it.length == 10 && it in from..to } ?: return@mapNotNull null
+                CalendarEntry(page.summary, e, date, isNew = date <= today && progress(e.key)?.completed != true)
+            }
+        }.sortedWith(compareBy({ it.date }, { it.summary.name }, { it.episode.season }, { it.episode.number }))
+    }
+
+    // Torrents the listener opens themselves (never searched for)
+    /** Whether this device has the built-in torrent engine. */
+    val canOpenTorrents: Boolean get() = false
+    /** The engine's settings on this device: sharing after a download, and the network connection it must use. */
+    val torrentSettings: StateFlow<com.cosmotune.watch.torrent.TorrentSettings> get() = DEFAULT_TORRENT_SETTINGS
+    suspend fun setTorrentSettings(settings: com.cosmotune.watch.torrent.TorrentSettings) {}
+    /** The network connections up on this device that torrents can be kept on (a VPN's among them), by name. */
+    fun torrentConnections(): List<String> = emptyList()
+    /**
+     * What a magnet link or info hash the listener pasted (or a .torrent [file] they opened) holds: its name and files. Null when
+     * [text] is not a torrent; fails with a message the screens show when the engine cannot read it.
+     */
+    suspend fun openTorrent(text: String?, file: ByteArray? = null): com.cosmotune.watch.torrent.TorrentListing? = null
+    /** What plays after [target] in its queue: the next video of the same torrent, in name order; null at the end. */
+    suspend fun queueNext(target: PlayTarget): Pair<PlayTarget, Stream>? = null
+
     // Plugins
     suspend fun setPluginEnabled(id: String, enabled: Boolean)
     /** Checks the source (manifest, sign-in, playlist) before adding it; nothing is stored when it fails. */
@@ -382,10 +419,23 @@ interface WatchRepository {
     /** Called by the player every few seconds and on stop. */
     suspend fun saveProgress(progress: WatchProgress)
     suspend fun clearProgress(key: WatchKey)
+    /**
+     * Marks [key] (a film or an episode) as watched to the end at [atMs], or as not watched (its progress cleared): it leaves
+     * Continue watching, the episode rows show it, and Trakt or Simkl, when connected, are told it was watched.
+     */
+    suspend fun setWatched(key: WatchKey, summary: TitleSummary?, watched: Boolean, atMs: Long, episodeName: String? = null) {
+        if (!watched) { clearProgress(key); return }
+        val old = progress(key)
+        val duration = old?.durationMs?.takeIf { it > 0 } ?: 0L
+        val done = WatchProgress(key, duration, duration, atMs, summary ?: old?.summary, episodeName ?: old?.episodeName, old?.lastHint, watched = true)
+        saveProgress(done)
+        runCatching { tracking?.report(done, "stop") }
+    }
     /** The next episode after [episode], across seasons; null at the end of the series. */
     suspend fun nextEpisode(episode: WatchKey): Episode?
 }
 
+private val DEFAULT_TORRENT_SETTINGS: StateFlow<com.cosmotune.watch.torrent.TorrentSettings> = kotlinx.coroutines.flow.MutableStateFlow(com.cosmotune.watch.torrent.TorrentSettings())
 private val DEFAULT_RECENT_SEARCHES: StateFlow<List<String>> = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
 private val DEFAULT_WATCH_PREFERENCES: StateFlow<WatchPreferences> = kotlinx.coroutines.flow.MutableStateFlow(WatchPreferences())
 private val DEFAULT_WATCH_PROFILES: StateFlow<List<com.cosmotune.watch.model.WatchProfile>> = kotlinx.coroutines.flow.MutableStateFlow(listOf(com.cosmotune.watch.model.WatchProfile("default", "Everyone")))
@@ -400,15 +450,3 @@ data class WatchScriptEntry(val id: String, val name: String, val url: String, v
 data class WatchScriptUpdate(val id: String, val name: String, val url: String, val installedSha256: String, val availableSha256: String, val sizeBytes: Int) {
     val available: Boolean get() = installedSha256 != availableSha256
 }
-    /**
-     * Marks [key] (a film or an episode) as watched to the end at [atMs], or as not watched (its progress cleared): it leaves
-     * Continue watching, the episode rows show it, and Trakt or Simkl, when connected, are told it was watched.
-     */
-    suspend fun setWatched(key: WatchKey, summary: TitleSummary?, watched: Boolean, atMs: Long, episodeName: String? = null) {
-        if (!watched) { clearProgress(key); return }
-        val old = progress(key)
-        val duration = old?.durationMs?.takeIf { it > 0 } ?: 0L
-        val done = WatchProgress(key, duration, duration, atMs, summary ?: old?.summary, episodeName ?: old?.episodeName, old?.lastHint, watched = true)
-        saveProgress(done)
-        runCatching { tracking?.report(done, "stop") }
-    }

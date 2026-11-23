@@ -50,7 +50,9 @@ object AndroidWatch {
         val dir = app.getExternalFilesDir(android.os.Environment.DIRECTORY_MOVIES)?.let { File(it, "Watch") } ?: File(File(app.filesDir, "watch"), "downloads")
         com.cosmotune.watch.WatchDownloads(dir, Http.client, destinationOptions =
             listOf(File(File(app.filesDir, "watch"), "downloads")) +
-                app.getExternalFilesDirs(android.os.Environment.DIRECTORY_MOVIES).filterNotNull().map { File(it, "Watch") })
+                app.getExternalFilesDirs(android.os.Environment.DIRECTORY_MOVIES).filterNotNull().map { File(it, "Watch") },
+            // Finished torrents are not shared on mobile data unless the listener allowed it.
+            metered = { app.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered ?: true })
     }.also { it.bindRepository(repository(context)); downloadsRef = it }
 
     /** Whether [player] has been built in this process. */

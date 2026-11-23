@@ -315,9 +315,6 @@ private fun ContinueCard(item: ContinueItem, wide: Boolean, fonts: OrbitFonts, l
     WatchCard(
         title, leftText(item.progress.remainingMs), item.summary.backdropUrl ?: item.summary.posterUrl, item.key.value, fonts, look,
         onClick = { play() }, width = if (wide) 260.dp else 224.dp, wide = true, progress = item.progress.fraction, onPlay = { play() },
-    )
-}
-
         menu = listOf(
             com.cosmotune.ui.orbit.OrbitMenuItem(if (item.episode != null) "Mark ${item.episodeLabel} as watched" else "Mark as watched", "It leaves Continue watching", CosmoIcons.Check) {
                 actions.launch { actions.repository.setWatched(item.key, item.summary, watched = true, atMs = System.currentTimeMillis(), episodeName = item.episode?.name) }
@@ -326,6 +323,9 @@ private fun ContinueCard(item: ContinueItem, wide: Boolean, fonts: OrbitFonts, l
                 actions.launch { actions.repository.clearProgress(item.key) }
             },
         ),
+    )
+}
+
 /** Live now: three across on a wide page, stacked on the phone; a tap plays the channel. */
 @Composable
 private fun LiveNow(items: List<LiveNowItem>, wide: Boolean, fonts: OrbitFonts, look: OrbitLook, actions: WatchActions, clock: () -> Long, modifier: Modifier) {

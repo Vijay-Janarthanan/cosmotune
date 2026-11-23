@@ -44,7 +44,7 @@ import com.cosmotune.watch.model.WatchProfile
 import kotlinx.coroutines.launch
 
 /** Which of the settings' small dialogs is open. */
-private enum class WatchSettingsDialog { FOLDER, DENSITY, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
+private enum class WatchSettingsDialog { FOLDER, DENSITY, SUBTITLES, SEED_TIME, CONNECTION, ADD_PROFILE, PIN, REMOVE_PROFILE, TRACKING, KEYS, DEBRID }
 
 /**
  * Watch settings on the same rows Video's settings use ([CosmoSettingsGroup], [CosmoSettingsRow]): Sources and add-ons first
@@ -64,6 +64,9 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
     val configured by repository.configuredServices.collectAsState()
     val destination = downloads?.destination?.collectAsState()?.value
     val trackers = repository.tracking?.statuses?.collectAsState()?.value
+    val torrent by repository.torrentSettings.collectAsState()
+    fun keepTorrent(change: (com.cosmotune.watch.torrent.TorrentSettings) -> com.cosmotune.watch.torrent.TorrentSettings) =
+        scope.launch { repository.setTorrentSettings(change(repository.torrentSettings.value)) }
     var dialog by remember { mutableStateOf<WatchSettingsDialog?>(null) }
     var unlocking by remember { mutableStateOf<WatchProfile?>(null) }
     val side = frame.side
@@ -118,6 +121,19 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     })
             }
         }
+        if (repository.canOpenTorrents) item(key = "settings:torrents") {
+            CosmoSettingsGroup(header = "Torrents", footer = "Torrents come only from links and files you open and add-ons you install. Sharing is off on mobile data unless you allow it.") {
+                CosmoSettingsRow(CosmoIcons.Share, "Keep sharing after a download", subtitle = if (torrent.seedAfterDownload) seedTimeText(torrent.seedMinutes) else "Off",
+                    trailing = { OrbitSwitch(torrent.seedAfterDownload, { on -> keepTorrent { it.copy(seedAfterDownload = on) } }, look, "Keep sharing after a download") })
+                if (torrent.seedAfterDownload) {
+                    CosmoSettingsRow(CosmoIcons.Clock, "Share for", subtitle = seedTimeText(torrent.seedMinutes), onClick = { dialog = WatchSettingsDialog.SEED_TIME })
+                    CosmoSettingsRow(CosmoIcons.Devices, "Share on mobile data", subtitle = if (torrent.seedOnMobileData) "On" else "Off",
+                        trailing = { OrbitSwitch(torrent.seedOnMobileData, { on -> keepTorrent { it.copy(seedOnMobileData = on) } }, look, "Share on mobile data") })
+                }
+                CosmoSettingsRow(Icons.Rounded.Lock, "Torrent connection", subtitle = torrent.bindInterface?.let { "Only $it · stops if it drops" } ?: "Any connection",
+                    onClick = { dialog = WatchSettingsDialog.CONNECTION })
+            }
+        }
         item(key = "settings:services") {
             CosmoSettingsGroup(header = "Connected services") {
                 if (repository.tracking != null) {
@@ -169,6 +185,25 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                         scope.launch { repository.setPreferences(preferences.copy(density = density)) }; dialog = null
                     }, haptic = false)
                 }
+            }
+        }
+        WatchSettingsDialog.SUBTITLES -> WatchSubtitleLookDialog { dialog = null }
+        WatchSettingsDialog.SEED_TIME -> WatchDialog("Torrents", "Share for", onDismiss = { dialog = null }) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(30, 60, 180, 1440, 0).forEach { minutes ->
+                    OrbitSelectChip(seedTimeText(minutes), torrent.seedMinutes == minutes, fonts, look, onClick = { keepTorrent { it.copy(seedMinutes = minutes) }; dialog = null }, haptic = false)
+                }
+            }
+        }
+        WatchSettingsDialog.CONNECTION -> WatchDialog("Torrents", "Torrent connection", onDismiss = { dialog = null }) {
+            val connections = remember { repository.torrentConnections() }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OrbitSelectChip("Any connection", torrent.bindInterface == null, fonts, look, onClick = { keepTorrent { it.copy(bindInterface = null) }; dialog = null }, haptic = false)
+                (connections + listOfNotNull(torrent.bindInterface)).distinct().forEach { name ->
+                    OrbitSelectChip(name, torrent.bindInterface == name, fonts, look, onClick = { keepTorrent { it.copy(bindInterface = name) }; dialog = null }, haptic = false)
+                }
+                Text("Pick your VPN's connection: torrents then use only it, and stop at once if it drops. Turn the VPN on first so it shows here.",
+                    style = fonts.body, color = look.dim)
             }
         }
         WatchSettingsDialog.ADD_PROFILE -> {
@@ -233,4 +268,14 @@ private fun ServiceKeys(fonts: OrbitFonts, look: OrbitLook) {
         }
         message?.let { Text(it, style = fonts.body, color = look.dim) }
     }
+}
+
+/** "1 hour", "Until you stop it". */
+private fun seedTimeText(minutes: Int): String = when {
+    minutes <= 0 -> "Until you stop it"
+    minutes < 60 -> "$minutes minutes"
+    minutes == 60 -> "1 hour"
+    minutes < 1440 -> "${minutes / 60} hours"
+    minutes == 1440 -> "1 day"
+    else -> "${minutes / 1440} days"
 }

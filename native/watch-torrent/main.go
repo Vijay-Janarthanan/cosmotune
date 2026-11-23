@@ -17,30 +17,48 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/iplist"
-	"github.com/anacrolix/torrent/metainfo"
 )
 
 const cacheBytes = 96 << 20
 
+// One request on stdin. Mode "" streams one video over loopback HTTP, "files" lists what the torrent holds, "download" keeps the
+// chosen files (Indexes) in Dir and may seed afterwards, "share" makes a torrent of Path and seeds it. The torrent is an info
+// hash (Hash) or the bytes of a .torrent file the listener opened (Torrent, base64). Bind keeps every connection on one network
+// connection (a VPN's) and stops when it drops.
 type offer struct {
-	Hash     string
-	Index    *int
-	Filename string
-	Trackers []string
+	Hash        string
+	Index       *int
+	Filename    string
+	Trackers    []string
+	Mode        string
+	Torrent     string
+	Dir         string
+	Path        string
+	Indexes     []int
+	Seed        bool
+	SeedMinutes int
+	Bind        string
 }
 
 type reply struct {
-	URL   string `json:"url,omitempty"`
-	Error string `json:"error,omitempty"`
+	URL      string     `json:"url,omitempty"`
+	Error    string     `json:"error,omitempty"`
+	Name     string     `json:"name,omitempty"`
+	Hash     string     `json:"hash,omitempty"`
+	Files    []fileInfo `json:"files,omitempty"`
+	Progress *progress  `json:"progress,omitempty"`
+	Complete bool       `json:"complete,omitempty"`
+	Magnet   string     `json:"magnet,omitempty"`
 }
 
 func main() {
 	input := bufio.NewScanner(os.Stdin)
-	input.Buffer(make([]byte, 4096), 8192)
+	input.Buffer(make([]byte, 64<<10), 8<<20)
 	var request offer
 	if !input.Scan() || json.Unmarshal(input.Bytes(), &request) != nil {
 		return
@@ -51,7 +69,13 @@ func main() {
 		_, _ = io.Copy(io.Discard, os.Stdin)
 		cancel()
 	}()
-	send := func(message reply) { _ = json.NewEncoder(os.Stdout).Encode(message) }
+	var lock sync.Mutex
+	encoder := json.NewEncoder(os.Stdout)
+	send := func(message reply) {
+		lock.Lock()
+		defer lock.Unlock()
+		_ = encoder.Encode(message)
+	}
 	config := torrent.NewDefaultClientConfig()
 	config.ListenPort = 0
 	config.NoDefaultPortForwarding = true
@@ -61,34 +85,41 @@ func main() {
 	config.IPBlocklist = nonPublicPeers{}
 	config.EstablishedConnsPerTorrent = 32
 	config.DefaultStorage = &pieceCache{capacity: cacheBytes}
-	if err := run(ctx, config, request, send); err != nil && ctx.Err() == nil {
+	if request.Bind != "" {
+		host, err := interfaceIPv4(request.Bind)
+		if err != nil {
+			send(reply{Error: err.Error()})
+			return
+		}
+		config.ListenHost = func(string) string { return host }
+		config.DisableIPv6 = true
+		go watchInterface(ctx, cancel, request.Bind, host, 2*time.Second, send)
+	}
+	var err error
+	switch request.Mode {
+	case "files":
+		err = list(ctx, config, request, send)
+	case "download":
+		err = download(ctx, config, request, send)
+	case "share":
+		err = share(ctx, config, request, send)
+	default:
+		err = run(ctx, config, request, send)
+	}
+	if err != nil && ctx.Err() == nil {
 		send(reply{Error: err.Error()})
 	}
 }
 
 func run(ctx context.Context, config *torrent.ClientConfig, request offer, send func(reply)) error {
-	hashBytes, err := hex.DecodeString(request.Hash)
-	if err != nil || len(hashBytes) != 20 {
-		return errors.New("Invalid BitTorrent offer")
-	}
-	var hash metainfo.Hash
-	copy(hash[:], hashBytes)
 	client, err := torrent.NewClient(config)
 	if err != nil {
 		return errors.New("The built-in torrent engine could not start")
 	}
 	defer client.Close()
-	item, _ := client.AddTorrentInfoHash(hash)
-	if len(request.Trackers) > 0 {
-		go func() {
-			trackerCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-			for _, raw := range request.Trackers[:min(len(request.Trackers), 8)] {
-				if tracker := publicTracker(trackerCtx, raw); tracker != "" && trackerCtx.Err() == nil {
-					item.AddTrackers([][]string{{tracker}})
-				}
-			}
-		}()
+	item, err := add(ctx, client, request)
+	if err != nil {
+		return err
 	}
 	file, err := resolveFile(ctx, item, request)
 	if err != nil {
@@ -168,14 +199,8 @@ func serve(ctx context.Context, file *torrent.File, send func(reply)) error {
 }
 
 func resolveFile(ctx context.Context, item *torrent.Torrent, request offer) (*torrent.File, error) {
-	timer := time.NewTimer(35 * time.Second)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-timer.C:
-		return nil, errors.New("No peers supplied the torrent metadata. Try another copy")
-	case <-item.GotInfo():
+	if err := waitInfo(ctx, item); err != nil {
+		return nil, err
 	}
 	files := item.Files()
 	if request.Index != nil {

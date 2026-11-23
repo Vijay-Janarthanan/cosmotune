@@ -30,6 +30,11 @@ The Watch JavaScript runtime bundles CryptoJS 4.2.0 (MIT, `providers/third-party
 Watch features modelled on Euthopiar (Trakt and Simkl sync, Nuvio script plugins, profiles, casting,
 debrid, download checks) were implemented independently from the services' public documentation; no
 Euthopiar source is included, as its repository carries no licence.
+Watch's intro, recap and credits skips for films and series read the free TheIntroDB (theintrodb.org) and IntroDB
+(introdb.app) APIs, the idea taken from CloudStream (GPLv3); server markers use Jellyfin's media segments and Plex's
+markers from their public APIs. The torrent downloads, sharing, network binding and play-through queue follow ideas
+from torlink (https://github.com/baairon/torlink, MIT); none of its code, and none of its torrent search sources, is
+included.
 
 The Android TV and browser companion ports include code from the same GPLv3 upstream at
 https://github.com/kushagrasinghx/BitChord/tree/edc1e6f36febf71a118e649411d2fc21b70ead45.

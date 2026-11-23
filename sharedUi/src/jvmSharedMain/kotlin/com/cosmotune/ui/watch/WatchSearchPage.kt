@@ -100,8 +100,11 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
     val sources = remember(repository, plugins) { repository.searchSources() }
     val year = remember(clock) { java.time.Instant.ofEpochMilli(clock()).atZone(java.time.ZoneId.systemDefault()).year }
     val query = WatchQuery(text, kind, genre, years, language, source?.let { setOf(it) } ?: emptySet(), preferences.searchSort)
+    // A magnet link or an info hash pasted in the box is a torrent the listener has: it opens, it is not searched for.
+    val torrent = remember(text) { if (repository.canOpenTorrents) com.cosmotune.watch.torrent.TorrentLinks.parse(text) else null }
+    val pickTorrent = rememberTorrentFilePicker { bytes -> WatchNav.open(WatchRoute.Torrent(fileKey = WatchTorrentInbox.put(bytes))) }
     // Something to ask: words in the box, a filter set (an empty box then browses what matches), or Live TV (its channels).
-    val active = query.trimmed.isNotEmpty() || query.hasFilters || kind == WatchKind.LIVE
+    val active = torrent == null && (query.trimmed.isNotEmpty() || query.hasFilters || kind == WatchKind.LIVE)
     var found by remember { mutableStateOf(memory.found?.takeIf { it.query == query }) }
     var live by remember { mutableStateOf(if (found != null) memory.live else emptyList()) }
     var searching by remember { mutableStateOf(false) }
@@ -141,6 +144,7 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
 
     val shown = found
     val status = when {
+        torrent != null -> CosmoSearchStatus.Results(1, "A torrent link")
         !active -> CosmoSearchStatus.Idle
         searching || shown == null -> CosmoSearchStatus.Searching
         shown.error -> CosmoSearchStatus.Failed("Your sources didn't answer. Check the connection.") { retry++ }
@@ -201,6 +205,12 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
                     WATCH_BROWSE_YEARS.forEach { y -> OrbitSelectChip(y.name(year), false, fonts, look, onClick = { years = y }, haptic = false) }
                 }
             }
+            if (repository.canOpenTorrents) item(key = "watch:torrent-file") {
+                Column(Modifier.padding(horizontal = side).padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.cosmotune.ui.orbit.WatchCardChip("Open a .torrent file", look.ink, fonts, onClick = pickTorrent, icon = com.cosmotune.ui.components.CosmoIcons.Download)
+                    Text("Or paste a magnet link in the box.", style = fonts.body, color = look.dim, modifier = Modifier.padding(start = 6.dp))
+                }
+            }
             popular?.takeIf { it.titles.isNotEmpty() }?.let { p ->
                 item(key = "watch:popular") {
                     Column(Modifier.padding(top = 24.dp)) {
@@ -215,6 +225,14 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
             }
         },
         results = { modifier, side ->
+            if (torrent != null) {
+                Column(modifier.padding(horizontal = side).padding(top = 4.dp)) {
+                    com.cosmotune.ui.orbit.WatchMessage("Torrent", torrent.name ?: "A torrent link",
+                        "Open it to see the files inside, play any of them or download them.", fonts, look,
+                        action = "Open", onAction = { WatchNav.open(WatchRoute.Torrent(text = text.trim())) })
+                }
+                return@CosmoSearchPage
+            }
             val r = shown ?: return@CosmoSearchPage
             LazyVerticalGrid(
                 GridCells.Adaptive(cardWidth), modifier.testTag("watch:search:results"),

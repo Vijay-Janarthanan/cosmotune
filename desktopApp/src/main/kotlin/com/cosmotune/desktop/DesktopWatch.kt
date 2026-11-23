@@ -73,6 +73,19 @@ object DesktopWatch {
                     }
                 }
             }
+        }, chooseShare = {
+            kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+                javax.swing.SwingUtilities.invokeLater {
+                    if (continuation.isActive) {
+                        val picker = javax.swing.JFileChooser().apply {
+                            dialogTitle = "Choose a file or folder to share"
+                            fileSelectionMode = javax.swing.JFileChooser.FILES_AND_DIRECTORIES
+                        }
+                        val selected = if (picker.showOpenDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) picker.selectedFile else null
+                        if (continuation.isActive) continuation.resumeWith(Result.success(selected))
+                    }
+                }
+            }
         }).also { it.bindRepository(repository) }
     }
 

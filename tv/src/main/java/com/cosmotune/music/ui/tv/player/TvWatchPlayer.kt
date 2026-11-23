@@ -575,8 +575,9 @@ private fun TvNextEpisode(state: WatchPlayerState, player: WatchPlayer) {
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Column(Modifier.widthIn(max = 520.dp)) {
-            Text("NEXT EPISODE IN ${(inMs + 999) / 1000} S", style = TvType.Label, color = TvGlass.Peach)
-            Text("S${next.season} E${next.number} · ${next.name}", style = TvType.Headline, color = TvGlass.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val queued = state.target is PlayTarget.Item
+            Text((if (queued) "NEXT VIDEO IN " else "NEXT EPISODE IN ") + "${(inMs + 999) / 1000} S", style = TvType.Label, color = TvGlass.Peach)
+            Text(if (queued) next.name else "S${next.season} E${next.number} · ${next.name}", style = TvType.Headline, color = TvGlass.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         TvButton("Play now", onClick = player::playNextEpisode, isPrimary = true, modifier = Modifier.focusRequester(playNow))
         TvButton("Cancel", onClick = player::cancelNextEpisode)

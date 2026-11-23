@@ -143,7 +143,52 @@ class DefaultWatchRepository(
 ) : WatchRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val http = WatchHttp(config.client, config.cacheDir, config.now)
-    private val torrentPlayback = com.cosmotune.watch.plugins.stremio.BundledTorrentPlayback(config.torrentExecutable)
+    private val torrentSettingsState = MutableStateFlow(torrentSettingsOf(store.state.value))
+    override val torrentSettings: StateFlow<com.cosmotune.watch.torrent.TorrentSettings> = torrentSettingsState.asStateFlow()
+    /** The bundled engine beyond streaming: file lists, downloads, sharing. Torrents come only from what the listener opens. */
+    val torrents = com.cosmotune.watch.torrent.TorrentEngine(config.torrentExecutable) { torrentSettingsState.value }
+    private val torrentPlayback = com.cosmotune.watch.plugins.stremio.BundledTorrentPlayback(config.torrentExecutable, torrents)
+    /** What each torrent opened in this run holds and the trackers its link named, for the queue and Downloads. */
+    private val torrentListings = ConcurrentHashMap<String, Pair<com.cosmotune.watch.torrent.TorrentListing, List<String>>>()
+    override val canOpenTorrents: Boolean get() = config.torrentExecutable()?.isFile == true
+
+    private fun torrentSettingsOf(state: WatchState) = state.settings[TORRENT_SETTINGS]?.let {
+        runCatching { kotlinx.serialization.json.Json.decodeFromString(com.cosmotune.watch.torrent.TorrentSettings.serializer(), it) }.getOrNull()
+    } ?: com.cosmotune.watch.torrent.TorrentSettings()
+
+    override suspend fun setTorrentSettings(settings: com.cosmotune.watch.torrent.TorrentSettings) {
+        val clean = settings.copy(seedMinutes = settings.seedMinutes.coerceIn(0, 7 * 24 * 60), bindInterface = settings.bindInterface?.trim()?.take(64)?.takeIf { it.isNotEmpty() })
+        update { it.copy(settings = it.settings + (TORRENT_SETTINGS to kotlinx.serialization.json.Json.encodeToString(com.cosmotune.watch.torrent.TorrentSettings.serializer(), clean))) }
+        torrentSettingsState.value = clean
+    }
+
+    override fun torrentConnections(): List<String> = runCatching {
+        java.net.NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp && !it.isLoopback && it.inetAddresses.toList().any { a -> a is java.net.Inet4Address } }
+            .map { it.name }.distinct().sorted()
+    }.getOrDefault(emptyList())
+
+    override suspend fun openTorrent(text: String?, file: ByteArray?): com.cosmotune.watch.torrent.TorrentListing? {
+        val link = text?.let(com.cosmotune.watch.torrent.TorrentLinks::parse)
+        if (link == null && file == null) return null
+        if (file != null) require(com.cosmotune.watch.torrent.TorrentLinks.looksLikeTorrentFile(file)) { "That file is not a .torrent file." }
+        check(torrentsEnabled()) { "Turn on Torrent playback in Plugins to open torrents." }
+        check(canOpenTorrents) { "The torrent engine is missing from this Cosmotune build." }
+        val listing = torrents.files(link, file)
+        torrentListings[listing.hash] = listing to link?.trackers.orEmpty()
+        return listing
+    }
+
+    override suspend fun queueNext(target: PlayTarget): Pair<PlayTarget, Stream>? {
+        val (hash, index) = com.cosmotune.watch.torrent.TorrentItems.parts(target) ?: return null
+        val (listing, trackers) = torrentListings[hash] ?: return null
+        val videos = listing.videos
+        val next = videos.getOrNull(videos.indexOfFirst { it.index == index } + 1)?.takeIf { videos.any { it.index == index } } ?: return null
+        return com.cosmotune.watch.torrent.TorrentItems.target(listing, next) to com.cosmotune.watch.torrent.TorrentItems.stream(listing, next, trackers)
+    }
+
+    /** The listing [openTorrent] read for [hash] in this run, with its link's trackers. */
+    fun torrentListing(hash: String) = torrentListings[hash]
 
     private fun torrentsEnabled() = store.state.value.builtIn[BuiltInPlugins.TORRENT_PLAYBACK]
         ?: BuiltInPlugins.def(BuiltInPlugins.TORRENT_PLAYBACK)?.defaultEnabled ?: false
@@ -803,6 +848,19 @@ class DefaultWatchRepository(
         })
     }
 
+    override suspend fun catchup(channel: Channel, programme: EpgProgramme): Pair<PlayTarget, Stream>? {
+        val owner = (listOf(channel) + channel.also).firstOrNull { it.catchup != null } ?: return null
+        val archive = owner.catchup ?: return null
+        val now = config.now()
+        if (programme.startMs >= now || programme.startMs < now - archive.days.coerceIn(1, 30) * 86_400_000L) return null
+        val live = sourcesNow(PlayTarget.Live(owner)).streams.firstOrNull { it.isPlayable && it.source.pluginId == owner.pluginId } ?: return null
+        val stop = minOf(programme.stopMs, now)
+        val url = com.cosmotune.watch.plugins.iptv.CatchupUrls.build(live.url, archive, programme.startMs, stop, now) ?: return null
+        val id = "${owner.key.id}:${programme.startMs / 1000}"
+        val target = PlayTarget.Item(WatchKey.item(CATCHUP, id), CATCHUP, id, programme.title.substringAfter(": ").take(200))
+        return target to live.copy(url = url, isLive = false, label = "Catch-up", description = owner.name, durationMs = stop - programme.startMs)
+    }
+
     override suspend fun nowNext(channel: Channel): LiveNowItem {
         val t = config.now()
         val list = guide(listOf(channel), t - 6 * WatchHttp.HOUR, t + 12 * WatchHttp.HOUR).rows.first().programmes
@@ -848,19 +906,6 @@ class DefaultWatchRepository(
             if (!wantChannels) emptyList()
             else runCatching { channels(ChannelFilter(query = q.ifEmpty { null }, language = query.language?.code)) }.getOrDefault(emptyList())
         }
-    override suspend fun catchup(channel: Channel, programme: EpgProgramme): Pair<PlayTarget, Stream>? {
-        val owner = (listOf(channel) + channel.also).firstOrNull { it.catchup != null } ?: return null
-        val archive = owner.catchup ?: return null
-        val now = config.now()
-        if (programme.startMs >= now || programme.startMs < now - archive.days.coerceIn(1, 30) * 86_400_000L) return null
-        val live = sourcesNow(PlayTarget.Live(owner)).streams.firstOrNull { it.isPlayable && it.source.pluginId == owner.pluginId } ?: return null
-        val stop = minOf(programme.stopMs, now)
-        val url = com.cosmotune.watch.plugins.iptv.CatchupUrls.build(live.url, archive, programme.startMs, stop, now) ?: return null
-        val id = "${owner.key.id}:${programme.startMs / 1000}"
-        val target = PlayTarget.Item(WatchKey.item(CATCHUP, id), CATCHUP, id, programme.title.substringAfter(": ").take(200))
-        return target to live.copy(url = url, isLive = false, label = "Catch-up", description = owner.name, durationMs = stop - programme.startMs)
-    }
-
         val answers = asked.map { id ->
             async {
                 id to runCatching {
@@ -1032,6 +1077,7 @@ class DefaultWatchRepository(
         preferencesState.value = preferencesOf(state)
         recentState.value = recentOf(state)
         guideDismissedState.value = state.settings[GUIDE_DISMISSED] == "1"
+        torrentSettingsState.value = torrentSettingsOf(state)
         pluginsState.value = infos(state, status.value)
         myListState.value = state.myList
         favouritesState.value = state.favourites.map(::WatchKey).toSet()
@@ -1076,6 +1122,10 @@ class DefaultWatchRepository(
         /** The built-in plugins that play films for free, asked for the featured card. */
         private val FREE_FILM_PLUGINS = setOf(BuiltInPlugins.PLUTO, BuiltInPlugins.PLEX, BuiltInPlugins.YOUTUBE, BuiltInPlugins.ARCHIVE, BuiltInPlugins.PUBLIC_DOMAIN)
         private const val GUIDE_DISMISSED = "watch.guide.dismissed"
+        /** The source of catch-up items: a channel's past programmes, played from its archive. */
+        private const val CATCHUP = "catchup"
+        /** A device setting, not synced: the torrent engine's sharing and connection choices. */
+        private const val TORRENT_SETTINGS = "watch.torrent.settings"
         private const val FEATURED_PROBE_MS = 6_000L
         /** Catalogues of each plugin loaded with the home; the rest load as the page is scrolled to them. */
         private const val FIRST_ROWS_PER_PLUGIN = 4

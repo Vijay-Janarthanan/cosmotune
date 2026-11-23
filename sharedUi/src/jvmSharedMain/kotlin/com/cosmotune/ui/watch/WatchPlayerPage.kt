@@ -542,8 +542,10 @@ private fun NextEpisodeRow(state: WatchPlayerState, controls: WatchPlayerControl
     val inMs = state.nextEpisodeInMs ?: return
     val words: @Composable (Modifier) -> Unit = { m ->
         Column(m) {
-            OrbitLabel("Next episode in ${(inMs + 999) / 1000} s", fonts, look.accent)
-            Text("S${next.season} E${next.number} · ${next.name}", style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // A torrent's next video has no season or number of its own: its name alone.
+            val queued = state.target is PlayTarget.Item
+            OrbitLabel((if (queued) "Next video in " else "Next episode in ") + "${(inMs + 999) / 1000} s", fonts, look.accent)
+            Text(if (queued) next.name else "S${next.season} E${next.number} · ${next.name}", style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
     val buttons: @Composable () -> Unit = {
@@ -592,10 +594,10 @@ private fun FilmCard(
     // The phone's card is narrow: the title may take two lines, and Audio and Subtitles are round buttons so all the controls clear the bite.
     val narrow = !wide && !slim
     var subtitles by remember { mutableStateOf(false) }
-    var screen by remember { mutableStateOf(false) }
-    var guide by remember { mutableStateOf(false) }
     var styleOpen by remember { mutableStateOf(false) }
     if (styleOpen) WatchSubtitleLookDialog { styleOpen = false }
+    var screen by remember { mutableStateOf(false) }
+    var guide by remember { mutableStateOf(false) }
     val menuOpen = audio || subtitles || screen || guide
     DisposableEffect(menuOpen) {
         onMenuOpen(menuOpen)
@@ -657,9 +659,9 @@ private fun FilmCard(
                         add(OrbitMenuItem("Off", null, selected = state.selectedSubtitleId == null) { controls.selectSubtitle(null) })
                         state.subtitles.forEach { s -> add(OrbitMenuItem(s.label, listOfNotNull(s.origin.name.lowercase().replaceFirstChar { it.uppercase() }, if (s.hearingImpaired) "SDH" else null).joinToString(" · "), selected = s.id == state.selectedSubtitleId) { controls.selectSubtitle(s.id) }) }
                         add(OrbitMenuItem("Find more subtitles", "OpenSubtitles and your subtitle plugins", CosmoIcons.Search) { controls.searchSubtitles() })
+                        add(OrbitMenuItem("Subtitle look", "Size, colour, background and height", CosmoIcons.Lyrics) { styleOpen = true })
                         if (state.selectedSubtitleId != null) {
                             add(OrbitMenuItem("Earlier by 0.5 s", "Now ${"%+.1f".format(state.subtitleDelayMs / 1000f)} s", keepOpen = true) { controls.subtitleDelay(state.subtitleDelayMs - 500) })
-                        add(OrbitMenuItem("Subtitle look", "Size, colour, background and height", CosmoIcons.Lyrics) { styleOpen = true })
                             add(OrbitMenuItem("Later by 0.5 s", null, keepOpen = true) { controls.subtitleDelay(state.subtitleDelayMs + 500) })
                         }
                     })
@@ -700,10 +702,10 @@ private fun WatchFullScreen(
     onChannel: (com.cosmotune.watch.model.Channel) -> Unit = {},
 ) {
     val failed = state.status == WatchPlayerStatus.ERROR || state.status == WatchPlayerStatus.NOT_FOUND
-    // Skip intro follows the playhead: read twice a second, not every frame.
-    var tick by remember { mutableIntStateOf(0) }
     var subtitleLook by remember { mutableStateOf(false) }
     if (subtitleLook) WatchSubtitleLookDialog { subtitleLook = false }
+    // Skip intro follows the playhead: read twice a second, not every frame.
+    var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(playing) { while (playing) { delay(500); tick++ } }
     val menus = buildList {
         if (!controls.remote) {
@@ -711,9 +713,9 @@ private fun WatchFullScreen(
                 add(OrbitMenuItem("Off", null, selected = state.selectedSubtitleId == null) { controls.selectSubtitle(null) })
                 state.subtitles.forEach { s -> add(OrbitMenuItem(s.label, if (s.hearingImpaired) "SDH" else null, selected = s.id == state.selectedSubtitleId) { controls.selectSubtitle(s.id) }) }
                 add(OrbitMenuItem("Find more subtitles", "OpenSubtitles and your subtitle plugins", CosmoIcons.Search) { controls.searchSubtitles() })
+                add(OrbitMenuItem("Subtitle look", "Size, colour, background and height", CosmoIcons.Lyrics) { subtitleLook = true })
             }))
             if (state.audioTracks.size > 1) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Audio", state.audioTracks.firstOrNull { it.selected }?.label, CosmoIcons.Waveform,
-                add(OrbitMenuItem("Subtitle look", "Size, colour, background and height", CosmoIcons.Lyrics) { subtitleLook = true })
                 state.audioTracks.map { t -> OrbitMenuItem(t.label, listOfNotNull(t.codec, t.channels?.let { "$it ch" }).joinToString(" · ").ifBlank { null }, selected = t.selected) { controls.selectAudio(t.trackId) } }))
             if (state.streams.isNotEmpty()) add(com.cosmotune.ui.fullscreen.FullScreenMenu("Sources", state.stream?.let { "${it.source.pluginName} · ${it.label}" }, CosmoIcons.Queue,
                 watchSourceItems(state, controls.switchStream)))
