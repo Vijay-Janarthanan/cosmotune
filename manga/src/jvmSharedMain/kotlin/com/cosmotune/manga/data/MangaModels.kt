@@ -160,6 +160,8 @@ data class MangaLibraryState(
     val lockManga: Boolean = false,
     /** Manga's screens are kept out of screenshots, screen recording and the recent-apps preview. */
     val secureScreen: Boolean = false,
+    /** Manga's own PIN for the lock where the computer has no sign-in prompt to ask for ([MangaLockPin]'s salted hash). */
+    val lockPin: String? = null,
     /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
     val readLog: Map<String, Long> = emptyMap(),
     /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */

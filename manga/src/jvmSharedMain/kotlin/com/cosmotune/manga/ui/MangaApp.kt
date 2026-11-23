@@ -46,6 +46,10 @@ import com.cosmotune.ui.orbit.OrbitCardColors
 import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -84,7 +88,7 @@ fun MangaApp(
         val pages = remember(ready, repository) { if (repository == null) PageCache.shared else PageCache.of(ready, persistent = false) }
         val locks by ready.store.state.collectAsState()
         MangaSecureScreen(locks.secureScreen)
-        MangaLockGate(locks.lockManga) {
+        MangaLockGate(locks.lockManga, locks.lockPin) {
             androidx.compose.runtime.CompositionLocalProvider(LocalMangaPages provides pages) {
                 MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
             }
@@ -578,12 +582,29 @@ internal fun MangaDiscoverShelf(scope: MangaScope, source: MangaSourceConfig) {
     }
 }
 
-/** What Manga shows while its lock waits: the mode's name and Unlock. */
+/**
+ * What Manga shows while its lock waits: the mode's name and Unlock. With [onPin] (Manga's own PIN) it has a PIN field; [onPin]
+ * answers whether the PIN was right. [onUnlock] null leaves only the PIN.
+ */
 @Composable
-internal fun MangaLockedPage(onUnlock: () -> Unit) {
+internal fun MangaLockedPage(onUnlock: (() -> Unit)?, onPin: ((String) -> Boolean)? = null) {
+    var pin by remember { mutableStateOf("") }
+    var wrong by remember { mutableStateOf(false) }
+    fun tryPin() { if (onPin != null && pin.isNotEmpty()) { wrong = !onPin(pin); pin = "" } }
     Column(Modifier.fillMaxSize().padding(24.dp).testTag("manga:locked"), verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally) {
         androidx.compose.material3.Text(mangaText("Manga is locked"), style = ReadType.titleLarge(), color = orbitLook().ink)
-        ReadButton(mangaText("Unlock"), onUnlock, modifier = Modifier.testTag("manga:unlock"))
+        if (onPin != null) Column(Modifier.widthIn(max = 280.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.cosmotune.ui.orbit.OrbitInputField(pin, { typed -> pin = typed.filter(Char::isDigit).take(12); wrong = false }, mangaText("Manga PIN"), secret = true,
+                error = wrong, modifier = Modifier.fillMaxWidth().testTag("manga:lock:pin").onPreviewKeyEvent { event ->
+                    if (event.key == androidx.compose.ui.input.key.Key.Enter && event.type == androidx.compose.ui.input.key.KeyEventType.KeyUp) { tryPin(); true } else false
+                })
+            if (wrong) androidx.compose.material3.Text(mangaText("That PIN is not right"), style = ReadType.meta(), color = orbitLook().dim)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (onPin != null) ReadButton(mangaText("Unlock"), ::tryPin, enabled = pin.length >= 4, modifier = Modifier.testTag("manga:unlock:pin"))
+            if (onUnlock != null) ReadButton(mangaText(if (onPin != null) "Use system sign-in" else "Unlock"), onUnlock,
+                kind = if (onPin != null) ReadKind.TONAL else ReadKind.FILLED, modifier = Modifier.testTag("manga:unlock"))
+        }
     }
 }

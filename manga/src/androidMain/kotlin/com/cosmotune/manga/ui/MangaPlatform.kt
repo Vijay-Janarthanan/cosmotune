@@ -114,11 +114,14 @@ private tailrec fun android.content.Context.findActivity(): android.app.Activity
     }
 }
 
+@Composable internal actual fun rememberMangaLockPrompt(): String? = "your screen lock"
+@Composable internal actual fun mangaHideDetail(): String? = "Also hides Manga in recent apps"
+
 /** When Manga last passed the lock, for the five-minute grace; per process, so a restart asks again. */
 private object MangaLockClock { @Volatile var unlockedAtMs = 0L }
 
 @Suppress("DEPRECATION")
-@Composable internal actual fun MangaLockGate(enabled: Boolean, content: @Composable () -> Unit) {
+@Composable internal actual fun MangaLockGate(enabled: Boolean, pin: String?, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val keyguard = context.getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
     val needed = enabled && keyguard?.isDeviceSecure == true

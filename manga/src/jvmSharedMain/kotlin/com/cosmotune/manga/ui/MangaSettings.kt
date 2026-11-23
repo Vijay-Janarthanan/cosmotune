@@ -73,11 +73,10 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
                 ReadChip(mangaText("Fit width"), state.readerFit == MangaReaderFit.WIDTH, { action { repository.store.update { it.copy(readerFit = MangaReaderFit.WIDTH) } } })
             }
             MangaReaderImageOptions(state) { block -> action { repository.store.update(block) } }
-            if (mangaLockAvailable()) {
-                OrbitSwitchRow(mangaText("Lock Manga"), state.lockManga, { on -> action { repository.store.update { it.copy(lockManga = on) } } }, plain = true,
-                    detail = mangaText("Asks for your screen lock when Manga opens"))
-                OrbitSwitchRow(mangaText("Hide from screenshots"), state.secureScreen, { on -> action { repository.store.update { it.copy(secureScreen = on) } } }, plain = true,
-                    detail = mangaText("Also hides Manga in recent apps"))
+            if (mangaLockAvailable()) MangaLockSettings(state) { block -> action { repository.store.update(block) } }
+            mangaHideDetail()?.let { hideDetail ->
+                OrbitSwitchRow(mangaText("Hide from screenshots"), state.secureScreen, { on -> action { repository.store.update { it.copy(secureScreen = on) } } },
+                    plain = true, detail = mangaText(hideDetail))
             }
             OrbitSwitchRow(mangaText("Keep screen on while reading"), state.readerKeepScreenOn, { on -> action { repository.store.update { it.copy(readerKeepScreenOn = on) } } }, plain = true)
             OrbitSwitchRow(mangaText("Page number at the foot"), state.readerPageNumber, { on -> action { repository.store.update { it.copy(readerPageNumber = on) } } }, plain = true,
@@ -169,3 +168,37 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
         }
     }
 }
+
+/** Lock Manga, with what it asks for; where only Manga's own PIN can lock it, the PIN is set here first. */
+@Composable
+private fun MangaLockSettings(state: MangaLibraryState, update: ((MangaLibraryState) -> MangaLibraryState) -> Unit) {
+    val prompt = rememberMangaLockPrompt()
+    val pinOnly = prompt == null
+    var pin by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf(false) }
+    val problem = pin.takeIf { it.isNotEmpty() }?.let(MangaLockPin::problem)
+    val detail = when {
+        prompt == "" -> "Asks for your sign-in when Manga opens"
+        !pinOnly -> "Asks for $prompt when Manga opens"
+        state.lockPin == null -> "Set a Manga PIN first"
+        else -> "Asks for your Manga PIN when Manga opens"
+    }
+    OrbitSwitchRow(mangaText("Lock Manga"), state.lockManga, { on -> update { it.copy(lockManga = on) } }, plain = true, detail = mangaText(detail),
+        enabled = !pinOnly || state.lockPin != null || state.lockManga)
+    if (!pinOnly) return
+    if (state.lockPin != null && !editing) {
+        ReadTextButton(mangaText("Change Manga PIN"), { editing = true }, modifier = Modifier.testTag("manga:lock:change"))
+        return
+    }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OrbitInputField(pin, { typed -> pin = typed.filter(Char::isDigit).take(12) }, mangaText(if (state.lockPin == null) "New Manga PIN" else "New PIN"), secret = true,
+            error = problem != null, modifier = Modifier.fillMaxWidth().testTag("manga:lock:newpin"))
+        Text(mangaText(problem ?: "4 to 12 digits. This computer has no sign-in prompt Manga can ask for."), style = ReadType.meta(), color = orbitLook().dim)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReadButton(mangaText("Save PIN"), { val hashed = MangaLockPin.hash(pin); update { it.copy(lockPin = hashed) }; pin = ""; editing = false },
+                enabled = pin.isNotEmpty() && problem == null, modifier = Modifier.testTag("manga:lock:save"))
+            if (editing) ReadTextButton(mangaText("Cancel"), { pin = ""; editing = false })
+        }
+    }
+}
+

@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.cosmotune.manga.data.MangaRepository
 import com.cosmotune.manga.data.MangaStore
 import com.cosmotune.manga.data.platformMangaFileProtection
@@ -71,7 +73,50 @@ import com.cosmotune.manga.data.MangaImageImport
     }; Unit } }
 }
 
-// The desktop has no screen lock to ask for, and its windows cannot be kept out of screenshots.
-@Composable internal actual fun mangaLockAvailable(): Boolean = false
-@Composable internal actual fun MangaLockGate(enabled: Boolean, content: @Composable () -> Unit) = content()
-@Composable internal actual fun MangaSecureScreen(enabled: Boolean) = Unit
+// A computer locks Manga behind Windows Hello or Touch ID where it has them, otherwise behind Manga's own PIN.
+@Composable internal actual fun mangaLockAvailable(): Boolean = true
+
+@Composable internal actual fun rememberMangaLockPrompt(): String? =
+    androidx.compose.runtime.produceState<String?>("") { value = withContext(Dispatchers.IO) { MangaDesktopLock.system.label.ifEmpty { null } } }.value
+
+@Composable internal actual fun mangaHideDetail(): String? = "Also keeps the window out of screen sharing".takeIf { MangaDesktopLock.canHideFromCapture }
+
+/** When Manga last passed the lock, for the five-minute grace; per process, so a restart asks again. */
+private object DesktopLockClock { @Volatile var unlockedAtMs = 0L }
+
+@Composable internal actual fun MangaLockGate(enabled: Boolean, pin: String?, content: @Composable () -> Unit) {
+    val prompt = rememberMangaLockPrompt()
+    // Locked only once it is known what can unlock it; with neither a prompt nor a PIN there is nothing to ask, so it stays open.
+    val needed = enabled && prompt != "" && (prompt != null || pin != null)
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(System.currentTimeMillis() - DesktopLockClock.unlockedAtMs < 5 * 60_000L) }
+    var asking by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    fun pass() { DesktopLockClock.unlockedAtMs = System.currentTimeMillis(); open = true }
+    fun ask() { if (!asking && prompt != null && prompt != "") { asking = true; scope.launch { if (MangaDesktopLock.ask()) pass(); asking = false } } }
+    androidx.compose.runtime.LaunchedEffect(needed) { if (needed && !open) ask() }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { if (open) DesktopLockClock.unlockedAtMs = System.currentTimeMillis() } }
+    when {
+        !enabled || prompt != "" && !needed || open -> content()
+        prompt == "" -> Unit // still finding out what this computer has; a moment at most
+        else -> MangaLockedPage(onUnlock = if (prompt != null) ::ask else null,
+            onPin = if (pin != null) { typed -> com.cosmotune.manga.data.MangaLockPin.matches(typed, pin).also { if (it) pass() } } else null)
+    }
+}
+
+/**
+ * Compose's own record of the AWT window a composable is in (`androidx.compose.ui.window.LocalWindow`), which Compose keeps
+ * internal; read by name, as the desktop's video does.
+ */
+@Suppress("UNCHECKED_CAST")
+private val AwtWindowLocal: androidx.compose.runtime.CompositionLocal<java.awt.Window?>? = runCatching {
+    Class.forName("androidx.compose.ui.window.LocalWindowKt").getMethod("getLocalWindow").invoke(null)
+        as androidx.compose.runtime.CompositionLocal<java.awt.Window?>
+}.getOrNull()
+
+@Composable internal actual fun MangaSecureScreen(enabled: Boolean) {
+    val window = AwtWindowLocal?.current
+    androidx.compose.runtime.DisposableEffect(window, enabled) {
+        if (enabled) MangaDesktopLock.hideFromCapture(window, true)
+        onDispose { if (enabled) MangaDesktopLock.hideFromCapture(window, false) }
+    }
+}
