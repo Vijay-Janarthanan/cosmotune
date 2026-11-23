@@ -536,7 +536,9 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** Each followed show's tags ([PodioTags]), by show id. */
     val showTags: Map<String, Set<String>> = emptyMap(),
     /** Episodes kept as favourites ([PodioFavourites]), the newest first. */
-    val favouriteEpisodes: List<PodioQueueEntry> = emptyList())
+    val favouriteEpisodes: List<PodioQueueEntry> = emptyList(),
+    /** The Next button of headphones (or the car) bookmarks the playing episode instead of skipping it. */
+    val headsetBookmarks: Boolean = false)
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {

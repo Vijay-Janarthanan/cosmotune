@@ -2148,6 +2148,17 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
+    private fun bookmarkFromHeadset(library: com.cosmotune.podio.PodioLibrary, item: MediaItem) {
+        val position = player?.currentPosition ?: return
+        val song = item.toSong()
+        val mark = com.cosmotune.podio.PodioBookmark(item.mediaId, position, song.title, song.artist, song.localUri.orEmpty(), song.thumbnailUrl.orEmpty(),
+            (player?.duration?.takeIf { it > 0 } ?: 0) / 1000, createdMs = System.currentTimeMillis())
+        scope.launch(Dispatchers.IO) { runCatching { library.update { com.cosmotune.podio.PodioBookmarks.add(it, mark) } } }
+        val total = position / 1000
+        Toast.makeText(applicationContext, "Bookmarked at " + (if (total >= 3600) "${total / 3600}:%02d:%02d".format(total / 60 % 60, total % 60) else "${total / 60}:%02d".format(total % 60)),
+            Toast.LENGTH_SHORT).show()
+    }
+
     /** The notification's Repeat: the next mode, kept the way the app's own Repeat button keeps it. */
     private fun cycleRepeatFromSession() {
         val exoPlayer = player ?: return
@@ -8649,6 +8660,24 @@ class PlaybackService : MediaLibraryService() {
      * Handles browsing and content resolution for Android Auto and other MediaBrowser clients.
      */
     private inner class MediaLibraryCallback : MediaLibrarySession.Callback {
+
+        /**
+         * Podio's headset bookmark (Pocket Casts' "smart bookmarks"): with Settings › Podio's choice on, the Next button of headphones
+         * or the car marks the moment in the playing episode instead of skipping it.
+         */
+        override fun onMediaButtonEvent(session: MediaSession, controllerInfo: MediaSession.ControllerInfo, intent: Intent): Boolean {
+            val key = if (android.os.Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent::class.java)
+                else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+            val item = player?.currentMediaItem
+            if (key?.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_NEXT && item?.mediaId?.startsWith("podio:episode:") == true) {
+                val library = runCatching { com.cosmotune.podio.PodioLibrary(java.io.File(filesDir, "podio/library.json")) }.getOrNull()
+                if (library?.state?.value?.headsetBookmarks == true) {
+                    if (key.action == android.view.KeyEvent.ACTION_DOWN && key.repeatCount == 0) bookmarkFromHeadset(library, item)
+                    return true
+                }
+            }
+            return super.onMediaButtonEvent(session, controllerInfo, intent)
+        }
 
         override fun onConnect(
             session: MediaSession,

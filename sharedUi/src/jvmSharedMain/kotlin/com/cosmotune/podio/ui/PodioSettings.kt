@@ -88,6 +88,9 @@ fun PodioSettingsSection(storage: File, modifier: Modifier = Modifier,
                 { save { it.copy(keepDownloadsPerShow = count) } }, haptic = false)
         }
         Text("Older ones go by themselves; episodes you have started always stay.", style = fonts.body.copy(fontSize = 13.sp), color = look.dim)
+        OrbitLabel("Playback", fonts, look.dim, Modifier.padding(top = 8.dp))
+        OrbitSwitchRow("Headphones' Next button adds a bookmark", saved.headsetBookmarks, { on -> save { it.copy(headsetBookmarks = on) } },
+            detail = "While an episode plays on the phone, instead of skipping it", plain = true, switchModifier = Modifier.testTag("settings:podio:headset-bookmarks"))
         OrbitLabel("Radio recordings", fonts, look.dim, Modifier.padding(top = 8.dp))
         OrbitSwitchRow("Save each song as its own file", saved.recordBySong, { on -> save { it.copy(recordBySong = on) } },
             detail = "When the station names its songs; up to three hours a recording", plain = true, switchModifier = Modifier.testTag("settings:podio:record-by-song"))
