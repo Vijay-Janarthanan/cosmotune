@@ -6,6 +6,7 @@ import com.cosmotune.ui.orbit.OrbitUndoState
 import com.cosmotune.ui.orbit.showThen
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -92,6 +93,7 @@ internal fun MangaDetails(scope: MangaScope, book: MangaBook, onRefresh: () -> U
                 ReadInlineBanner("From your Mihon backup ($from). Find it on one of your sources to read it; your read chapters come along.",
                     Modifier.padding(bottom = 8.dp), actionLabel = mangaText("Find it"), onAction = { migrate = true })
             } }
+            item(key = "series:panorama") { SeriesPanorama(cover) }
             item(key = "series:card") { SeriesCard(scope, book, cover, saved, next, readOrFind) }
             item(key = "series:about") { SeriesAbout(scope, book) }
             item(key = "series:related") { SeriesRelated(scope, book) }
@@ -370,4 +372,24 @@ private fun SeriesRelated(scope: MangaScope, book: MangaBook) {
             items(related, key = { "related:${it.id}" }) { item -> MangaBookCard(scope, item, null, width = 112.dp) }
         }
     }
+}
+
+/**
+ * Komikku's panorama cover: a cover wider than tall (a webtoon banner) also stands whole above the series card, at its own shape,
+ * since the card's tall frame only shows its middle. A tall cover adds nothing.
+ */
+@Composable
+private fun SeriesPanorama(cover: Any?) {
+    if (cover == null) return
+    val context = coil3.compose.LocalPlatformContext.current
+    val ratio by produceState(0f, cover) {
+        value = runCatching {
+            val result = coil3.SingletonImageLoader.get(context).execute(coil3.request.ImageRequest.Builder(context).data(cover).build())
+            (result as? coil3.request.SuccessResult)?.image?.let { image -> if (image.height > 0) image.width.toFloat() / image.height else 0f }
+        }.getOrNull() ?: 0f
+    }
+    if (ratio < 1.2f) return
+    coil3.compose.AsyncImage(cover, contentDescription = mangaText("Cover"), contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        modifier = Modifier.padding(horizontal = ReadMargin).padding(top = 4.dp, bottom = 8.dp).fillMaxWidth().aspectRatio(ratio.coerceAtMost(4f)).clip(ReadShape.md)
+            .testTag("manga:panorama"))
 }
