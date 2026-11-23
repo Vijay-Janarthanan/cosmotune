@@ -115,17 +115,19 @@ class ModeVisualRepairTest {
                 PodioApp(storage, PodioPlayback(), { item, _ -> played += item }, {}, {}, {}, {},
                     directory = catalogue)
             } } }
-            // Search is the heading's round button; its page lists the stations. The Globe opens from its chip on Radio.
+            // Search is the round button at the head of the rail; a search lists the stations. The Globe opens from its chip on Radio.
             compose.onNodeWithContentDescription("Search").performClick()
+            compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("podio:search"))).apply { performTextInput("tamil"); performImeAction() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Tamil Two").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("All languages").performClick()
+            compose.onNodeWithTag("search:filter:language").performClick()
             compose.onNodeWithText("Tamil", useUnmergedTree = true).performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("2 stations · Worldwide").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Tamil Two").performClick()
             compose.runOnIdle { assertEquals("Tamil Two", played.single().title) }
             snapshot("podio-desktop.png", "podio:root")
-            compose.onNodeWithText("Find a station").assertIsDisplayed()
-            compose.onNodeWithContentDescription("Close search").performClick()
+            compose.onNodeWithTag("search:field").assertIsDisplayed()
+            // A tab leaves the search.
+            compose.onNode(podioTab("Radio")).performClick()
             compose.onNodeWithText("Globe").performClick()
             // The Globe lights Radio in the rail.
             compose.onNode(podioTab("Radio")).assertIsSelected()

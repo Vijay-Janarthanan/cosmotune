@@ -90,6 +90,8 @@ import com.cosmotune.music.sharedui.resources.search_empty
 import com.cosmotune.music.sharedui.resources.search_hint
 import com.cosmotune.music.sharedui.resources.search_library_hint
 import com.cosmotune.music.sharedui.resources.search_addons_hint
+import com.cosmotune.music.sharedui.resources.search_addons_no_results
+import com.cosmotune.music.sharedui.resources.search_library_no_results
 import com.cosmotune.music.ui.components.MessageState
 import com.cosmotune.music.ui.components.songListSkeleton
 import org.jetbrains.compose.resources.stringResource
@@ -224,11 +226,11 @@ fun CosmoSearch(
     val libraryFound = if (inMyLibrary) remember(query, filter, libraryScope?.library) { searchMyLibrary(query, filter, requireNotNull(libraryScope).library) } else emptyList()
     val counts = rememberFilterCounts(query, filter, results)
     val status: CosmoSearchStatus = when {
-        searchingLibrary -> songsStatus(libraryResults, retry = null)
+        searchingLibrary -> songsStatus(libraryResults, retry = null, empty = stringResource(Res.string.search_library_no_results, query.trim()))
         searchingAddons -> when {
             addonResults == null && query.isBlank() -> CosmoSearchStatus.Idle
             searchIn?.progress != null -> CosmoSearchStatus.Results(0, "Your add-ons, source by source")
-            else -> songsStatus(addonResults, retry = onSubmit)
+            else -> songsStatus(addonResults, retry = onSubmit, empty = stringResource(Res.string.search_addons_no_results, query.trim()))
         }
         suggesting -> CosmoSearchStatus.Typing
         inMyLibrary -> when {
@@ -378,12 +380,15 @@ fun CosmoSearch(
  */
 class MyLibraryScope(val on: Boolean, val onToggle: (Boolean) -> Unit, val library: MyLibrary)
 
-/** A source that answers with songs (the Library folder, the add-ons) as the page's state; [retry] asks again where that helps. */
-private fun songsStatus(state: UiState<List<Song>>?, retry: (() -> Unit)?): CosmoSearchStatus = when (state) {
+/**
+ * A source that answers with songs (the Library folder, the add-ons) as the page's state; [retry] asks again where that helps,
+ * [empty] is what it says when nothing matched.
+ */
+private fun songsStatus(state: UiState<List<Song>>?, retry: (() -> Unit)?, empty: String): CosmoSearchStatus = when (state) {
     null -> CosmoSearchStatus.Idle
     UiState.Loading -> CosmoSearchStatus.Searching
     is UiState.Error -> if (retry != null) CosmoSearchStatus.Failed(state.message, retry) else CosmoSearchStatus.Empty(state.message)
-    is UiState.Success -> if (state.data.isEmpty()) CosmoSearchStatus.Empty() else CosmoSearchStatus.Results(state.data.size)
+    is UiState.Success -> if (state.data.isEmpty()) CosmoSearchStatus.Empty(empty) else CosmoSearchStatus.Results(state.data.size)
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
