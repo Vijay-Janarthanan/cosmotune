@@ -32,6 +32,10 @@ import com.cosmotune.watch.plugins.SourceAddress
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
+import com.cosmotune.watch.FilterSupport
+import com.cosmotune.watch.QueryAbility
+import com.cosmotune.watch.WatchKind
+import com.cosmotune.watch.WatchQuery
 
 /**
  * A Stremio-protocol add-on as a Watch plugin: the built-in Public Domain Movies, OpenSubtitles and WatchHub, Cinemeta, and
@@ -80,6 +84,19 @@ class StremioPlugin(
             (type == null || it.type in KNOWN_TYPES && (it.type == "movie") == (type == TitleType.FILM)) }
         return searchable.flatMap { c -> runCatching { client.catalog(c.type, c.id, mapOf("search" to query)) }.getOrDefault(emptyList())
             .mapNotNull { summaryOf(it, c.type, c.type !in KNOWN_TYPES) } }.distinctBy { it.key }
+    }
+
+    override suspend fun queryAbility(query: WatchQuery, currentYear: Int): QueryAbility =
+        if (Capability.SEARCH !in capabilities && Capability.CATALOG !in capabilities) QueryAbility.SILENT
+        else runCatching { queryPlan(manifest(), query, currentYear).ability }.getOrDefault(QueryAbility.SILENT)
+
+    override suspend fun find(query: WatchQuery, currentYear: Int): List<TitleSummary> {
+        val plan = queryPlan(manifest(), query, currentYear)
+        val answers = plan.asks.map { ask ->
+            runCatching { client.catalog(ask.catalog.type, ask.catalog.id, ask.extra) }.getOrDefault(emptyList())
+                .mapNotNull { summaryOf(it, ask.catalog.type, ask.catalog.type !in KNOWN_TYPES) }
+        }
+        return com.cosmotune.watch.WatchSearchRules.merge(answers)
     }
 
     override suspend fun title(key: WatchKey): Title? {
@@ -250,7 +267,69 @@ class StremioPlugin(
         is PlayTarget.Item -> if (target.pluginId == id) "movie" to target.itemId else null
     }
 
+    /** One catalogue request of a search: the catalogue and the extras sent with it (`search`, `genre`). */
+    data class StremioAsk(val catalog: StremioCatalog, val extra: Map<String, String>)
+    data class StremioQueryPlan(val asks: List<StremioAsk>, val ability: QueryAbility)
+
     companion object {
+        /**
+         * How an add-on's manifest answers Watch search's [query]: the catalogues of its kind that take `search` (or, with a blank box,
+         * that need nothing but `skip` or `genre`), with the genre sent in the add-on's own spelling where a catalogue declares a
+         * `genre` extra offering it. Anime comes from catalogues of type `anime` or a genre option "Anime". With a blank box and a
+         * year chip alone, Cinemeta-style "year" catalogues (a required genre extra whose options are years) are asked year by
+         * year. Language is never sent: metas do not say a title's original language.
+         */
+        fun queryPlan(m: StremioManifest, query: WatchQuery, currentYear: Int): StremioQueryPlan {
+            if (query.kind == WatchKind.LIVE) return StremioQueryPlan(emptyList(), QueryAbility.SILENT)
+            val text = query.trimmed
+            val ofKind = m.catalogs.filter { c ->
+                c.type !in LIVE_TYPES && when (query.kind) { WatchKind.FILMS -> c.type == "movie"; WatchKind.SERIES -> c.type == "series"; else -> true }
+            }
+            val reachable = ofKind.filter { c -> if (text.isNotEmpty()) "search" in c.extras else c.requiredExtras.all { it == "skip" || it == "genre" } }
+            if (reachable.isEmpty()) return StremioQueryPlan(emptyList(), QueryAbility.SILENT)
+            fun animeOption(c: StremioCatalog) = c.options["genre"].orEmpty().firstOrNull { it.equals("anime", true) }
+            fun extras(c: StremioCatalog): Map<String, String>? {
+                val out = LinkedHashMap<String, String>()
+                val options = c.options["genre"].orEmpty()
+                query.genre?.let { g ->
+                    if ("genre" !in c.extras) return null
+                    out["genre"] = if (options.isEmpty()) g.label else g.optionIn(options) ?: return null
+                }
+                if (query.kind == WatchKind.ANIME && c.type != "anime") {
+                    if (query.genre != null) return null
+                    out["genre"] = animeOption(c) ?: return null
+                }
+                if (text.isNotEmpty()) out["search"] = text
+                if ("genre" in c.requiredExtras && "genre" !in out) return null
+                return out
+            }
+            val animeOk = query.kind != WatchKind.ANIME || reachable.any { it.type == "anime" || animeOption(it) != null }
+            var asks = reachable.mapNotNull { c -> extras(c)?.let { StremioAsk(c, it) } }
+            var year = FilterSupport.CHECKED
+            val years = query.years
+            if (text.isEmpty() && years != null && query.genre == null && query.kind != WatchKind.ANIME) {
+                val range = years.range(currentYear)
+                val byYear = reachable.filter(::isYearCatalog).flatMap { c ->
+                    c.options["genre"].orEmpty().filter { it.toInt() in range }.sortedDescending().take(10).map { StremioAsk(c, mapOf("genre" to it)) }
+                }
+                if (byYear.isNotEmpty()) { asks = byYear; year = FilterSupport.SENT }
+            }
+            // Browsing asks one list of each kind (its most popular), not every catalogue the add-on has.
+            if (text.isEmpty() && year != FilterSupport.SENT) asks = asks.distinctBy { it.catalog.type }.take(3)
+            val ability = QueryAbility(
+                answers = true,
+                anime = if (animeOk) FilterSupport.SENT else FilterSupport.NONE,
+                genre = if (query.genre == null || asks.isNotEmpty()) FilterSupport.SENT else FilterSupport.NONE,
+                year = year,
+                language = FilterSupport.NONE,
+            )
+            return StremioQueryPlan(if (animeOk) asks else emptyList(), ability)
+        }
+
+        /** Cinemeta's "year" lists: a required genre extra whose every option is a year. */
+        internal fun isYearCatalog(c: StremioCatalog): Boolean =
+            "genre" in c.requiredExtras && c.options["genre"].orEmpty().let { o -> o.isNotEmpty() && o.all { it.length == 4 && it.all(Char::isDigit) } }
+
         private val LIVE_TYPES = setOf("tv", "channel")
         private val KNOWN_TYPES = setOf("movie", "series")
 

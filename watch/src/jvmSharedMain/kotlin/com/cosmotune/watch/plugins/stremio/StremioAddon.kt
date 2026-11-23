@@ -17,7 +17,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 /** One resource of a manifest (`stream`, `meta`, `catalog`, `subtitles`), optionally narrowed to types and id prefixes. */
 data class StremioResource(val name: String, val types: List<String>?, val idPrefixes: List<String>?)
 
-data class StremioCatalog(val type: String, val id: String, val name: String, val extras: List<String>, val requiredExtras: List<String>)
+/** A manifest catalogue: the extras it takes (`search`, `genre`, `skip`), those it needs, and each extra's allowed values when listed. */
+data class StremioCatalog(val type: String, val id: String, val name: String, val extras: List<String>, val requiredExtras: List<String>,
+    val options: Map<String, List<String>> = emptyMap())
 
 data class StremioManifest(
     val id: String,
@@ -66,7 +68,8 @@ data class StremioManifest(
                 val cid = c.str("id") ?: return@mapNotNull null
                 val extras = c.list("extra").mapNotNull { it.str("name") } + c.strings("extraSupported")
                 val required = c.list("extra").filter { it.bool("isRequired") == true }.mapNotNull { it.str("name") } + c.strings("extraRequired")
-                StremioCatalog(type, cid, c.str("name") ?: cid, extras.distinct(), required.distinct())
+                val options = c.list("extra").mapNotNull { x -> x.str("name")?.let { it to x.strings("options") } }.filter { it.second.isNotEmpty() }.toMap()
+                StremioCatalog(type, cid, c.str("name") ?: cid, extras.distinct(), required.distinct(), options)
             }
             val hints = e.child("behaviorHints")
             return StremioManifest(id, e.str("name") ?: id, e.str("version"), e.str("description"), e.str("logo"), e.strings("types"),

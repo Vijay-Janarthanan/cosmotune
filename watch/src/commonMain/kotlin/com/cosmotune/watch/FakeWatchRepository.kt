@@ -286,6 +286,28 @@ class FakeWatchRepository(
             channelList.filter { it.name.contains(q, true) })
     }
 
+    /** The board's titles, searched by name or (with a blank box) browsed, every filter checked on them. */
+    override suspend fun find(query: WatchQuery, currentYear: Int): WatchFound {
+        wait()
+        val q = query.trimmed
+        val all = if (q.isEmpty()) films + series else (films + series).filter { it.name.contains(q, true) }
+        val ability = QueryAbility(true, genre = FilterSupport.CHECKED, language = FilterSupport.CHECKED, anime = FilterSupport.CHECKED)
+        val titles = if (query.kind == WatchKind.LIVE || !query.asks(WatchQuery.META_SOURCE)) emptyList()
+            else WatchSearchRules.sort(all.filter { WatchSearchRules.keeps(it, query, ability, currentYear) }, query.sort, q)
+        val channels = if (q.isEmpty() && query.kind != WatchKind.LIVE) emptyList() else channelList.filter { q.isEmpty() || it.name.contains(q, true) }
+        return WatchFound(query, titles, WatchSearchRules.channelsFor(query, channels), answered = 1)
+    }
+
+    override fun searchSources(): List<SearchSource> = listOf(SearchSource(WatchQuery.META_SOURCE, "TMDB")) + super.searchSources()
+
+    private val recentState = MutableStateFlow(listOf("harbour town", "studio ghibli"))
+    override val recentSearches: StateFlow<List<String>> = recentState.asStateFlow()
+    override suspend fun setRecentSearches(searches: List<String>) { recentState.value = searches.take(8) }
+
+    private val preferencesState = MutableStateFlow(WatchPreferences())
+    override val preferences: StateFlow<WatchPreferences> = preferencesState.asStateFlow()
+    override suspend fun setPreferences(preferences: WatchPreferences) { preferencesState.value = preferences }
+
     override suspend fun setPluginEnabled(id: String, enabled: Boolean) {
         pluginsState.value = pluginsState.value.map { if (it.id == id) it.copy(enabled = enabled) else it }
     }
@@ -359,12 +381,12 @@ class FakeWatchRepository(
     private companion object {
         fun film(id: Int, name: String, year: Int, runtime: Int, rating: Double, overview: String, genre: String, badge: String? = null) = TitleSummary(
             WatchKey.tmdbFilm(id), TitleType.FILM, name, year, posterUrl = null, rating = rating, overview = overview, genres = listOf(genre),
-            runtimeMin = runtime, ids = ExternalIds(tmdb = id, imdb = "tt${1_000_000 + id}"), badge = badge)
+            runtimeMin = runtime, ids = ExternalIds(tmdb = id, imdb = "tt${1_000_000 + id}"), badge = badge, originalLanguage = if (id == 7) "ta" else "en")
 
         /** For a fake series, [seasons] is carried in runtimeMin until the page builds its seasons. */
         fun show(id: Int, name: String, year: Int, rating: Double, overview: String, seasons: Int) = TitleSummary(
             WatchKey.tmdbSeries(id), TitleType.SERIES, name, year, rating = rating, overview = overview, genres = listOf("Drama"),
-            runtimeMin = seasons, ids = ExternalIds(tmdb = id))
+            runtimeMin = seasons, ids = ExternalIds(tmdb = id), originalLanguage = "en")
 
         fun episodeKey(series: Int, season: Int, episode: Int) = WatchKey.tmdbEpisode(series, season, episode)
 

@@ -16,6 +16,7 @@ import com.cosmotune.watch.model.WatchKey
 import com.cosmotune.watch.model.WatchProgress
 import com.cosmotune.watch.model.WatchProvider
 import com.cosmotune.watch.plugin.AddSourceResult
+import com.cosmotune.watch.plugin.Capability
 import com.cosmotune.watch.plugin.PluginInfo
 import com.cosmotune.watch.plugin.UserSourceSpec
 import kotlinx.coroutines.flow.Flow
@@ -278,6 +279,28 @@ interface WatchRepository {
     // Search
     suspend fun search(query: String): SearchResults
 
+    /**
+     * Watch search with its chips: every source that can apply the filters is asked with them (a blank box browses popular titles
+     * that match), the rest are left out and counted, and the answers are checked here too, merged and sorted. The default
+     * searches by text alone and checks every filter on what comes back.
+     */
+    suspend fun find(query: WatchQuery, currentYear: Int): WatchFound {
+        if (query.browsing && query.kind != WatchKind.LIVE) return WatchFound(query, emptyList())
+        val found = if (query.browsing) SearchResults("", emptyList(), emptyList(), channels(ChannelFilter()).take(30)) else search(query.trimmed)
+        val checked = QueryAbility(true, genre = FilterSupport.CHECKED, language = FilterSupport.CHECKED, anime = FilterSupport.CHECKED)
+        val titles = if (query.kind == WatchKind.LIVE) emptyList()
+            else WatchSearchRules.sort((found.films + found.series).filter { WatchSearchRules.keeps(it, query, checked, currentYear) }, query.sort, query.trimmed)
+        return WatchFound(query, titles, WatchSearchRules.channelsFor(query, found.channels), answered = 1)
+    }
+
+    /** The sources Watch search asks (the Source chip, "7 sources on"): the metadata source, then every plugin that is on with titles or channels. */
+    fun searchSources(): List<SearchSource> = plugins.value
+        .filter { it.enabled && (Capability.CATALOG in it.capabilities || Capability.LIVE in it.capabilities) }.map { SearchSource(it.id, it.name) }
+
+    /** This viewer's recent searches on this device, newest first. */
+    val recentSearches: StateFlow<List<String>> get() = DEFAULT_RECENT_SEARCHES
+    suspend fun setRecentSearches(searches: List<String>) {}
+
     // Plugins
     suspend fun setPluginEnabled(id: String, enabled: Boolean)
     /** Checks the source (manifest, sign-in, playlist) before adding it; nothing is stored when it fails. */
@@ -316,6 +339,7 @@ interface WatchRepository {
     suspend fun nextEpisode(episode: WatchKey): Episode?
 }
 
+private val DEFAULT_RECENT_SEARCHES: StateFlow<List<String>> = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
 private val DEFAULT_WATCH_PREFERENCES: StateFlow<WatchPreferences> = kotlinx.coroutines.flow.MutableStateFlow(WatchPreferences())
 private val DEFAULT_WATCH_PROFILES: StateFlow<List<com.cosmotune.watch.model.WatchProfile>> = kotlinx.coroutines.flow.MutableStateFlow(listOf(com.cosmotune.watch.model.WatchProfile("default", "Everyone")))
 private val DEFAULT_WATCH_PROFILE: StateFlow<String> = kotlinx.coroutines.flow.MutableStateFlow("default")

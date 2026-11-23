@@ -58,6 +58,11 @@ class InternetArchivePlugin(
         return searchRaw("$query AND NOT ${ArchiveTitles.ADULT_QUERY}", rows = catalog.pageSize, page = skip / catalog.pageSize + 1, safe = true)
     }
 
+    /** Films only: a search for series or anime does not ask it. */
+    override suspend fun queryAbility(query: com.cosmotune.watch.WatchQuery, currentYear: Int): com.cosmotune.watch.QueryAbility =
+        if (query.kind == com.cosmotune.watch.WatchKind.SERIES || query.kind == com.cosmotune.watch.WatchKind.ANIME) com.cosmotune.watch.QueryAbility.SILENT
+        else super.queryAbility(query, currentYear)
+
     override suspend fun search(query: String, type: TitleType?): List<TitleSummary> {
         if (type == TitleType.SERIES) return emptyList()
         val q = query.replace("\"", "")

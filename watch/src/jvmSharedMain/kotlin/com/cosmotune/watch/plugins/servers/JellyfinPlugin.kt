@@ -71,6 +71,14 @@ class JellyfinPlugin(
         return items("SearchTerm=${query.urlEncode()}&IncludeItemTypes=$types&Recursive=true&Limit=30").mapNotNull(::summaryOf)
     }
 
+    /** The server filters by genre and date itself, by text or browsing; it does not keep a title's original language. */
+    override suspend fun queryAbility(query: com.cosmotune.watch.WatchQuery, currentYear: Int): com.cosmotune.watch.QueryAbility =
+        if (query.kind == com.cosmotune.watch.WatchKind.LIVE) com.cosmotune.watch.QueryAbility.SILENT
+        else com.cosmotune.watch.QueryAbility(true, genre = com.cosmotune.watch.FilterSupport.SENT, year = com.cosmotune.watch.FilterSupport.SENT)
+
+    override suspend fun find(query: com.cosmotune.watch.WatchQuery, currentYear: Int): List<TitleSummary> =
+        items(itemsQuery(query, currentYear)).mapNotNull(::summaryOf)
+
     private suspend fun items(query: String, ttl: Long = 10 * 60_000L): List<JsonElement> =
         http.getJson("$server/Users/${session.userId}/Items?$query&Fields=$fields", auth, ttl).list("Items")
 
@@ -152,6 +160,25 @@ class JellyfinPlugin(
     }
 
     companion object {
+        /** The `/Items` query of Watch search's [query]: text, kind, genre (any of its spellings), dates and order. */
+        fun itemsQuery(query: com.cosmotune.watch.WatchQuery, currentYear: Int): String = buildList {
+            if (!query.browsing) add("SearchTerm=${query.trimmed.urlEncode()}")
+            add("IncludeItemTypes=" + when (query.kind.titleType) { TitleType.FILM -> "Movie"; TitleType.SERIES -> "Series"; null -> "Movie,Series" })
+            add("Recursive=true")
+            query.genre?.let { g -> add("Genres=" + g.spellings.joinToString("|").urlEncode()) }
+            query.years?.range(currentYear)?.let { r ->
+                add("MinPremiereDate=${r.first}-01-01T00:00:00Z")
+                add("MaxPremiereDate=${r.last}-12-31T23:59:59Z")
+            }
+            when (query.sort) {
+                com.cosmotune.watch.WatchSort.BEST -> if (query.browsing) add("SortBy=DateCreated&SortOrder=Descending")
+                com.cosmotune.watch.WatchSort.NEWEST -> add("SortBy=PremiereDate,ProductionYear&SortOrder=Descending")
+                com.cosmotune.watch.WatchSort.RATED -> add("SortBy=CommunityRating&SortOrder=Descending")
+                com.cosmotune.watch.WatchSort.NAME -> add("SortBy=SortName&SortOrder=Ascending")
+            }
+            add("Limit=40")
+        }.joinToString("&")
+
         fun normalise(server: String) = server.trim().trimEnd('/').let { if (it.contains("://")) it else "http://$it" }
 
         /** Signs in with a user name and password; returns the session to keep (the password is not). */

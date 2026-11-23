@@ -26,6 +26,8 @@ class CinemetaMetadata(http: WatchHttp, manifestUrl: String = "https://v3-cineme
     override suspend fun title(key: WatchKey): Title? = addon.title(key)
     override suspend fun episodes(series: WatchKey, season: Int): List<Episode> = addon.episodes(series, season)
     override suspend fun search(query: String): List<TitleSummary> = addon.search(query, null)
+    override suspend fun queryAbility(query: com.cosmotune.watch.WatchQuery, currentYear: Int) = addon.queryAbility(query, currentYear)
+    override suspend fun find(query: com.cosmotune.watch.WatchQuery, currentYear: Int) = addon.find(query, currentYear)
 
     override suspend fun rows(type: TitleType?): List<HomeRow> = coroutineScope {
         val rows = buildList {
