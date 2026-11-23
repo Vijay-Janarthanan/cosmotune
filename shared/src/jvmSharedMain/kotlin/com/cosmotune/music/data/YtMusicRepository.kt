@@ -1109,6 +1109,20 @@ object YtMusicRepository {
     }
 
     /**
+     * [videoIds] added to [playlistId] (whose page is [browseId]) and then moved to its start, in their order, for "Add songs to the
+     * start of playlists". The songs stay added at the end if the move is refused.
+     */
+    suspend fun addToPlaylistStart(playlistId: String, browseId: String, videoIds: List<String>): Result<Map<String, String>> {
+        val first = allSongs(browseId).getOrNull()?.firstNotNullOfOrNull { it.setVideoId }
+        val added = addToPlaylist(playlistId, videoIds).getOrElse { return Result.failure(it) }
+        if (first != null) {
+            val moves = videoIds.mapNotNull { added[it] }.filter { it != first }.map { com.cosmotune.music.data.model.PlaylistMove(it, first) }
+            call("playlist:start") { Innertube.movePlaylistItems(playlistId, moves) }
+        }
+        return Result.success(added)
+    }
+
+    /**
      * Rearranges a playlist from [current] to [target], both its entries'
      * set-video-ids — see [playlistMoves]. Sent in batches so a large
      * rearrangement doesn't become one oversized request.

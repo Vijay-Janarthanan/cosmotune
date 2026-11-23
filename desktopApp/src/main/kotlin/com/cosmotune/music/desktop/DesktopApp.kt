@@ -1658,7 +1658,9 @@ fun CosmotuneDesktopApp() {
     fun addToPlaylist(playlist: DesktopPlaylist) {
         val song = playlistTarget ?: return
         playlists = playlists.map { current ->
-            if (current.id == playlist.id) current.copy(songs = (current.songs + song).distinctBy(Song::videoId)) else current
+            if (current.id != playlist.id) current
+            else if (com.cosmotune.settings.Extras.settings.playlistAddToStart.value) current.copy(songs = (listOf(song) + current.songs).distinctBy(Song::videoId))
+            else current.copy(songs = (current.songs + song).distinctBy(Song::videoId))
         }
         persistence.savePlaylists(playlists)
         playlistTarget = null
@@ -1669,7 +1671,12 @@ fun CosmotuneDesktopApp() {
         playlistBusy = true
         playlistError = null
         scope.launch {
-            DesktopSearchClient.addToPlaylist(playlist.playlistId, listOf(song.videoId))
+            val added = if (com.cosmotune.settings.Extras.settings.playlistAddToStart.value) {
+                com.cosmotune.music.data.YtMusicRepository.addToPlaylistStart(playlist.playlistId, playlist.browseId, listOf(song.videoId))
+            } else {
+                DesktopSearchClient.addToPlaylist(playlist.playlistId, listOf(song.videoId))
+            }
+            added
                 .onSuccess { closePlaylistDialogs() }
                 .onFailure {
                     DesktopTrackLog.log("playlist: could not add ${song.videoId}: ${it.message}")
