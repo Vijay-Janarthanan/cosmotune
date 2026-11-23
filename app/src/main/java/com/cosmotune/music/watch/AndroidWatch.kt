@@ -63,7 +63,8 @@ object AndroidWatch {
     fun player(context: Context): EngineWatchPlayer = playerRef ?: run {
         val graph = androidVideoGraph(context.applicationContext)
         EngineWatchPlayer(repository(context), graph.playback.engine, onYouTube = { id, at -> graph.playback.play(id, at) },
-            stopOthers = { runCatching { graph.playback.stop() } })
+            stopOthers = { runCatching { graph.playback.stop() } }, speech = AndroidSpeechSampler(context.applicationContext),
+            frames = AndroidFrameGrabber, previewDir = File(File(context.applicationContext.cacheDir, "watch"), "previews"))
     }.also { playerRef = it }
 
     /** A `stremio://` or `cosmotune://watch/...` link opened from another app: the Install sheet shows it. */

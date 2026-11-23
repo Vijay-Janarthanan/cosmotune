@@ -95,6 +95,7 @@ import com.cosmotune.ui.watch.WatchSurfaceScale
 import com.cosmotune.ui.watch.WatchTab
 import com.cosmotune.watch.LiveNowItem
 import com.cosmotune.watch.WATCH_SKIP_MS
+import com.cosmotune.watch.detail
 import com.cosmotune.watch.WatchPlayer
 import com.cosmotune.watch.WatchPlayerState
 import com.cosmotune.watch.WatchPlayerStatus
@@ -212,8 +213,8 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
             Key.MediaPlayPause -> { playPause(); true }
             Key.MediaPlay -> { player.engine.play(); true }
             Key.MediaPause -> { player.engine.pause(); true }
-            Key.MediaRewind -> { if (!state.isLive) seekBy(-WATCH_SKIP_MS); true }
-            Key.MediaFastForward -> { if (!state.isLive) seekBy(WATCH_SKIP_MS); true }
+            Key.MediaRewind -> { if (!state.isLive || com.cosmotune.watch.LiveShift.canShift(player.engine.snapshot.value.durationMs)) seekBy(-WATCH_SKIP_MS); true }
+            Key.MediaFastForward -> { if (!state.isLive || com.cosmotune.watch.LiveShift.canShift(player.engine.snapshot.value.durationMs)) seekBy(WATCH_SKIP_MS); true }
             else -> if (cardUp || failed) false else stageKey(e, state, onPlayPause = {
                 playPause()
                 flash = if (player.engine.snapshot.value.playing) TvFlash.Pause else TvFlash.Play
@@ -250,6 +251,7 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
         WatchEngineSubtitles(player.engine, watchPreferences.subtitles)
         LaunchedEffect(player, watchPreferences.sound) { player.setSoundMix(watchPreferences.sound) }
         LaunchedEffect(player, watchPreferences.softwareDecoding) { player.setSoftwareDecoding(watchPreferences.softwareDecoding) }
+        LaunchedEffect(player, watchPreferences.picture) { player.engine.setPictureFilter(watchPreferences.picture) }
         // The picture takes focus while the card is down, so the remote's keys reach [keys].
         Box(Modifier.fillMaxSize().focusRequester(stage).focusable().pointerInput(failed) {
             if (!failed) detectTapGestures { cardUp = !cardUp }
@@ -427,6 +429,8 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                 if (state.selectedSubtitleId != null) {
                     TvListRow(title = "Earlier by 0.5 s", value = "%+.1f s".format(state.subtitleDelayMs / 1000f), onClick = { player.setSubtitleDelay(state.subtitleDelayMs - 500) })
                     TvListRow(title = "Later by 0.5 s", onClick = { player.setSubtitleDelay(state.subtitleDelayMs + 500) })
+                    if (player.canAutoSync()) TvListRow(title = "Sync automatically", subtitle = state.subtitleSync.detail(),
+                        onClick = { if (state.subtitleSync != com.cosmotune.watch.SubtitleSyncState.Listening) player.autoSyncSubtitles() })
                 }
             }
         }
@@ -436,6 +440,11 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                     onClick = { menu = null; scale = WatchSurfaceScale.FIT }, modifier = Modifier.tvInitialFocus(scale == WatchSurfaceScale.FIT))
                 TvListRow(title = "Fill", subtitle = "Fills the screen, cuts the edges", value = if (scale == WatchSurfaceScale.CROP) "On" else null,
                     onClick = { menu = null; scale = WatchSurfaceScale.CROP }, modifier = Modifier.tvInitialFocus(scale == WatchSurfaceScale.CROP))
+                val picture = repository.preferences.collectAsState().value.picture
+                com.cosmotune.watch.WatchPictureChoice.of(player.engine).forEach { choice ->
+                    TvListRow(title = choice.label, subtitle = choice.detail, value = if (picture == choice.filter) "On" else null,
+                        onClick = { subtitleScope.launch { repository.setPreferences(repository.preferences.value.copy(picture = choice.filter)) } })
+                }
             }
         }
         TvWatchMenu.CHANNELS -> TvDialog(onDismissRequest = { menu = null }, title = "Channels", width = 560.dp) {
@@ -518,7 +527,7 @@ private fun TvFilmCard(
         tick
         val p = player.engine.positionMs()
         when {
-            state.isLive -> if (programme != null) "● Live · " + (summary?.name ?: channel?.name.orEmpty()) else "● Live"
+            state.isLive -> com.cosmotune.watch.LiveShift.label(durationMs, p) + if (programme != null) " · " + (summary?.name ?: channel?.name.orEmpty()) else ""
             state.status == WatchPlayerStatus.RESOLVING -> "Finding the best copy"
             state.status == WatchPlayerStatus.LOADING || state.status == WatchPlayerStatus.BUFFERING -> "Loading · ${clock(p)}"
             durationMs > 0 -> "${clock(p)} / ${clock(durationMs)}" + if (durationMs > p) " · " + left(durationMs - p) else ""
@@ -544,7 +553,7 @@ private fun TvFilmCard(
         playing = playing,
         onPlay = onPlayPause,
         height = 236.dp,
-        progress = if (durationMs > 0 && !state.isLive) ({ ringFrame.longValue; (player.engine.positionMs().toFloat() / durationMs).coerceIn(0f, 1f) }) else null,
+        progress = if (durationMs > 0 && (!state.isLive || com.cosmotune.watch.LiveShift.canShift(durationMs))) ({ ringFrame.longValue; (player.engine.positionMs().toFloat() / durationMs).coerceIn(0f, 1f) }) else null,
         spinning = playing,
         playFocus = playFocus,
         below = {
@@ -559,7 +568,12 @@ private fun TvFilmCard(
                     TvWatchRound(CosmoIcons.Forward30, "Forward 30 seconds", ink) { onSeek(WATCH_SKIP_MS) }
                 } else {
                     TvButton("Channels", onClick = { onMenu(TvWatchMenu.CHANNELS) })
-                    onLive?.let { TvButton("Jump to live", onClick = it) }
+                    // A channel whose window the player keeps can be rewound in it, and goes back to live in it.
+                    if (com.cosmotune.watch.LiveShift.canShift(durationMs)) {
+                        TvWatchRound(CosmoIcons.Replay30, "Back 30 seconds", ink) { onSeek(-WATCH_SKIP_MS) }
+                        TvWatchRound(CosmoIcons.Forward30, "Forward 30 seconds", ink) { onSeek(WATCH_SKIP_MS) }
+                        TvButton("Jump to live", onClick = { player.engine.seekTo(durationMs) })
+                    } else onLive?.let { TvButton("Jump to live", onClick = it) }
                 }
                 TvWatchRound(CosmoIcons.Expand, "Full screen", ink, onFullScreen)
                 onPip?.let { TvWatchRound(CosmoIcons.Pip, "Picture in picture", ink, it) }

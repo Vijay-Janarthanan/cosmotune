@@ -28,6 +28,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -370,8 +371,16 @@ fun WatchMessage(label: String, title: String, text: String, fonts: OrbitFonts, 
 
 /** A round tonal button that takes the focus (back, more, a star). */
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 fun WatchRoundButton(icon: ImageVector, label: String, look: OrbitLook, onClick: () -> Unit, modifier: Modifier = Modifier, ink: Color = look.ink, size: Dp = 40.dp, on: Boolean = false, enabled: Boolean = true) =
-    OrbitRoundButton(icon, label, ink, onClick, modifier, size = size, on = on, onInk = look.ground, enabled = enabled)
+    // Its name shows on hover on a computer and on a long press on a phone.
+    androidx.compose.material3.TooltipBox(
+        positionProvider = androidx.compose.material3.TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip(containerColor = look.ink, contentColor = look.ground) { Text(label, fontSize = 12.sp, lineHeight = 16.sp, color = look.ground) } },
+        state = androidx.compose.material3.rememberTooltipState(),
+    ) {
+        OrbitRoundButton(icon, label, ink, onClick, modifier, size = size, on = on, onInk = look.ground, enabled = enabled)
+    }
 
 /** A focus target with no look of its own (TV rows that have no click). */
 internal fun Modifier.watchFocusable(interaction: MutableInteractionSource): Modifier = this.focusable(interactionSource = interaction)

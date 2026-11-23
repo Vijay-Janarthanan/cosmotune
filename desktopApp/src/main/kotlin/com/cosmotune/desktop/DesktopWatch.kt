@@ -52,7 +52,8 @@ object DesktopWatch {
     val player: com.cosmotune.watch.player.EngineWatchPlayer by lazy {
         val graph = requireNotNull(desktopVideoGraph(build = true))
         com.cosmotune.watch.player.EngineWatchPlayer(repository, graph.playback.engine, onYouTube = { id, startMs -> graph.playback.play(id, startMs) },
-            stopOthers = { runCatching { graph.playback.stop() } })
+            stopOthers = { runCatching { graph.playback.stop() } }, speech = DesktopSpeechSampler,
+            frames = DesktopFrameGrabber, previewDir = com.cosmotune.music.desktop.DesktopMediaCache.directory.resolve("watch").resolve("previews").toFile())
     }
 
     /**

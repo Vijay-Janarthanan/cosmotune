@@ -38,7 +38,8 @@ internal fun WatchSeekThumb(previews: SeekPreviews, timeMs: Long) {
     val frame = previews.frameAt(timeMs)
     val url = previews.sheets.getOrNull(frame.sheet)
     val context = LocalPlatformContext.current
-    val request = remember(url, context) { url?.let { ImageRequest.Builder(context).data(it).size(coil3.size.Size.ORIGINAL).build() } }
+    // Thumbnails drawn on this device are files; a server's are web addresses.
+    val request = remember(url, context) { url?.let { ImageRequest.Builder(context).data(if (it.startsWith("file:")) java.io.File(java.net.URI(it)) else it).size(coil3.size.Size.ORIGINAL).build() } }
     Column(
         Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xE6141012)).padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

@@ -63,6 +63,16 @@ class EngineWatchPlayer(
     /** How long to wait for more plugins once one copy is found, before starting. */
     private val settleMs: Long = 1_500,
     private val tickMs: Long = 500,
+    /** How long a torrent may buffer before it is picked up again where it stopped. */
+    private val torrentStallMs: Long = 45_000,
+    /** Hears the copy's sound for Sync automatically; null where the platform cannot decode it. */
+    private val speech: com.cosmotune.watch.WatchSpeechSampler? = null,
+    /** Reads a subtitle file's text (Sync automatically reads its times). */
+    private val subtitleText: suspend (String) -> String = ::readSubtitleText,
+    /** Draws seek thumbnails for files on this device that bring none; null where the platform cannot. */
+    private val frames: com.cosmotune.watch.WatchFrameGrabber? = null,
+    /** Where those thumbnails are kept (they are drawn once per file). */
+    private val previewDir: java.io.File? = null,
 ) : WatchPlayer {
     private val mutable = MutableStateFlow(WatchPlayerState())
     override val state: StateFlow<WatchPlayerState> = mutable.asStateFlow()
@@ -103,6 +113,7 @@ class EngineWatchPlayer(
         job?.cancel(); ticker?.cancel(); releasePlayback()
         engine.unload()
         tried.clear(); external = emptyList(); added.clear(); countdownCancelled = false; autoNextDone = false
+        stallSince = 0L; resumedTorrent = null
         preloadJob?.cancel(); preloadJob = null
         val muted = state.value.muted
         mutable.value = WatchPlayerState(WatchPlayerStatus.RESOLVING, target, summary, subtitleLine(target), isLive = target is PlayTarget.Live, muted = muted)
@@ -244,6 +255,9 @@ class EngineWatchPlayer(
 
     private fun load(stream: Stream, url: String, startMs: Long, current: WatchPlayerState, target: PlayTarget) {
         val live = stream.isLive || target is PlayTarget.Live
+        loadedUrl = url
+        syncJob?.cancel()
+        mutable.update { it.copy(subtitleSync = com.cosmotune.watch.SubtitleSyncState.Idle) }
         engine.load(PlaybackRequest(
             videoId = target.key.value,
             input = MediaInput.Url(url, kindOf(stream.protocol), mimeOf(stream)),
@@ -301,6 +315,19 @@ class EngineWatchPlayer(
             PlayerStatus.ENDED -> WatchPlayerStatus.ENDED
             PlayerStatus.ERROR -> WatchPlayerStatus.ERROR
         }
+        // A torrent that stalls (it has been buffering a long while, or its engine gave up) is picked up again once where it stopped,
+        // with its peers looked for afresh, before another copy is tried.
+        val torrent = s.stream?.takeIf { it.isTorrent }
+        if (torrent != null && status == WatchPlayerStatus.BUFFERING) { if (stallSince == 0L) stallSince = now() } else stallSince = 0L
+        val stalled = torrent != null && (status == WatchPlayerStatus.ERROR || (stallSince > 0 && now() - stallSince >= torrentStallMs))
+        if (stalled && resumedTorrent != torrent!!.url to torrent.torrentFileIndex) {
+            resumedTorrent = torrent.url to torrent.torrentFileIndex
+            stallSince = 0L
+            val at = engine.positionMs().coerceAtLeast(0)
+            mutable.update { it.copy(failover = "The torrent stalled; picking it up again where it stopped") }
+            play(torrent, at)
+            return
+        }
         if (status == WatchPlayerStatus.ERROR) {
             val error = if (s.stream?.isTorrent == true) "The torrent engine could not play this copy. Try another copy with available peers."
                 else snap.error?.message ?: "That source failed"
@@ -321,6 +348,7 @@ class EngineWatchPlayer(
             scope.launch {
                 val extras = runCatching { repository.playbackExtras(skipTarget, stream, duration) }.getOrDefault(com.cosmotune.watch.model.PlaybackExtras())
                 mutable.update { if (it.target?.key == skipTarget.key && it.stream?.url == stream?.url) it.copy(skipIntervals = extras.skips, chapters = extras.chapters, previews = extras.previews) else it }
+                if (extras.previews == null && stream != null) localPreviews(stream, duration)
             }
         }
         val remaining = duration - position
@@ -391,6 +419,69 @@ class EngineWatchPlayer(
     override fun setSubtitleDelay(ms: Long) {
         mutable.update { it.copy(subtitleDelayMs = ms) }
         engine.setSubtitleDelay(ms)
+    }
+
+    @Volatile private var loadedUrl: String? = null
+    private var stallSince = 0L
+    /** The torrent already picked up again after a stall in this opening (once each). */
+    private var resumedTorrent: Pair<String, Int?>? = null
+
+    /** Draws (once per file) and shows seek thumbnails for [stream] when it is a file on this device. */
+    private suspend fun localPreviews(stream: Stream, duration: Long) {
+        val grabber = frames ?: return
+        val dir = previewDir ?: return
+        val path = com.cosmotune.watch.LocalPreviews.pathOf(stream.url) ?: return
+        val file = java.io.File(path)
+        if (!file.isFile) return
+        val plan = com.cosmotune.watch.LocalPreviews.plan(duration) ?: return
+        val name = "${(path + ":" + file.length() + ":" + file.lastModified()).hashCode().toUInt().toString(16)}.jpg"
+        val out = java.io.File(dir, name)
+        if (!out.isFile || out.length() == 0L) {
+            dir.mkdirs()
+            val part = java.io.File(dir, "$name.part")
+            val made = runCatching {
+                grabber.sheet(path, com.cosmotune.watch.LocalPreviews.times(plan), plan.columns, plan.frameWidth, plan.frameHeight, part.path)
+            }.getOrDefault(false)
+            if (!made || !part.renameTo(out)) { part.delete(); return }
+        }
+        val previews = plan.copy(sheets = listOf(out.toURI().toString()))
+        mutable.update { if (it.stream?.url == stream.url && it.previews == null) it.copy(previews = previews) else it }
+    }
+    private var syncJob: Job? = null
+
+    private fun selectedSubtitleFile(): Subtitle? = state.value.let { s -> s.subtitles.firstOrNull { it.id == s.selectedSubtitleId }?.takeIf { it.url != null } }
+
+    override fun canAutoSync(): Boolean {
+        val s = state.value
+        return speech != null && !s.isLive && !remotePlayback && loadedUrl != null && selectedSubtitleFile() != null
+    }
+
+    override fun autoSyncSubtitles() {
+        val sampler = speech ?: return
+        val sub = selectedSubtitleFile() ?: return
+        val url = loadedUrl ?: return
+        val headers = state.value.stream?.headers.orEmpty()
+        syncJob?.cancel()
+        mutable.update { it.copy(subtitleSync = com.cosmotune.watch.SubtitleSyncState.Listening) }
+        syncJob = scope.launch {
+            val result = runCatching {
+                val cues = com.cosmotune.watch.SubtitleSync.cueTimes(subtitleText(sub.url!!))
+                if (cues.isEmpty()) return@runCatching com.cosmotune.watch.SubtitleSyncState.Failed("This subtitle file has no times to move")
+                val duration = state.value.durationMs
+                val listen = com.cosmotune.watch.SubtitleSync.LISTEN_MS
+                val from = engine.positionMs().let { if (duration > 0) it.coerceAtMost(duration - listen) else it }.coerceAtLeast(0)
+                val clip = sampler.sample(url, headers, from, listen)
+                    ?: return@runCatching com.cosmotune.watch.SubtitleSyncState.Failed("Couldn't hear this copy's sound")
+                val voices = com.cosmotune.watch.SubtitleSync.speech(clip)
+                    ?: return@runCatching com.cosmotune.watch.SubtitleSyncState.Failed("No clear voices here; try where people talk")
+                val delay = com.cosmotune.watch.SubtitleSync.align(voices, clip.startMs, cues)
+                    ?: return@runCatching com.cosmotune.watch.SubtitleSyncState.Failed("Couldn't match the lines to the voices here")
+                com.cosmotune.watch.SubtitleSyncState.Synced(delay)
+            }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it else com.cosmotune.watch.SubtitleSyncState.Failed("Couldn't hear this copy's sound") }
+            if (state.value.selectedSubtitleId != sub.id) return@launch
+            if (result is com.cosmotune.watch.SubtitleSyncState.Synced) setSubtitleDelay(result.delayMs)
+            mutable.update { it.copy(subtitleSync = result) }
+        }
     }
 
     override fun playNextEpisode() {
@@ -525,3 +616,11 @@ class EngineWatchPlayer(
     }
 }
 
+
+/** A subtitle file's text (web address or file on this device), gzip opened, at most 8 MB. */
+internal suspend fun readSubtitleText(url: String): String = kotlinx.coroutines.withContext(Dispatchers.IO) {
+    val connection = java.net.URI(url).toURL().openConnection().apply { connectTimeout = 15_000; readTimeout = 20_000; setRequestProperty("User-Agent", "Cosmotune") }
+    val bytes = connection.getInputStream().use { input -> input.readNBytes(8 * 1024 * 1024) }
+    val plain = if (bytes.size > 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()) java.util.zip.GZIPInputStream(bytes.inputStream()).use { it.readNBytes(16 * 1024 * 1024) } else bytes
+    String(plain, Charsets.UTF_8)
+}

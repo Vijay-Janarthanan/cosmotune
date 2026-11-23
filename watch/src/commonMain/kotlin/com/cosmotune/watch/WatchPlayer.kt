@@ -28,6 +28,8 @@ data class WatchPlayerState(
     val subtitles: List<Subtitle> = emptyList(),
     val selectedSubtitleId: String? = null,
     val subtitleDelayMs: Long = 0,
+    /** Sync automatically: listening, the delay it set, or why it could not. */
+    val subtitleSync: SubtitleSyncState = SubtitleSyncState.Idle,
     /** Set near the end of an episode: the next-episode card counts down from [nextEpisodeInMs]. */
     val nextEpisode: Episode? = null,
     val nextEpisodeInMs: Long? = null,
@@ -70,6 +72,10 @@ interface WatchPlayer {
     /** Fetches OpenSubtitles (and other subtitle plugins) for what is playing and adds them to [WatchPlayerState.subtitles]. */
     fun searchSubtitles(languages: List<String> = emptyList())
     fun setSubtitleDelay(ms: Long)
+    /** Whether [autoSyncSubtitles] can listen to what plays now with the subtitle file shown. */
+    fun canAutoSync(): Boolean = false
+    /** Listens to the sound around where it plays and sets the subtitle delay so the lines meet the voices. */
+    fun autoSyncSubtitles() {}
     /** Plays the sound as [mix] from now on, this video and the next (Night, Clear voices). */
     fun setSoundMix(mix: com.cosmotune.video.player.AudioMix) {}
     /** Decodes the picture in software only from now on (a changed choice reopens the copy playing, where it was). */

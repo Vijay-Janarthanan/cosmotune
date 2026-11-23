@@ -186,6 +186,9 @@ internal class MpvPlayer(
         set("pause", "yes")
         set("start", if (live) "none" else seconds(startMs))
         set("stream-lavf-o", if (live) LIVE_LAVF_OPTIONS else "")
+        // Live TV can be paused and rewound: the channel goes on being read while paused, and what was seen is kept behind the playhead.
+        set("demuxer-readahead-secs", if (live) "3600" else "30")
+        set("demuxer-max-back-bytes", if (live) "300MiB" else "50MiB")
         set("user-agent", userAgent ?: DEFAULT_USER_AGENT)
         set("http-header-fields", headerFields.joinToString(","))
         set("vid", if (audioOnly) "no" else "auto")

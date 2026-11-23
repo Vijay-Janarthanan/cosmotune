@@ -95,6 +95,8 @@ kotlin {
             }
             // Joining a downloaded video-only and audio-only file without re-encoding. The Android download engine (Y-24).
             implementation("androidx.media3:media3-transformer:1.11.0")
+            // Watch's picture looks (brighter, vivid, softer) on the player's frames.
+            implementation("androidx.media3:media3-effect:1.11.0")
             // Picture-in-picture listeners and the activity. The Android picture-in-picture state (Y-11).
             implementation("androidx.activity:activity-compose:1.9.3")
             // Services, notifications and the compat helpers. The two services (Y-11, Y-24).

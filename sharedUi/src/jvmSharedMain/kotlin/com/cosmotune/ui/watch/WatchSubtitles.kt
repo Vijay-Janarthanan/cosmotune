@@ -40,7 +40,7 @@ import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.orbit.OrbitSelectChip
 import com.cosmotune.ui.orbit.OrbitSwitch
 import com.cosmotune.ui.orbit.orbitFonts
-import com.cosmotune.video.player.VideoPlayerEngine
+import com.cosmotune.watch.WatchEngine
 import com.cosmotune.watch.SubtitleBackground
 import com.cosmotune.watch.SubtitleColour
 import com.cosmotune.watch.SubtitleFont
@@ -55,7 +55,7 @@ private val HEIGHT_NAMES = listOf("Lowest", "Low", "Middle", "High", "Highest")
  * themselves). Fills the box it is put in, which is the picture's own frame.
  */
 @Composable
-fun BoxScope.WatchEngineSubtitles(engine: VideoPlayerEngine, style: WatchSubtitleStyle) {
+fun BoxScope.WatchEngineSubtitles(engine: WatchEngine, style: WatchSubtitleStyle) {
     val cues by engine.cues.collectAsState()
     if (cues.isEmpty()) return
     WatchSubtitleText(cues.joinToString("\n") { it.text.trim() }, style)

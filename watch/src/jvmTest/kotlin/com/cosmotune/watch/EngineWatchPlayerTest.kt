@@ -187,6 +187,28 @@ class EngineWatchPlayerTest {
         assertEquals(1, closed.get())
     }
 
+    @Test fun aStalledTorrentIsPickedUpAgainWhereItStoppedOnceBeforeTheNextCopy() = runBlocking<Unit> {
+        val engine = FakeVideoPlayerEngine()
+        val torrent = stream("addon", "magnet:?xt=urn:btih:" + "b".repeat(40))
+        val direct = stream("one", "https://one/movie.mp4")
+        val opened = AtomicInteger()
+        val repo = object : WatchRepository by Repo(listOf(torrent, direct)) {
+            override suspend fun openPlayback(stream: Stream) = WatchPlaybackLease("http://127.0.0.1:3001/local.mp4") {}.also { opened.incrementAndGet() }
+        }
+        val player = EngineWatchPlayer(repo, engine, settleMs = 0, tickMs = 20, torrentStallMs = 200)
+        player.open(repo.targetOf(film), film, startMs = 0)
+        until("torrent playing") { opened.get() == 1 && engine.lastRequest != null }
+        engine.setSnapshot { it.copy(status = PlayerStatus.READY, playing = true, durationMs = 6_720_000) }
+        engine.setPosition(1_234_000)
+        engine.setSnapshot { it.copy(status = PlayerStatus.BUFFERING) }
+        until("picked up again") { opened.get() == 2 }
+        until("loaded again") { engine.lastRequest?.startMs == 1_234_000L }
+        assertEquals("http://127.0.0.1:3001/local.mp4", (engine.lastRequest?.input as? MediaInput.Url)?.url)
+        engine.fail(PlayerErrorKind.NETWORK, "no peers")
+        until("next copy") { (engine.lastRequest?.input as? MediaInput.Url)?.url == "https://one/movie.mp4" }
+        assertEquals(2, opened.get(), "a torrent is picked up again once")
+    }
+
     @Test fun youTubeCopiesGoToVideoModesPlayer() = runBlocking<Unit> {
         var handed: Pair<String, Long>? = null
         val repo = Repo(listOf(stream("youtube", "https://www.youtube.com/watch?v=abc123", StreamProtocol.YOUTUBE)))

@@ -244,6 +244,18 @@ interface VideoPlayerEngine {
      */
     fun setAudioPassthrough(on: Boolean) {}
 
+    /** The picture looks this engine can draw ([PictureFilter.NORMAL] always); empty for an engine that draws none. */
+    val pictureFilters: Set<PictureFilter> get() = emptySet()
+
+    /** Draws the picture with [filter] (Watch's Picture menu), kept across loads. The default does nothing. */
+    fun setPictureFilter(filter: PictureFilter) {}
+
+    /** Whether this engine takes its player's own options ([setPlayerOptions]): the computer's mpv. */
+    val takesPlayerOptions: Boolean get() = false
+
+    /** The player's own options (mpv's, as in an mpv.conf, already checked), applied now and at every load; dropped ones go back to what they were. */
+    fun setPlayerOptions(options: Map<String, String>) {}
+
     /** Frees the player; the engine is not used again. */
     fun release()
 }
@@ -256,3 +268,6 @@ private val NoSmoothness: StateFlow<SmoothnessReadout> = MutableStateFlow(Smooth
 
 /** How the sound is mixed for the room: as made, evened out for the night, or with voices brought forward. */
 enum class AudioMix { NORMAL, NIGHT, VOICES }
+
+/** A look for the picture: as made, brighter for dark scenes, more vivid colour, softer (less grain and blocking), sharper. */
+enum class PictureFilter { NORMAL, BRIGHTER, VIVID, SOFTER, SHARPER }

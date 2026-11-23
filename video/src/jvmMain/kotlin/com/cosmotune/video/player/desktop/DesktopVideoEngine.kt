@@ -335,6 +335,8 @@ class DesktopVideoEngine internal constructor(
         hardwareDue = start != steadyHwdec
         StartupTrace.mark(request.videoId, "mpv loadfile", "${if (target.direct) "direct" else if (target.remote) "through the loopback proxy" else "local file"}, decoding with hwdec=$start")
         player.load(number, target.url, request.startMs.coerceAtLeast(0), request.live, target.remote, audioOnly, userAgent, fields)
+        // The listener's own options come last, so they win over the per-load ones.
+        applyListenerOptions(player)
     }
 
     /** What mpv opens for [request]: the address, whether it reaches the network, whether mpv talks to the source itself. */
@@ -524,6 +526,34 @@ class DesktopVideoEngine internal constructor(
         post { playerRef?.set("af", mpvAudioFilter(mix)) }
     }
 
+    override val pictureFilters: Set<com.cosmotune.video.player.PictureFilter> = com.cosmotune.video.player.PictureFilter.entries.toSet()
+
+    override fun setPictureFilter(filter: com.cosmotune.video.player.PictureFilter) {
+        post { playerRef?.set("vf", mpvPictureFilter(filter)) }
+    }
+
+    override val takesPlayerOptions: Boolean get() = true
+
+    // The listener's mpv options, and what each was before it was first set (engine thread only).
+    private var listenerOptions: Map<String, String> = emptyMap()
+    private val optionDefaults = HashMap<String, String>()
+
+    override fun setPlayerOptions(options: Map<String, String>) {
+        post {
+            val player = playerRef
+            if (player != null) for (key in listenerOptions.keys - options.keys) optionDefaults[key]?.let { player.set(key, it) }
+            listenerOptions = options
+            player?.let(::applyListenerOptions)
+        }
+    }
+
+    private fun applyListenerOptions(player: MpvPlayer) {
+        for ((key, value) in listenerOptions) {
+            if (key !in optionDefaults) player.string(key)?.let { optionDefaults[key] = it }
+            player.set(key, value)
+        }
+    }
+
     override fun setSubtitleDelay(ms: Long) {
         post { playerRef?.set("sub-delay", MpvPlayer.seconds(ms)) }
     }
@@ -604,6 +634,15 @@ class DesktopVideoEngine internal constructor(
  * mpv's audio filter for [mix]: a compressor with make-up gain for Night (the same curve as
  * [com.cosmotune.video.player.sound.SoundMixer]), FFmpeg's dialogue enhancer for Clear voices.
  */
+/** FFmpeg's filters for each picture look: gamma for dark scenes, saturation and a little contrast, a light denoise, an unsharp mask. */
+internal fun mpvPictureFilter(filter: com.cosmotune.video.player.PictureFilter): String = when (filter) {
+    com.cosmotune.video.player.PictureFilter.NORMAL -> ""
+    com.cosmotune.video.player.PictureFilter.BRIGHTER -> "lavfi=[eq=gamma=1.25:brightness=0.02]"
+    com.cosmotune.video.player.PictureFilter.VIVID -> "lavfi=[eq=saturation=1.3:contrast=1.06]"
+    com.cosmotune.video.player.PictureFilter.SOFTER -> "lavfi=[hqdn3d=3:2:4:3]"
+    com.cosmotune.video.player.PictureFilter.SHARPER -> "lavfi=[unsharp=5:5:0.7:5:5:0.0]"
+}
+
 internal fun mpvAudioFilter(mix: com.cosmotune.video.player.AudioMix): String = when (mix) {
     com.cosmotune.video.player.AudioMix.NORMAL -> ""
     com.cosmotune.video.player.AudioMix.NIGHT -> "lavfi=[acompressor=threshold=0.0316:ratio=4:attack=5:release=250:makeup=3.16]"
