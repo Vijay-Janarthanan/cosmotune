@@ -72,6 +72,8 @@ data class TitleSummary(
     val origin: String = "tmdb",
     /** A short badge such as "FREE · PLUTO", shown on the card. */
     val badge: String? = null,
+    /** The language it was first made in (ISO 639-1 "ta"), where the source gives it; Watch search's Language chip checks it. */
+    val originalLanguage: String? = null,
 )
 
 @Serializable data class Person(val name: String, val role: String? = null, val photoUrl: String? = null, val tmdbId: Int? = null)

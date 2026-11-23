@@ -144,11 +144,15 @@ class LiveAndVodPlugin(
     private val titleOf: suspend (WatchKey) -> Title? = { null },
     private val episodesOf: suspend (WatchKey, Int) -> List<Episode> = { _, _ -> emptyList() },
     private val vodStreams: suspend (PlayTarget) -> List<Stream> = { emptyList() },
+    /** Its titles carry their genre, so Watch search checks a genre on them rather than leaving the plugin out. */
+    private val genresCarried: Boolean = false,
 ) : WatchPlugin {
     override val capabilities: Set<Capability> = BuiltInPlugins.def(id)?.capabilities ?: setOf(Capability.LIVE)
     override suspend fun catalogs() = catalogsOf()
     override suspend fun catalogPage(catalog: CatalogDef, skip: Int) = pageOf(catalog, skip)
     override suspend fun search(query: String, type: TitleType?) = searchOf(query).filter { type == null || it.type == type }
+    override suspend fun queryAbility(query: com.cosmotune.watch.WatchQuery, currentYear: Int): com.cosmotune.watch.QueryAbility =
+        super.queryAbility(query, currentYear).let { if (genresCarried && it.answers) it.copy(genre = com.cosmotune.watch.FilterSupport.CHECKED) else it }
     override suspend fun title(key: WatchKey): Title? = if (key.namespace == id) titleOf(key) else null
     override suspend fun episodes(series: WatchKey, season: Int) = if (series.namespace == id) episodesOf(series, season) else emptyList()
     override suspend fun streams(target: PlayTarget): List<Stream> = if (target is PlayTarget.Live) live?.streams(target).orEmpty() else vodStreams(target)
@@ -169,7 +173,7 @@ object FreeServices {
     fun pluto(http: WatchHttp, lists: FreeLiveLists, clientId: String, vod: PlutoVod = PlutoVod(http, BuiltInPlugins.PLUTO, clientId)): WatchPlugin =
         LiveAndVodPlugin(BuiltInPlugins.PLUTO, "Pluto TV", "PLUTO", PluginKind.PLUTO_TV,
             ServiceLive(BuiltInPlugins.PLUTO, "Pluto TV", "PLUTO", PluginKind.PLUTO_TV, http, lists, "PlutoTV") { cid, _ -> vod.channelStream(cid) to emptyMap() },
-            catalogsOf = vod::catalogs, pageOf = vod::page, searchOf = vod::search, titleOf = vod::title, episodesOf = vod::episodes, vodStreams = vod::streams)
+            catalogsOf = vod::catalogs, pageOf = vod::page, searchOf = vod::search, titleOf = vod::title, episodesOf = vod::episodes, vodStreams = vod::streams, genresCarried = true)
 
     fun plex(http: WatchHttp, lists: FreeLiveLists, clientId: String, vodBase: String = "https://vod.provider.plex.tv",
         plexTv: String = "https://plex.tv", epgBase: String = "https://epg.provider.plex.tv"): WatchPlugin {

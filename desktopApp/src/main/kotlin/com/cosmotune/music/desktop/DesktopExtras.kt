@@ -32,6 +32,8 @@ internal object DesktopExtras {
     fun install() {
         NetworkPolicy.installAsDefault()
         Extras.install(Store(Preferences.userRoot().node("com.cosmotune.desktop").node("extras")))
+        // Every mode's recent searches, under their own node.
+        com.cosmotune.ui.search.CosmoRecentSearches.install(Store(Preferences.userRoot().node("com.cosmotune.desktop").node("search")))
         com.cosmotune.lyrics.autosync.LyricsAutoOffset.configure(DesktopMediaCache.directory.resolve("lyrics").toFile())
         com.cosmotune.music.data.recognition.SongRecognition.microphone = DesktopMicrophone
     }

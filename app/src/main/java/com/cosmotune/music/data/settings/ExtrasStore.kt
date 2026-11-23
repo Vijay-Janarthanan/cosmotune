@@ -23,6 +23,8 @@ object ExtrasStore {
     fun install(context: Context) {
         NetworkPolicy.installAsDefault()
         Extras.install(Store(context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)))
+        // Every mode's recent searches, kept beside the extras.
+        com.cosmotune.ui.search.CosmoRecentSearches.install(Store(context.getSharedPreferences("cosmotune_search", Context.MODE_PRIVATE)))
         com.cosmotune.lyrics.autosync.LyricsAutoOffset.configure(java.io.File(context.filesDir, "lyrics"))
         com.cosmotune.music.data.recognition.SongRecognition.microphone = AndroidMicrophone(context.applicationContext)
     }

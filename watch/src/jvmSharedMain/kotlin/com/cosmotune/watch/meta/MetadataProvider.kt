@@ -16,6 +16,11 @@ interface MetadataProvider {
     suspend fun title(key: WatchKey): Title?
     suspend fun episodes(series: WatchKey, season: Int): List<Episode>
     suspend fun search(query: String): List<TitleSummary>
+    /** What Watch search's [query] can ask of this provider (see [com.cosmotune.watch.plugin.WatchPlugin.queryAbility]). */
+    suspend fun queryAbility(query: com.cosmotune.watch.WatchQuery, currentYear: Int): com.cosmotune.watch.QueryAbility =
+        if (query.browsing || query.kind == com.cosmotune.watch.WatchKind.LIVE) com.cosmotune.watch.QueryAbility.SILENT else com.cosmotune.watch.QueryAbility(true)
+    suspend fun find(query: com.cosmotune.watch.WatchQuery, currentYear: Int): List<TitleSummary> =
+        if (query.browsing) emptyList() else search(query.trimmed)
     /** The metadata rows of Watch home for [type] (null = both): trending, popular, top rated, genres, regional. */
     suspend fun rows(type: TitleType?): List<HomeRow>
     suspend fun rowPage(rowId: String, skip: Int): List<TitleSummary>

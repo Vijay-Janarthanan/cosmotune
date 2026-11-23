@@ -24,6 +24,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonElement
+import com.cosmotune.watch.FilterSupport
+import com.cosmotune.watch.QueryAbility
+import com.cosmotune.watch.WatchKind
+import com.cosmotune.watch.WatchLanguage
+import com.cosmotune.watch.WatchQuery
+import com.cosmotune.watch.WatchSearchRules
+import com.cosmotune.watch.WatchSort
 
 /**
  * TMDB (themoviedb.org) as the metadata authority. [apiKey] is a v3 API key or a v4 read access token (starting "eyJ"),
@@ -70,7 +77,7 @@ class TmdbMetadata(
             rating = e.double("vote_average")?.takeIf { it > 0 }, overview = e.str("overview"), genres = genres,
             runtimeMin = e.int("runtime") ?: e.list("episode_run_time").firstOrNull()?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() },
             ids = ExternalIds(tmdb = id, imdb = e.str("imdb_id") ?: e.child("external_ids").str("imdb_id"), tvdb = e.child("external_ids").int("tvdb_id")),
-            origin = "tmdb",
+            origin = "tmdb", originalLanguage = e.str("original_language"),
         )
     }
 
@@ -133,6 +140,38 @@ class TmdbMetadata(
 
     override suspend fun search(query: String): List<TitleSummary> =
         get("/search/multi", mapOf("query" to query, "include_adult" to "false"), WatchHttp.HOUR).list("results").mapNotNull { summaryOf(it) }
+
+    /**
+     * Search by text gives every title's genres, original language and date, so each filter is checked on the results; browsing
+     * (a blank box) is TMDB's discover, which applies them all itself.
+     */
+    override suspend fun queryAbility(query: WatchQuery, currentYear: Int): QueryAbility {
+        if (query.kind == WatchKind.LIVE) return QueryAbility.SILENT
+        val how = if (query.browsing) FilterSupport.SENT else FilterSupport.CHECKED
+        return QueryAbility(true, genre = how, year = how, language = how, anime = how)
+    }
+
+    override suspend fun find(query: WatchQuery, currentYear: Int): List<TitleSummary> = coroutineScope {
+        if (!query.browsing) {
+            val path = when (query.kind.titleType) { TitleType.FILM -> "/search/movie"; TitleType.SERIES -> "/search/tv"; null -> "/search/multi" }
+            return@coroutineScope (1..2).map { page ->
+                async { runCatching { get(path, mapOf("query" to query.trimmed, "include_adult" to "false", "page" to page.toString()), WatchHttp.HOUR)
+                    .list("results").mapNotNull { summaryOf(it, query.kind.titleType) } }.getOrDefault(emptyList()) }
+            }.awaitAll().flatten().distinctBy { it.key }
+        }
+        val types = when (query.kind) {
+            WatchKind.FILMS -> listOf(TitleType.FILM); WatchKind.SERIES -> listOf(TitleType.SERIES)
+            WatchKind.ANIME -> listOf(TitleType.SERIES, TitleType.FILM); else -> listOf(TitleType.FILM, TitleType.SERIES)
+        }
+        val answers = types.map { type ->
+            async {
+                val params = discoverParams(query, type, currentYear) ?: return@async emptyList()
+                runCatching { get("/discover/${if (type == TitleType.FILM) "movie" else "tv"}", params, 6 * WatchHttp.HOUR).list("results").mapNotNull { summaryOf(it, type) } }
+                    .getOrDefault(emptyList())
+            }
+        }.awaitAll()
+        WatchSearchRules.merge(answers)
+    }
 
     override suspend fun rows(type: TitleType?): List<HomeRow> = coroutineScope {
         val defs = buildList {
@@ -198,6 +237,45 @@ class TmdbMetadata(
     }
 
     companion object {
+        /**
+         * TMDB discover's parameters for browsing [query] as [type] (`/discover/movie` or `/discover/tv`), or null when TMDB cannot
+         * give that kind for it (a series genre TMDB lacks: horror, romance, thriller; anime in a language other than Japanese).
+         */
+        fun discoverParams(query: WatchQuery, type: TitleType, currentYear: Int): Map<String, String>? {
+            val film = type == TitleType.FILM
+            val date = if (film) "primary_release_date" else "first_air_date"
+            val genres = buildList {
+                query.genre?.let { add((if (film) it.tmdbFilm else it.tmdbSeries ?: return null).toString()) }
+                if (query.kind == WatchKind.ANIME) add("16")
+            }.distinct()
+            val language = if (query.kind == WatchKind.ANIME) {
+                if (query.language != null && query.language != WatchLanguage.JAPANESE) return null
+                "ja"
+            } else query.language?.code
+            return buildMap {
+                put("include_adult", "false")
+                put("page", "1")
+                put("sort_by", when (query.sort) {
+                    WatchSort.BEST -> "popularity.desc"
+                    WatchSort.NEWEST -> "$date.desc"
+                    WatchSort.RATED -> "vote_average.desc"
+                    WatchSort.NAME -> if (film) "title.asc" else "name.asc"
+                })
+                when (query.sort) {
+                    WatchSort.RATED -> put("vote_count.gte", "200")
+                    WatchSort.NEWEST, WatchSort.NAME -> put("vote_count.gte", "20")
+                    WatchSort.BEST -> Unit
+                }
+                if (genres.isNotEmpty()) put("with_genres", genres.joinToString(","))
+                language?.let { put("with_original_language", it) }
+                val range = query.years?.range(currentYear)
+                if (range != null) {
+                    put("$date.gte", "${range.first}-01-01")
+                    put("$date.lte", "${range.last}-12-31")
+                } else if (query.sort == WatchSort.NEWEST) put("$date.lte", "$currentYear-12-31")
+            }
+        }
+
         val GENRES = mapOf(28 to "Action", 12 to "Adventure", 16 to "Animation", 35 to "Comedy", 80 to "Crime", 99 to "Documentary", 18 to "Drama",
             10751 to "Family", 14 to "Fantasy", 36 to "History", 27 to "Horror", 10402 to "Music", 9648 to "Mystery", 10749 to "Romance",
             878 to "Science Fiction", 53 to "Thriller", 10752 to "War", 37 to "Western", 10759 to "Action & Adventure", 10762 to "Kids",

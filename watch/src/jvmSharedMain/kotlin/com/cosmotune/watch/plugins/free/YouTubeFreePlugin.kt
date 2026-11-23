@@ -43,6 +43,9 @@ class YouTubeFreePlugin(
         return src.search(query, SearchFilter.VIDEOS).items.mapNotNull { (it as? ListItem.Video)?.item }.filter { !it.isLive && !it.isShort && !it.isUpcoming }
     }
 
+    /** Its one list is not searchable here: Watch search does not ask it. */
+    override suspend fun queryAbility(query: com.cosmotune.watch.WatchQuery, currentYear: Int) = com.cosmotune.watch.QueryAbility.SILENT
+
     override suspend fun catalogs(): List<CatalogDef> = if (video() == null) emptyList()
         else listOf(CatalogDef(id, "films", "Free films on YouTube", TitleType.FILM, pageSize = 20))
 

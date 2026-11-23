@@ -824,6 +824,58 @@ class DefaultWatchRepository(
         SearchResults(query, all.filter { it.type == TitleType.FILM }, all.filter { it.type == TitleType.SERIES }, channels.await())
     }
 
+    override fun searchSources(): List<SearchSource> =
+        listOf(SearchSource(WatchQuery.META_SOURCE, if (metadata.source == MetadataSource.TMDB) "TMDB" else "Cinemeta")) +
+            activePlugins().filter { p -> p.kind != PluginKind.YOUTUBE_FREE && (Capability.CATALOG in p.capabilities || Capability.LIVE in p.capabilities) }
+                .map { SearchSource(it.id, it.displayName) }
+
+    override suspend fun find(query: WatchQuery, currentYear: Int): WatchFound = coroutineScope {
+        val q = query.trimmed
+        if (!query.browsing && q.length < 2) return@coroutineScope WatchFound(query, emptyList())
+        val plugins = activePlugins().filter { query.asks(it.id) }
+        val metaAbility = async {
+            if (!query.asks(WatchQuery.META_SOURCE)) QueryAbility.SILENT
+            else runCatching { withTimeoutOrNull(config.timeoutMs) { metadata.queryAbility(query, currentYear) } }.getOrNull() ?: QueryAbility.SILENT
+        }
+        val abilities = LinkedHashMap<String, QueryAbility>()
+        abilities[WatchQuery.META_SOURCE] = metaAbility.await()
+        each(plugins) { it.queryAbility(query, currentYear) }.forEach { (p, a) -> abilities[p.id] = a ?: QueryAbility.SILENT }
+        val (asked, leftOut) = WatchSearchRules.plan(query, abilities)
+        val wantChannels = query.kind == WatchKind.LIVE || (!query.browsing && query.kind == WatchKind.ALL)
+        val channelsJob = async {
+            if (!wantChannels) emptyList()
+            else runCatching { channels(ChannelFilter(query = q.ifEmpty { null }, language = query.language?.code)) }.getOrDefault(emptyList())
+        }
+        val answers = asked.map { id ->
+            async {
+                id to runCatching {
+                    withTimeoutOrNull(config.timeoutMs) {
+                        if (id == WatchQuery.META_SOURCE) metadata.find(query, currentYear) else plugins.first { it.id == id }.find(query, currentYear)
+                    }
+                }.onFailure { e -> if (id != WatchQuery.META_SOURCE) report(id, e) }.getOrNull()
+            }
+        }.awaitAll()
+        val kept = answers.map { (id, list) -> list.orEmpty().filter { WatchSearchRules.keeps(it, query, abilities.getValue(id), currentYear) } }
+        WatchFound(
+            query,
+            titles = WatchSearchRules.sort(WatchSearchRules.merge(kept), query.sort, q),
+            channels = WatchSearchRules.channelsFor(query, channelsJob.await()).take(30),
+            answered = answers.count { it.second != null },
+            failed = answers.count { it.second == null },
+            leftOut = leftOut,
+        )
+    }
+
+    private fun recentKey(state: WatchState) = "watch.search.recent.${state.activeProfile}"
+    private fun recentOf(state: WatchState) = state.settings[recentKey(state)]?.lines()?.filter { it.isNotBlank() }.orEmpty()
+    private val recentState = MutableStateFlow(recentOf(store.state.value))
+    /** A device setting per viewer (never synced): what was searched is not sent anywhere. */
+    override val recentSearches: StateFlow<List<String>> = recentState.asStateFlow()
+    override suspend fun setRecentSearches(searches: List<String>) {
+        val list = searches.map { it.replace('\n', ' ').trim().take(100) }.filter { it.isNotEmpty() }.distinct().take(8)
+        update { s -> if (list.isEmpty()) s.copy(settings = s.settings - recentKey(s)) else s.copy(settings = s.settings + (recentKey(s) to list.joinToString("\n"))) }
+    }
+
     // ── My list and progress ─────────────────────────────────────────────
 
     private val myListState = MutableStateFlow(store.state.value.myList)
@@ -948,6 +1000,7 @@ class DefaultWatchRepository(
         playlistsState.value = state.allProfiles()[state.activeProfile]?.playlists.orEmpty()
         unlockedState.value = state.settings["profile.pin.${state.activeProfile}"] == null || unlockedProfileId == state.activeProfile
         preferencesState.value = preferencesOf(state)
+        recentState.value = recentOf(state)
         guideDismissedState.value = state.settings[GUIDE_DISMISSED] == "1"
         pluginsState.value = infos(state, status.value)
         myListState.value = state.myList

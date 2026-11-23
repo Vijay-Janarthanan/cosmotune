@@ -53,6 +53,19 @@ interface WatchPlugin {
     suspend fun catalogPage(catalog: CatalogDef, skip: Int = 0): List<TitleSummary> = emptyList()
     suspend fun search(query: String, type: TitleType? = null): List<TitleSummary> = emptyList()
 
+    /**
+     * What this plugin can do with Watch search's [query]: whether it has anything to search (or browse, with a blank box) and
+     * which filters it applies itself or gives the fields for. By default a catalogue plugin searches by text, its years are
+     * checked on its results, and it cannot filter by genre, language or anime, so a search with those leaves it out.
+     */
+    suspend fun queryAbility(query: com.cosmotune.watch.WatchQuery, currentYear: Int): com.cosmotune.watch.QueryAbility =
+        if (query.browsing || query.kind == com.cosmotune.watch.WatchKind.LIVE || Capability.CATALOG !in capabilities) com.cosmotune.watch.QueryAbility.SILENT
+        else com.cosmotune.watch.QueryAbility(answers = true)
+
+    /** The titles for [query], with what [queryAbility] said it applies already applied. */
+    suspend fun find(query: com.cosmotune.watch.WatchQuery, currentYear: Int): List<TitleSummary> =
+        if (query.browsing) emptyList() else search(query.trimmed, query.kind.titleType)
+
     /** The page for [key], when this plugin is a metadata authority for it (TMDB, Cinemeta, a server's own items). */
     suspend fun title(key: WatchKey): Title? = null
     suspend fun episodes(series: WatchKey, season: Int): List<Episode> = emptyList()

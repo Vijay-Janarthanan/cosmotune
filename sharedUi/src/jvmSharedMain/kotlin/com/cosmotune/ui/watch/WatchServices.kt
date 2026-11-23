@@ -128,6 +128,14 @@ object WatchNav {
     val pendingInstall = MutableStateFlow<String?>(null)
 
     fun go(to: WatchTab) { tab.value = to; stack.value = emptyList() }
+
+    /** Counts presses of the Search button made while Search is already open: the page then clears its box and focuses it. */
+    val searchAgain = MutableStateFlow(0)
+
+    /** The Search button: opens Search, or, pressed again on Search, clears the box and shows the keyboard. */
+    fun tapSearch() {
+        if (tab.value == WatchTab.SEARCH && stack.value.isEmpty()) searchAgain.value += 1 else go(WatchTab.SEARCH)
+    }
     fun open(route: WatchRoute) { stack.value = stack.value + route }
     fun openTitle(summary: TitleSummary) = open(WatchRoute.Page(summary))
 
