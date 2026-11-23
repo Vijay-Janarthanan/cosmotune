@@ -6602,6 +6602,32 @@ private fun DesktopSettingsScreen(
                         }
                     }
                     }
+                    if (settingsRowVisible(DOWNLOAD_FOLDER_TITLE, "Where new downloads are saved, on any drive or external storage")) {
+                        var folderLabel by remember { mutableStateOf(DesktopDownloadFolder.label()) }
+                        val folderChosen = remember(folderLabel) { DesktopDownloadFolder.chosen() != null }
+                        Box(Modifier.fillMaxWidth().settingsHighlight(DOWNLOAD_FOLDER_TITLE)) {
+                            Column(Modifier.fillMaxWidth()) {
+                                com.cosmotune.ui.settings.CosmoSettingsRow(
+                                    icon = com.cosmotune.ui.components.CosmoIcons.Download,
+                                    title = DOWNLOAD_FOLDER_TITLE,
+                                    subtitle = "$folderLabel. New downloads go here; any drive will do.",
+                                    onClick = {
+                                        DesktopDownloadFolder.choose()?.let { DesktopDownloadFolder.set(it); folderLabel = DesktopDownloadFolder.label() }
+                                    },
+                                )
+                                if (folderChosen) {
+                                    Row(Modifier.fillMaxWidth().padding(start = com.cosmotune.ui.settings.CosmoSettingsInsets.textStart, end = settingsInset, bottom = 12.dp)) {
+                                        com.cosmotune.ui.orbit.OrbitPillButton(
+                                            "Use Music/Cosmotune again",
+                                            { DesktopDownloadFolder.set(null); folderLabel = DesktopDownloadFolder.label() },
+                                            com.cosmotune.ui.orbit.orbitFonts(),
+                                            com.cosmotune.ui.orbit.orbitLook(),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if (settingsRowVisible(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE, com.cosmotune.ui.settings.SMART_DOWNLOADS_LINE)) {
                         Box(Modifier.fillMaxWidth().settingsHighlight(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE)) {
                             com.cosmotune.ui.settings.SmartDownloadsRows(com.cosmotune.ui.settings.cosmoLookSettings())
@@ -8010,3 +8036,6 @@ private fun phraseBarsDetail(bars: Int): String = when (bars) {
     16 -> DesktopStrings["automix_phrase_16_detail", "Mixes over exactly 16 bars, both edges on the beat grid"]
     else -> DesktopStrings["automix_phrase_auto_detail", "Chooses each transition's length from the two tracks"]
 }
+
+/** Settings > Downloads: where downloads are saved. */
+private const val DOWNLOAD_FOLDER_TITLE = "Download folder"

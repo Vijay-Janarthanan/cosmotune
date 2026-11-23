@@ -61,6 +61,21 @@ object DownloadStore {
     private val relativePath = "${Environment.DIRECTORY_MUSIC}/$FOLDER"
 
     /**
+     * The memory card's media volume (an SD card or other removable storage), or null when none is in. Android names the phone's
+     * own storage `external_primary`; every other external volume is removable.
+     */
+    fun cardVolume(context: Context): String? =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) null
+        else runCatching { MediaStore.getExternalVolumeNames(context).firstOrNull { it != MediaStore.VOLUME_EXTERNAL_PRIMARY } }.getOrNull()
+
+    /** Where exported downloads go: the card's audio collection when chosen and in, otherwise the phone's own. */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun collection(context: Context): Uri {
+        val card = if (AppSettings.downloadsOnCard.value) cardVolume(context) else null
+        return if (card != null) MediaStore.Audio.Media.getContentUri(card) else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+    }
+
+    /**
      * Whether saving needs `WRITE_EXTERNAL_STORAGE` asked for at runtime.
      *
      * Only below API 29. From there on the app writes through the media store,
@@ -159,9 +174,15 @@ object DownloadStore {
         }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun mediaStoreEntry(context: Context, name: String): Uri? = runCatching {
+    private fun mediaStoreEntry(context: Context, name: String): Uri? =
+        // The chosen place first, then the other one: switching the card on or off does not lose what is already saved.
+        listOfNotNull(collection(context), MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, cardVolume(context)?.let { MediaStore.Audio.Media.getContentUri(it) })
+            .distinct().firstNotNullOfOrNull { mediaStoreEntry(context, it, name) }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun mediaStoreEntry(context: Context, collection: Uri, name: String): Uri? = runCatching {
         context.contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            collection,
             arrayOf(MediaStore.MediaColumns._ID),
             "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND " +
                 "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
@@ -169,7 +190,7 @@ object DownloadStore {
             null,
         )?.use { cursor ->
             if (!cursor.moveToFirst()) return@use null
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI.buildUpon()
+            collection.buildUpon()
                 .appendPath(cursor.getLong(0).toString())
                 .build()
         }
@@ -292,7 +313,7 @@ object DownloadStore {
             // means one of those two is wrong about this device — worth saying
             // in those words the first time it happens again.
             val uri = runCatching {
-                context.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+                context.contentResolver.insert(collection(context), values)
             }.getOrElse { cause ->
                 Log.w(TAG, "the media store refused $mimeType for $name: ${cause.message}")
                 error("Android won't store ${name.substringAfterLast('.', mimeType)} files in ${if (podcast) "Podcasts" else "Music"}")

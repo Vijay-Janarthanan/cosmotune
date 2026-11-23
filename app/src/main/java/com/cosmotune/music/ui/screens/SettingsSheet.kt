@@ -1062,6 +1062,20 @@ fun SettingsScreen(
                     subtitle = "Music/Cosmotune".takeIf { exportDownloads },
                 )
             }
+            val cardContext = androidx.compose.ui.platform.LocalContext.current
+            val card = remember(exportDownloads) { com.cosmotune.music.download.DownloadStore.cardVolume(cardContext) }
+            // Only with downloads in the Music folder and a memory card in: private downloads stay in the app's own storage.
+            if (exportDownloads && card != null) {
+                val downloadsOnCard by AppSettings.downloadsOnCard.collectAsStateWithLifecycle()
+                row(DOWNLOADS_ON_CARD, "sd card", "memory card", "external storage", divided = false) {
+                    SettingsSubRow(
+                        title = DOWNLOADS_ON_CARD,
+                        checked = downloadsOnCard,
+                        onCheckedChange = AppSettings::setDownloadsOnCard,
+                        subtitle = if (downloadsOnCard) "New downloads go to Music/Cosmotune on the card" else "New downloads stay on the phone",
+                    )
+                }
+            }
             row(com.cosmotune.ui.settings.SMART_DOWNLOADS_TITLE, "most played", "offline", "automatic", summary = com.cosmotune.ui.settings.SMART_DOWNLOADS_LINE) {
                 val smartContext = androidx.compose.ui.platform.LocalContext.current
                 com.cosmotune.ui.settings.SmartDownloadsRows(com.cosmotune.ui.settings.cosmoLookSettings(smartContext))
@@ -2713,3 +2727,6 @@ internal fun SegmentedControl(
 ) {
     com.cosmotune.ui.settings.CosmoSettingsSegmented(options = options, selectedIndex = selectedIndex, onSelect = onSelect, modifier = modifier, enabled = enabled)
 }
+
+/** Settings > Downloads: the switch that puts exported downloads on the memory card. */
+private const val DOWNLOADS_ON_CARD = "Save to the memory card"
