@@ -21,7 +21,7 @@ object PlayerExtrasText {
     const val SLEEP_FADE = "Fade out before the sleep timer stops"
     const val SLEEP_FADE_LINE = "The volume goes down over the last 30 seconds."
     const val BEST_PART = "Best part button"
-    const val BEST_PART_LINE = "A button on the player that skips to the part of the song people replay most, when YouTube knows it."
+    const val BEST_PART_LINE = "A button on the player that skips to the part of the song people replay most, or else to the chorus in its lyrics."
 }
 
 /** YouTube Premium's higher Opus rung for a signed-in account ([ExtrasSettings.premiumAudio]); off until turned on. */

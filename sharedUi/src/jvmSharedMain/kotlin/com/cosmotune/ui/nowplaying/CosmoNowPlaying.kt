@@ -335,13 +335,16 @@ fun CosmoNowPlaying(
         shuffle = shuffleEnabled, repeatMode = repeatMode, crossfade = features.crossfade, automix = automixOn,
         equaliser = features.equaliser, castingTo = features.castingTo, inRoom = inParty,
     )
-    // Best part (upstream 1.10): where YouTube's "Most replayed" curve says the song's best part starts; no chip without one.
+    // Best part (upstream 1.10): where YouTube's "Most replayed" curve says the song's best part starts, pulled to a lyric line;
+    // a song with no curve (a file, an add-on's track, a little-watched video) falls back to its chorus, the first time the most
+    // repeated line of its synced lyrics comes round. No chip with neither.
     val bestPartOn by com.cosmotune.settings.Extras.settings.bestPart.collectAsStateWithLifecycle()
-    val bestPartMs by androidx.compose.runtime.produceState<Long?>(null, song.videoId, bestPartOn, durationMs > 0) {
+    val bestPartLines = lyricLines?.takeIf { lines -> lines.count { it.timeMs > 0 } >= 4 }.orEmpty()
+    val bestPartMs by androidx.compose.runtime.produceState<Long?>(null, song.videoId, bestPartOn, durationMs > 0, bestPartLines) {
         value = null
         if (bestPartOn && !controlsLocked) {
             val heat = com.cosmotune.music.data.bestpart.BestPart.heatmapFor(song.videoId)
-            value = com.cosmotune.music.data.bestpart.BestPart.pick(heat, emptyList(), durationMs)
+            value = com.cosmotune.music.data.bestpart.BestPart.pick(heat, bestPartLines, durationMs)
         }
     }
     val bestPart: (() -> Unit)? = bestPartMs?.takeIf { !controlsLocked }?.let { at -> { onSeek(at) } }
