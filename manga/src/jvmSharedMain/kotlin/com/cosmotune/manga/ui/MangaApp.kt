@@ -58,6 +58,10 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 
 /**
  * The Manga mode (Canvas repo, design/cosmotune/batch-be/board.html, section D): Library, Updates, Browse, Sources and History as
@@ -89,6 +93,7 @@ fun MangaApp(
         val pages = remember(ready, repository) { if (repository == null) PageCache.shared else PageCache.of(ready, persistent = false) }
         val locks by ready.store.state.collectAsState()
         MangaSecureScreen(locks.secureScreen)
+        MangaWebDavAutoSync(ready)
         MangaLockGate(locks.lockManga, locks.lockPin) {
             androidx.compose.runtime.CompositionLocalProvider(LocalMangaPages provides pages) {
                 MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
@@ -621,3 +626,20 @@ internal fun MangaLockedPage(onUnlock: (() -> Unit)?, onPin: ((String) -> Boolea
         }
     }
 }
+
+/**
+ * While Manga is open and a WebDAV folder is set: syncs once on opening, then 20 s after the library last changed in a way worth
+ * syncing (a page turn is not; a finished chapter is). A failure shows under WebDAV sync in Settings › Manga.
+ */
+@Composable
+internal fun MangaWebDavAutoSync(repository: MangaRepository) {
+    val connected = repository.store.state.collectAsState().value.webDav != null
+    if (!connected) return
+    LaunchedEffect(repository) {
+        @OptIn(kotlinx.coroutines.FlowPreview::class)
+        repository.store.state.map { com.cosmotune.manga.data.SyncMangaLibrary.changeSignal(it) }.distinctUntilChanged().drop(1)
+            .debounce(20_000L).collect { runCatching { repository.syncWebDav() } }
+    }
+    LaunchedEffect(repository) { runCatching { repository.syncWebDav() } }
+}
+

@@ -371,6 +371,21 @@ class MangaRepository(val store: MangaStore,
         return store.state.value.books.find { it.id == detail.id } ?: detail
     }
 
+    /** Syncs the library with the WebDAV folder in Settings › Manga, keeping when it last worked or why it did not. */
+    suspend fun syncWebDav(account: MangaWebDav? = store.state.value.webDav): MangaWebDavSync.Merge? {
+        account ?: return null
+        return try {
+            MangaWebDavSync.sync(store, context.httpClient, account).also { now ->
+                store.update { it.copy(webDav = (it.webDav ?: account).copy(url = account.url, user = account.user, password = account.password, lastSyncMs = System.currentTimeMillis(), lastError = null)) }
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            val reason = failure.message ?: "Your server could not be reached"
+            if (store.state.value.webDav != null) store.update { it.copy(webDav = it.webDav?.copy(lastError = reason)) }
+            throw MangaSourceFailure(reason, failure)
+        }
+    }
+
     suspend fun removeBook(bookId: String) {
         val old = store.state.value.books.find { it.id == bookId } ?: return
         store.remove(bookId)

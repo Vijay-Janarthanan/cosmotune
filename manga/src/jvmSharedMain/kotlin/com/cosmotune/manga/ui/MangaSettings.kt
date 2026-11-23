@@ -145,6 +145,7 @@ internal fun MangaSettingsContent(repository: MangaRepository, modifier: Modifie
                 }
             }
             MangaSuwayomiControls(repository, onError = { error = it })
+            MangaWebDavSettings(repository)
             MangaTrackingSettings(repository)
             MangaExtensionControls(repository, onError = { error = it })
             MangaTemplateControls(repository)
@@ -199,6 +200,65 @@ private fun MangaLockSettings(state: MangaLibraryState, update: ((MangaLibrarySt
                 enabled = pin.isNotEmpty() && problem == null, modifier = Modifier.testTag("manga:lock:save"))
             if (editing) ReadTextButton(mangaText("Cancel"), { pin = ""; editing = false })
         }
+    }
+}
+
+/** Komikku's WebDAV sync: the listener's own server folder, Sync now and Disconnect, and when it last synced. */
+@Composable
+private fun MangaWebDavSettings(repository: MangaRepository) {
+    val state by repository.store.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    val look = orbitLook()
+    var open by remember { mutableStateOf(false) }
+    var url by remember { mutableStateOf("") }
+    var user by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var failure by remember { mutableStateOf<String?>(null) }
+    fun run(account: MangaWebDav?) = scope.launch {
+        busy = true; failure = null
+        try {
+            if (account != null && state.webDav == null) { repository.syncWebDav(account); repository.store.update { it.copy(webDav = it.webDav ?: account) } }
+            else repository.syncWebDav()
+            password = ""; open = false
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (problem: Exception) { failure = problem.message ?: "Your server could not be reached" }
+        finally { busy = false }
+    }
+    val account = state.webDav
+    if (account == null) {
+        ReadButton(mangaText("Sync with WebDAV"), { open = !open }, kind = ReadKind.TONAL, modifier = Modifier.testTag("manga:webdav:open"))
+        if (!open) return
+        Text(mangaText("Your library, read chapters and places in one file on your own server (Nextcloud, a NAS)."), style = ReadType.meta(), color = look.dim)
+        OrbitInputField(url, { url = it.take(2_048) }, mangaText("Folder address"), modifier = Modifier.fillMaxWidth().testTag("manga:webdav:url"))
+        OrbitInputField(user, { user = it.take(256) }, mangaText("User name"), modifier = Modifier.fillMaxWidth())
+        OrbitInputField(password, { password = it.take(512) }, mangaText("Password"), secret = true, modifier = Modifier.fillMaxWidth())
+        failure?.let { Text(it, style = ReadType.meta(), color = Color(LocalCosmoColors.current.palette.danger)) }
+        ReadButton(mangaText(if (busy) "Syncing…" else "Connect and sync"), { run(MangaWebDav(url.trim(), user.trim(), password)) },
+            enabled = !busy && url.isNotBlank(), modifier = Modifier.testTag("manga:webdav:connect"))
+        return
+    }
+    Row(Modifier.fillMaxWidth().testTag("manga:webdav"), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(mangaText("WebDAV sync"), style = ReadType.rowTitle(), color = look.ink)
+            val line = failure ?: account.lastError ?: if (account.lastSyncMs > 0) "Synced " + mangaAgo(account.lastSyncMs) else "Not synced yet"
+            Text(line, style = ReadType.meta(), color = look.dim, maxLines = 2)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReadTextButton(mangaText(if (busy) "Syncing…" else "Sync now"), { run(null) }, enabled = !busy, modifier = Modifier.testTag("manga:webdav:sync"))
+            ReadTextButton(mangaText("Disconnect"), { scope.launch { repository.store.update { it.copy(webDav = null) } } })
+        }
+    }
+}
+
+/** "just now", "5 min ago", "3 h ago", "2 days ago". */
+internal fun mangaAgo(atMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+    val minutes = ((nowMs - atMs) / 60_000L).coerceAtLeast(0)
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "$minutes min ago"
+        minutes < 48 * 60 -> "${minutes / 60} h ago"
+        else -> "${minutes / (24 * 60)} days ago"
     }
 }
 
