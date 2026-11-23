@@ -89,6 +89,8 @@ fun PodioSettingsSection(storage: File, modifier: Modifier = Modifier,
         }
         Text("Older ones go by themselves; episodes you have started always stay.", style = fonts.body.copy(fontSize = 13.sp), color = look.dim)
         OrbitLabel("Playback", fonts, look.dim, Modifier.padding(top = 8.dp))
+        OrbitSwitchRow("Voice boost", saved.voiceBoost, { on -> save { it.copy(voiceBoost = on) } },
+            detail = "Louder, clearer speech for quiet podcasts", plain = true, switchModifier = Modifier.testTag("settings:podio:voice-boost"))
         OrbitSwitchRow("Headphones' Next button adds a bookmark", saved.headsetBookmarks, { on -> save { it.copy(headsetBookmarks = on) } },
             detail = "While an episode plays on the phone, instead of skipping it", plain = true, switchModifier = Modifier.testTag("settings:podio:headset-bookmarks"))
         OrbitLabel("Radio recordings", fonts, look.dim, Modifier.padding(top = 8.dp))

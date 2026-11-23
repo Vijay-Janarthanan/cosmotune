@@ -1611,7 +1611,9 @@ class DesktopPlaybackEngine(
 
     /** The volume the sink plays at: the listener's, under the maximum-volume cap. DoP is never scaled. */
     private fun outputGain(): Float =
-        if (current?.directDsd == true) volume else volume * com.cosmotune.settings.Extras.settings.maxVolumeGain
+        if (current?.directDsd == true) volume else volume * com.cosmotune.settings.Extras.settings.maxVolumeGain *
+            // Podio's voice boost for the playing episode (Settings › Podio, or its show's sheet).
+            com.cosmotune.podio.PodioShowRules.gainFor(skipLibrary.state.value, current?.song?.videoId)
 
     private var pitchResampler: com.cosmotune.audio.PitchResampler? = null
 

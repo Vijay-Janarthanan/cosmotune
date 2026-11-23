@@ -7468,9 +7468,13 @@ class PlaybackService : MediaLibraryService() {
      * the YouTube stream alongside the substitute lookup rather than only when
      * one fails — see [StreamResolver.loudnessDbFor]'s own doc.
      */
-    private fun loudnessGainFor(mediaId: String): Float = loudnessGainMb(mediaId)
+    private fun loudnessGainFor(mediaId: String): Float = (loudnessGainMb(mediaId)
         ?.let { 10.0.pow(it / 2000.0).toFloat() }
-        ?: 1f
+        ?: 1f) * podioVoiceGain(mediaId)
+
+    /** Podio's voice boost for an episode (Settings › Podio or its show's sheet); read from the library's snapshot, safe on the audio thread. */
+    private fun podioVoiceGain(mediaId: String): Float = if (!mediaId.startsWith("podio:episode:")) 1f else
+        podioSkipLibrary?.let { com.cosmotune.podio.PodioShowRules.gainFor(it.state.value, mediaId) } ?: 1f
 
     private val upgradedLoudnessRenditions = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 

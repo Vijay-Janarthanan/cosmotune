@@ -538,7 +538,9 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** Episodes kept as favourites ([PodioFavourites]), the newest first. */
     val favouriteEpisodes: List<PodioQueueEntry> = emptyList(),
     /** The Next button of headphones (or the car) bookmarks the playing episode instead of skipping it. */
-    val headsetBookmarks: Boolean = false)
+    val headsetBookmarks: Boolean = false,
+    /** Speech plays louder and clearer (a show can choose otherwise). */
+    val voiceBoost: Boolean = false)
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {

@@ -85,6 +85,9 @@ private val SHOW_SPEEDS = listOf(1f, 1.25f, 1.5f, 1.75f, 2f)
             val skip = saved.skipSilenceByShow[show.id]
             OrbitSwitchRow("Skip silence", skip == true, { on -> save { old -> old.copy(skipSilenceByShow = old.skipSilenceByShow + (show.id to on)) } },
                 detail = if (skip == null) "Like the app" else "For this show", plain = true, modifier = Modifier.padding(top = 4.dp))
+            OrbitSwitchRow("Voice boost", PodioShowRules.voiceBoost(saved, show.id), { on -> change { it.copy(voiceBoost = on) } },
+                detail = if (own.voiceBoost == null) app(saved.voiceBoost) else "Louder, clearer speech for this show", plain = true,
+                switchModifier = Modifier.testTag("podio:show-settings:voice-boost"))
 
             OrbitLabel("Tags", fonts, look.dim, Modifier.padding(top = 16.dp))
             val mine = saved.showTags[show.id].orEmpty()

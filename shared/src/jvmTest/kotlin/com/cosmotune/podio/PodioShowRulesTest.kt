@@ -10,6 +10,17 @@ class PodioShowRulesTest {
     private fun found(id: String, show: PodcastShow, published: String = "") = PodioRefresh.Found(episode(id, show, published), show)
     private fun item(id: String, show: PodcastShow) = PodioItem("podio:episode:$id", "Episode $id", show.title, "https://publisher.example/$id.mp3")
 
+    @Test fun theVoiceBoostFollowsTheAppUnlessTheShowChooses() {
+        val known = mapOf("a" to listOf("podio:episode:a1"), "b" to listOf("podio:episode:b1"))
+        var saved = PodioShowRules.change(PodioSaved(shows = listOf(a, b), knownEpisodes = known), "a") { it.copy(voiceBoost = true) }
+        assertEquals(PodioShowRules.VOICE_BOOST_GAIN, PodioShowRules.gainFor(saved, "podio:episode:a1"))
+        assertEquals(1f, PodioShowRules.gainFor(saved, "podio:episode:b1"))
+        saved = PodioShowRules.change(saved.copy(voiceBoost = true), "a") { it.copy(voiceBoost = false) }
+        assertEquals(1f, PodioShowRules.gainFor(saved, "podio:episode:a1"))
+        assertEquals(PodioShowRules.VOICE_BOOST_GAIN, PodioShowRules.gainFor(saved, "podio:episode:b1"))
+        assertEquals(1f, PodioShowRules.gainFor(saved, "podio:radio:x"), "never a station")
+    }
+
     @Test fun aShowAtEveryDefaultKeepsNoEntryAndFollowsTheAppsChoices() {
         var saved = PodioSaved(shows = listOf(a, b), autoDownloadNew = true)
         saved = PodioShowRules.change(saved, "a") { it.copy(autoDownload = false, skipIntroSeconds = 9_999) }

@@ -21,6 +21,8 @@ import kotlinx.serialization.Serializable
     val deletePlayed: Boolean? = null,
     /** Keep only this many of the show's newest downloads (started ones always stay); 0 keeps all, null follows the app's. */
     val keepDownloads: Int? = null,
+    /** Louder, clearer speech for a quiet show; null follows "Voice boost". */
+    val voiceBoost: Boolean? = null,
 ) {
     val isDefault: Boolean get() = this == PodioShowSettings()
 }
@@ -37,6 +39,18 @@ object PodioShowRules {
 
     fun autoDownload(saved: PodioSaved, showId: String): Boolean = settings(saved, showId).autoDownload ?: saved.autoDownloadNew
     fun deletePlayed(saved: PodioSaved, showId: String?): Boolean = settings(saved, showId).deletePlayed ?: saved.deletePlayedDownloads
+    /** How much louder the voice boost plays a show: about 4 dB, enough for quiet speech without pushing music into clipping. */
+    const val VOICE_BOOST_GAIN = 1.6f
+
+    fun voiceBoost(saved: PodioSaved, showId: String?): Boolean = settings(saved, showId).voiceBoost ?: saved.voiceBoost
+
+    /** The gain for the playing episode [episodeId] (1 when no boost applies). */
+    fun gainFor(saved: PodioSaved, episodeId: String?): Float {
+        if (episodeId == null || !episodeId.startsWith("podio:episode:")) return 1f
+        if (!saved.voiceBoost && saved.showSettings.values.none { it.voiceBoost == true }) return 1f
+        return if (voiceBoost(saved, PodioShowRules.showOf(episodeId, saved))) VOICE_BOOST_GAIN else 1f
+    }
+
     fun keepDownloads(saved: PodioSaved, showId: String?): Int = (settings(saved, showId).keepDownloads ?: saved.keepDownloadsPerShow).coerceAtLeast(0)
 
     /** [saved] with [showId]'s settings changed; a show back at every default keeps no entry. */
