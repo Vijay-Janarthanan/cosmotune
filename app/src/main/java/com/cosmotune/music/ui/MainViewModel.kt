@@ -1129,6 +1129,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private enum class AddOutcome { ADDED, ALREADY_THERE, FAILED }
 
+    /**
+     * A whole album or playlist into each of [playlists] (an album menu's "Add to playlists", from upstream 1.10): the songs a
+     * playlist already has are left out, the rest go in one request per playlist. [onResult] counts playlists: those that took
+     * songs, those that had all of them already, and those that refused.
+     */
+    fun addAllToPlaylists(
+        playlists: List<UserPlaylist>,
+        songs: List<Song>,
+        onResult: (added: Int, alreadyThere: Int, failed: Int) -> Unit = { _, _, _ -> },
+    ) {
+        val wanted = songs.filterNot { it.videoId.startsWith("local:") || it.localUri != null }.distinctBy { it.videoId }
+        if (!requireSignIn() || playlists.isEmpty() || wanted.isEmpty()) return
+        viewModelScope.launch {
+            var added = 0
+            var already = 0
+            var failed = 0
+            for (playlist in playlists) {
+                val openSongs = (_detailStack.value.firstOrNull { it.browseId == playlist.browseId }?.songs as? UiState.Success)?.data
+                val known = (openSongs ?: YtMusicRepository.allSongs(playlist.browseId).getOrNull()).orEmpty().mapTo(HashSet()) { it.videoId }
+                val fresh = wanted.filterNot { it.videoId in known }
+                if (fresh.isEmpty()) { already++; continue }
+                YtMusicRepository.addToPlaylist(playlist.playlistId, fresh.map { it.videoId }).fold(
+                    onSuccess = { ids ->
+                        libraryStale = true
+                        fresh.forEach { appendToOpenPlaylist(playlist.browseId, it, ids[it.videoId]) }
+                        added++
+                    },
+                    onFailure = { failed++ },
+                )
+            }
+            onResult(added, already, failed)
+        }
+    }
+
     private suspend fun addOne(playlist: UserPlaylist, song: Song): AddOutcome {
         val openSongs = (_detailStack.value.firstOrNull { it.browseId == playlist.browseId }
             ?.songs as? UiState.Success)?.data
@@ -1153,14 +1187,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * track's menu — one request, so it can't half-succeed into an empty
      * playlist the user has to add to again.
      */
-    fun createPlaylist(title: String, privacy: PlaylistPrivacy, song: Song? = null) {
+    fun createPlaylist(title: String, privacy: PlaylistPrivacy, song: Song? = null, songs: List<Song> = listOfNotNull(song)) {
         if (!requireSignIn()) return
         val name = title.trim().ifBlank { text(R.string.new_playlist) }
+        val seed = songs.distinctBy { it.videoId }
         viewModelScope.launch {
             YtMusicRepository.createPlaylist(
                 title = name,
                 privacy = privacy,
-                videoIds = listOfNotNull(song?.videoId),
+                videoIds = seed.map { it.videoId },
             ).fold(
                 onSuccess = { playlistId ->
                     // Nothing to look up for a playlist this account has just
@@ -1176,8 +1211,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         // surfaces that draw it leave a blank one out, so an
                         // unseeded playlist gets a card of just its name rather
                         // than a guess at what the feed will call it.
-                        subtitle = if (song != null) "1 song" else "",
-                        thumbnailUrl = song?.thumbnailUrl,
+                        subtitle = when (seed.size) { 0 -> ""; 1 -> "1 song"; else -> "${seed.size} songs" },
+                        thumbnailUrl = seed.firstOrNull()?.thumbnailUrl,
                     )
                     // Drawn from what was just sent rather than waited for: the
                     // library feed does not have this playlist yet, and the

@@ -577,6 +577,8 @@ private fun CosmotuneApp(
     // Separate from [songActions] so the menu can close behind it â€” the picker
     // is the next step, not a second sheet stacked on the first.
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    // An album or playlist going into playlists whole (its menu's "Add to playlists"), with its songs.
+    var playlistRelease by remember { mutableStateOf<Pair<com.cosmotune.music.ui.components.PickerRelease, List<Song>>?>(null) }
     // The picker opened from the Library tab, where there is no track and
     // creating the playlist is the whole errand.
     var creatingPlaylist by remember { mutableStateOf(false) }
@@ -4515,10 +4517,12 @@ private fun CosmotuneApp(
         // One sheet for both, because they are one decision: the list of
         // playlists with a way to make another. `creatingPlaylist` opens it
         // straight onto the form, which is what the Library tile means.
-        if (playlistTarget != null || creatingPlaylist) {
+        if (playlistTarget != null || creatingPlaylist || playlistRelease != null) {
             val target = playlistTarget
+            val release = playlistRelease.takeIf { target == null }
             val dismiss = {
                 playlistTarget = null
+                playlistRelease = null
                 creatingPlaylist = false
             }
             com.cosmotune.ui.sheets.SurfaceSheetSwitch(
@@ -4529,8 +4533,20 @@ private fun CosmotuneApp(
                     playlists = playlists,
                     loading = playlistsLoading,
                     song = target,
-                    startCreating = target == null,
+                    release = release?.first,
+                    startCreating = target == null && release == null,
                     onAdd = { picked ->
+                        release?.let { (_, songs) ->
+                            viewModel.addAllToPlaylists(picked, songs) { added, alreadyThere, failed ->
+                                showQueueNotice(
+                                    when {
+                                        added > 0 -> "Added to ${if (added == 1) "1 playlist" else "$added playlists"}"
+                                        alreadyThere > 0 && failed == 0 -> "Already in ${if (alreadyThere == 1) "that playlist" else "those playlists"}"
+                                        else -> context.getString(R.string.failed)
+                                    },
+                                )
+                            }
+                        }
                         target?.let { song ->
                             viewModel.addToPlaylists(picked, song) { added, alreadyThere, failed ->
                                 // One line for the whole batch, saying the
@@ -4553,7 +4569,7 @@ private fun CosmotuneApp(
                         dismiss()
                     },
                     onCreate = { title, privacy ->
-                        viewModel.createPlaylist(title, privacy, target)
+                        viewModel.createPlaylist(title, privacy, target, release?.second ?: listOfNotNull(target))
                         dismiss()
                     },
                 )
@@ -4630,6 +4646,10 @@ private fun CosmotuneApp(
                 startRenaming = browseRenameInSheet,
                 onPlayNext = act(playSongsNext),
                 onAddToQueue = act(addSongsToQueue),
+                onAddToPlaylists = act { songs ->
+                    viewModel.loadPlaylists()
+                    playlistRelease = com.cosmotune.music.ui.components.PickerRelease(target.title, target.subtitle, target.thumbnailUrl) to songs
+                }.takeIf { signedIn && remote && (target.type == BrowseType.ALBUM || target.type == BrowseType.PLAYLIST) },
                 onPlay = act { songs -> play(songs, 0) }.takeIf { target.fromCard },
                 onShuffle = act { songs ->
                     // As on a release page: shuffle goes on before the queue
