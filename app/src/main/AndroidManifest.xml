@@ -8,6 +8,9 @@
     <!-- Finding smart TVs on the home network (DLNA) needs Wi-Fi's multicast lock while searching. -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The radio alarm: wakes the phone on the minute, and is set again after a restart. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Saving a track to Music outlives the screen it was asked from. -->
@@ -451,6 +454,17 @@
         <receiver
             android:name="com.cosmotune.music.data.UpdateInstallReceiver"
             android:exported="false" />
+        <!-- Podio's radio alarm: plays the station when it goes off; sets it again after a restart, an update or a clock change. -->
+        <receiver
+            android:name="com.cosmotune.podio.PodioAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
         <receiver
             android:name="com.cosmotune.music.data.UpdatedReceiver"
             android:exported="false">

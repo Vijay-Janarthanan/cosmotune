@@ -592,7 +592,9 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** When the saved stations were last checked against the directory ([PodioStationCheck]). */
     val stationsCheckedMs: Long = 0,
     /** Listening by day ("2026-11-23") and show id ([PodioStats]). */
-    val listened: Map<String, Map<String, Long>> = emptyMap())
+    val listened: Map<String, Map<String, Long>> = emptyMap(),
+    /** The radio alarm ([PodioAlarms]), or none. */
+    val alarm: PodioAlarm? = null)
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {

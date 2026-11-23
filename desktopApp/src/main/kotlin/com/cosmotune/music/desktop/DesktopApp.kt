@@ -1,6 +1,9 @@
 package com.cosmotune.music.desktop
 
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import androidx.compose.foundation.lazy.LazyListState
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.FollowCover
@@ -1874,6 +1877,36 @@ fun CosmotuneDesktopApp() {
         if (!com.cosmotune.podio.PodioPlaybackPolicy.isPodio(playbackEngine.state.value.song?.videoId)) playbackEngine.setPlaybackSpeed(playbackSpeed)
     }
     LaunchedEffect(volume) { playbackEngine.setVolume(volume) }
+    // Podio's radio alarm (Settings › Podio), while the app runs, the tray included: the station starts at its time, softly at first
+    // when chosen. A computer asleep at that time starts it on waking, unless it is more than half an hour late.
+    LaunchedEffect(Unit) {
+        val library = com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile())
+        library.state.map { it.alarm }.distinctUntilChanged().collectLatest { alarm ->
+            while (true) {
+                val at = com.cosmotune.podio.PodioAlarms.next(alarm, System.currentTimeMillis()) ?: break
+                while (System.currentTimeMillis() < at) delay(minOf(30_000L, at - System.currentTimeMillis()).coerceAtLeast(1))
+                val station = alarm!!.station
+                runCatching { withContext(Dispatchers.IO) { library.update { com.cosmotune.podio.PodioHistory.played(it.copy(alarm = it.alarm?.let(com.cosmotune.podio.PodioAlarms::fired)), station) } } }
+                if (System.currentTimeMillis() - at <= 30 * 60_000L && !partyTrackChangeBlocked()) {
+                    val full = volume
+                    if (alarm.gentle) playbackEngine.setVolume(full * com.cosmotune.podio.PodioAlarms.GENTLE_STEPS.first())
+                    liveQueue = DesktopQueue(listOf(station.item().song()), index = 0)
+                    preShuffleOrder = emptyList()
+                    playCurrent()
+                    if (alarm.gentle) {
+                        for (step in com.cosmotune.podio.PodioAlarms.GENTLE_STEPS.drop(1)) {
+                            delay(com.cosmotune.podio.PodioAlarms.GENTLE_STEP_MS)
+                            // Changed by hand: the ramp stops there.
+                            if (volume != full || playbackEngine.state.value.song?.videoId != station.item().id) break
+                            playbackEngine.setVolume(full * step)
+                        }
+                        playbackEngine.setVolume(volume)
+                    }
+                }
+                if (alarm.days.isEmpty()) break
+            }
+        }
+    }
     LaunchedEffect(audioQuality) { playbackEngine.setAudioQuality(audioQuality.name) }
     LaunchedEffect(automixPerformance) {
         playbackEngine.setAutomixPerformance(automixPerformance)

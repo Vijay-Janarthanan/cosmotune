@@ -39,6 +39,9 @@ import kotlinx.coroutines.withContext
     }
     val library = PodioRefreshWorker.libraryFile(context)
     val saved by remember(library) { PodioLibrary(library).state }.collectAsState()
+    // Asked again each time the settings come back into view: the person may have just allowed exact alarms.
+    var exactAlarms by remember { mutableStateOf(PodioAlarmReceiver.exactAllowed(context)) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { exactAlarms = PodioAlarmReceiver.exactAllowed(context); onPauseOrDispose { } }
     PodioSettingsSection(library,
         onImportOpmlFile = { chooseFile(false)?.let { uri -> withContext(Dispatchers.IO) {
             requireNotNull(context.contentResolver.openInputStream(uri)).use(PodioOpml::read)
@@ -57,5 +60,9 @@ import kotlinx.coroutines.withContext
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }, "Share podcast subscriptions"))
         },
-        onRefreshChange = { on -> runCatching { PodioRefreshWorker.schedule(context, on && saved.shows.isNotEmpty()) } })
+        onRefreshChange = { on -> runCatching { PodioRefreshWorker.schedule(context, on && saved.shows.isNotEmpty()) } },
+        exactAlarms = exactAlarms,
+        onAllowExactAlarms = PodioAlarmReceiver.allowIntent(context)?.let { intent -> { runCatching { context.startActivity(intent) } } })
+    // The system alarm follows the radio alarm as it is changed here.
+    LaunchedEffect(saved.alarm) { runCatching { PodioAlarmReceiver.sync(context) } }
 }
