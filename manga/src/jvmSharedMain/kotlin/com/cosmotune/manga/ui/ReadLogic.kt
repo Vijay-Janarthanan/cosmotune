@@ -382,3 +382,18 @@ internal fun mangaSourceLine(book: MangaBook, state: com.cosmotune.manga.data.Ma
     return listOfNotNull(source, language).joinToString(" · ")
 }
 
+/** Browse's sources with the pinned ones first, in the order they were pinned, then the rest in [rest]'s order. */
+internal fun mangaPinnedFirst(sources: List<com.cosmotune.manga.data.MangaSourceConfig>, pinned: List<String>): List<com.cosmotune.manga.data.MangaSourceConfig> =
+    pinned.mapNotNull { id -> sources.find { it.id == id } } + sources.filter { it.id !in pinned }
+
+/** Pins [sourceId], or unpins it when it is pinned. */
+internal fun mangaTogglePin(pinned: List<String>, sourceId: String): List<String> = if (sourceId in pinned) pinned - sourceId else pinned + sourceId
+
+/** Keeps [query] for [sourceId] (newest first, up to 20), or forgets it when it is kept already. */
+internal fun mangaToggleSavedSearch(saved: Map<String, List<String>>, sourceId: String, query: String): Map<String, List<String>> {
+    val text = query.trim().take(200)
+    if (text.isEmpty()) return saved
+    val current = saved[sourceId].orEmpty()
+    val next = if (current.any { it.equals(text, true) }) current.filterNot { it.equals(text, true) } else (listOf(text) + current).take(20)
+    return if (next.isEmpty()) saved - sourceId else saved + (sourceId to next)
+}

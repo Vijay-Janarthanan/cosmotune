@@ -181,6 +181,10 @@ data class MangaLibraryState(
     val clearCacheOnStart: Boolean = false,
     /** Library cards name their source and language in the line under the cover (Komikku's source and language badges). */
     val libraryCardSource: Boolean = false,
+    /** Sources pinned to the top of Browse, in the order they were pinned. */
+    val pinnedSources: List<String> = emptyList(),
+    /** Searches kept for each source, newest first, shown as chips under its search field. */
+    val savedSearches: Map<String, List<String>> = emptyMap(),
     /** When each chapter was finished, by chapter id (for Statistics); the newest 20,000. */
     val readLog: Map<String, Long> = emptyMap(),
     /** Time spent in the reader per day ("2026-11-23" to milliseconds), the last 400 days. */

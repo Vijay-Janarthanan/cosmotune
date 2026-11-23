@@ -124,3 +124,24 @@ class MangaSourceLineTest {
     }
 }
 
+class MangaPinnedSourcesTest {
+    private fun source(id: String) = MangaSourceConfig(id = id, name = id, kind = "kotatsu")
+
+    @Test fun pinnedSourcesComeFirstInTheOrderTheyWerePinned() {
+        val all = listOf(source("a"), source("b"), source("c"))
+        assertEquals(listOf("c", "a", "b"), mangaPinnedFirst(all, listOf("c", "gone")).map { it.id })
+        assertEquals(listOf("c", "a"), mangaTogglePin(listOf("c"), "a"))
+        assertEquals(emptyList(), mangaTogglePin(listOf("a"), "a"))
+    }
+
+    @Test fun aSearchIsKeptOnceAndForgottenOnTheSecondPress() {
+        val kept = mangaToggleSavedSearch(emptyMap(), "s", " isekai ")
+        assertEquals(mapOf("s" to listOf("isekai")), kept)
+        assertEquals(emptyMap(), mangaToggleSavedSearch(kept, "s", "ISEKAI"))
+        assertEquals(kept, mangaToggleSavedSearch(kept, "s", "  "))
+        var many = emptyMap<String, List<String>>()
+        repeat(25) { many = mangaToggleSavedSearch(many, "s", "q$it") }
+        assertEquals(20, many.getValue("s").size)
+        assertEquals("q24", many.getValue("s").first())
+    }
+}

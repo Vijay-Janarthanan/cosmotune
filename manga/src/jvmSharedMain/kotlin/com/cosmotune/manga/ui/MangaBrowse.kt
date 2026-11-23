@@ -1,6 +1,9 @@
 @file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 package com.cosmotune.manga.ui
 
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.rounded.PushPin
+
 import com.cosmotune.cache.CacheCodec
 import com.cosmotune.cache.PageCache
 import com.cosmotune.cache.SLOW_FRESH_MS
@@ -217,8 +220,15 @@ internal fun MangaBrowse(scope: MangaScope) {
                     }
                 }
             }
-            enabled.filter { language.isBlank() || languageName(it.language) == language }.sortedBy { languageName(it.language) + it.name.lowercase() }.forEach { source ->
-                item(key = "source:${source.id}", span = { GridItemSpan(maxLineSpan) }) { MangaSourceRow(source) { scope.navigation.source = source.id } }
+            val listed = enabled.filter { language.isBlank() || languageName(it.language) == language }.sortedBy { languageName(it.language) + it.name.lowercase() }
+            // Pinned sources stand first (Mihon's pinned sources); the pin sits at the end of each row.
+            mangaPinnedFirst(listed, state.pinnedSources).forEach { source ->
+                item(key = "source:${source.id}", span = { GridItemSpan(maxLineSpan) }) {
+                    MangaSourceRow(source, pinned = source.id in state.pinnedSources,
+                        onPin = { scope.action { scope.repository.store.update { it.copy(pinnedSources = mangaTogglePin(it.pinnedSources, source.id)) } } }) {
+                        scope.navigation.source = source.id
+                    }
+                }
             }
         }
     }
@@ -231,7 +241,7 @@ internal fun languageName(tag: String): String = if (tag.isBlank() || tag == "mu
 
 /** A source in Browse as a flat Orbit row: its initials on a round tile, its name, its language and kind, a chevron. */
 @Composable
-private fun MangaSourceRow(source: MangaSourceConfig, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun MangaSourceRow(source: MangaSourceConfig, modifier: Modifier = Modifier, pinned: Boolean = false, onPin: (() -> Unit)? = null, onClick: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     OrbitSongRow(
@@ -242,7 +252,13 @@ private fun MangaSourceRow(source: MangaSourceConfig, modifier: Modifier = Modif
                 Text(titleInitials(source.name), style = fonts.label, color = look.ink)
             }
         },
-        trailing = { Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = look.dim, modifier = Modifier.size(20.dp)) },
+        trailing = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (onPin != null) ReadIconButton(if (pinned) Icons.Rounded.PushPin else Icons.Outlined.PushPin, if (pinned) "Unpin ${source.name}" else "Pin ${source.name} to the top",
+                    onPin, Modifier.testTag("manga:source:pin:${source.id}"), on = pinned)
+                Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = look.dim, modifier = Modifier.size(20.dp))
+            }
+        },
     )
 }
 
@@ -279,7 +295,18 @@ internal fun MangaSourcePage(scope: MangaScope, sourceId: String) {
                 ReadPageHead(source?.name ?: mangaText("Source"), listOf(languageName(source?.language.orEmpty()), mangaText("Catalogue")).joinToString(" · "), Modifier.readBleed())
             }
             item(key = "search", span = { GridItemSpan(maxLineSpan) }) {
-                ReadSearchField(query, { query = it.take(500) }, mangaText("Search") + " " + (source?.name ?: ""), Modifier.readBleed())
+                // Saved searches (Mihon's and Komikku's): the kept ones as chips under the field, and Save search for the one typed.
+                val saved = state.savedSearches[sourceId].orEmpty()
+                val kept = saved.any { it.equals(query.trim(), true) }
+                Column(Modifier.readBleed(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReadSearchField(query, { query = it.take(500) }, mangaText("Search") + " " + (source?.name ?: ""))
+                    if (saved.isNotEmpty() || query.isNotBlank()) ReadChipRow {
+                        if (query.isNotBlank()) ReadPill(mangaText(if (kept) "Forget this search" else "Save search"), icon = if (kept) CosmoIcons.Close else CosmoIcons.Plus,
+                            onClick = { scope.action { repository.store.update { it.copy(savedSearches = mangaToggleSavedSearch(it.savedSearches, sourceId, query)) } } },
+                            modifier = Modifier.testTag("manga:catalogue:save-search"))
+                        saved.forEach { text -> ReadChip(text, text.equals(query.trim(), true), { query = if (text.equals(query.trim(), true)) "" else text }) }
+                    }
+                }
             }
             if (languages.isNotEmpty()) item(key = "language", span = { GridItemSpan(maxLineSpan) }) {
                 Row { ReadPill(mangaText("Language") + ": ${label(chosen)}", icon = Icons.Rounded.Language, onClick = { languageSheet = true },
