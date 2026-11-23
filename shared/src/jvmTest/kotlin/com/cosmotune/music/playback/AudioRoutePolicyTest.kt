@@ -34,4 +34,12 @@ class AudioRoutePolicyTest {
             assertFalse(AudioRoutePolicy.decide(change, playing).action.name == "PLAY")
         }
     }
+
+    @Test fun aComputersOutputListIsCompared() {
+        assertEquals(RouteChange.OUTPUT_REMOVED, AudioRouteEvents.compare(setOf("a", "b"), setOf("a")))
+        assertEquals(RouteChange.OUTPUT_ADDED, AudioRouteEvents.compare(setOf("a"), setOf("a", "b")))
+        assertEquals(null, AudioRouteEvents.compare(setOf("a"), setOf("a")))
+        // Swapping one output for another includes one going away, which pauses what played.
+        assertEquals(RouteChange.OUTPUT_REMOVED, AudioRouteEvents.compare(setOf("a"), setOf("b")))
+    }
 }

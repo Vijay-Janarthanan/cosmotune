@@ -33,7 +33,8 @@ class WatchCasting(
     private val lock = Mutex()
     @Volatile private var session: Session? = null
 
-    private inner class Session(val renderer: DlnaRenderer, val lease: WatchPlaybackLease, val opened: WatchPlayerState, val streamUrl: String) {
+    private inner class Session(val renderer: DlnaRenderer, val lease: WatchPlaybackLease, val opened: WatchPlayerState, val streamUrl: String,
+        val relay: DlnaMediaRelay? = null) {
         val key: WatchKey? get() = opened.target?.key
         var follow: Job? = null
         @Volatile var progress: WatchProgress? = null
@@ -50,7 +51,9 @@ class WatchCasting(
 
     fun whyNot(stream: Stream?): String? = when {
         stream == null -> "Choose a playable video first"
-        stream.isTorrent || stream.headers.isNotEmpty() -> "This source needs a local relay. Choose a direct copy to cast."
+        stream.isTorrent -> "This source cannot be sent to a TV. Choose a direct copy to cast."
+        // A single file that needs headers goes through this device (see [relay]); a playlist's own parts cannot.
+        stream.headers.isNotEmpty() && stream.protocol == StreamProtocol.HLS -> "This stream needs headers a TV cannot send. Choose another copy."
         stream.protocol !in setOf(StreamProtocol.PROGRESSIVE, StreamProtocol.HLS) -> "This receiver needs a direct video or HLS stream"
         !stream.url.startsWith("https://") && !stream.url.startsWith("http://") -> "This video is only available on this device"
         else -> null
@@ -64,6 +67,8 @@ class WatchCasting(
         endLocked(stopReceiver = true)
         val target = receiverOf(device)
         var opened: WatchPlaybackLease? = null
+        // Headers the TV cannot send: it fetches from this device, which adds them (only while this cast lasts).
+        val serving = if (stream.headers.isNotEmpty()) DlnaMediaRelay() else null
         try {
             target.connect()
             opened = repository.openPlayback(stream)
@@ -73,15 +78,16 @@ class WatchCasting(
                 stream.container == Container.MKV -> "video/x-matroska"
                 else -> "video/mp4"
             }
-            target.load(DlnaMedia(opened.url, mime, state.summary?.name ?: stream.label, state.subtitleLine.orEmpty(),
+            val address = serving?.publish(DlnaMediaRelay.Source.Remote(opened.url, stream.headers, mime), DlnaMediaRelay.hostOf(device.avTransportUrl)) ?: opened.url
+            target.load(DlnaMedia(address, mime, state.summary?.name ?: stream.label, state.subtitleLine.orEmpty(),
                 artworkUrl = state.summary?.posterUrl, durationMs = state.durationMs, video = true), player.engine.positionMs())
             check(!target.state.value.failed) { "The receiver could not play this copy" }
         } catch (error: Throwable) {
             opened?.close?.invoke()
-            withContext(NonCancellable) { runCatching { target.close(true) } }
+            withContext(NonCancellable) { runCatching { target.close(true) }; serving?.close() }
             throw error
         }
-        val started = Session(target, opened, state, stream.url)
+        val started = Session(target, opened, state, stream.url, serving)
         claimRemote()
         player.engine.pause()
         session = started
@@ -138,6 +144,7 @@ class WatchCasting(
             val replacedOnSameDevice = successor?.session?.renderer?.device?.id == ending.renderer.device.id
             runCatching { ending.renderer.close(stopReceiver && !replacedOnSameDevice) }
             runCatching { ending.lease.close() }
+            ending.relay?.close()
             val owned = releaseRemote()
             ending.progress?.let { progress ->
                 repository.saveProgress(progress)

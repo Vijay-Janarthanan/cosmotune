@@ -37,8 +37,25 @@ internal object DesktopAudioDevices {
     /** Bumped whenever the system's set of outputs changes; lists keyed on it re-enumerate. */
     val changes: StateFlow<Int> = _changes
 
+    @Volatile private var knownOutputs: Set<String>? = null
+
+    init {
+        // The baseline the first change is compared with, read off the caller's thread.
+        kotlin.concurrent.thread(isDaemon = true, name = "audio-outputs-baseline") {
+            runCatching { if (knownOutputs == null) knownOutputs = available().map { it.id }.toSet() }
+        }
+    }
+
     internal fun systemChanged() {
         DesktopOutputMode.invalidateEphemeralDop()
+        // Tells Video's player (and anything else listening) that an output went away, so playing video pauses as music does.
+        runCatching {
+            val now = available().map { it.id }.toSet()
+            knownOutputs?.let { before ->
+                com.cosmotune.music.playback.AudioRouteEvents.compare(before, now)?.let(com.cosmotune.music.playback.AudioRouteEvents::report)
+            }
+            knownOutputs = now
+        }
         _changes.update { it + 1 }
     }
 

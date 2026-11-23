@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -76,7 +77,7 @@ private const val SLIDER_PAD_DP = 22f
 internal val SPEEDS: List<Float> = (1..16).map { it * PlayerKeyMap.SPEED_STEP }
 
 /** The pages of the settings: the rows, and the list each row opens in the same sheet. */
-internal enum class SettingsPage { MAIN, QUALITY, SPEED, CAPTIONS, AUDIO, SMOOTHNESS }
+internal enum class SettingsPage { MAIN, QUALITY, SPEED, CAPTIONS, AUDIO, SMOOTHNESS, TV }
 
 /**
  * The phone's player settings (spec 6.5): a C sheet (`CosmoSheetSurface`, through the app's sheet host) with the rows Quality ("Auto ·
@@ -194,6 +195,11 @@ internal fun PlayerSettingsPanel(
             CosmoActionRow(
                 CosmoIcons.Equaliser, stringResource(Res.string.video_smooth_title), value = smoothnessValue(settings.smoothness, canSmooth), menu = menu,
             ) { page = SettingsPage.SMOOTHNESS }
+            if (!local) {
+                val casting = remember(playback) { com.cosmotune.video.cast.VideoCasts.of(playback) }
+                val tvNow by casting.renderer.collectAsState()
+                CosmoActionRow(CosmoIcons.Devices, "Play on a TV", value = tvNow?.device?.name, menu = menu) { page = SettingsPage.TV }
+            }
             CosmoActionRow(CosmoIcons.Repeat, stringResource(Res.string.video_loop), value = if (state.loop) on else off, menu = menu) { playback.setLoop(!state.loop) }
             CosmoActionRow(VideoIcons.Info, stringResource(Res.string.video_stats), value = if (statsShown) on else off, menu = menu) { onToggleStats() }
             if (local) LocalSettingsRows(menu, onAspect = { localPage = LocalSettingsPage.ASPECT }, onDone = onDone)
@@ -228,6 +234,7 @@ internal fun PlayerSettingsPanel(
                 }
             }
         }
+        SettingsPage.TV -> PlayOnTvRows(playback, menu, back = { page = SettingsPage.MAIN }, done = onDone)
         SettingsPage.SMOOTHNESS -> {
             back(stringResource(Res.string.video_smooth_title))
             SmoothnessPanel(playback, menu)

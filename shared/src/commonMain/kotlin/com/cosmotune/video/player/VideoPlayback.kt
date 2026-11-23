@@ -84,6 +84,9 @@ interface VideoPlayback {
     /** The engine that draws the picture (its surface) and the stats (spec 6.5). */
     val engine: VideoPlayerEngine
 
+    /** The streams of the video now loaded (addresses and the headers they need), for playing it on a TV; null when none or a local file. */
+    fun streamsForCast(): com.cosmotune.video.model.StreamSet? = null
+
     /** The playhead; read it in draw, layout or a ticker, never as composition state per frame. */
     fun positionMs(): Long
 

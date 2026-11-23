@@ -31,3 +31,21 @@ object AudioRoutePolicy {
             RouteDecision(if (playing) RouteAction.PAUSE else RouteAction.NONE, fallBackToDefault = true)
     }
 }
+
+/**
+ * Where the computer says that an output went away (the desktop watches its sound devices and reports here), so that Video's
+ * player, which does not own those devices, can follow [AudioRoutePolicy] too.
+ */
+object AudioRouteEvents {
+    private val flow = kotlinx.coroutines.flow.MutableSharedFlow<RouteChange>(extraBufferCapacity = 4)
+    val changes: kotlinx.coroutines.flow.SharedFlow<RouteChange> = flow
+
+    fun report(change: RouteChange) { flow.tryEmit(change) }
+
+    /** The ids of the outputs before and after; an output that is gone is [RouteChange.OUTPUT_REMOVED], otherwise nothing is reported. */
+    fun compare(before: Set<String>, after: Set<String>): RouteChange? = when {
+        (before - after).isNotEmpty() -> RouteChange.OUTPUT_REMOVED
+        (after - before).isNotEmpty() -> RouteChange.OUTPUT_ADDED
+        else -> null
+    }
+}

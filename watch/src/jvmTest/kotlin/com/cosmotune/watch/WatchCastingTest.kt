@@ -55,11 +55,13 @@ class WatchCastingTest {
     private class Tv : AutoCloseable {
         val server = TestServer()
         val actions = CopyOnWriteArrayList<String>()
+        val bodies = CopyOnWriteArrayList<String>()
         @Volatile var alive = true
         init {
             server.on("/av") { request ->
                 val action = request.getHeader("SOAPACTION").orEmpty().trim('"').substringAfter('#')
                 actions += action
+                bodies += request.body.readUtf8()
                 if (!alive) return@on MockResponse().setResponseCode(500)
                 MockResponse().setBody(when (action) {
                     "GetTransportInfo" -> "<s:Envelope><CurrentTransportState>PLAYING</CurrentTransportState></s:Envelope>"
@@ -152,13 +154,26 @@ class WatchCastingTest {
         }
     }
 
-    @Test fun aCopyThatNeedsHeadersIsRefusedBeforeAnyNetwork() = runBlocking {
+    @Test fun aPlaylistThatNeedsHeadersIsRefusedBeforeAnyNetwork() = runBlocking {
         Tv().use { tv ->
-            val player = Player(playing(copy.copy(headers = mapOf("Referer" to "https://example.invalid"))))
+            val player = Player(playing(copy.copy(protocol = StreamProtocol.HLS, headers = mapOf("Referer" to "https://example.invalid"))))
             val casting = casting(player, Repository())
             assertFailsWith<IllegalArgumentException> { casting.connect(tv.device()) }
             assertTrue(tv.actions.isEmpty())
             assertTrue(player.remote.isEmpty())
+            casting.close()
+        }
+    }
+
+    @Test fun aSingleFileThatNeedsHeadersIsSentThroughThisDevice() = runBlocking {
+        Tv().use { tv ->
+            val player = Player(playing(copy.copy(headers = mapOf("Referer" to "https://example.invalid"))))
+            val casting = casting(player, Repository())
+            casting.connect(tv.device())
+            val load = tv.bodies.first { "SetAVTransportURI" in it }
+            assertTrue("/m/" in load, "the TV is given this device's address")
+            assertFalse("example.invalid/film.mp4" in load, "the upstream address never reaches the TV")
+            casting.disconnect()
             casting.close()
         }
     }
