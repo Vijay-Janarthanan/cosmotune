@@ -193,6 +193,15 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         if (kotlin.math.abs(playback.rate - speed) > 0.01f) onSpeed(speed)
     }
     // Downloads that are played (or beyond a show's "Downloads to keep") go by themselves, once the episode is no longer on.
+    // "Keep episodes as they play": an episode streamed from the internet is saved whole as it starts, so going back, a seek or
+    // the next listen need no connection (Pocket Casts' cache while streaming).
+    LaunchedEffect(playback.id, saved.keepStreamed) {
+        val id = playback.id ?: return@LaunchedEffect
+        if (!saved.keepStreamed || !id.startsWith("podio:episode:") || id.startsWith("podio:episode:recording-")) return@LaunchedEffect
+        if (downloadedEpisodes.any { it.id == id } || id in episodeDownloadsRunning) return@LaunchedEffect
+        val item = m.lastPlayed?.takeIf { it.id == id && it.url.startsWith("http") } ?: return@LaunchedEffect
+        onDownloadEpisode?.invoke(item)
+    }
     LaunchedEffect(downloadedEpisodes, saved.completedEpisodes, saved.deletePlayedDownloads, saved.keepDownloadsPerShow, saved.showSettings, playback.id) {
         delay(3_000)
         m.applyRetention(downloadedEpisodes, playback.id)

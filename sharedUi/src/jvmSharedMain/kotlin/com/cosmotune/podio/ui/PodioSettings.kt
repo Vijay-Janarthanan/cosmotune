@@ -93,6 +93,9 @@ fun PodioSettingsSection(storage: File, modifier: Modifier = Modifier,
                 { save { it.copy(keepDownloadsPerShow = count) } }, haptic = false)
         }
         Text("Older ones go by themselves; episodes you have started always stay.", style = fonts.body.copy(fontSize = 13.sp), color = look.dim)
+        OrbitSwitchRow("Keep episodes as they play", saved.keepStreamed, { on -> save { it.copy(keepStreamed = on) } },
+            detail = "An episode you stream is saved whole, so it plays on without a connection", plain = true,
+            switchModifier = Modifier.testTag("settings:podio:keep-streamed"))
         OrbitLabel("Playback", fonts, look.dim, Modifier.padding(top = 8.dp))
         OrbitSwitchRow("Voice boost", saved.voiceBoost, { on -> save { it.copy(voiceBoost = on) } },
             detail = "Louder, clearer speech for quiet podcasts", plain = true, switchModifier = Modifier.testTag("settings:podio:voice-boost"))

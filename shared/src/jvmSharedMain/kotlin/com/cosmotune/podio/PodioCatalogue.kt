@@ -634,7 +634,9 @@ private class AnonymousSpotifyCookies : CookieJar {
     /** The user names and passwords of private feeds ([PodioFeedLogins]), by feed address; they stay on this device. */
     val feedLogins: Map<String, PodioFeedLogin> = emptyMap(),
     /** The PIN that following a new show asks for ([PodioFollowLock]), or none. */
-    val followLock: PodioFollowLockPin? = null)
+    val followLock: PodioFollowLockPin? = null,
+    /** Save an episode whole as it starts streaming, so it plays on with no connection. */
+    val keepStreamed: Boolean = false)
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {
