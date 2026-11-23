@@ -46,6 +46,7 @@ import com.cosmotune.video.player.QualityOption
 import com.cosmotune.video.player.rememberPictureInPicture
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_set_filters
+import com.cosmotune.video.resources.video_set_remember_speed
 import com.cosmotune.video.resources.video_set_auto_backup
 import com.cosmotune.video.resources.video_set_auto_backup_where
 import com.cosmotune.video.resources.video_set_backup_daily
@@ -255,6 +256,11 @@ private fun PlaybackSettings(settings: VideoSettings, update: SettingsUpdate, pi
             title = stringResource(Res.string.video_set_speed),
             subtitle = stringResource(Res.string.video_speed_value, speedLabel(settings.defaultSpeed)),
             onClick = { open(SettingsChoice.SPEED) },
+        )
+        CosmoSettingsSubRow(
+            title = stringResource(Res.string.video_set_remember_speed),
+            checked = settings.rememberSpeed,
+            onCheckedChange = { value -> update { it.copy(rememberSpeed = value, speedByVideo = if (value) it.speedByVideo else emptyMap()) } },
         )
         CosmoSettingsRow(
             icon = VideoIcons.Forward,

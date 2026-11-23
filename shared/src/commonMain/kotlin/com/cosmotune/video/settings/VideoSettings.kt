@@ -79,6 +79,10 @@ data class VideoSettings(
     val autoBackupDays: Int = 0,
     /** When the last automatic backup was written. */
     val autoBackupLastMs: Long = 0,
+    /** Each video plays again at the speed it was last watched at. */
+    val rememberSpeed: Boolean = false,
+    /** The speed each video was last watched at (with rememberSpeed). */
+    val speedByVideo: Map<String, Float> = emptyMap(),
     val smoothness: SmoothnessSettings = SmoothnessSettings() /* frame smoothing: off, so frames are shown as they come */,
 ) {
     companion object {

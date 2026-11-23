@@ -364,6 +364,8 @@ internal data class SettingsDocument(
     val channelHideWatched: Boolean = false,
     val autoBackupDays: Int = 0,
     val autoBackupLastMs: Long = 0,
+    val rememberSpeed: Boolean = false,
+    val speedByVideo: Map<String, Float> = emptyMap(),
     val smoothness: SmoothnessDto = SmoothnessDto(),
 )
 
@@ -436,6 +438,8 @@ internal fun VideoSettings.toDocument() = SettingsDocument(
     channelHideWatched = channelHideWatched,
     autoBackupDays = autoBackupDays,
     autoBackupLastMs = autoBackupLastMs,
+    rememberSpeed = rememberSpeed,
+    speedByVideo = speedByVideo.entries.toList().takeLast(300).associate { it.key to it.value },
     smoothness = smoothness.toDto(),
 )
 
@@ -492,6 +496,8 @@ internal fun SettingsDocument.toSettings(): VideoSettings {
         channelHideWatched = channelHideWatched,
         autoBackupDays = autoBackupDays.takeIf { it in com.cosmotune.video.library.AutoBackup.CHOICES } ?: 0,
         autoBackupLastMs = autoBackupLastMs.coerceAtLeast(0),
+        rememberSpeed = rememberSpeed,
+        speedByVideo = speedByVideo.filter { (id, speed) -> id.isNotBlank() && speed.isFinite() && speed in 0.25f..4f }.entries.toList().takeLast(300).associate { it.key to it.value },
         smoothness = smoothness.toDomain(),
     )
 }
