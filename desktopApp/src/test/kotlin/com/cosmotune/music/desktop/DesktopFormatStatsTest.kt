@@ -21,6 +21,13 @@ class DesktopFormatStatsTest {
         assertTrue(snapshot.downgraded)
     }
 
+    @Test fun theStatsBelongToThePlayingSongWhicheverSourceServesIt() {
+        val stats = desktopNerdSnapshot(DesktopStreamFormat(codec = "aac", kbps = 320, sampleRateHz = 44_100, channels = 2), "jiosaavn",
+            sourceName = "JioSaavn", mediaId = "song")
+        assertEquals("song", stats?.mediaId)
+        assertEquals("jiosaavn", stats?.sourceId)
+    }
+
     @Test fun anEncodedStreamShowsCodecBitrateAndRate() {
         val stats = desktopNerdSnapshot(DesktopStreamFormat(codec = "opus", kbps = 141, sampleRateHz = 48_000, channels = 2), "youtube")
         assertEquals(TelemetryProvenance.AUTHORITATIVE, stats?.bitrateProvenance)

@@ -73,8 +73,7 @@ fun AudioFormatLine(modifier: Modifier = Modifier, onClick: (() -> Unit)? = Loca
 @Composable
 internal fun RecordAudioDetails(mediaId: String, fonts: OrbitFonts, ink: Color, onClick: () -> Unit) {
     val stats by NerdStats.current.collectAsStateWithLifecycle()
-    val playing = stats?.takeIf { it.mediaId == mediaId } ?: return
-    val badge = playing.measuredQualityBadge() ?: return
+    val badge = songCardQualityBadge(stats, mediaId) ?: return
     Text(
         badge.text, style = fonts.label.copy(letterSpacing = 0.4.sp), color = ink, maxLines = 1,
         modifier = Modifier.heightIn(min = 32.dp).clip(CircleShape)

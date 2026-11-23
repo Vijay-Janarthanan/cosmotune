@@ -15,8 +15,18 @@ internal fun observedCodecName(codec: String?, profile: String?): String? =
  * [TelemetryProvenance.AUTHORITATIVE] — except for uncompressed PCM, where FFmpeg's "bit rate" is the sample stream
  * itself. That one is PCM throughput, kept apart from encoded bitrate as the phone does ([TelemetryProvenance.DERIVED]
  * plus [NerdStats.Snapshot.pcmDataRateKbps]), so the format line never calls it a bitrate.
+ *
+ * [mediaId] is the song the figures belong to, the playing song's own id whichever source's copy is playing. The Now Playing
+ * card shows the measured pill only for stats stamped with its song, as the phone's are; left out, nothing ever matched and the
+ * card never showed it.
  */
-internal fun desktopNerdSnapshot(format: DesktopStreamFormat?, sourceId: String?, offer: DesktopStreamFormat? = null, sourceName: String? = sourceId): NerdStats.Snapshot? {
+internal fun desktopNerdSnapshot(
+    format: DesktopStreamFormat?,
+    sourceId: String?,
+    offer: DesktopStreamFormat? = null,
+    sourceName: String? = sourceId,
+    mediaId: String? = null,
+): NerdStats.Snapshot? {
     format ?: return null
     val codec = format.codec?.substringAfterLast('/')?.substringBefore(';')?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
     val rawPcm = codec != null && (codec.startsWith("pcm_") || codec == "raw")
@@ -36,5 +46,6 @@ internal fun desktopNerdSnapshot(format: DesktopStreamFormat?, sourceId: String?
             else -> TelemetryProvenance.AUTHORITATIVE
         },
         pcmDataRateKbps = kbps?.takeIf { rawPcm },
+        mediaId = mediaId,
     )
 }

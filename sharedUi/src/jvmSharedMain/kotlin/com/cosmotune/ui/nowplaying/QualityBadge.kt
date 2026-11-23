@@ -76,6 +76,13 @@ fun NerdStats.Snapshot.measuredQualityBadge(): QualityBadge? {
 }
 
 /**
+ * The song card's pill for the song [mediaId]: the measured badge of [stats] when they are that song's, whichever source's copy is
+ * playing, and null otherwise (nothing measured yet, another song's figures, or figures stamped with no song at all).
+ */
+fun songCardQualityBadge(stats: NerdStats.Snapshot?, mediaId: String): QualityBadge? =
+    stats?.takeIf { it.mediaId == mediaId }?.measuredQualityBadge()
+
+/**
  * The pill a source or catalogue reports for a row ([Song.sourceQualityBadge]), or null when it reports nothing worth a label.
  * Worded as an offer: "Hi-Res", "Lossless", "High", and "Atmos available" for a Dolby Atmos edition.
  */

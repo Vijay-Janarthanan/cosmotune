@@ -3401,9 +3401,11 @@ fun CosmotuneDesktopApp() {
     }
 
     // The engine's measured stream, as the player's quality badge and stats line read it.
-    LaunchedEffect(playback.streamFormat, playback.streamSourceId, playback.streamOffer) {
+    // Stamped with the playing song, published in the same state as the format, so the card can tell its song's stats from another's.
+    LaunchedEffect(playback.streamFormat, playback.streamSourceId, playback.streamOffer, playback.song?.videoId) {
         NerdStats.current.value = desktopNerdSnapshot(playback.streamFormat, playback.streamSourceId, playback.streamOffer,
-            playback.streamSourceId?.let { DesktopSourceRegistry.sourceNameFor(DesktopStream("", sourceId = it)) } ?: "Local audio")
+            playback.streamSourceId?.let { DesktopSourceRegistry.sourceNameFor(DesktopStream("", sourceId = it)) } ?: "Local audio",
+            mediaId = playback.song?.videoId)
     }
     LaunchedEffect(playback.searchingBetter, selectedSong?.videoId) {
         NerdStats.racingLossless.value = selectedSong?.videoId
