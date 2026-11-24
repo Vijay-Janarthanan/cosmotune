@@ -31,8 +31,8 @@ plugins {
 }
 
 // Phone and Wear OS releases must have matching identity, version and signing keys.
-extra["cosmotuneVersionCode"] = 40
-extra["cosmotuneVersionName"] = providers.gradleProperty("cosmotune.version").getOrElse("1.0.33")
+extra["cosmotuneVersionCode"] = 41
+extra["cosmotuneVersionName"] = providers.gradleProperty("cosmotune.version").getOrElse("1.0.34")
 extra["cosmotuneBetaSuffix"] = ""
 
 subprojects {
