@@ -100,8 +100,8 @@ func filesOf(item *torrent.Torrent) []fileInfo {
 	return out
 }
 
-// The "files" mode: the torrent's name, info hash and files, then the helper ends.
-func list(ctx context.Context, config *torrent.ClientConfig, request offer, send func(reply)) error {
+// The "files" mode (listFiles): the torrent's name, info hash and files, then the helper ends.
+func listFiles(ctx context.Context, config *torrent.ClientConfig, request offer, send func(reply)) error {
 	client, err := torrent.NewClient(config)
 	if err != nil {
 		return errors.New("The built-in torrent engine could not start")

@@ -98,7 +98,7 @@ func main() {
 	var err error
 	switch request.Mode {
 	case "files":
-		err = list(ctx, config, request, send)
+		err = listFiles(ctx, config, request, send)
 	case "download":
 		err = download(ctx, config, request, send)
 	case "share":
