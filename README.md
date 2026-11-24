@@ -43,6 +43,16 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
 
 ## Screenshots
 
+### New in 1.0.34
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img alt="Edit lyrics on a phone: Lines and Words, a Back 5 seconds button, pause, All timed and Undo, then each line with the time it starts, and Save and Edit the words" src="docs/images/phone-lyrics-editor-dark.webp" width="200"><br><sub>Write and time your own lyrics</sub></td>
+    <td align="center" width="33%"><img alt="Sound settings on a phone: Sound effects with 8D chosen and the line The song circles slowly around your head, chips for None, 3D room, Echo, Room, Concert hall, Chorus, Vocal remover and Night mode, and an Effect strength slider at 70%" src="docs/images/phone-sound-effects-dark.webp" width="200"><br><sub>Sound effects: 8D, 3D room, reverb, vocal remover</sub></td>
+    <td align="center" width="33%"><img alt="A public-domain novel open in Read on a phone, one phrase highlighted in yellow and a word selected, with highlight colours, underline, note, look up, copy and read aloud" src="docs/images/phone-book-reader-light.webp" width="200"><br><sub>Highlights, notes, look-ups and read aloud</sub></td>
+  </tr>
+</table>
+
 ### Phone
 
 <table>
@@ -108,6 +118,9 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
       with what you played last, then picks, mixes and new releases. Lyrics are synced line by line, and word by word where the
       source has the timing, and they can be translated or romanised. The queue can be reordered and saved as a named session to
       open again later. Replay shows your listening by month and year and can turn it into a playlist.</p>
+      <p>When the lyrics are wrong or missing, search for the right ones by hand, or type or paste your own and tap along to time
+      them, line by line or word by word. Sound effects put 8D, a 3D room, echo, room or hall reverb, chorus, a vocal remover or
+      night mode on everything that plays, and a song can keep its own effect.</p>
       <p>Cosmotune also plays the music files on your device and keeps downloaded songs for listening offline.</p>
       <p>AutoPlay and radio are ranked on the device by a <a href="docs/LOCAL_RECOMMENDATIONS.md">3.19 MB local recommendation model</a>,
       trained with ListenBrainz, Music4All-Onion, Yambda and music metadata/acoustic context, plus a small private learner that
@@ -194,6 +207,16 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
     </td>
   </tr>
   <tr>
+    <td>
+      <h3>Read: books, audiobooks and manga</h3>
+      <p>Import EPUB, PDF, Kindle, FB2, Word, text or comic files, or get public-domain books from Standard Ebooks, Project Gutenberg
+      and the Internet Archive. The reader keeps highlights in four colours, underlines and notes, looks up a word, and reads the
+      book aloud. Audiobooks play from LibriVox or your own Audiobookshelf server, and Manga has a feed, downloads and a reader that
+      crops and splits pages.</p>
+    </td>
+    <td align="center"><img alt="A public-domain novel open in Read on a phone, one phrase highlighted in yellow and a word selected, with highlight colours, underline, note, look up, copy and read aloud" src="docs/images/phone-book-reader-light.webp" width="230"></td>
+  </tr>
+  <tr>
     <td colspan="2">
       <h3>Library and import</h3>
       <p>Your history, subscriptions, playlists and downloads are in the Library. Coming from another app? Video mode imports
@@ -237,8 +260,8 @@ Cosmotune works with no account. If you want your playlists to follow you from p
 
 ## Download
 
-Version 1.0.23. The links below always fetch the newest release.
-[1.0.23 release notes](docs/releases/1.0.23.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
+Version 1.0.35. The links below always fetch the newest release.
+[1.0.35 release notes](docs/releases/1.0.35.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 ### Android
 
