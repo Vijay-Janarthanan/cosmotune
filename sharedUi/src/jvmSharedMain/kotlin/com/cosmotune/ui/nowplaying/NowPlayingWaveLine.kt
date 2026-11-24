@@ -42,9 +42,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 /**
- * The player card's seek line. With Settings, Player, Waveform seek line on (the default) it is the song's waveform, learned
- * while the song plays and kept for the next play, with a dot at each moment a listener's comment names; the comment shows
- * under the line as the song passes it. Until a song has a shape or comments it is the plain Orbit line.
+ * The player card's seek line: the plain Orbit line with its moon. With Settings, Player, Waveform seek line on (off by default)
+ * it learns the song's waveform while the song plays and keeps it for the next play; once the shape is learned the line is the
+ * waveform, with the moon at the playhead and a mark on the line at each moment a listener's comment names, and the comment shows
+ * under the line as the song passes it. Until the shape is learned it stays the plain Orbit line, never a row of dots.
  */
 @Composable
 internal fun SongSeekLine(t: NowPlayingTransport, ink: Color, fonts: OrbitFonts, modifier: Modifier = Modifier) {
@@ -79,7 +80,7 @@ internal fun SongSeekLine(t: NowPlayingTransport, ink: Color, fonts: OrbitFonts,
         value = emptyList()
         if (id.matches(VIDEO_ID)) value = withContext(Dispatchers.IO) { TimedComments.forSong(id, t.durationMs) }
     }
-    if (bars == null && comments.isEmpty()) {
+    if (bars == null) {
         OrbitProgressLine(t::progress, ink, modifier, onSeek = t::seek)
         return
     }
@@ -120,9 +121,9 @@ private fun WaveLine(t: NowPlayingTransport, ink: Color, bars: FloatArray?, comm
         }
     Canvas(Modifier.fillMaxWidth().height(30.dp).testTag("nowplaying:card:waveform").then(input)) {
         val p = (drag ?: t.progress()).coerceIn(0f, 1f)
-        val dot = 2.5.dp.toPx()
-        val waveHeight = size.height - dot * 4
-        val mid = waveHeight / 2
+        val moon = 6.dp.toPx()
+        val mid = size.height / 2
+        val waveHeight = size.height - 4.dp.toPx()
         val count = WaveShape.BARS
         val slot = size.width / count
         val barWidth = (slot * 0.62f).coerceAtLeast(1.5f)
@@ -135,11 +136,15 @@ private fun WaveLine(t: NowPlayingTransport, ink: Color, bars: FloatArray?, comm
                 Offset(x, mid - height / 2), Size(barWidth, height), CornerRadius(barWidth / 2),
             )
         }
-        val duration = t.durationMs.takeIf { it > 0 } ?: return@Canvas
-        for (comment in comments) {
-            val at = comment.atMs.toFloat() / duration
-            drawCircle(if (at <= p) ink else ink.copy(alpha = 0.5f), dot, Offset(size.width * at, size.height - dot))
+        // A comment's moment is a small mark on the line itself, never a loose dot under it.
+        val duration = t.durationMs.takeIf { it > 0 }
+        if (duration != null) for (comment in comments) {
+            val at = (comment.atMs.toFloat() / duration).coerceIn(0f, 1f)
+            drawCircle(ink.copy(alpha = if (at <= p) 1f else 0.55f), 2.5.dp.toPx(), Offset(size.width * at, mid))
         }
+        // The moon at the playhead, as on the plain line, so the waveform still reads as a seek line.
+        drawCircle(ink.copy(alpha = 0.18f), moon + 4.dp.toPx(), Offset(size.width * p, mid))
+        drawCircle(ink, moon, Offset(size.width * p, mid))
     }
 }
 

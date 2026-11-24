@@ -96,7 +96,7 @@ fun GlobalShortcutsRow(settings: ExtrasSettings = Extras.settings) {
     ExtrasSwitchRow(Icons.Rounded.Keyboard, PlayerExtrasText.GLOBAL_SHORTCUTS, PlayerExtrasText.GLOBAL_SHORTCUTS_LINE, on, settings::setGlobalShortcuts)
 }
 
-/** The waveform seek line with timed comments ([ExtrasSettings.waveformSeek]); on until turned off. */
+/** The waveform seek line with timed comments ([ExtrasSettings.waveformSeek]); off until turned on, so the plain line is the default. */
 @Composable
 fun WaveformSeekRow(settings: ExtrasSettings = Extras.settings) {
     val on by settings.waveformSeek.collectAsState()

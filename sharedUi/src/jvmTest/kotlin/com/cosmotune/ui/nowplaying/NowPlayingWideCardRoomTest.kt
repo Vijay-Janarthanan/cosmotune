@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.audio.SongWaveforms
+import com.cosmotune.settings.Extras
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.ui.player.PlayerScrub
@@ -87,6 +88,8 @@ class NowPlayingWideCardRoomTest {
         var fraction = 0f
         while (fraction <= 1f) { SongWaveforms.record(id, fraction, 0.3f + 0.5f * (fraction * 7 % 1f)); fraction += 0.002f }
         assertNotNull(SongWaveforms.bars(id), "the song has a waveform")
+        // The waveform line is off by default; this card is checked with it turned on.
+        Extras.settings.setWaveformSeek(true)
         val scene = ImageComposeScene(width = 960, height = 400, density = Density(1f)) {
             CompositionLocalProvider(LocalCosmoColors provides shell.colors) {
                 Box(Modifier.fillMaxSize().background(Color(0xFF14110F))) {
@@ -115,6 +118,7 @@ class NowPlayingWideCardRoomTest {
             assertTrue(seek.bottom <= card.bottom, "the times (bottom ${seek.bottom}) stay inside the card (bottom ${card.bottom})")
         } finally {
             scene.close()
+            Extras.settings.setWaveformSeek(false)
         }
     }
 }

@@ -269,7 +269,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val premiumAudioFlow = MutableStateFlow(store.getBoolean(KEY_PREMIUM_AUDIO, false))
     private val sleepFadeOutFlow = MutableStateFlow(store.getBoolean(KEY_SLEEP_FADE_OUT, true))
     private val bestPartFlow = MutableStateFlow(store.getBoolean(KEY_BEST_PART, true))
-    private val waveformSeekFlow = MutableStateFlow(store.getBoolean(KEY_WAVEFORM_SEEK, true))
+    private val waveformSeekFlow = MutableStateFlow(store.getBoolean(KEY_WAVEFORM_SEEK, false))
     private val eqUserPresetsFlow = MutableStateFlow(com.cosmotune.music.playback.EqUserPresets.decode(store.getString(KEY_EQ_USER_PRESETS, "")))
     private val screenOnFlow = MutableStateFlow(ScreenOnPolicy.named(store.getString(KEY_SCREEN_ON, ScreenOnPolicy.DEFAULT.name)))
 
