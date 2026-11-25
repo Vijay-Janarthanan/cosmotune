@@ -245,7 +245,7 @@ class LegalTextsTest {
             "com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {",
         "app/src/main/AndroidManifest.xml" to "android:supportsPictureInPicture=\"true\"",
         "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt" to
-            "if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)",
+            "if (videoShowing) return@modePage com.cosmotune.video.host.DesktopVideoPage(contentPadding)",
         "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt" to
             "if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive).or(com.cosmotune.video.host.DesktopModeHost.podioActive).or(com.cosmotune.video.host.DesktopModeHost.watchActive)) return@onPreviewKeyEvent false",
     )

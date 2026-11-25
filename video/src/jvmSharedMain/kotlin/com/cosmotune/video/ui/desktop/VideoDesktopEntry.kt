@@ -90,7 +90,7 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
     val windowWidth: Dp = with(density) { LocalWindowInfo.current.containerSize.width.toDp() }
     val compact = windowWidth.value < ShellMetrics.DESKTOP_COMPACT_DP
     val route = navigator.top
-    val fullPage = route is VideoRoute.Shorts
+    val fullPage = route is VideoRoute.Shorts || route is VideoRoute.LocalReels
 
     OpenPendingVideo(host, navigator)
     com.cosmotune.video.ui.cast.PhoneCastReceiver(navigator)

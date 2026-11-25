@@ -243,7 +243,7 @@ class ShellStructureTest {
         "Home" to "Y-17", "Search" to "Y-18", "Watch" to "Y-19", "Channel" to "Y-20", "Playlist" to "Y-20", "LocalPlaylist" to "Y-20",
         "Subscriptions" to "Y-21", "Library" to "Y-22", "History" to "Y-22", "WatchLater" to "Y-22", "Liked" to "Y-22",
         "SavedPlaylists" to "Y-22", "Channels" to "Y-22", "Import" to "Y-22", "Downloads" to "Y-33", "Settings" to "Y-25", "Shorts" to "Y-31",
-        "LocalPlayer" to "local", "LocalFiles" to "local",
+        "LocalPlayer" to "local", "LocalFiles" to "local", "LocalFolder" to "local", "LocalReels" to "local",
     )
 
     @Test fun theRoutesAreTheSeventeenOfTheBriefAndTheTwoOfTheLocalPlayer() {
@@ -251,10 +251,12 @@ class ShellStructureTest {
             setOf(
                 "Home", "Subscriptions", "Library", "Search", "Watch", "Shorts", "Channel", "Playlist", "LocalPlaylist", "History", "WatchLater",
                 "Liked", "SavedPlaylists", "Channels", "Downloads", "Settings", "Import", "LocalPlayer", "LocalFiles",
+                // 1.0.36: an added folder of videos, and its Reels.
+                "LocalFolder", "LocalReels",
             ),
             routeNames.toSet(),
         )
-        assertEquals(19, routeNames.size)
+        assertEquals(21, routeNames.size)
         assertEquals(routeNames.toSet(), owners.keys, "every route has an owner")
     }
 

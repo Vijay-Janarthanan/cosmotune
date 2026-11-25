@@ -50,23 +50,32 @@ class ModeHooksContractTest {
 
     @Test fun desktopAppHoldsTheTwoLinesOfTheHookTableAtTheirPlaces() {
         val text = read(desktopApp)
-        val page = "if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)"
+        // The mode pages stand in a box that is measured but not placed while the common Settings covers them (so a page keeps
+        // its route and its player); Video's page is the first line inside that box.
+        val content = "Box(Modifier.fillMaxSize()) content@{"
+        val page = "if (videoShowing) return@modePage com.cosmotune.video.host.DesktopVideoPage(contentPadding)"
         val keys = "if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive).or(com.cosmotune.video.host.DesktopModeHost.podioActive).or(com.cosmotune.video.host.DesktopModeHost.watchActive)) return@onPreviewKeyEvent false"
         val lines = text.lines().map { it.trim() }
         assertEquals(1, lines.count { it == page }, "Video's page stands in place of Music's")
         assertEquals(1, lines.count { it == keys }, "the music shortcuts stand aside")
-        assertEquals(") { contentPadding ->", lines[lines.indexOf(page) - 1], "the first line inside the content lambda")
+        assertEquals(") { contentPadding ->", lines[lines.indexOf(content) - 1], "the box is the first line inside the content lambda")
+        assertEquals("}) modePage@{", lines[lines.indexOf(page) - 1], "Video's page is the first line inside the mode pages' box")
         assertEquals("modifier = Modifier.onPreviewKeyEvent { event ->", lines[lines.indexOf(keys) - 1], "the first line inside the key handler")
-        // Y-26 adds two provider lines of its own (the plan's hook table, row 10): they are the only other mentions allowed.
+        // Y-26 adds two provider lines of its own (the plan's hook table, row 10): they are the only other mentions allowed, with the
+        // four lines that ask which mode page is shown and the Video section of the common Settings.
         val later = listOf(
             "val videoModeShown = com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown() || com.cosmotune.video.host.desktopWatchShown()",
-            "if (com.cosmotune.video.host.desktopWatchShown()) return@DesktopFrame com.cosmotune.video.host.DesktopWatchPage(contentPadding)",
+            "val videoShowing = com.cosmotune.video.host.desktopVideoShown()",
+            "val readerShowing = com.cosmotune.video.host.desktopMangaShown()",
+            "val watchShowing = com.cosmotune.video.host.desktopWatchShown()",
+            "val podioShowing = com.cosmotune.video.host.desktopPodioShown()",
+            "if (watchShowing) return@modePage com.cosmotune.video.host.DesktopWatchPage(contentPadding)",
             // Read's audiobooks play on the desktop player, so the Manga page is drawn inside a provider of that player.
-            "if (com.cosmotune.video.host.desktopMangaShown()) {",
             "com.cosmotune.video.host.DesktopMangaPage(contentPadding)",
-            "if (com.cosmotune.video.host.desktopPodioShown()) {",
             "com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },",
             "com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),",
+            "val graph = remember { com.cosmotune.video.graph.desktopVideoGraph() }",
+            "if (graph != null) com.cosmotune.video.ui.settings.VideoCommonSettings(graph, wide = true)",
         )
         val others = lines.filter { "com.cosmotune.video" in it } - setOf(page, keys) - later.toSet()
         assertEquals(emptyList(), others, "no other line of the file names Video")
@@ -173,8 +182,8 @@ class ModeHooksContractTest {
     @Test fun theTopBarFollowsVideosBackAndDrawerEntriesWhileTheModeIsVideo() {
         val body = VideoSourceContract.functionBody(read(desktopDir + "CosmoDesktopChrome.kt"), "CosmoDesktopTopBar").replace(Regex("\\s+"), " ")
         assertTrue("val video = com.cosmotune.video.host.desktopVideoShown()" in body)
-        assertTrue("val backEnabled = if (video) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack" in body)
-        assertTrue("if (video) ({ com.cosmotune.video.ui.desktop.VideoDesktopBack.goBack() }) else onBack" in body)
+        assertTrue("val backEnabled = if (video && !settingsOpen) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack" in body)
+        assertTrue("if (video && !settingsOpen) ({ com.cosmotune.video.ui.desktop.VideoDesktopBack.goBack() }) else onBack" in body)
         assertTrue("entries = if (video) com.cosmotune.video.ui.desktop.videoDesktopDrawerEntries() else entries," in body)
     }
 
@@ -187,8 +196,8 @@ class ModeHooksContractTest {
             VideoSourceContract.firstStatement(bar),
         )
         assertTrue(
-            "if (com.cosmotune.video.host.desktopVideoShown() || reading || com.cosmotune.video.host.desktopWatchShown()) return" in bar,
-            "Video and Watch play their own media: the bar stands aside",
+            "if (com.cosmotune.video.host.desktopVideoShown() && com.cosmotune.video.host.desktopVideoPlaying() || reading || com.cosmotune.video.host.desktopWatchShown()) return" in bar,
+            "Watch, and Video while its player has something on, play their own media: the bar stands aside; music under Video's pages keeps it",
         )
         val panel = read(desktopDir + "CosmoDesktopSidePanel.kt")
         assertEquals(

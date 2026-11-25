@@ -53,7 +53,8 @@ internal fun routeTitle(route: VideoRoute): String = when (route) {
     VideoRoute.Settings -> stringResource(Res.string.video_drawer_settings)
     VideoRoute.Import -> stringResource(Res.string.video_import)
     VideoRoute.LocalFiles -> stringResource(Res.string.video_local_title)
-    is VideoRoute.LocalPlayer, is VideoRoute.Watch, is VideoRoute.Shorts, is VideoRoute.Channel, is VideoRoute.Playlist, is VideoRoute.LocalPlaylist -> ""
+    is VideoRoute.LocalFolder -> route.name
+    is VideoRoute.LocalPlayer, is VideoRoute.LocalReels, is VideoRoute.Watch, is VideoRoute.Shorts, is VideoRoute.Channel, is VideoRoute.Playlist, is VideoRoute.LocalPlaylist -> ""
 }
 
 /**

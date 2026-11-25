@@ -171,7 +171,7 @@ fun LocalPlayerPage(route: VideoRoute.LocalPlayer, contentPadding: PaddingValues
     GoOnWhenEnded(route.id, base, navigator::replaceTop)
 
     val upNextIds = LocalPlayerSession.upNext(route.id)
-    val upNext = remember(upNextIds, recents) { upNextIds.mapNotNull { id -> recents.firstOrNull { it.id == id } } }
+    val upNext = remember(upNextIds, recents) { upNextIds.mapNotNull { id -> LocalPlayerSession.entryOf(id, recents) } }
     val playback = remember(base, route.id, upNext) {
         LocalQueuePlayback(
             base = base,
@@ -217,7 +217,8 @@ private const val RESTART_AFTER_MS = 3_000L
  * (the given one, else where it was left when remembering is on). False when the file is not in the list or no longer exists.
  */
 private suspend fun startLocal(base: VideoPlayback, store: LocalRecentStore, access: LocalFileAccess, id: String, startMs: Long?): Boolean {
-    val entry = store.get(id) ?: return false
+    // A folder's file queued after the one tapped joins the recent list as it starts.
+    val entry = store.get(id) ?: LocalPlayerSession.pending[id]?.let { store.touch(it.source, it.title) } ?: return false
     val bundle = withContext(Dispatchers.IO) {
         if (!access.exists(entry.source)) return@withContext null
         LocalBundle(files = MediaInput.LocalFiles(muxedPath = entry.source, videoPath = null, audioPath = null), subtitles = subtitleFilesFor(entry, access))

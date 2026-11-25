@@ -95,6 +95,9 @@ object VideoIcons {
     val Info by icon("info") { circle(12f, 12f, 8.25f); stroke("M12 11v5"); stroke("M12 8h.01") }
     val Upload by icon("upload") { stroke("M12 15V4.5"); stroke("m7.5 9 4.5-4.5 4.5 4.5"); stroke("M5 19.5h14") }
 
+    /** A folder: an added folder of local videos (not in the plan's table of 22). */
+    val Folder by icon("folder") { stroke("M3.5 8a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z") }
+
     /** Three lines: the guide's button (not in the plan's table of 22, which [all] lists). */
     val Menu by icon("menu") { stroke("M4 6.5h16"); stroke("M4 12h16"); stroke("M4 17.5h16") }
 

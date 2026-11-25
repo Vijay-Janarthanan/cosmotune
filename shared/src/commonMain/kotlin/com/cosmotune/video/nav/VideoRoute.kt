@@ -32,8 +32,14 @@ sealed interface VideoRoute {
     /** The local player for the file whose id ([com.cosmotune.video.local.LocalVideo.idFor]) is [id]; its source is in the recent list. */
     data class LocalPlayer(val id: String) : VideoRoute
 
-    /** The files the local player has opened (the recent list), with the button that opens another. */
+    /** The files the local player has opened (the recent list), with the button that opens another, and the folders added. */
     data object LocalFiles : VideoRoute
+
+    /** A folder of videos the person added, or one inside it: its folders, then its videos. [source] is a path, or a document address on the phone. */
+    data class LocalFolder(val source: String, val name: String) : VideoRoute
+
+    /** Reels: the videos of the folder [source] and of every folder in it, newest first, one at a time full screen; a swipe brings the next. */
+    data class LocalReels(val source: String, val name: String, val startSource: String? = null) : VideoRoute
 
     /** The Shorts pager. */
     data class Shorts(val origin: ShortsOrigin, val startVideoId: String? = null, val seedKey: String? = null) : VideoRoute
@@ -96,6 +102,8 @@ internal object VideoRouteCodec {
         is VideoRoute.Watch -> "watch:${escape(route.videoId)}:${route.startMs?.toString() ?: NONE}"
         is VideoRoute.LocalPlayer -> "localplayer:${escape(route.id)}"
         VideoRoute.LocalFiles -> "localfiles"
+        is VideoRoute.LocalFolder -> "localfolder:${escape(route.source)}:${escape(route.name)}"
+        is VideoRoute.LocalReels -> "localreels:${escape(route.source)}:${escape(route.name)}:${optional(route.startSource)}"
         is VideoRoute.Shorts -> "shorts:${escape(encodeOrigin(route.origin))}:${optional(route.startVideoId)}:${optional(route.seedKey)}"
         is VideoRoute.Channel -> "channel:${escape(route.channelId)}:${route.tab.name}"
         is VideoRoute.Playlist -> "playlist:${escape(route.playlistId)}"
@@ -128,6 +136,15 @@ internal object VideoRouteCodec {
             }
             "localplayer" -> if (fields == 1) field(1)?.let { VideoRoute.LocalPlayer(it) } else null
             "localfiles" -> VideoRoute.LocalFiles.takeIf { fields == 0 }
+            "localfolder" -> {
+                if (fields != 2) return null
+                VideoRoute.LocalFolder(field(1) ?: return null, field(2) ?: return null)
+            }
+            "localreels" -> {
+                if (fields != 3) return null
+                val start = if (parts[3] == NONE) null else unescape(parts[3]) ?: return null
+                VideoRoute.LocalReels(field(1) ?: return null, field(2) ?: return null, start)
+            }
             "shorts" -> {
                 if (fields != 3) return null
                 val origin = field(1)?.let { decodeOrigin(it) } ?: return null

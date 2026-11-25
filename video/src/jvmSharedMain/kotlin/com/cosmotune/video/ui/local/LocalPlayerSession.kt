@@ -34,6 +34,15 @@ internal object LocalPlayerSession {
     /** The last file opened from the list was gone, and was removed: the list says so once. */
     var missingNotice: Boolean by mutableStateOf(false)
 
+    /**
+     * The files of a folder queued after the one tapped, not yet in the recent list: each joins the list only when it plays, so a
+     * folder of many videos does not fill the list with the ones never watched.
+     */
+    var pending: Map<String, LocalRecent> by mutableStateOf(emptyMap())
+
+    /** The recent entry of [id], or the queued folder file it stands for. */
+    fun entryOf(id: String, recents: List<LocalRecent>): LocalRecent? = recents.firstOrNull { it.id == id } ?: pending[id]
+
     /** Opens the subtitle picker for the file on show, or null when no local page is on show. */
     var subtitlePicker: (() -> Unit)? by mutableStateOf(null)
 
@@ -67,12 +76,30 @@ internal class LocalVideoOpener(
 ) {
     /** Plays [files] one after the other, starting with the first. */
     fun open(files: List<PickedVideo>) {
+        LocalPlayerSession.pending = emptyMap()
         val entries = files.distinctBy { it.source }.reversed().map { file ->
             access.keepAccess(file.source)
             store.touch(file.source, LocalVideo.titleOf(file.name))
         }.reversed()
         val first = entries.firstOrNull() ?: return
         LocalPlayerSession.queue = entries.map { it.id }
+        navigator.push(VideoRoute.LocalPlayer(first.id))
+    }
+
+    /**
+     * Plays the video at [index] of a folder's [videos], and then the ones after it (at most [FOLDER_QUEUE] of them). Only the one
+     * tapped joins the recent list now; the others join as they play.
+     */
+    fun openFolder(videos: List<FolderEntry>, index: Int) {
+        val chosen = videos.getOrNull(index) ?: return
+        val window = videos.drop(index).take(FOLDER_QUEUE)
+        LocalPlayerSession.pending = window.associate { video ->
+            val id = LocalVideo.idFor(video.source)
+            id to LocalRecent(id = id, source = video.source, title = LocalVideo.titleOf(video.name))
+        }
+        access.keepAccess(chosen.source)
+        val first = store.touch(chosen.source, LocalVideo.titleOf(chosen.name))
+        LocalPlayerSession.queue = window.map { LocalVideo.idFor(it.source) }
         navigator.push(VideoRoute.LocalPlayer(first.id))
     }
 
@@ -86,6 +113,11 @@ internal class LocalVideoOpener(
         LocalPlayerSession.queue = listOf(entry.id)
         navigator.push(VideoRoute.LocalPlayer(entry.id))
         return true
+    }
+
+    private companion object {
+        /** How many of a folder's videos are queued after the one tapped. */
+        const val FOLDER_QUEUE = 100
     }
 }
 

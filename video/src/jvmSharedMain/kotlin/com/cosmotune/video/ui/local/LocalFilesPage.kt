@@ -53,6 +53,13 @@ fun LocalFilesPage(contentPadding: PaddingValues, wide: Boolean) {
     val picker = rememberVideoFilePicker(onVideos = { opener.open(it) }, onSubtitle = {})
     val recents by store.entries.collectAsState()
     val notice = LocalPlayerSession.missingNotice
+    val navigator = com.cosmotune.video.ui.shell.LocalVideoNavigator.current
+    val folderStore = rememberLocalFolderStore()
+    val folders by folderStore.folders.collectAsState()
+    val addFolder = rememberFolderPicker { folder ->
+        folderStore.add(folder)
+        navigator.push(com.cosmotune.video.nav.VideoRoute.LocalFolder(folder.source, folder.name))
+    }
     // Every file is taken to be there until the folder listing says otherwise (off the main thread: a network drive can be slow).
     val present by produceState(recents.map { it.id }.toSet(), recents) {
         value = withContext(Dispatchers.IO) { recents.filter { access.exists(it.source) }.map { it.id }.toSet() }
@@ -61,8 +68,20 @@ fun LocalFilesPage(contentPadding: PaddingValues, wide: Boolean) {
     LibraryList(contentPadding, wide) { cell ->
         item(key = "heading") {
             LibraryHeader(stringResource(Res.string.video_local_title), wide, cell.padding(bottom = HEADING_BOTTOM)) {
+                OrbitAction(com.cosmotune.video.ui.VideoIcons.Folder, "Add a folder", addFolder)
                 OrbitAction(CosmoIcons.Video, stringResource(Res.string.video_local_open), { picker.openVideos() })
             }
+        }
+        // The folders added: each opens on its folders and videos, with Reels.
+        item(key = "folders-label") { OrbitGroupLabel("Folders", cell) }
+        item(key = "folders") {
+            LocalFolderShelf(
+                folders,
+                onOpen = { navigator.push(com.cosmotune.video.nav.VideoRoute.LocalFolder(it.source, it.name)) },
+                onRemove = { folderStore.remove(it.source) },
+                onAdd = addFolder,
+                modifier = cell.padding(bottom = 18.dp),
+            )
         }
         if (notice) {
             item(key = "notice") {

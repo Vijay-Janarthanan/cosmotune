@@ -249,9 +249,10 @@ class HomePlannerTest {
 
     // ---- the one feed -----------------------------------------------------------------------------------------------------
 
-    @Test fun aThinAccountsHomeKeepsItsLeadAndIsFilledByIndependentPoolsWithoutShorts() {
+    @Test fun subscriptionsAndRecentInterestsLeadTheAccountsHomeWhichKeepsTwoTurnsInFiveWithoutShorts() {
+        // 1.0.36: Video gives subscriptions and recent interests more weight; the account's own home follows them twice.
         val home = listOf(video("a"), short("s"), video("b"), video("a"))
-        assertEquals(listOf("a", "b", "x", "y", "z"), ids(HomePlanner.stream(home, listOf(video("x")), listOf(video("y")), listOf(video("z")))))
+        assertEquals(listOf("x", "y", "a", "b", "z"), ids(HomePlanner.stream(home, listOf(video("x")), listOf(video("y")), listOf(video("z")))))
     }
 
     @Test fun withoutAnAccountTheSubscriptionsTheRelatedVideosAndTheKioskTakeTurns() {

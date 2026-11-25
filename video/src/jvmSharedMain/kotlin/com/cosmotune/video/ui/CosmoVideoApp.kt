@@ -119,7 +119,7 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
     }
     com.cosmotune.video.ui.shell.VideoBackgroundLifecycle(graph.playback, onWatch = route is VideoRoute.Watch)   // Y-34: leaving from any page
 
-    val fullScreen = route is VideoRoute.Shorts
+    val fullScreen = route is VideoRoute.Shorts || route is VideoRoute.LocalReels
     // The local player stands like the watch page: the picture under the status bar, no top bar, no dock.
     val onWatch = route is VideoRoute.Watch || route is VideoRoute.LocalPlayer
     val density = LocalDensity.current

@@ -48,7 +48,7 @@ class HomeStructureTest {
         assertFalse(lines.any { "VideoRoute.Home" in it && "VideoPlaceholder" in it }, "Home is no placeholder any more")
         // the other branches stay on their own lines with a blank line between (their owners replace them, not this task)
         val branches = lines.indices.filter { lines[it].trim().startsWith("is VideoRoute.") }
-        assertEquals(19, branches.size)
+        assertEquals(21, branches.size)
         for (i in branches.dropLast(1)) assertTrue(lines[i + 1].isBlank(), "a blank line follows ${lines[i].trim()}")
         assertTrue("com.cosmotune.video.ui.actions.VideoActionsHost(contentPadding)" in navHost, "Y-16's action host stays")
     }
