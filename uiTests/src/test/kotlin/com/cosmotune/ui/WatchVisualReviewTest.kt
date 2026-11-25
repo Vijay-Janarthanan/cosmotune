@@ -161,6 +161,9 @@ class WatchVisualReviewTest {
         val repository = object : WatchRepository by fake {
             override suspend fun find(query: com.cosmotune.watch.WatchQuery, currentYear: Int) =
                 com.cosmotune.watch.WatchFound(query, emptyList(), channels, answered = 1)
+            // The page reads the search as it fills in; `by fake` would hand that to the fake's own find.
+            override fun findAsAnswered(query: com.cosmotune.watch.WatchQuery, currentYear: Int) =
+                kotlinx.coroutines.flow.flow { emit(find(query, currentYear)) }
             override suspend fun nowNext(channel: Channel) = if (channel != channels.last()) com.cosmotune.watch.LiveNowItem(channel)
                 else com.cosmotune.watch.LiveNowItem(channel,
                     com.cosmotune.watch.model.EpgProgramme(channel.key.id, evening - 900_000, evening + 900_000, "Live news"),

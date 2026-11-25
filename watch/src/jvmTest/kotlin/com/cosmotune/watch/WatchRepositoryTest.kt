@@ -24,6 +24,7 @@ import com.cosmotune.watch.store.WatchProtection
 import com.cosmotune.watch.store.WatchState
 import com.cosmotune.watch.store.WatchStore
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
@@ -62,6 +63,34 @@ class WatchRepositoryTest {
             WatchStore(File(dir, "watch.json"), protection), builtIns = { _, _ -> plugins })
 
     private val film = PlayTarget.Film(WatchKey.tmdbFilm(603), ExternalIds(tmdb = 603, imdb = "tt0133093"), "The Matrix", 1999, 136)
+
+    @Test fun searchShowsTheChannelsAtOnceAndEachSourceAsItAnswers() = runBlocking<Unit> {
+        // The channels come from the list in memory; a slow source's titles follow when it answers, not before anything shows.
+        val tv = Fake("pluto", channelsOut = listOf(Channel(WatchKey.channel("pluto", "news"), "pluto", "News One")))
+        val slow = object : WatchPlugin {
+            override val id = "plex"
+            override val kind = PluginKind.PLEX_FREE
+            override val displayName = "Slow"
+            override val badge = "SLOW"
+            override val capabilities = setOf(Capability.CATALOG, Capability.SEARCH)
+            override suspend fun find(query: WatchQuery, currentYear: Int): List<TitleSummary> {
+                delay(1_500)
+                return listOf(TitleSummary(WatchKey.tmdbFilm(1), TitleType.FILM, "News Film"))
+            }
+        }
+        val r = repo(listOf(tv, slow))
+        val started = System.nanoTime()
+        val steps = r.findAsAnswered(WatchQuery("news", sources = setOf("pluto", "plex")), 2026)
+            .map { (System.nanoTime() - started) / 1_000_000 to it }.toList()
+        val (firstAt, first) = steps.first()
+        assertEquals(listOf("News One"), first.channels.map { it.name })
+        assertTrue(first.titles.isEmpty(), "the slow source has not answered yet")
+        assertTrue(firstAt < 1_000, "the channels were shown before the slow source answered: $firstAt ms")
+        val last = steps.last().second
+        assertEquals(listOf("News Film"), last.titles.map { it.name })
+        assertEquals(listOf("News One"), last.channels.map { it.name })
+        assertEquals(1, last.answered)
+    }
 
     @Test fun builtInsHaveTheAgreedDefaults() {
         val defaults = BuiltInPlugins.all.associate { it.id to it.defaultEnabled }

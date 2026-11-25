@@ -127,9 +127,15 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
         if (memory.found?.query == query && retry == 0) { found = memory.found; searching = false; return@LaunchedEffect }
         searching = true
         if (query.trimmed.isNotEmpty()) delay(300)
-        val answer = try { repository.find(query, year) }
+        // What has come is shown as it comes: the channels from the list in memory first, then each source's titles as that source
+        // answers (each has up to 15 s), so the page never waits for the slowest add-on. "Searching…" stays until the last.
+        val answer = try {
+            var last: WatchFound? = null
+            repository.findAsAnswered(query, year).collect { last = it; found = it }
+            last ?: WatchFound(query, emptyList())
+        }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { WatchFound(query, emptyList(), failed = 1) }
+        catch (_: Exception) { found?.takeIf { it.query == query && !it.isEmpty } ?: WatchFound(query, emptyList(), failed = 1) }
         found = answer
         memory.found = answer
         searching = false

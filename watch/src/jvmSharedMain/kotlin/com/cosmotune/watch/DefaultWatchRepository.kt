@@ -221,7 +221,10 @@ class DefaultWatchRepository(
     private val status = MutableStateFlow<Map<String, Pair<String?, Boolean>>>(emptyMap())
     private val titles = ConcurrentHashMap<WatchKey, Title>()
     private val channelLock = Mutex()
-    private var channelCache: Pair<Long, Map<WatchKey, List<Channel>>>? = null
+    @Volatile private var channelCache: Pair<Long, Map<WatchKey, List<Channel>>>? = null
+    @Volatile private var channelRefreshing = false
+    /** The merged, name-joined list of every channel, kept for the [channelCache] map it was made from. */
+    @Volatile private var mergedChannels: Pair<Map<WatchKey, List<Channel>>, List<Channel>>? = null
     @Volatile private var channelSources: List<String> = emptyList()
 
     private fun defaultBuiltIns(): List<WatchPlugin> {
@@ -905,11 +908,24 @@ class DefaultWatchRepository(
 
     // ── Live TV ──────────────────────────────────────────────────────────
 
-    /** Every channel of the switched-on live plugins, by key; a key listed by two plugins keeps both. */
-    private suspend fun channelsByKey(): Map<WatchKey, List<Channel>> = channelLock.withLock {
+    /**
+     * Every channel of the switched-on live plugins, by key; a key listed by two plugins keeps both. A list older than half an
+     * hour still answers at once, and a fresh one is fetched behind it, so a search never waits for every live source again.
+     */
+    private suspend fun channelsByKey(): Map<WatchKey, List<Channel>> {
+        val liveIds = activePlugins().filter { Capability.LIVE in it.capabilities }.map { it.id }
+        val cached = channelCache?.takeIf { channelSources == liveIds } ?: return loadChannels()
+        if (config.now() - cached.first >= 30 * 60_000L && !channelRefreshing) {
+            channelRefreshing = true
+            scope.launch { try { loadChannels() } finally { channelRefreshing = false } }
+        }
+        return cached.second
+    }
+
+    private suspend fun loadChannels(): Map<WatchKey, List<Channel>> = channelLock.withLock {
         val live = activePlugins().filter { Capability.LIVE in it.capabilities }
         // Kept half an hour, for the same live sources: an add-on that arrived by cloud sync (not through addUserSource, which
-        // drops the copy) is asked at once too.
+        // drops the copy) is asked at once too. A caller that waited for the lock finds the list the one before it fetched.
         val liveIds = live.map { it.id }
         channelCache?.takeIf { config.now() - it.first < 30 * 60_000L && channelSources == liveIds }?.let { return it.second }
         val lists = each(live) { it.channels() }
@@ -933,8 +949,10 @@ class DefaultWatchRepository(
         val favourites = store.state.value.favourites
         val q = filter.query?.trim()?.lowercase()
         val byKey = channelsByKey()
-        val each = byKey.values.map { list -> if (filter.pluginId != null) list.firstOrNull { it.pluginId == filter.pluginId } else merged(list) }.filterNotNull()
-        return (if (filter.pluginId != null) each else ChannelMerge.byName(each))
+        val each = if (filter.pluginId != null) byKey.values.mapNotNull { list -> list.firstOrNull { it.pluginId == filter.pluginId } }
+            else mergedChannels?.takeIf { it.first === byKey }?.second
+                ?: ChannelMerge.byName(byKey.values.map(::merged)).also { mergedChannels = byKey to it }
+        return each
             .filter { c ->
                 (filter.country == null || filter.country.lowercase() in c.countries) &&
                     (filter.language == null || c.languages.any { LanguageCodes.same(it, filter.language) }) &&
@@ -1030,14 +1048,44 @@ class DefaultWatchRepository(
         SearchResults(query, all.filter { it.type == TitleType.FILM }, all.filter { it.type == TitleType.SERIES }, channels.await())
     }
 
+    /** The channels of [query], from the list in memory: the search page shows them before the online sources answer. */
+    override suspend fun findChannels(query: WatchQuery): List<Channel> {
+        val q = query.trimmed
+        val wantChannels = query.kind == WatchKind.LIVE || (!query.browsing && query.kind == WatchKind.ALL)
+        if (!wantChannels || (!query.browsing && q.length < 2)) return emptyList()
+        return WatchSearchRules.channelsFor(query, channels(ChannelFilter(query = q.ifEmpty { null }, language = query.language?.code))).take(30)
+    }
+
     override fun searchSources(): List<SearchSource> =
         listOf(SearchSource(WatchQuery.META_SOURCE, if (metadata.source == MetadataSource.TMDB) "TMDB" else "Cinemeta")) +
             activePlugins().filter { p -> p.kind != PluginKind.YOUTUBE_FREE && (Capability.CATALOG in p.capabilities || Capability.LIVE in p.capabilities) }
                 .map { SearchSource(it.id, it.displayName) }
 
-    override suspend fun find(query: WatchQuery, currentYear: Int): WatchFound = coroutineScope {
+    override suspend fun find(query: WatchQuery, currentYear: Int): WatchFound = findAsAnswered(query, currentYear).last()
+
+    /**
+     * The search as it fills in: the channels from the list in memory first, then the answer so far each time one source answers
+     * (each has up to [WatchConfig.timeoutMs]), so the page never waits for the slowest add-on. The last one is complete.
+     */
+    override fun findAsAnswered(query: WatchQuery, currentYear: Int): Flow<WatchFound> = channelFlow {
         val q = query.trimmed
-        if (!query.browsing && q.length < 2) return@coroutineScope WatchFound(query, emptyList())
+        if (!query.browsing && q.length < 2) { send(WatchFound(query, emptyList())); return@channelFlow }
+        val lock = Mutex()
+        var channels = emptyList<Channel>()
+        var leftOut = emptyMap<WatchFilter, Int>()
+        // In the planned order, so merging keeps the same source first as before; null until that source answers.
+        val lists = LinkedHashMap<String, List<TitleSummary>?>()
+        var answered = 0
+        var failed = 0
+        suspend fun publish() = lock.withLock {
+            send(WatchFound(query, WatchSearchRules.sort(WatchSearchRules.merge(lists.values.map { it.orEmpty() }), query.sort, q),
+                channels, answered, failed, leftOut))
+        }
+        val channelsJob = launch {
+            val found = runCatching { findChannels(query) }.getOrDefault(emptyList())
+            lock.withLock { channels = found }
+            if (found.isNotEmpty()) publish()
+        }
         val plugins = activePlugins().filter { query.asks(it.id) }
         val metaAbility = async {
             if (!query.asks(WatchQuery.META_SOURCE)) QueryAbility.SILENT
@@ -1046,30 +1094,24 @@ class DefaultWatchRepository(
         val abilities = LinkedHashMap<String, QueryAbility>()
         abilities[WatchQuery.META_SOURCE] = metaAbility.await()
         each(plugins) { it.queryAbility(query, currentYear) }.forEach { (p, a) -> abilities[p.id] = a ?: QueryAbility.SILENT }
-        val (asked, leftOut) = WatchSearchRules.plan(query, abilities)
-        val wantChannels = query.kind == WatchKind.LIVE || (!query.browsing && query.kind == WatchKind.ALL)
-        val channelsJob = async {
-            if (!wantChannels) emptyList()
-            else runCatching { channels(ChannelFilter(query = q.ifEmpty { null }, language = query.language?.code)) }.getOrDefault(emptyList())
-        }
-        val answers = asked.map { id ->
-            async {
-                id to runCatching {
+        val (asked, out) = WatchSearchRules.plan(query, abilities)
+        lock.withLock { leftOut = out; asked.forEach { lists[it] = null } }
+        asked.map { id ->
+            launch {
+                val list = runCatching {
                     withTimeoutOrNull(config.timeoutMs) {
                         if (id == WatchQuery.META_SOURCE) metadata.find(query, currentYear) else plugins.first { it.id == id }.find(query, currentYear)
                     }
-                }.onFailure { e -> if (id != WatchQuery.META_SOURCE) report(id, e) }.getOrNull()
+                }.onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e; if (id != WatchQuery.META_SOURCE) report(id, e) }.getOrNull()
+                lock.withLock {
+                    if (list == null) failed++ else answered++
+                    lists[id] = list?.filter { WatchSearchRules.keeps(it, query, abilities.getValue(id), currentYear) }
+                }
+                publish()
             }
-        }.awaitAll()
-        val kept = answers.map { (id, list) -> list.orEmpty().filter { WatchSearchRules.keeps(it, query, abilities.getValue(id), currentYear) } }
-        WatchFound(
-            query,
-            titles = WatchSearchRules.sort(WatchSearchRules.merge(kept), query.sort, q),
-            channels = WatchSearchRules.channelsFor(query, channelsJob.await()).take(30),
-            answered = answers.count { it.second != null },
-            failed = answers.count { it.second == null },
-            leftOut = leftOut,
-        )
+        }.forEach { it.join() }
+        channelsJob.join()
+        publish()
     }
 
     private fun recentKey(state: WatchState) = "watch.search.recent.${state.activeProfile}"

@@ -342,6 +342,12 @@ interface WatchRepository {
     suspend fun search(query: String): SearchResults
 
     /**
+     * The channels [find] will return for [query], when they can be had from memory without asking any source; the search page
+     * shows them while the online sources still answer. Empty where there is no such quick answer (the full answer still has them).
+     */
+    suspend fun findChannels(query: WatchQuery): List<Channel> = emptyList()
+
+    /**
      * Watch search with its chips: every source that can apply the filters is asked with them (a blank box browses popular titles
      * that match), the rest are left out and counted, and the answers are checked here too, merged and sorted. The default
      * searches by text alone and checks every filter on what comes back.
@@ -354,6 +360,12 @@ interface WatchRepository {
             else WatchSearchRules.sort((found.films + found.series).filter { WatchSearchRules.keeps(it, query, checked, currentYear) }, query.sort, query.trimmed)
         return WatchFound(query, titles, WatchSearchRules.channelsFor(query, found.channels), answered = 1)
     }
+
+    /**
+     * [find] as it fills in: the answer so far each time a source answers, the last one complete, so a page can show what has
+     * come without waiting for the slowest source. The default answers once, with [find].
+     */
+    fun findAsAnswered(query: WatchQuery, currentYear: Int): Flow<WatchFound> = kotlinx.coroutines.flow.flow { emit(find(query, currentYear)) }
 
     /** The sources Watch search asks (the Source chip, "7 sources on"): the metadata source, then every plugin that is on with titles or channels. */
     fun searchSources(): List<SearchSource> = plugins.value

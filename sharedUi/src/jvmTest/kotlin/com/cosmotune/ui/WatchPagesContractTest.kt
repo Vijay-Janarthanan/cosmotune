@@ -101,7 +101,7 @@ class WatchPagesContractTest {
         }
         val page = read(dir + "WatchSearchPage.kt")
         assertTrue("LaunchedEffect(again) { if (again != seenAgain) { seenAgain = again; text = \"\"; focus.request() } }" in page)
-        assertTrue("CosmoSearchPage(" in page && "repository.find(query, year)" in page, "the shared page, asking the sources with the filters")
+        assertTrue("CosmoSearchPage(" in page && "repository.findAsAnswered(query, year)" in page, "the shared page, asking the sources with the filters")
         assertTrue("onClick = { open(s) }" in page && "actions.open(s)" in page, "a result opens its page")
         assertTrue("if (sources.size > 1) add(CosmoSearchFilter(\"source\"" in page, "Source only with more than one source on")
     }
