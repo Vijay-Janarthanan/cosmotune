@@ -7,7 +7,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val appVersion: String = providers.gradleProperty("cosmotune.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.0.35"
+    ?: "1.0.36"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -676,8 +676,11 @@ compose.desktop {
             it.metadata.installationPath.asFile.absolutePath
         }.get()
         mainClass = composeMainClass
-        jvmArgs("-Xmx512m")
+        // Without -Xms the JVM starts with a 64th of the PC's memory (the whole 512 MB on a 32 GB PC), and with the default free
+        // ratios G1 keeps up to 70% of the heap empty, so the periodic collection never handed anything back to Windows.
+        jvmArgs("-Xms96m", "-Xmx512m")
         jvmArgs("-XX:+UseG1GC", "-XX:G1PeriodicGCInterval=20000", "-XX:G1PeriodicGCSystemLoadThreshold=0")
+        jvmArgs("-XX:MinHeapFreeRatio=10", "-XX:MaxHeapFreeRatio=30")
         jvmArgs("-Dcosmotune.version=$appVersion")
         if (desktopModuleIndexUrl.isNotBlank()) {
             jvmArgs("-Dcosmotune.module.index=$desktopModuleIndexUrl")
