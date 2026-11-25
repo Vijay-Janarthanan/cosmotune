@@ -32,6 +32,16 @@ class FilmVideoMatchingTest {
         }
     }
 
+    @Test fun aSingersTagInCapitalsDoesNotHideTheFilmVideo() {
+        // The catalogue names a singer's recording "Song(KJY)"; the film's video names the song alone.
+        val title = "Malai Kaatru(ABK)"
+        assertEquals(listOf(title, "Malai Kaatru"), VideoMatcher.searchTitleVariants(title))
+        val video = VideoCandidate("vid00000001", "Malai Kaatru Veesum | Video Song | Example Film", "Example Films", 300, false, true)
+        assertTrue(VideoMatcher.namesSong(video, title))
+        // Edition and language tags in capitals stay: they name another recording.
+        for (tag in listOf("LIVE", "TAMIL", "REMIX", "2024")) assertEquals(listOf("Song ($tag)"), VideoMatcher.searchTitleVariants("Song ($tag)"))
+    }
+
     @Test fun shortNumericMovieNamesMatchOnlyAnEntireToken() {
         assertTrue(VideoMatcher.hasFilmContext("3 - Song Video", "3"))
         assertFalse(VideoMatcher.hasFilmContext("Song 2023 Video", "3"))

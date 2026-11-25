@@ -63,7 +63,12 @@ internal fun ChooseVideoSheet(song: Song, current: String?, hazeState: HazeState
         onDismiss()
     }
     PlayerDrawer(hazeState, "Choose the video", onDismiss, titleGap = 4.dp) {
-        val found = choices
+        // The video on screen can come from a map measured before today's search (or a search that no longer returns it):
+        // it is always listed first, so the sheet never says there is no video while one plays.
+        val found = choices?.let { searched ->
+            val playing = current?.takeIf { id -> picked != CanvasVideoPicks.NO_VIDEO && searched.none { it.videoId == id } }
+            listOfNotNull(playing?.let { VideoChoice(it, "The video playing now", "", 0L) }) + searched
+        }
         Text(
             when {
                 found == null -> "Looking for this song's videos"

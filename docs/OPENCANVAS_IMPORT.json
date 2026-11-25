@@ -53,8 +53,8 @@
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
       "upstreamSha256": "0167082df0251875fe56f3ee30211c1d2cc85eb5f82183ba3d97f30d9b212e61",
-      "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches; compare song and film names across English spellings of Indian-language words (th/dh, t/d, y/i, c/s, doubled letters). Measure a song's uploads that say they are the video song before a publisher's plain \"Song\" upload. Recognise the film's own channel, verified or not, by its other songs of the film in the same results. A catalogue tag's stray last word (\"Song Name Pon\") or a last word that only names the tag (\"Song\", \"Revival\") does not stop an upload from naming the song.",
-      "sha256": "ebd0ff7dc70cb56cd46b4c9d3e8d3d2d70b9466781a30d9ddbee9823507a8937"
+      "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches; compare song and film names across English spellings of Indian-language words (th/dh, t/d, y/i, c/s, doubled letters). Measure a song's uploads that say they are the video song before a publisher's plain \"Song\" upload. Recognise the film's own channel, verified or not, by its other songs of the film in the same results. A catalogue tag's stray last word (\"Song Name Pon\") or a last word that only names the tag (\"Song\", \"Revival\") does not stop an upload from naming the song, and neither does a singer's tag in capitals after the name (\"Song(ABK)\").",
+      "sha256": "f26dfdd8b37c0cf18f2d35fa8e9ef90f99da292f658aec89487db7fb95eb142a"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",

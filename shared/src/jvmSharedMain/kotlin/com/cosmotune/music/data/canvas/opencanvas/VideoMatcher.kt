@@ -23,12 +23,17 @@ data class VideoCandidate(
 object VideoMatcher {
     private val recordingVersion = Regex("(?i)\\b(?:live|remix|mix|remaster(?:ed)?|acoustic|instrumental|karaoke|cover|version|edit|demo|reprise|duet|solo|male|female|mono|stereo|tamil|telugu|hindi|kannada|malayalam|bengali|punjabi|marathi|english|slowed|sped)\\b|\\d")
 
-    /** Search-only subtitles; never change the recording identity or discard edition/language markers. */
+    /**
+     * Search-only subtitles; never change the recording identity or discard edition/language markers. A descriptive subtitle
+     * of three words or more comes off, and so does a singer's tag in capitals ("Song(ABK)", a singer's initials naming
+     * their recording): the videos of the song name it without the tag, and the audio check still tells the recordings apart.
+     */
     fun searchTitleVariants(title: String): List<String> {
         val base = title.replace(Regex("\\(([^)]*)\\)")) { match ->
             val subtitle = match.groupValues[1].trim()
             val words = Regex("\\p{L}+").findAll(subtitle).count()
-            if (words >= 3 && !recordingVersion.containsMatchIn(subtitle)) " " else match.value
+            val singerTag = words in 1..2 && subtitle.any(Char::isLetter) && subtitle.none(Char::isLowerCase)
+            if ((words >= 3 || singerTag) && !recordingVersion.containsMatchIn(subtitle)) " " else match.value
         }.replace(Regex("\\s+"), " ").trim()
         return listOf(title, base).filter(String::isNotBlank).distinct()
     }
