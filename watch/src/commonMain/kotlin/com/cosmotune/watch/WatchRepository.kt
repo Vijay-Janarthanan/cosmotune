@@ -134,6 +134,7 @@ data class SourcesState(
     val errors: Map<String, String> = emptyMap(),
     /** Where the title streams elsewhere (TMDB providers, WatchHub). Not playable here. */
     val whereToWatch: List<WatchProvider> = emptyList(),
+    val timedOut: Set<String> = emptySet(),
 ) {
     val best: Stream? get() = streams.firstOrNull { it.isPlayable }
     val done: Boolean get() = pending.isEmpty()

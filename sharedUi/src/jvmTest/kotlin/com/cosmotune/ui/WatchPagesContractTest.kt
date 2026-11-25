@@ -169,7 +169,8 @@ class WatchPagesContractTest {
     @Test fun watchSettingsAreTheSharedSettingsRowsWithPluginsInside() {
         val settings = read(dir + "WatchSettingsPage.kt")
         assertTrue("CosmoSettingsGroup(header = \"Sources and add-ons\")" in settings, "Sources and add-ons first")
-        assertTrue("CosmoSettingsRow(Icons.Rounded.Extension, \"Plugins\"" in settings && "onClick = { WatchNav.go(WatchTab.PLUGINS) }" in settings, "Plugins is a row of it")
+        assertTrue("CosmoSettingsRow(Icons.Rounded.Extension, \"Plugins\"" in settings && "onClick = onPlugins" in settings &&
+            "WatchSettingsContent(onPlugins = { plugins = true })" in settings, "The common Settings Plugins row opens its manager")
         for (group in listOf("Profiles", "Display", "Connected services")) assertTrue("header = \"$group\"" in settings, "the $group group")
         assertFalse("fun WatchSettingsPage(" in read(dir + "WatchPluginsPage.kt"), "the hand-built page is gone")
     }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -153,6 +154,7 @@ import com.cosmotune.music.ui.performance.resolvePerformanceRefreshRate
 import com.cosmotune.music.ui.performance.supportedPerformanceRefreshRates
 import com.cosmotune.ui.settings.CATEGORY_ID_PREFIX
 import com.cosmotune.ui.settings.SettingsCategory
+import com.cosmotune.ui.settings.blurb
 import com.cosmotune.ui.settings.SettingsCollector
 import com.cosmotune.ui.settings.SettingsHighlight
 import com.cosmotune.ui.settings.LocalSettingsTileColor
@@ -170,7 +172,6 @@ import com.cosmotune.ui.settings.settingsHighlight
 import com.cosmotune.ui.settings.text
 import com.cosmotune.ui.settings.title
 import com.cosmotune.design.AppMode
-import com.cosmotune.design.AppModes
 import com.cosmotune.music.data.model.Account
 import com.cosmotune.music.data.LocalMediaRepository
 import com.cosmotune.music.data.NerdStats
@@ -237,8 +238,7 @@ fun SettingsScreen(
     handleBack: Boolean = true,
     /** The mode Settings was opened from (its page is tagged "This mode" on the settings home); null from Music. */
     openedFrom: AppMode? = null,
-    /** Closes Settings (the settings home's Watch row leaves for Watch's own settings page). */
-    onClose: () -> Unit = {},
+    initialCategory: SettingsCategory? = null,
 ) {
     val context = LocalContext.current
 
@@ -335,7 +335,7 @@ fun SettingsScreen(
     // Filters the rows below — see [SettingsSearch]. Blank shows everything,
     // exactly as if the field weren't there.
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.ALL) }
+    var selectedCategory by rememberSaveable { mutableStateOf(initialCategory ?: SettingsCategory.ALL) }
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
     var viewingDownloadHistory by remember { mutableStateOf(false) }
@@ -429,7 +429,7 @@ fun SettingsScreen(
     val onHub = selectedCategory == SettingsCategory.ALL
 
     // Back leaves the search, then the page, before it leaves Settings. Off while a page Settings opened is over it.
-    BackHandler(enabled = handleBack && (!onHub || searchQuery.isNotBlank())) {
+    BackHandler(enabled = handleBack && (searchQuery.isNotBlank() || (!onHub && initialCategory == null))) {
         if (searchQuery.isNotBlank()) searchQuery = "" else selectedCategory = SettingsCategory.ALL
     }
 
@@ -477,12 +477,13 @@ fun SettingsScreen(
         ),
     )
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(scrollState)
-            .padding(contentPadding),
-    ) {
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    Column(modifier.fillMaxWidth().fillMaxHeight().padding(top = contentPadding.calculateTopPadding())) {
+        com.cosmotune.ui.settings.SettingsModeTabs(selectedCategory, onSelect = {
+            selectedCategory = it
+            searchQuery = ""
+        })
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scrollState).padding(contentPadding.copyWithoutTop(layoutDirection))) {
         if (onHub) {
             val shellMode = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsStateWithLifecycle()?.value
             val thisMode = com.cosmotune.ui.settings.settingsCategoryOf(openedFrom ?: shellMode)
@@ -494,10 +495,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             )
             if (collector == null) {
-                val shellSettings = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings
                 SettingsHub(
-                    onOpenWatch = com.cosmotune.ui.settings.watchSettingsOpener(shellSettings, onClose),
-                    watchCurrent = (openedFrom ?: shellMode) == AppMode.WATCH,
                     entries = hubEntries,
                     onOpen = { selectedCategory = it },
                     current = thisMode,
@@ -1771,12 +1769,23 @@ fun SettingsScreen(
             }
         }
 
-        // ---- Video, Podio, Read and Manga: each mode's page leads into it and holds its settings ----
-        SearchableSettingsGroup(search, category = SettingsCategory.VIDEO) {
-            val openVideoTitle = SettingsText.OPEN_VIDEO.text()
-            val openVideoSummary = SettingsText.OPEN_VIDEO_SUMMARY.text()
-            row(openVideoTitle, "youtube", "sponsorblock", "captions", "subtitles", "dearrow", "quality", summary = openVideoSummary) {
-                ModeLinkRow(AppMode.VIDEO, Icons.Rounded.SmartDisplay, openVideoTitle, openVideoSummary)
+        // ---- Playback and library preferences for each mode ----
+        SearchableSettingsGroup(search, category = SettingsCategory.VIDEO, embedded = true) {
+            row(SettingsCategory.VIDEO.title(), "youtube", "sponsorblock", "captions", "subtitles", "dearrow", "quality",
+                "download", "smoothing", "autoplay", "backup", "import", summary = SettingsCategory.VIDEO.blurb()) {
+                val graph = remember(context.applicationContext) { com.cosmotune.video.graph.androidVideoGraph(context.applicationContext) }
+                com.cosmotune.video.ui.settings.VideoCommonSettings(graph, wide = windowWidth >= 600.dp)
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.WATCH, embedded = true) {
+            row(SettingsCategory.WATCH.title(), "plugins", "profiles", "subtitles", "torrents", "download", "streams", "tracking",
+                summary = SettingsCategory.WATCH.blurb()) {
+                val repository = remember(context) { com.cosmotune.music.watch.AndroidWatch.repository(context) }
+                val downloads = remember(context) { com.cosmotune.music.watch.AndroidWatch.downloads(context) }
+                com.cosmotune.ui.watch.ProvideWatch(repository = repository, downloads = downloads,
+                    qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
+                    com.cosmotune.ui.watch.WatchCommonSettings()
+                }
             }
         }
         // ---- Spotlight: the strip of every mode, the sports it shows and the teams and competitions followed (kept on this phone) ----
@@ -1785,37 +1794,16 @@ fun SettingsScreen(
                 com.cosmotune.ui.live.LiveNowSettingsSection()
             }
         }
-        SearchableSettingsGroup(search, category = SettingsCategory.READ) {
-            val openReadTitle = SettingsText.OPEN_READ.text()
-            val openReadSummary = SettingsText.OPEN_READ_SUMMARY.text()
-            row(openReadTitle, "books", "epub", "pdf", summary = openReadSummary) {
-                ModeLinkRow(AppMode.READ, Icons.AutoMirrored.Rounded.MenuBook, openReadTitle, openReadSummary)
-            }
-        }
         SearchableSettingsGroup(search, category = SettingsCategory.READ, header = "Reader and libraries") {
             row("Reader look", "font", "typeface", "text size", "margins", "brightness", "keep screen on", "opds", "connected libraries",
                 summary = "Page colour, typeface, size, brightness, connected libraries") {
                 com.cosmotune.reading.ui.ReadSettingsSection()
             }
         }
-        SearchableSettingsGroup(search, category = SettingsCategory.MANGA) {
-            val openMangaTitle = SettingsText.OPEN_MANGA.text()
-            val openMangaSummary = SettingsText.OPEN_MANGA_SUMMARY.text()
-            row(openMangaTitle, "manga", "comics", "series", summary = openMangaSummary) {
-                ModeLinkRow(AppMode.MANGA, Icons.Rounded.AutoStories, openMangaTitle, openMangaSummary)
-            }
-        }
         SearchableSettingsGroup(search, category = SettingsCategory.MANGA, header = "Reader, storage and sources") {
             row("Manga settings", "reader", "storage", "cache", "komga", "extensions", "parser", "backup", "updates", "verification",
                 summary = "Reader defaults, page storage, Komga, extensions, parser updates, backup") {
                 com.cosmotune.manga.ui.MangaSettingsSection()
-            }
-        }
-        SearchableSettingsGroup(search, category = SettingsCategory.PODIO) {
-            val openPodioTitle = SettingsText.OPEN_PODIO.text()
-            val openPodioSummary = SettingsText.OPEN_PODIO_SUMMARY.text()
-            row(openPodioTitle, "podcasts", "radio", summary = openPodioSummary) {
-                ModeLinkRow(AppMode.PODIO, Icons.Rounded.Podcasts, openPodioTitle, openPodioSummary)
             }
         }
         SearchableSettingsGroup(search, category = SettingsCategory.PODIO, header = "Episodes and subscriptions") {
@@ -2084,6 +2072,7 @@ fun SettingsScreen(
                     if (!item.id.startsWith(CATEGORY_ID_PREFIX)) highlight.flash(item.id)
                 },
             )
+        }
         }
     }
 
@@ -2674,12 +2663,19 @@ private fun SearchableSettingsGroup(
     footer: String? = null,
     topSpacing: Dp = 26.dp,
     category: SettingsCategory,
+    embedded: Boolean = false,
     content: @Composable SettingsGroupScope.() -> Unit,
 ) {
     if (search.collector == null && search.category != category) return
     val scope = SettingsGroupScope(search, header, category)
     scope.content()
     if (scope.entries.isEmpty()) return
+    if (embedded) {
+        scope.entries.forEach { entry ->
+            Column(Modifier.fillMaxWidth().settingsHighlight(entry.id, search.highlight)) { entry.content() }
+        }
+        return
+    }
     SettingsGroup(header = header, footer = footer, topSpacing = topSpacing) {
         scope.entries.forEachIndexed { index, entry ->
             when {
@@ -2696,20 +2692,13 @@ private fun SearchableSettingsGroup(
     }
 }
 
-/**
- * The way from Music's settings into another mode, whose own settings live in
- * it. Only while the mode works.
- */
-@Composable
-private fun ModeLinkRow(mode: AppMode, icon: ImageVector, title: String, summary: String) {
-    val shell = com.cosmotune.ui.theme.LocalCosmoShell.current
-    val available = AppModes.available(mode)
-    SettingsRow(
-        icon = icon,
-        title = title,
-        subtitle = summary,
-        enabled = available,
-        onClick = { shell?.settings?.setMode(mode) },
+private fun PaddingValues.copyWithoutTop(direction: androidx.compose.ui.unit.LayoutDirection): PaddingValues {
+    val left = calculateLeftPadding(direction)
+    val right = calculateRightPadding(direction)
+    return PaddingValues(
+        start = if (direction == androidx.compose.ui.unit.LayoutDirection.Ltr) left else right,
+        end = if (direction == androidx.compose.ui.unit.LayoutDirection.Ltr) right else left,
+        bottom = calculateBottomPadding(),
     )
 }
 

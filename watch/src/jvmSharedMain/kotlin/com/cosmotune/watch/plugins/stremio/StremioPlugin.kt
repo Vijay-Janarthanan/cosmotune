@@ -9,6 +9,7 @@ import com.cosmotune.watch.http.str
 import com.cosmotune.watch.http.strings
 import com.cosmotune.watch.http.yearOf
 import com.cosmotune.watch.model.Channel
+import com.cosmotune.watch.model.EpgProgramme
 import com.cosmotune.watch.model.Episode
 import com.cosmotune.watch.model.ExternalIds
 import com.cosmotune.watch.model.PlayTarget
@@ -36,6 +37,9 @@ import com.cosmotune.watch.FilterSupport
 import com.cosmotune.watch.QueryAbility
 import com.cosmotune.watch.WatchKind
 import com.cosmotune.watch.WatchQuery
+import java.time.Instant
+import java.time.ZoneOffset
+import kotlinx.coroutines.CancellationException
 
 /**
  * A Stremio-protocol add-on as a Watch plugin: the built-in Public Domain Movies, OpenSubtitles and WatchHub, Cinemeta, and
@@ -173,14 +177,74 @@ class StremioPlugin(
 
     override suspend fun channels(): List<Channel> {
         if (Capability.LIVE !in capabilities) return emptyList()
-        return manifest().catalogs.filter { it.type in setOf("tv", "channel") && it.requiredExtras.isEmpty() }.flatMap { c ->
+        val manifest = manifest()
+        return manifest.catalogs.filter { it.type in LIVE_TYPES && it.requiredExtras.isEmpty() }.flatMap { c ->
             runCatching { client.catalog(c.type, c.id) }.getOrDefault(emptyList()).mapNotNull { m ->
                 val mid = m.str("id") ?: return@mapNotNull null
                 Channel(WatchKey.channel(id, mid), id, m.str("name") ?: mid, logoUrl = m.str("logo") ?: m.str("poster"),
-                    categories = m.strings("genres").ifEmpty { listOf(c.name) })
+                    categories = m.strings("genres").ifEmpty { listOf(c.name) },
+                    epgId = mid.takeIf { manifest.epgProvider })
             }
         }
     }
+
+    override suspend fun guide(channels: List<Channel>, fromMs: Long, toMs: Long): List<EpgProgramme> {
+        if (channels.isEmpty() || toMs <= fromMs) return emptyList()
+        val manifest = manifest()
+        if (!manifest.epgProvider) return emptyList()
+        val ids = channels.map { it.key.id }.toSet()
+        val programmes = ArrayList<EpgProgramme>()
+        fun read(channelId: String, meta: JsonElement) {
+            for (video in meta.list("videos")) {
+                val start = video.str("startTime")?.let(::programmeTime) ?: continue
+                val stop = video.str("endTime")?.let(::programmeTime) ?: continue
+                val title = video.str("title")?.takeIf { it.isNotBlank() } ?: continue
+                if (stop > start && stop > fromMs && start < toMs) {
+                    programmes += EpgProgramme(channelId, start, stop, title,
+                        description = video.str("overview"), categories = video.strings("genres"))
+                }
+            }
+        }
+        // A single channel's details can answer without reading the entire guide catalogue.
+        if (channels.size == 1) {
+            val channelId = ids.single()
+            val type = LIVE_TYPES.firstOrNull { manifest.supports("meta", it, channelId) }
+            if (type != null) guideAnswer { client.meta(type, channelId, ttlMs = 5 * 60_000L) }?.let { read(channelId, it) }
+            if (programmes.isNotEmpty()) return programmes.distinctBy { it.startMs }
+        }
+        val fromDay = Instant.ofEpochMilli(fromMs).atOffset(ZoneOffset.UTC).toLocalDate()
+        val lastDay = Instant.ofEpochMilli(toMs - 1L).atOffset(ZoneOffset.UTC).toLocalDate()
+        val days = generateSequence(fromDay) { it.plusDays(1) }.take(3).takeWhile { it <= lastDay }.toList()
+        val guideCatalogs = manifest.catalogs.filter { it.type in LIVE_TYPES && "date" in it.extras &&
+            it.requiredExtras.all { extra -> extra == "date" || extra == "skip" } }.take(4)
+        for (day in days) {
+            val remaining = ids.toMutableSet()
+            for (catalog in guideCatalogs) {
+                var skip = 0
+                for (pageIndex in 0 until 6) {
+                    if (remaining.isEmpty() || (pageIndex > 0 && "skip" !in catalog.extras)) break
+                    val page = guideAnswer { client.guidePage(catalog, day.toString(), skip) }.orEmpty()
+                    if (page.isEmpty()) break
+                    for (meta in page) {
+                        val channelId = meta.str("id") ?: continue
+                        if (channelId !in remaining) continue
+                        val before = programmes.size
+                        read(channelId, meta)
+                        if (before != programmes.size) remaining.remove(channelId)
+                    }
+                    skip += page.size
+                }
+                if (remaining.isEmpty()) break
+            }
+        }
+        return programmes.distinctBy { it.epgId to it.startMs }
+    }
+
+    private suspend fun <T> guideAnswer(fetch: suspend () -> T): T? = try { fetch() }
+    catch (cancelled: CancellationException) { throw cancelled }
+    catch (_: Exception) { null }
+
+    private fun programmeTime(value: String): Long? = runCatching { Instant.parse(value).toEpochMilli() }.getOrNull()
 
     // ── Mapping ──────────────────────────────────────────────────────────
 

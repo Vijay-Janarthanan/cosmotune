@@ -113,18 +113,24 @@ class SettingsHubContractTest {
         assertTrue(blocks.contains("header.uppercase()"), "a group's header is an overline in capitals")
     }
 
-    @Test fun theReadPageOpensReadModeNotManga() {
-        assertTrue(Regex("""ModeLinkRow\(AppMode\.READ\b[^)]*openReadTitle""").containsMatchIn(sheet), "the phone's Read page opens Read mode")
-        assertTrue(Regex("""DesktopModeLink\(AppMode\.READ\b[^\n]*OPEN_READ\b""").containsMatchIn(desktop), "the desktop's Read page opens Read mode")
-        assertFalse(Regex("""AppMode\.MANGA[^\n]*(openReadTitle|OPEN_READ\b)""").containsMatchIn(sheet + desktop), "no Read link opens Manga")
+    @Test fun modesHaveTheirOwnSectionInTheCommonSettings() {
+        for ((mode, category) in listOf(
+            com.cosmotune.design.AppMode.VIDEO to SettingsCategory.VIDEO,
+            com.cosmotune.design.AppMode.WATCH to SettingsCategory.WATCH,
+            com.cosmotune.design.AppMode.PODIO to SettingsCategory.PODIO,
+            com.cosmotune.design.AppMode.READ to SettingsCategory.READ,
+            com.cosmotune.design.AppMode.MANGA to SettingsCategory.MANGA,
+        )) assertEquals(category, com.cosmotune.ui.settings.settingsCategoryOf(mode))
+        for (section in listOf("VideoCommonSettings(", "WatchCommonSettings()", "ReadSettingsSection()")) {
+            assertTrue(section in sheet && section in desktop, "Both platforms include $section")
+        }
     }
 
-    @Test fun theModesListWatchAndItsRowOpensWatchsOwnSettings() {
-        val hub = SourceContract.code(SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/settings/SettingsHub.kt"))
-        assertTrue(hub.contains("if (onOpenWatch != null) WatchSettingsRow(onOpenWatch, watchCurrent)"), "Watch follows Video under Modes")
-        assertTrue(hub.contains("com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.SETTINGS)") &&
-            hub.contains("settings.setMode(com.cosmotune.design.AppMode.WATCH)"), "its row switches to Watch on Watch's settings page")
-        assertTrue(sheet.contains("onOpenWatch = com.cosmotune.ui.settings.watchSettingsOpener(shellSettings, onClose)"), "the phone offers it")
-        assertTrue(desktop.contains("onOpenWatch = com.cosmotune.ui.settings.watchSettingsOpener(shellSettings, onCloseSettings)"), "and so does the desktop")
+    @Test fun videoSectionBringsItsOwnGraphOutsideTheVideoShell() {
+        // Picture in picture on the phone reads LocalVideoGraph, and common Settings is drawn above the mode switch, outside it.
+        val page = SourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/settings/VideoSettingsPage.kt")
+        val body = SourceContract.functionBody(page, "VideoCommonSettings")
+        val provided = body.indexOf("LocalVideoGraph provides graph")
+        assertTrue(provided >= 0 && provided < body.indexOf("VideoSettingsContent(graph"), "the Video rows are drawn inside the graph they read")
     }
 }

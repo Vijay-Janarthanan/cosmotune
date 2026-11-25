@@ -100,7 +100,7 @@ object HomePlanner {
         forYou: List<VideoItem>,
         kiosk: List<VideoItem>,
     ): List<VideoItem> {
-        val pools = if (accountHome.isNotEmpty()) listOf(accountHome, accountHome, accountHome, subscriptions, forYou, kiosk)
+        val pools = if (accountHome.isNotEmpty()) listOf(subscriptions, forYou, accountHome, accountHome, kiosk)
             else listOf(subscriptions, forYou, kiosk)
         return interleave(pools.map { list -> list.filterNot(ShortsFilter::isShort) }, 900)
     }

@@ -190,6 +190,7 @@ fun OrbitHome(
     playbackTime: (() -> Pair<Long, Long>)? = null,
     /** Another device's song to offer in the top card; the desktop provides it as [LocalElsewhere]. */
     elsewhereOffer: ElsewhereOffer? = LocalElsewhere.current,
+    continueEntries: List<ContinueEntry> = emptyList(),
 ) {
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -211,6 +212,13 @@ fun OrbitHome(
     val room = LocalRoomLauncher.current
     // Another device's song, while this one plays nothing.
     val elsewhere = elsewhereOffer?.takeIf { !isPlaying }
+    val resumableMusic = currentSong?.takeIf {
+        !isPlaying && !it.videoId.startsWith("podio:") && !it.videoId.startsWith("read:audio:") &&
+            elsewhere == null && onPlayPause != null && com.cosmotune.music.data.recommendations.MusicBlocks.allows(it)
+    }
+    val resume = listOfNotNull(
+        resumableMusic?.let { ContinueEntry(it.title, "Music · ${it.artist}", requireNotNull(onPlayPause)) },
+    ) + continueEntries
 
     PullToRefresh(refreshing = refreshing, onRefresh = onRefresh, state = pullState, modifier = modifier) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -233,9 +241,8 @@ fun OrbitHome(
                 if ((quickLinks.isNotEmpty() || moods.isNotEmpty()) && com.cosmotune.settings.CosmoLookSettings.HOME_CHIPS !in hiddenHome) {
                     item(key = "orbit:chips") { OrbitChips(quickLinks, moods, browse, fonts, look, side) }
                 }
-
-                if (!signedIn && onSignIn != null) {
-                    item(key = "orbit:sign-in") { SignInBanner(onSignIn = onSignIn, modifier = Modifier.padding(horizontal = side - 16.dp).padding(top = 18.dp)) }
+                if (resume.isNotEmpty()) item(key = "orbit:continue") {
+                    ContinueShelf(resume, fonts, look, Modifier.padding(horizontal = side).padding(top = 18.dp))
                 }
 
                 if (state is UiState.Loading) {
@@ -249,13 +256,19 @@ fun OrbitHome(
                 fun LazyListScope.controls() {
                     if (discoveryControls != null) item(key = "orbit:discovery") { Column(Modifier.padding(horizontal = side - 16.dp, vertical = 12.dp)) { discoveryControls() } }
                 }
+                controls()
 
                 val styles = planStyles(shelves)
                 // The room, as one line, after the first shelf (Quick picks), where it no longer pushes the picks down.
                 val roomAfter = shelves.indexOfFirst { it.items.isNotEmpty() }
+                fun LazyListScope.signIn() {
+                    if (!signedIn && onSignIn != null) item(key = "orbit:sign-in") {
+                        SignInBanner(onSignIn = onSignIn, modifier = Modifier.padding(horizontal = side - 16.dp).padding(top = 18.dp))
+                    }
+                }
+                if (roomAfter < 0) signIn()
                 if (room != null && roomAfter < 0) item(key = "orbit:room") { OrbitRoomLine(room, fonts, Modifier.padding(horizontal = side).padding(top = OrbitSpace.section).fillMaxWidth()) }
                 shelves.forEachIndexed { index, shelf ->
-                    if (index == CONTROLS_AFTER) controls()
                     if (shelf.items.isEmpty()) return@forEachIndexed
                     item(key = "orbit:shelf:" + shelf.title + index) {
                         val open: (ShelfItem) -> Unit = { onItemClick(it, shelf.title) }
@@ -278,8 +291,8 @@ fun OrbitHome(
                     if (room != null && index == roomAfter) item(key = "orbit:room") {
                         OrbitRoomLine(room, fonts, Modifier.padding(horizontal = side).padding(top = OrbitSpace.section).fillMaxWidth())
                     }
+                    if (index == roomAfter) signIn()
                 }
-                if (shelves.size <= CONTROLS_AFTER) controls()
                 if (loadingMore) feedMoreSkeleton()
                 item(key = "orbit:end") { Spacer(Modifier.height(32.dp)) }
             }
@@ -299,8 +312,6 @@ fun OrbitHome(
         }
     }
 }
-
-private const val CONTROLS_AFTER = 3
 
 // ---- greeting -------------------------------------------------------------------------------------------------------------------
 
@@ -352,7 +363,8 @@ private fun pickUp(shelves: List<HomeShelf>, elsewhere: ElsewhereOffer?): PickUp
     val from = localizeShelfTitle(first?.title.orEmpty())
     return remember(shelves, elsewhere, from) {
         if (elsewhere != null) return@remember PickUp(null, "", "")
-        val again = shelves.firstOrNull { PICK_UP_WORDS.containsMatchIn(it.title) }?.let { shelf ->
+        val again = shelves.takeUnless { first?.sourceId?.startsWith("discovery:") == true }
+            ?.firstOrNull { PICK_UP_WORDS.containsMatchIn(it.title) }?.let { shelf ->
             shelf.items.firstOrNull { it.browseId != null && it.browseId?.startsWith("UC") != true }?.let { it to shelf.title }
         }
         when {

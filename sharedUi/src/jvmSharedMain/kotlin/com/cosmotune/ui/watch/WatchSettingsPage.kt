@@ -12,7 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Folder
@@ -59,6 +60,20 @@ private enum class WatchSettingsDialog { FOLDER, DENSITY, LANGUAGES, ANIME, REST
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
+    Column(Modifier.widthIn(max = 760.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(frame.padding)) {
+        frame.header?.invoke()
+        OrbitPageHeading("Watch settings", "Watch", fonts, look,
+            Modifier.padding(horizontal = frame.side + 6.dp).padding(top = if (frame.wide) 24.dp else 18.dp))
+        WatchSettingsContent(onPlugins = { WatchNav.go(WatchTab.PLUGINS) })
+        Spacer(Modifier.height(40.dp))
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun WatchSettingsContent(onPlugins: () -> Unit) {
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    val look = com.cosmotune.ui.orbit.orbitLook()
     val repository = watchRepository()
     val scope = rememberCoroutineScope()
     val downloads = LocalWatchDownloads.current
@@ -78,27 +93,20 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
     val saveFile = rememberTextFileSaver()
     val openBackup = rememberTextFileOpener { text -> restoring = text; dialog = WatchSettingsDialog.RESTORE }
     var unlocking by remember { mutableStateOf<WatchProfile?>(null) }
-    val side = frame.side
-    LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxSize(), contentPadding = frame.padding) {
-        frame.header?.let { header -> item(key = "settings:header") { header() } }
-        item(key = "settings:heading") {
-            val viewer = profiles.firstOrNull { it.id == active }?.name
-            OrbitPageHeading("Watch settings", listOfNotNull("Watch", viewer).joinToString(" · "), fonts, look,
-                Modifier.padding(horizontal = side + 6.dp).padding(top = if (frame.wide) 24.dp else 18.dp))
-        }
-        item(key = "settings:sources") {
+    Column(Modifier.fillMaxWidth()) {
+        run {
             CosmoSettingsGroup(header = "Sources and add-ons") {
                 val on = plugins.count { it.enabled }
                 val yours = plugins.count { !it.builtIn }
                 CosmoSettingsRow(Icons.Rounded.Extension, "Plugins", subtitle = listOfNotNull("$on on", yours.takeIf { it > 0 }?.let { "$it of yours" }, "find more").joinToString(" · "),
-                    onClick = { WatchNav.go(WatchTab.PLUGINS) })
+                    onClick = onPlugins)
                 if (downloads != null && destination != null) {
                     CosmoSettingsRow(Icons.Rounded.Folder, "Save downloads to", subtitle = destination.name.ifBlank { destination.path },
                         onClick = { dialog = WatchSettingsDialog.FOLDER })
                 }
             }
         }
-        item(key = "settings:profiles") {
+        run {
             CosmoSettingsGroup(header = "Profiles", footer = "Each viewer has their own My list and Continue watching.") {
                 profiles.forEach { profile ->
                     val here = profile.id == active
@@ -117,7 +125,7 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                 if (active != "default") CosmoDestructiveRow("Delete this profile", onClick = { dialog = WatchSettingsDialog.REMOVE_PROFILE })
             }
         }
-        item(key = "settings:display") {
+        run {
             CosmoSettingsGroup(header = "Display") {
                 CosmoSettingsRow(Icons.Rounded.GridView, "Poster size", subtitle = preferences.density.label, onClick = { dialog = WatchSettingsDialog.DENSITY })
                 CosmoSettingsRow(CosmoIcons.Translate, "Languages on Home", subtitle = homeLanguagesText(preferences.homeLanguages),
@@ -154,7 +162,7 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     })
             }
         }
-        if (repository.canOpenTorrents) item(key = "settings:torrents") {
+        if (repository.canOpenTorrents) {
             CosmoSettingsGroup(header = "Torrents", footer = "Torrents come only from links and files you open and add-ons you install. Sharing is off on mobile data unless you allow it.") {
                 CosmoSettingsRow(CosmoIcons.Share, "Keep sharing after a download", subtitle = if (torrent.seedAfterDownload) seedTimeText(torrent.seedMinutes) else "Off",
                     trailing = { OrbitSwitch(torrent.seedAfterDownload, { on -> keepTorrent { it.copy(seedAfterDownload = on) } }, look, "Keep sharing after a download") })
@@ -167,7 +175,7 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     onClick = { dialog = WatchSettingsDialog.CONNECTION })
             }
         }
-        item(key = "settings:storage") {
+        run {
             val limit by repository.cacheLimitMb.collectAsState()
             val used by androidx.compose.runtime.produceState(0L, dialog) { value = runCatching { repository.cacheBytes() }.getOrDefault(0L) }
             CosmoSettingsGroup(header = "Storage") {
@@ -183,7 +191,7 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                 CosmoSettingsRow(CosmoIcons.Replay, "Restore from a file", subtitle = "Adds a backup to this profile; nothing is removed", onClick = openBackup)
             }
         }
-        item(key = "settings:services") {
+        run {
             CosmoSettingsGroup(header = "Connected services") {
                 if (repository.tracking != null) {
                     val connected = trackers.orEmpty().count { it.connected }
@@ -203,7 +211,6 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
                     onClick = { dialog = WatchSettingsDialog.DEBRID })
             }
         }
-        item(key = "settings:end") { Spacer(Modifier.height(40.dp)) }
     }
 
     unlocking?.let { target ->
@@ -374,6 +381,16 @@ internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchF
             Box(Modifier.padding(bottom = 8.dp)) { WatchDebridCard(repository, fonts, look) }
         }
         null -> Unit
+    }
+}
+
+@Composable
+fun WatchCommonSettings() {
+    var plugins by remember { mutableStateOf(false) }
+    WatchSettingsContent(onPlugins = { plugins = true })
+    if (plugins) com.cosmotune.ui.settings.SettingsDetailDialog("Plugins", onClose = { plugins = false }) {
+        WatchPluginsPage(com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook(),
+            WatchFrame(false, 16.dp, androidx.compose.foundation.layout.PaddingValues(), null))
     }
 }
 

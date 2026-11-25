@@ -13,8 +13,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -31,6 +39,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.LibrarySort
 import com.cosmotune.music.data.settings.LibraryViewType
@@ -120,13 +129,14 @@ class WatchVisualReviewTest {
     private val phone = Size("phone", 390, 844)
     private val wide = Size("wide", 1004, 780)
 
-    private fun page(dark: Boolean, size: Size, repository: WatchRepository, playback: WatchPlayback? = null) {
+    private fun page(dark: Boolean, size: Size, repository: WatchRepository, playback: WatchPlayback? = null, fontScale: Float = 1f) {
         val palette = if (dark) CosmoPaletteState(com.cosmotune.theme.OnePalette.of(true, false), true) else CosmoPaletteState(com.cosmotune.theme.OnePalette.of(false, false), false)
         compose.setContent {
             val colors = remember { CosmoColors::class.java.getConstructor(CosmoPaletteState::class.java).newInstance(palette) }
             val type = rememberCosmoType()
             MaterialTheme(colorScheme = colors.palette.toColorScheme(if (dark) androidx.compose.material3.darkColorScheme() else androidx.compose.material3.lightColorScheme()), typography = type.toMaterialTypography(MaterialTheme.typography)) {
-                CompositionLocalProvider(LocalCosmoColors provides colors, LocalCosmoType provides type, LocalReducedMotion provides true) {
+                CompositionLocalProvider(LocalCosmoColors provides colors, LocalCosmoType provides type, LocalReducedMotion provides true,
+                    LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
                     Box(Modifier.size(size.width.dp, size.height.dp).testTag("watch:review").background(Color(colors.palette.backgroundBottom))) {
                         ProvideWatch(repository = repository, playback = playback, clock = { evening }) {
                             WatchApp(showNavigation = size.width < 600)
@@ -135,6 +145,64 @@ class WatchVisualReviewTest {
                 }
             }
         }
+    }
+
+    @Test fun compactLiveTabIsNamedAndSelectedAtDoubleTextSize() = hosts {
+        WatchNav.go(WatchTab.LIVE)
+        page(true, Size("narrow", 360, 844), FakeWatchRepository(), fontScale = 2f)
+        compose.onNode(hasNavTab("Live TV")).assertIsSelected().assertIsDisplayed()
+    }
+
+    @Test fun liveSearchCanScrollToEveryCountedChannel() = hosts {
+        val fake = FakeWatchRepository()
+        val channels = (1..28).map { number ->
+            Channel(WatchKey.channel("test", number.toString()), "test", "Test channel $number")
+        }
+        val repository = object : WatchRepository by fake {
+            override suspend fun find(query: com.cosmotune.watch.WatchQuery, currentYear: Int) =
+                com.cosmotune.watch.WatchFound(query, emptyList(), channels, answered = 1)
+            override suspend fun nowNext(channel: Channel) = if (channel != channels.last()) com.cosmotune.watch.LiveNowItem(channel)
+                else com.cosmotune.watch.LiveNowItem(channel,
+                    com.cosmotune.watch.model.EpgProgramme(channel.key.id, evening - 900_000, evening + 900_000, "Live news"),
+                    com.cosmotune.watch.model.EpgProgramme(channel.key.id, evening + 900_000, evening + 2_700_000, "Weather"))
+        }
+        WatchNav.go(WatchTab.SEARCH)
+        page(true, wide, repository)
+        compose.onNode(hasSetTextAction()).performTextInput("Test")
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasText("28 channels", substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("watch:search:results").performScrollToNode(hasText("Test channel 28"))
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasText("Weather", substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNode(hasText("Now ·", substring = true) and hasText("Live news", substring = true)).assertIsDisplayed()
+        compose.onNode(hasText("Next ·", substring = true) and hasText("Weather", substring = true)).assertIsDisplayed()
+        compose.onNodeWithText("Test channel 28").assertIsDisplayed().performClick()
+        assertEquals(channels.last().key, (WatchNav.stack.value.lastOrNull() as? WatchRoute.Play)?.target?.key)
+    }
+
+    @OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
+    @Test fun aChannelWithoutListingsCanBeOpenedWithTheKeyboard() = hosts {
+        val fake = FakeWatchRepository()
+        val channel = Channel(WatchKey.channel("test", "no-epg"), "test", "First channel without listings")
+        val another = Channel(WatchKey.channel("test", "no-epg-2"), "test", "Second channel without listings")
+        val repository = object : WatchRepository by fake {
+            override suspend fun channels(filter: com.cosmotune.watch.ChannelFilter) = listOf(channel, another)
+            override suspend fun guide(channels: List<Channel>, fromMs: Long, toMs: Long) =
+                com.cosmotune.watch.GuideWindow(fromMs, toMs, channels.map { com.cosmotune.watch.GuideRow(it, emptyList()) })
+        }
+        WatchNav.go(WatchTab.LIVE)
+        page(true, wide, repository)
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(androidx.compose.ui.test.hasContentDescription(channel.name)).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("No guide").assertDoesNotExist()
+        val row = compose.onNodeWithContentDescription(another.name)
+        row.performScrollTo().performSemanticsAction(SemanticsActions.RequestFocus)
+        row.assertIsFocused().performKeyInput { pressKey(Key.Enter) }
+        compose.waitForIdle()
+        assertEquals(another.key, (WatchNav.stack.value.lastOrNull() as? WatchRoute.Play)?.target?.key)
     }
 
     private fun capture(name: String, dir: String = "../build/watch-review") {

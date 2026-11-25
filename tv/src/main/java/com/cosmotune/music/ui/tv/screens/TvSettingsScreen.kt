@@ -15,10 +15,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -28,7 +33,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.BuildConfig
 import com.cosmotune.music.data.AppUpdateChecker
@@ -39,6 +52,7 @@ import com.cosmotune.music.ui.tv.TvAppMark
 import com.cosmotune.music.ui.tv.components.TvChromePinned
 import com.cosmotune.music.ui.tv.components.TvListHeader
 import com.cosmotune.music.ui.tv.components.TvListRow
+import com.cosmotune.music.ui.tv.components.TvTabPill
 import com.cosmotune.music.ui.tv.dialogs.TvAboutDialog
 import com.cosmotune.music.ui.tv.dialogs.TvEqualizerDialog
 import com.cosmotune.music.ui.tv.dialogs.TvLyricsSourcesDialog
@@ -51,11 +65,73 @@ import com.cosmotune.music.ui.tv.personalization.AppThemeOption
 import com.cosmotune.music.ui.tv.theme.TvDimensions
 import com.cosmotune.music.ui.tv.theme.TvGlass
 import com.cosmotune.music.ui.tv.theme.TvType
+import com.cosmotune.ui.settings.SETTINGS_MODE_PAGES
+import com.cosmotune.ui.settings.SettingsCategory
+import com.cosmotune.ui.settings.title
 
 // Discord Rich Presence is hidden on TV for now; TvDiscordDialog is kept for when it returns.
 private enum class SettingsSheet { Theme, RefreshRate, Equalizer, Scrobbling, LyricsSources, Update, About }
 
 private const val DefaultBlurb = "Playback, sound and display preferences for Cosmotune on this TV."
+
+@Composable
+internal fun TvCommonSettingsScreen(
+    category: SettingsCategory,
+    onSelect: (SettingsCategory) -> Unit,
+    sectionFocus: FocusRequester,
+    viewModel: MainViewModel,
+    onOpenAccount: () -> Unit,
+    onRunSetupAgain: () -> Unit,
+    onOpenRemote: () -> Unit,
+) {
+    TvChromePinned()
+    val context = LocalContext.current
+    Column(Modifier.fillMaxSize().padding(top = TvDimensions.ContentTop)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup()
+                .padding(horizontal = TvDimensions.SafeMarginHorizontal, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            (listOf(SettingsCategory.ALL) + SETTINGS_MODE_PAGES).forEach { page ->
+                val label = if (page == SettingsCategory.ALL) "General & Music" else page.title()
+                TvTabPill(label, selected = page == category, onClick = { onSelect(page) },
+                    modifier = Modifier.then(if (page == category) Modifier.focusRequester(sectionFocus) else Modifier)
+                        .semantics { role = Role.Tab; selected = page == category })
+            }
+        }
+        when (category) {
+            SettingsCategory.ALL, SettingsCategory.PLAYBACK ->
+                TvSettingsScreen(viewModel, onOpenAccount, onRunSetupAgain, onOpenRemote, topPadding = 0.dp)
+            else -> com.cosmotune.ui.theme.CosmoLookTheme(dark = true, legacy = { it() }) {
+                androidx.compose.runtime.key(category) {
+                    Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+                        .padding(horizontal = TvDimensions.SafeMarginHorizontal, vertical = 10.dp)) {
+                        when (category) {
+                            SettingsCategory.VIDEO -> {
+                                val graph = remember(context.applicationContext) {
+                                    com.cosmotune.video.graph.androidVideoGraph(context.applicationContext)
+                                }
+                                com.cosmotune.video.ui.settings.VideoCommonSettings(graph, wide = true)
+                            }
+                            SettingsCategory.WATCH -> {
+                                val repository = remember(context) { com.cosmotune.music.watch.AndroidWatch.repository(context) }
+                                val downloads = remember(context) { com.cosmotune.music.watch.AndroidWatch.downloads(context) }
+                                com.cosmotune.ui.watch.ProvideWatch(repository = repository, downloads = downloads,
+                                    qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
+                                    com.cosmotune.ui.watch.WatchCommonSettings()
+                                }
+                            }
+                            SettingsCategory.PODIO -> com.cosmotune.podio.PhonePodioSettings()
+                            SettingsCategory.READ -> com.cosmotune.reading.ui.ReadSettingsSection()
+                            SettingsCategory.MANGA -> com.cosmotune.manga.ui.MangaSettingsSection()
+                            else -> Unit
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 /**
  * Settings, as tvOS lays it out: the app on the left with a plain description of
@@ -69,6 +145,7 @@ fun TvSettingsScreen(
     onRunSetupAgain: () -> Unit,
     onOpenRemote: () -> Unit,
     modifier: Modifier = Modifier,
+    topPadding: Dp = TvDimensions.ContentTop,
 ) {
     TvChromePinned()
     val signedIn by viewModel.signedIn.collectAsState()
@@ -101,7 +178,7 @@ fun TvSettingsScreen(
     Row(
         modifier = modifier
             .fillMaxSize()
-            .padding(top = TvDimensions.ContentTop),
+            .padding(top = topPadding),
     ) {
         Column(
             modifier = Modifier

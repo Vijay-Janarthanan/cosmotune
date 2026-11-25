@@ -388,6 +388,8 @@ private fun WatchProfileButton(fonts: OrbitFonts, look: OrbitLook) {
     val active by repository.activeProfile.collectAsState()
     val plugins by repository.plugins.collectAsState()
     val name = profiles.firstOrNull { it.id == active }?.name ?: "Watch"
+    val openSettings = com.cosmotune.ui.settings.LocalOpenCommonSettings.current
+    val settingsAction = { if (openSettings != null) openSettings(com.cosmotune.ui.settings.SettingsCategory.WATCH) else WatchNav.go(WatchTab.SETTINGS) }
     val (fill, ink) = com.cosmotune.ui.orbit.coverFill(null, "profile:$active")
     var open by remember { mutableStateOf(false) }
     Box {
@@ -401,9 +403,9 @@ private fun WatchProfileButton(fonts: OrbitFonts, look: OrbitLook) {
             open, onDismiss = { open = false }, fonts = fonts, look = look, header = name,
             items = listOf(
                 com.cosmotune.ui.orbit.OrbitMenuItem("Switch profile", if (profiles.size <= 1) "Add a viewer" else "${profiles.size} profiles",
-                    androidx.compose.material.icons.Icons.Rounded.Person) { WatchNav.go(WatchTab.SETTINGS) },
+                    androidx.compose.material.icons.Icons.Rounded.Person, onClick = settingsAction),
                 com.cosmotune.ui.orbit.OrbitMenuItem("Plugins", "${plugins.count { it.enabled }} on", androidx.compose.material.icons.Icons.Rounded.Extension) { WatchNav.go(WatchTab.PLUGINS) },
-                com.cosmotune.ui.orbit.OrbitMenuItem("Settings", null, CosmoIcons.Settings) { WatchNav.go(WatchTab.SETTINGS) },
+                com.cosmotune.ui.orbit.OrbitMenuItem("Settings", null, CosmoIcons.Settings, onClick = settingsAction),
             ),
         )
     }

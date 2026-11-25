@@ -109,6 +109,7 @@ import androidx.compose.runtime.setValue
 internal fun VideoDesktopSidebarContent(focusSearch: Boolean, onSearchFocused: () -> Unit, caption: (@Composable () -> Unit)?) {
     val navigator = DesktopVideoState.navigator
     val route = navigator.top
+    val commonSettings = com.cosmotune.ui.settings.LocalOpenCommonSettings.current
 
     LaunchedEffect(focusSearch) {
         if (focusSearch) {
@@ -198,7 +199,10 @@ internal fun VideoDesktopSidebarContent(focusSearch: Boolean, onSearchFocused: (
                     icon = CosmoIcons.Settings,
                     label = stringResource(Res.string.video_drawer_settings),
                     selected = route == VideoRoute.Settings,
-                    onClick = { navigator.push(VideoRoute.Settings) },
+                    onClick = {
+                        if (commonSettings != null) commonSettings(com.cosmotune.ui.settings.SettingsCategory.VIDEO)
+                        else navigator.push(VideoRoute.Settings)
+                    },
                 )
             }
         }

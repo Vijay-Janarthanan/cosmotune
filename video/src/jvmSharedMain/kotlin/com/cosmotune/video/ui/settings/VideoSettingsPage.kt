@@ -225,6 +225,25 @@ private enum class Confirm { CLEAR_HISTORY, CLEAR_SEARCHES }
 fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
     val graph = LocalVideoGraph.current
     val navigator = LocalVideoNavigator.current
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            Modifier
+                .widthIn(max = if (wide) WIDE_MAX_WIDTH else Dp.Unspecified)
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                .padding(contentPadding),
+        ) {
+            com.cosmotune.video.ui.blocks.VideoPageHeading(stringResource(Res.string.video_drawer_settings), stringResource(Res.string.video_settings_label))
+            VideoSettingsContent(graph) { navigator.push(VideoRoute.Import) }
+            Spacer(Modifier.height(PAGE_END))
+        }
+    }
+}
+
+/** Standalone and common Settings edit the same video preferences. */
+@Composable
+fun VideoSettingsContent(graph: com.cosmotune.video.graph.VideoGraph, onImport: () -> Unit) {
     val settings by graph.settings.settings.collectAsState()
     val historyPaused by graph.library.historyPaused.collectAsState()
     val platform = rememberSettingsPlatform()
@@ -239,30 +258,17 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
     var category by remember { mutableStateOf<SegmentCategory?>(null) }
     var confirm by remember { mutableStateOf<Confirm?>(null) }
 
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        Column(
-            Modifier
-                .widthIn(max = if (wide) WIDE_MAX_WIDTH else Dp.Unspecified)
-                .fillMaxWidth()
-                .fillMaxHeight()
-                .verticalScroll(rememberScrollState())
-                .padding(contentPadding),
-        ) {
-            com.cosmotune.video.ui.blocks.VideoPageHeading(stringResource(Res.string.video_drawer_settings), stringResource(Res.string.video_settings_label))
-            PlaybackSettings(settings, update, pip.supported, remember(engine) { engine.capabilities.skipSilence }) { choice = it }
-            SmoothnessSettingsGroup(settings.smoothness, update, canSmooth, smoothReadout, smoothExperimental)
-            CaptionSettings(settings, update, locale) { choice = it }
-            SponsorBlockSettings(settings, update) { category = it }
-            TitleSettings(settings, update) { choice = it }
-            DislikeSettings(settings, update)
-            ContentSettings(settings, update, locale) { choice = it }
-            FocusSettings(settings, update)
-            LibrarySettings(historyPaused, graph.library::setHistoryPaused, { confirm = it }, { navigator.push(VideoRoute.Import) }, settings.autoBackupDays) { choice = SettingsChoice.AUTO_BACKUP }
-            DownloadSettings(settings, update, platform, locale)
-            AboutSettings()
-            Spacer(Modifier.height(PAGE_END))
-        }
-    }
+    PlaybackSettings(settings, update, pip.supported, remember(engine) { engine.capabilities.skipSilence }) { choice = it }
+    SmoothnessSettingsGroup(settings.smoothness, update, canSmooth, smoothReadout, smoothExperimental)
+    CaptionSettings(settings, update, locale) { choice = it }
+    SponsorBlockSettings(settings, update) { category = it }
+    TitleSettings(settings, update) { choice = it }
+    DislikeSettings(settings, update)
+    ContentSettings(settings, update, locale) { choice = it }
+    FocusSettings(settings, update)
+    LibrarySettings(historyPaused, graph.library::setHistoryPaused, { confirm = it }, onImport, settings.autoBackupDays) { choice = SettingsChoice.AUTO_BACKUP }
+    DownloadSettings(settings, update, platform, locale)
+    AboutSettings()
 
     choice?.let { SettingsChoiceSheet(it, settings, update, locale) { choice = null } }
     category?.let { CategoryChoiceSheet(it, settings, update) { category = null } }
@@ -282,6 +288,21 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
             onDismiss = { confirm = null },
         )
         null -> Unit
+    }
+}
+
+@Composable
+fun VideoCommonSettings(graph: com.cosmotune.video.graph.VideoGraph, wide: Boolean) {
+    var importing by remember { mutableStateOf(false) }
+    // Common Settings is drawn outside the Video shell, so the graph is provided here for every row that reads it (picture in picture).
+    androidx.compose.runtime.CompositionLocalProvider(LocalVideoGraph provides graph) {
+        VideoSettingsContent(graph, onImport = { importing = true })
+        if (importing) com.cosmotune.ui.settings.SettingsDetailDialog(
+            stringResource(Res.string.video_set_library),
+            onClose = { importing = false },
+        ) {
+            com.cosmotune.video.ui.library.ImportPage(PaddingValues(), wide)
+        }
     }
 }
 

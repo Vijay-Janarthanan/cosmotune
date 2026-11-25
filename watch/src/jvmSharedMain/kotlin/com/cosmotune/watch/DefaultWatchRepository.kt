@@ -309,7 +309,7 @@ class DefaultWatchRepository(
         is UserSourceSpec.StremioAddon -> {
             val name = s.name ?: spec.label.ifBlank { "Add-on" }
             StremioPlugin(s.id, name, badgeOf(name), StremioClient(http, spec.manifestUrl),
-                setOf(Capability.CATALOG, Capability.SEARCH, Capability.META, Capability.STREAMS, Capability.SUBTITLES, Capability.LIVE),
+                setOf(Capability.CATALOG, Capability.SEARCH, Capability.META, Capability.STREAMS, Capability.SUBTITLES, Capability.LIVE, Capability.EPG),
                 torrentsEnabled = ::torrentsEnabled)
         }
         is UserSourceSpec.Jellyfin -> JellyfinPlugin(s.id, s.name ?: spec.label.ifBlank { "Jellyfin" }, http, spec.server, requireNotNull(sessionOf(s)))
@@ -862,10 +862,11 @@ class DefaultWatchRepository(
         val streams = mutableListOf<Stream>()
         val pending = plugins.map { it.id }.toMutableSet()
         val errors = mutableMapOf<String, String>()
+        val timedOut = mutableSetOf<String>()
         val where = mutableListOf<WatchProvider>()
         if (full !is PlayTarget.Live) titles[full.key.seriesKey ?: full.key]?.whereToWatch?.let(where::addAll)
         val ranker = ranker()
-        suspend fun emitNow() = send(SourcesState(full, ranker.rank(streams, hint), pending.toSet(), errors.toMap(), where.distinctBy { it.name }))
+        suspend fun emitNow() = send(SourcesState(full, ranker.rank(streams, hint), pending.toSet(), errors.toMap(), where.distinctBy { it.name }, timedOut.toSet()))
         lock.withLock { emitNow() }
         coroutineScope {
             for (p in plugins) launch {
@@ -875,11 +876,14 @@ class DefaultWatchRepository(
                     withTimeoutOrNull(config.timeoutMs) {
                         if (Capability.WHERE_TO_WATCH in p.capabilities && Capability.STREAMS !in p.capabilities) Pair(emptyList(), p.whereToWatch(asked))
                         else Pair(p.streams(asked), emptyList<WatchProvider>())
-                    } ?: error("Not responding")
+                    }
                 }
                 lock.withLock {
                     pending -= p.id
-                    result.onSuccess { (s, w) -> streams += s; where += w }.onFailure { if (it !is kotlinx.coroutines.CancellationException) errors[p.id] = it.message ?: "Not responding" }
+                    result.onSuccess { answer ->
+                        if (answer == null) timedOut += p.id
+                        else { streams += answer.first; where += answer.second }
+                    }.onFailure { if (it !is kotlinx.coroutines.CancellationException) errors[p.id] = it.message ?: "Not responding" }
                     emitNow()
                 }
             }

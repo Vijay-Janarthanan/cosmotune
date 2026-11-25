@@ -535,11 +535,11 @@ private fun TvFilmCard(
         }
     }
     val ink = coverFill(summary?.backdropUrl ?: summary?.posterUrl, summary?.key?.value ?: route.target.key.value).second
-    val liveLine = if (state.isLive && programme != null) {
+    val liveLine = if (state.isLive) {
         listOfNotNull(
-            hourMinute(programme.startMs) + " – " + hourMinute(programme.stopMs),
+            programme?.let { hourMinute(it.startMs) + " – " + hourMinute(it.stopMs) },
             onAir?.next?.let { "Next " + hourMinute(it.startMs) + " " + it.title.substringAfter(": ") },
-        ).joinToString(" · ")
+        ).joinToString(" · ").ifBlank { null }
     } else null
     // A channel's own "Live" line says nothing the label does not; the programme's times and what is next say more.
     val subtitle = listOfNotNull(liveLine ?: state.subtitleLine.takeUnless { state.isLive && it.equals("Live", ignoreCase = true) }, state.failover, state.lengthNote)

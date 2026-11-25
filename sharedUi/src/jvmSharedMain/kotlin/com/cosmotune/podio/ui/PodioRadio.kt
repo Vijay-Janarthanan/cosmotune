@@ -80,7 +80,7 @@ internal class OnAir(val station: RadioStation?, val song: String?, val onPrevio
     val saved = env.saved.stations.any { it.id == station.id }
     val place = listOf(station.state.ifBlank { station.country }, station.language.replaceFirstChar { it.uppercase() }).filter(String::isNotBlank).joinToString(" · ")
     val now = when {
-        live && env.playback.error != null -> "Playback failed. Try another station."
+        live && env.playback.error != null -> "This station disconnected. Press Play to reconnect."
         live && env.playback.loading -> "Tuning in…"
         live -> song?.let { "Now: $it" } ?: "On air now"
         else -> PodioFormat.stationMeta(station.placeLine(), "", station.codec, station.bitrate)
@@ -89,7 +89,7 @@ internal class OnAir(val station: RadioStation?, val song: String?, val onPrevio
         val row = large && maxWidth >= 600.dp
         val disc = when { row -> 196.dp; maxWidth < 420.dp -> 96.dp; large -> 150.dp; else -> 140.dp }
         OrbitBiteCard(colors.fill, Modifier.fillMaxWidth(), onClick = onClick, bite = {
-            OrbitPlayButton(playing, { if (live) env.onToggle() else m.playStation(station) }, look, Modifier.testTag("podio:card:play"))
+            OrbitPlayButton(playing, { if (live && env.playback.error == null) env.onToggle() else m.playStation(station) }, look, Modifier.testTag("podio:card:play"))
         }) {
             val logo: @Composable (Modifier) -> Unit = { at ->
                 Box(at.size(disc + 22.dp), contentAlignment = Alignment.Center) {

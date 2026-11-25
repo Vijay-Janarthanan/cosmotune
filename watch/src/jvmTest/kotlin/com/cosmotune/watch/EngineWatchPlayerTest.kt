@@ -95,7 +95,7 @@ class EngineWatchPlayerTest {
         assertEquals(6_720_000, saved.durationMs)
         engine.fail(PlayerErrorKind.DECODER, "no decoder")
         until("error shown") { player.state.value.status == WatchPlayerStatus.ERROR }
-        assertEquals("no decoder", player.state.value.error)
+        assertEquals("The player could not decode this copy. Try another source.", player.state.value.error)
     }
 
     @Test fun nothingFoundSaysSo() = runBlocking<Unit> {

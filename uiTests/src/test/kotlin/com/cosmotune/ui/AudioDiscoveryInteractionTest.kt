@@ -101,6 +101,10 @@ class AudioDiscoveryInteractionTest {
         compose.onNodeWithTag("home:language:ta").performScrollTo().performClick()
         compose.waitUntil { DiscoveryPreferences.state.value.musicLanguage == "ta" && refreshed == 2 }
         assertEquals("ZZ", DiscoveryPreferences.state.value.country)
+        compose.onNodeWithTag("home:lead").performClick()
+        compose.onNodeWithTag("home:lead:FOLLOWING").performClick()
+        compose.waitUntil { DiscoveryPreferences.state.value.lead == com.cosmotune.music.data.recommendations.DiscoveryLead.FOLLOWING }
+        assertEquals(2, refreshed, "Moving a section must not reload the catalogue")
     }
 
     @Test fun anOfflinePlaylistPreviewCanBeReviewedReorderedAndSavedWithRealSourceQualifiedTracks() {

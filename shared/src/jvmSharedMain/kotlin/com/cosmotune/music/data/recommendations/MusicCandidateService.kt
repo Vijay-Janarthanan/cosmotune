@@ -10,7 +10,9 @@ import kotlinx.coroutines.sync.withPermit
 
 /** Small metadata pools, not a bundled full catalogue. Source identities remain playable provider IDs. */
 object MusicCandidateService {
-    private data class Pool(val region: DiscoveryRegion, val rows: List<MusicCandidate>, val expires: Long)
+    private data class Catalogue(val country: String, val language: String)
+    private fun DiscoveryRegion.catalogue() = Catalogue(country, musicLanguage)
+    private data class Pool(val catalogue: Catalogue, val rows: List<MusicCandidate>, val expires: Long)
     private val pools = LinkedHashMap<String, Pool>()
     private val lock = Any()
     @Volatile private var context = MusicDiscoveryContext()
@@ -26,13 +28,13 @@ object MusicCandidateService {
     fun begin(value: DiscoveryRegion, allowedProviders: Set<String>) = synchronized(lock) {
         region = value
         this.allowedProviders = allowedProviders.toSet()
-        pools.entries.removeAll { (_, pool) -> pool.region != value || pool.expires < System.currentTimeMillis() }
+        pools.entries.removeAll { (_, pool) -> pool.catalogue != value.catalogue() || pool.expires < System.currentTimeMillis() }
         pools.keys.filter { it.startsWith("provider:") && it.removePrefix("provider:") !in allowedProviders }.forEach(pools::remove)
     }
     fun ingest(key: String, value: DiscoveryRegion, rows: List<MusicCandidate>) = synchronized(lock) {
-        if (value != region) return@synchronized
+        if (value.catalogue() != region.catalogue()) return@synchronized
         pools.remove(key)
-        pools[key] = Pool(value, rows.filter { it.song.videoId.isNotBlank() && !it.song.isVideo && !it.song.videoId.startsWith("podio:") }.take(120), System.currentTimeMillis() + 15 * 60_000)
+        pools[key] = Pool(value.catalogue(), rows.filter { it.song.videoId.isNotBlank() && !it.song.isVideo && !it.song.videoId.startsWith("podio:") }.take(120), System.currentTimeMillis() + 15 * 60_000)
         while (pools.size > 12) pools.remove(pools.keys.first())
     }
     fun snapshot(value: DiscoveryRegion = region): List<MusicCandidate> {
@@ -40,7 +42,7 @@ object MusicCandidateService {
         val sources = buildList {
             add(local.library.mapIndexed { rank, song -> MusicCandidate(song, MusicCandidateOrigin.LIBRARY, rank, explanation = "In your library") })
             add(local.history.mapIndexed { rank, song -> MusicCandidate(song, MusicCandidateOrigin.RECENT, rank, explanation = "Based on your recent listening") })
-            synchronized(lock) { pools.values.filter { it.region == value && it.expires >= System.currentTimeMillis() }.forEach { add(it.rows) } }
+            synchronized(lock) { pools.values.filter { it.catalogue == value.catalogue() && it.expires >= System.currentTimeMillis() }.forEach { add(it.rows) } }
         }
         val result = ArrayList<MusicCandidate>()
         for (index in 0 until (sources.maxOfOrNull { it.size } ?: 0)) {

@@ -11,7 +11,16 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Serializable
-data class DiscoveryRegion(val country: String = Locale.getDefault().country.ifBlank { "IN" }, val musicLanguage: String = "") {
+enum class DiscoveryLead(val label: String) {
+    PERSONAL("Personal mixes"), REGIONAL("Regional music"), FOLLOWING("Followed artists")
+}
+
+@Serializable
+data class DiscoveryRegion(
+    val country: String = Locale.getDefault().country.ifBlank { "IN" },
+    val musicLanguage: String = "",
+    val lead: DiscoveryLead = DiscoveryLead.PERSONAL,
+) {
     fun validated(): DiscoveryRegion = apply {
         require(country == "ZZ" || country in Locale.getISOCountries()) { "Choose a country or Global" }
         require(musicLanguage.isEmpty() || musicLanguage.matches(Regex("[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?"))) { "Choose a music language" }

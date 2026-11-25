@@ -6,6 +6,8 @@ package com.cosmotune.music.ui.tv
 
 import com.cosmotune.music.playback.rememberLivePlayhead
 import androidx.activity.compose.BackHandler
+import com.cosmotune.ui.settings.LocalOpenCommonSettings
+import com.cosmotune.ui.settings.SettingsCategory
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -311,6 +313,8 @@ private fun TvMainShell(
     }
     val stateHolder = rememberSaveableStateHolder()
     var destination by remember { mutableStateOf(TvDestination.HOME) }
+    var settingsCategory by remember { mutableStateOf<SettingsCategory?>(null) }
+    val settingsFocus = remember { FocusRequester() }
     val detailStack = remember { mutableStateListOf<TvDetailRoute>() }
     val tabFocus = remember { FocusRequester() }
     var barHasFocus by remember { mutableStateOf(false) }
@@ -338,6 +342,7 @@ private fun TvMainShell(
     var pendingReturn by remember { mutableStateOf<FocusRequester?>(null) }
     var hadDetail by remember { mutableStateOf(false) }
     val select: (TvDestination) -> Unit = { next ->
+        settingsCategory = null
         if (detailStack.isNotEmpty()) {
             detailStack.clear()
             returnFocus.clear()
@@ -404,8 +409,12 @@ private fun TvMainShell(
 
     // tvOS Back: pop a pushed page; otherwise go back up to the tab bar; from
     // there, back to Home; from Home's tab, leave the app.
-    BackHandler(enabled = !covered && (activeDetail != null || !barHasFocus || destination != TvDestination.HOME)) {
+    BackHandler(enabled = !covered && (settingsCategory != null || activeDetail != null || !barHasFocus || destination != TvDestination.HOME)) {
         when {
+            settingsCategory != null -> {
+                settingsCategory = null
+                runCatching { tabFocus.requestFocus() }
+            }
             activeDetail != null -> popDetail()
             !barHasFocus -> {
                 chrome.scrollToTopRequests++
@@ -442,11 +451,15 @@ private fun TvMainShell(
     }
 
     // The bar floats over pushed pages too, stepping aside as they scroll.
-    val barVisible = !chrome.contentScrolled || barHasFocus
+    val barVisible = settingsCategory != null || !chrome.contentScrolled || barHasFocus
     val scope = rememberCoroutineScope()
     val barProgress by animateFloatAsState(if (barVisible) 1f else 0f, tween(260), label = "barProgress")
 
-    CompositionLocalProvider(LocalTvChrome provides chrome, com.cosmotune.ui.live.LocalLiveNow provides live) {
+    CompositionLocalProvider(
+        LocalTvChrome provides chrome,
+        com.cosmotune.ui.live.LocalLiveNow provides live,
+        LocalOpenCommonSettings provides { category -> settingsCategory = category },
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -459,8 +472,8 @@ private fun TvMainShell(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = if (activeDetail == null) 1f else 0f }
-                    .focusProperties { onEnter = { if (detailStack.isNotEmpty()) cancelFocusChange() } }
+                    .graphicsLayer { alpha = if (activeDetail == null && settingsCategory == null) 1f else 0f }
+                    .focusProperties { onEnter = { if (detailStack.isNotEmpty() || settingsCategory != null) cancelFocusChange() } }
                     .focusGroup(),
             ) {
                 Box(
@@ -546,7 +559,7 @@ private fun TvMainShell(
                 }
             }
 
-            if (activeDetail != null) {
+            if (activeDetail != null && settingsCategory == null) {
                 androidx.compose.runtime.key(activeDetail) {
                     Box(
                         modifier = Modifier
@@ -571,14 +584,39 @@ private fun TvMainShell(
                 }
             }
 
+            settingsCategory?.let { category ->
+                Box(Modifier.fillMaxSize().focusGroup()) {
+                    BackHandler(enabled = !covered) {
+                        settingsCategory = null
+                        runCatching { tabFocus.requestFocus() }
+                    }
+                    com.cosmotune.music.ui.tv.screens.TvCommonSettingsScreen(
+                        category, { settingsCategory = it }, settingsFocus, viewModel, onOpenAccount, onRunSetupAgain, onOpenRemote,
+                    )
+                }
+            }
+            val settingsShowing = settingsCategory != null
+            LaunchedEffect(settingsShowing) {
+                if (settingsShowing) runCatching { settingsFocus.requestFocus() }
+            }
+
             TvTopBar(
-                destination = destination,
+                destination = if (settingsShowing) TvDestination.SETTINGS else destination,
                 viewModel = viewModel,
                 playerState = playerState,
                 tabFocus = tabFocus,
                 // Down from the bar goes into whatever page is on top.
-                contentFocus = if (activeDetail != null) detailFocus else contentFocus,
-                onSelect = select,
+                contentFocus = if (settingsShowing) settingsFocus else if (activeDetail != null) detailFocus else contentFocus,
+                onSelect = { next ->
+                    if (next == TvDestination.SETTINGS) settingsCategory = when (destination) {
+                        TvDestination.VIDEO -> SettingsCategory.VIDEO
+                        TvDestination.WATCH -> SettingsCategory.WATCH
+                        TvDestination.PODIO, TvDestination.PODIO_TOOLS -> SettingsCategory.PODIO
+                        TvDestination.READ -> SettingsCategory.READ
+                        TvDestination.MANGA -> SettingsCategory.MANGA
+                        else -> SettingsCategory.ALL
+                    } else select(next)
+                },
                 onOpenNowPlaying = openNowPlaying,
                 onOpenAccount = onOpenAccount,
                 modifier = Modifier
@@ -664,7 +702,7 @@ private fun TvTopBar(
                 val focused by interaction.collectIsFocusedAsState()
                 val selected = (destination == tab && (tab != TvDestination.WATCH || watchTab == WatchTab.HOME)) ||
                     (destination == TvDestination.PODIO_TOOLS && tab == TvDestination.PODIO)
-                if (tab in onFocusTabs) {
+                if (tab in onFocusTabs && destination != TvDestination.SETTINGS) {
                     LaunchedEffect(focused) {
                         if (focused && !selected) {
                             delay(TabSwitchDelayMs)
@@ -864,7 +902,7 @@ fun TvAppMark(modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp =
  * is one step to the right of Watch instead of off the edge of the screen past Live TV.
  */
 internal fun tvWatchSubTabs(): List<WatchTab> =
-    listOf(WatchTab.SEARCH) + WatchTab.entries.filter { it != WatchTab.HOME && it != WatchTab.SEARCH }
+    listOf(WatchTab.SEARCH) + WatchTab.entries.filter { it != WatchTab.HOME && it != WatchTab.SEARCH && it != WatchTab.SETTINGS }
 
 /** A Watch tab's chip label on the TV: Watch's search says what it finds, so it is not mistaken for Music's Search chip. */
 internal fun tvWatchTabLabel(tab: WatchTab): String = if (tab == WatchTab.SEARCH) "Search films & TV" else tab.label

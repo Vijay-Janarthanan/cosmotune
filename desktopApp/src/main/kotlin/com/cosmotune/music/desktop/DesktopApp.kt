@@ -164,6 +164,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.draw.drawBehind
@@ -2829,8 +2830,9 @@ fun CosmotuneDesktopApp() {
     // Settings' search and scroll outlive a visit to one of its pages, and start over each time
     // Settings itself is opened.
     var settingsSession by remember { mutableStateOf(0) }
+    var settingsInitialCategory by remember { mutableStateOf(com.cosmotune.ui.settings.SettingsCategory.ALL) }
     var settingsQuery by remember(settingsSession) { mutableStateOf("") }
-    var settingsCategory by remember(settingsSession) { mutableStateOf(com.cosmotune.ui.settings.SettingsCategory.ALL) }
+    var settingsCategory by remember(settingsSession) { mutableStateOf(settingsInitialCategory) }
     val settingsListState = remember(settingsSession) { LazyListState() }
 
     /**
@@ -2845,13 +2847,22 @@ fun CosmotuneDesktopApp() {
     }
 
     /** Settings in place of the page — from the sidebar, the account switcher or the tray. */
-    fun openSettings() {
-        showInMusic()
+    fun openSettingsAt(category: com.cosmotune.ui.settings.SettingsCategory) {
         overlays.nowPlaying = false
         overlays.roomView = false
-        if (overlays.settingsPage == null) settingsSession++
+        if (overlays.settingsPage == null) {
+            settingsInitialCategory = category
+            settingsSession++
+        } else {
+            settingsCategory = category
+            settingsQuery = ""
+            scope.launch { settingsListState.scrollToItem(0) }
+        }
         overlays.settingsPage = DesktopSettingsPage.MAIN
     }
+
+    fun openSettings() = openSettingsAt(com.cosmotune.ui.settings.settingsCategoryOf(DesktopRoomVideo.look?.mode?.value)
+        ?: com.cosmotune.ui.settings.SettingsCategory.PLAYBACK)
 
     /** Listen together in place of the page: where a room is made or joined, and the room itself, drawn wide, once in one. */
     fun openRoomPage() {
@@ -3619,6 +3630,18 @@ fun CosmotuneDesktopApp() {
             overlays.roomView = false
             return
         }
+        if (overlays.settingsPage == DesktopSettingsPage.MAIN) {
+            if (settingsQuery.isNotBlank()) {
+                settingsQuery = ""
+                return
+            }
+            if (navHistory.lastOrNull()?.settings == null && navHistory.isNotEmpty()) {
+                navHistory.removeLastOrNull()
+                navRestoring[0] = true
+            }
+            overlays.settingsPage = null
+            return
+        }
         val entry = navHistory.removeLastOrNull() ?: return
         if (entry.key == here().key) return
         navRestoring[0] = true
@@ -4024,6 +4047,7 @@ fun CosmotuneDesktopApp() {
             com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),
             com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },
             com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),
+            com.cosmotune.ui.settings.LocalOpenCommonSettings provides ::openSettingsAt,
             // Up next marks the liked and downloaded songs.
             com.cosmotune.ui.orbit.LocalQueueMarks provides remember(likedIds, downloads) {
                 com.cosmotune.ui.orbit.QueueMarks(liked = likedIds, downloaded = downloads.mapTo(HashSet()) { it.videoId })
@@ -4122,7 +4146,9 @@ fun CosmotuneDesktopApp() {
                 // The look's ambient ground, under the chrome and the page.
                 backdrop = { com.cosmotune.ui.theme.AmbientBackground(Modifier.fillMaxSize()) },
                 modifier = Modifier.onPreviewKeyEvent { event ->
-                    if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive).or(com.cosmotune.video.host.DesktopModeHost.podioActive).or(com.cosmotune.video.host.DesktopModeHost.watchActive)) return@onPreviewKeyEvent false
+                    if (overlays.settingsPage == null && (com.cosmotune.video.host.DesktopModeHost.active ||
+                            com.cosmotune.video.host.DesktopModeHost.mangaActive || com.cosmotune.video.host.DesktopModeHost.podioActive ||
+                            com.cosmotune.video.host.DesktopModeHost.watchActive)) return@onPreviewKeyEvent false
                     if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
                     when {
                         event.key == Key.MediaPlayPause -> {
@@ -4206,13 +4232,14 @@ fun CosmotuneDesktopApp() {
                 topBar = { compact ->
                     com.cosmotune.desktop.CosmoDesktopTopBar(
                         compact,
-                        navHistory.isNotEmpty() || overlays.roomView,
+                        navHistory.isNotEmpty() || overlays.roomView || overlays.settingsPage != null,
                         ::goBack,
                         activeAccount.shownAvatar(activeProfileId),
                         { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
                         accountName = activeAccount.shownName(activeProfileId),
                         // A compact window has no sidebar field: Search is the bar's button (DESIGN_SYSTEM.md 5.2).
                         onSearch = { selectDestination(DesktopDestination.SEARCH) },
+                        settingsOpen = overlays.settingsPage != null,
                         // The profile drawer's entries. Settings and Replay stand in place of the page, so they leave each other first.
                         entries = listOf(
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Clock, "Your listening", onClick = { listeningToolsOpen = true }),
@@ -4779,8 +4806,20 @@ fun CosmotuneDesktopApp() {
                     }
                 },
             ) { contentPadding ->
-                if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)
-                if (com.cosmotune.video.host.desktopMangaShown()) {
+                Box(Modifier.fillMaxSize()) content@{
+                val settingsShowing = overlays.settingsPage != null
+                val videoShowing = com.cosmotune.video.host.desktopVideoShown()
+                val readerShowing = com.cosmotune.video.host.desktopMangaShown()
+                val watchShowing = com.cosmotune.video.host.desktopWatchShown()
+                val podioShowing = com.cosmotune.video.host.desktopPodioShown()
+                if (videoShowing || readerShowing || watchShowing || podioShowing) {
+                    // Keep the current route and its player composed while Settings owns the window's content.
+                    Box(Modifier.fillMaxSize().layout { measurable, constraints ->
+                        val page = measurable.measure(constraints)
+                        layout(page.width, page.height) { if (!settingsShowing) page.placeRelative(0, 0) }
+                    }) modePage@{
+                if (videoShowing) return@modePage com.cosmotune.video.host.DesktopVideoPage(contentPadding)
+                if (readerShowing) {
                     // Read's audiobooks play on this player, as a queue of their parts.
                     val readPlay = rememberUpdatedState { items: List<com.cosmotune.reading.ui.ReadingAudioItem>, index: Int, position: Long ->
                         if (!partyTrackChangeBlocked()) {
@@ -4793,18 +4832,18 @@ fun CosmotuneDesktopApp() {
                     val readAudio = remember { com.cosmotune.reading.ui.ReadingAudioHost({ a, b, c -> readPlay.value(a, b, c) }, { readToggle.value() },
                         { playbackEngine.seekTo(it) }, { playbackEngine.setPlaybackSpeed(it) }) }
                     SideEffect { readAudio.update(playback.song?.videoId, playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playbackEngine.playbackRate) }
-                    return@DesktopFrame CompositionLocalProvider(com.cosmotune.reading.ui.LocalReadingAudio provides readAudio) {
+                    return@modePage CompositionLocalProvider(com.cosmotune.reading.ui.LocalReadingAudio provides readAudio) {
                         com.cosmotune.video.host.DesktopMangaPage(contentPadding)
                     }
                 }
-                if (com.cosmotune.video.host.desktopWatchShown()) return@DesktopFrame com.cosmotune.video.host.DesktopWatchPage(contentPadding)
-                if (com.cosmotune.video.host.desktopPodioShown()) {
+                if (watchShowing) return@modePage com.cosmotune.video.host.DesktopWatchPage(contentPadding)
+                if (podioShowing) {
                     // An episode as the desktop player takes it: from its downloaded file when there is one.
                     fun podioSong(item: com.cosmotune.podio.PodioItem): Song =
                         com.cosmotune.podio.PodioDownloads.withOfflinePath(item.song(), downloads.firstOrNull { it.videoId == item.id })
                     // How long each running episode download still needs.
                     val podioEta = remember { com.cosmotune.podio.PodioDownloadEta() }
-                    return@DesktopFrame BoxWithConstraints {
+                    BoxWithConstraints {
                     val podioCompact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
                     com.cosmotune.podio.ui.PodioApp(
                         storage = com.cosmotune.podio.PodioLibrary.desktopFile(),
@@ -4880,6 +4919,9 @@ fun CosmotuneDesktopApp() {
                         },
                     )
                     }
+                }
+                    }
+                    if (!settingsShowing) return@content
                 }
                 // Desktop pages start at the same top edge as Library. Only preserve space for the
                 // floating player/navigation bar at the bottom in compact windows.
@@ -5157,7 +5199,6 @@ fun CosmotuneDesktopApp() {
                                     },
                                     onOpenIntegrations = { overlays.settingsPage = DesktopSettingsPage.INTEGRATIONS },
                                     onOpenLicenses = { overlays.settingsPage = DesktopSettingsPage.LICENSES },
-                                    onCloseSettings = { overlays.settingsPage = null },
                                 )
                                 DesktopSettingsPage.EQUALIZER -> DesktopEqualizerDialog(onDismiss = ::goBack)
                                 DesktopSettingsPage.AUDIO_OUTPUT -> DesktopAudioOutputDialog(onDismiss = ::goBack)
@@ -5303,6 +5344,27 @@ fun CosmotuneDesktopApp() {
                         )
                         }
                         destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.home.HomeSwitch(
+                            continueEntries =
+                                (if (cosmoShell != null && com.cosmotune.design.AppModes.available(AppMode.WATCH)) {
+                                    com.cosmotune.ui.home.watchContinueEntries(com.cosmotune.desktop.DesktopWatch.repository) {
+                                        cosmoShell.settings.setMode(AppMode.WATCH)
+                                    }
+                                } else emptyList()) +
+                                (if (cosmoShell != null && com.cosmotune.design.AppModes.available(AppMode.PODIO)) {
+                                    com.cosmotune.ui.home.podioContinueEntries(com.cosmotune.podio.PodioLibrary.desktopFile(),
+                                        playback.song?.videoId.takeIf { playback.isPlaying }) { episode, position ->
+                                        if (!partyTrackChangeBlocked()) {
+                                            val song = com.cosmotune.podio.PodioDownloads.withOfflinePath(episode.song(), downloads.firstOrNull { it.videoId == episode.id })
+                                            liveQueue = DesktopQueue(listOf(song), index = 0)
+                                            preShuffleOrder = emptyList()
+                                            playCurrent(startAtMs = position)
+                                            cosmoShell.settings.setMode(AppMode.PODIO)
+                                        }
+                                    }
+                                } else emptyList()) +
+                                (if (cosmoShell != null && com.cosmotune.design.AppModes.available(AppMode.READ)) {
+                                    com.cosmotune.reading.ui.bookContinueEntries { cosmoShell.settings.setMode(AppMode.READ) }
+                                } else emptyList()),
                             discoveryHistory = history,
                             discoveryLikedIds = likedIds + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
                             followedArtists = com.cosmotune.ui.home.rememberFollowedMusicArtists(com.cosmotune.desktop.desktopListeningFile(), listeningToolsOpen),
@@ -5672,6 +5734,7 @@ fun CosmotuneDesktopApp() {
                 }
                 }
 
+                }
             }
         }
         }
@@ -6117,6 +6180,7 @@ private enum class DesktopSettingsSection(val category: com.cosmotune.ui.setting
     APPEARANCE(com.cosmotune.ui.settings.SettingsCategory.APPEARANCE),
     LANGUAGE(com.cosmotune.ui.settings.SettingsCategory.APPEARANCE),
     VIDEO(com.cosmotune.ui.settings.SettingsCategory.VIDEO),
+    WATCH(com.cosmotune.ui.settings.SettingsCategory.WATCH),
     LIVE_NOW(com.cosmotune.ui.settings.SettingsCategory.VIDEO),
     READ(com.cosmotune.ui.settings.SettingsCategory.READ),
     MANGA(com.cosmotune.ui.settings.SettingsCategory.MANGA),
@@ -6143,24 +6207,6 @@ private val LocalDesktopSettingsSection = compositionLocalOf<DesktopSettingsSect
 
 /** The group the search pass is in, shown with a result as where it lives. */
 private val LocalDesktopSettingsGroupTitle = compositionLocalOf<String?> { null }
-
-/**
- * The way from Music's settings into another [mode], whose own settings live in it: a group under the name of [category] with
- * one row, live while the mode works.
- */
-@Composable
-private fun DesktopModeLink(mode: AppMode, category: com.cosmotune.ui.settings.SettingsCategory, title: String, summary: String) {
-    val shell = com.cosmotune.ui.theme.LocalCosmoShell.current
-    val available = AppModes.available(mode)
-    SettingsGroup(category.title()) {
-        SettingsRow(
-            category.icon,
-            title,
-            summary,
-            if (available) ({ shell?.settings?.setMode(mode) }) else null,
-        )
-    }
-}
 
 /**
  * Settings as a page of inset groups, the way Android presents it, held to the width the old card
@@ -6261,7 +6307,6 @@ private fun DesktopSettingsScreen(
     onOpenIntegrations: () -> Unit,
     onOpenLicenses: () -> Unit,
     /** Closes Settings (the settings home's Watch row leaves for Watch's own settings page). */
-    onCloseSettings: () -> Unit = {},
 ) {
     val settingsInset = 16.dp
     val settingsScope = rememberCoroutineScope()
@@ -7337,7 +7382,25 @@ private fun DesktopSettingsScreen(
                 }
             }
             DesktopSettingsSection.VIDEO -> {
-                DesktopModeLink(AppMode.VIDEO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO_SUMMARY.text())
+                if (settingsRowVisible(section.category.title(), "youtube sponsorblock captions dearrow quality download smoothing autoplay backup import")) {
+                    val graph = remember { com.cosmotune.video.graph.desktopVideoGraph() }
+                    if (graph != null) com.cosmotune.video.ui.settings.VideoCommonSettings(graph, wide = true)
+                }
+            }
+            DesktopSettingsSection.WATCH -> {
+                if (settingsRowVisible(section.category.title(), "plugins profiles subtitles torrents downloads streams tracking")) {
+                    val repository = remember { com.cosmotune.desktop.DesktopWatch.repository }
+                    val downloads = remember { com.cosmotune.desktop.DesktopWatch.downloads }
+                    val links = remember {
+                        com.cosmotune.desktop.DesktopWatchLinks.takeIf { it.available }?.let {
+                            com.cosmotune.ui.watch.WatchLinkHandler(it::isSet, it::set)
+                        }
+                    }
+                    com.cosmotune.ui.watch.ProvideWatch(repository = repository, downloads = downloads, linkHandler = links,
+                        qrCode = { payload, size -> DesktopQrCode(payload, size) }) {
+                        com.cosmotune.ui.watch.WatchCommonSettings()
+                    }
+                }
             }
             DesktopSettingsSection.LIVE_NOW -> {
                 // The Spotlight of every mode, the sports it shows and the teams and competitions followed (kept on this computer).
@@ -7346,19 +7409,16 @@ private fun DesktopSettingsScreen(
                 }
             }
             DesktopSettingsSection.READ -> {
-                DesktopModeLink(AppMode.READ, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_READ.text(), com.cosmotune.ui.settings.SettingsText.OPEN_READ_SUMMARY.text())
                 SettingsGroup("Reader and libraries") {
                     if (settingsRowVisible("Reader look", "font typeface text size margins brightness opds connected libraries")) com.cosmotune.reading.ui.ReadSettingsSection()
                 }
             }
             DesktopSettingsSection.MANGA -> {
-                DesktopModeLink(AppMode.MANGA, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_MANGA.text(), com.cosmotune.ui.settings.SettingsText.OPEN_MANGA_SUMMARY.text())
                 SettingsGroup("Reader, storage and sources") {
                     if (settingsRowVisible("Manga settings", "reader storage cache komga extensions parser backup updates verification")) com.cosmotune.manga.ui.MangaSettingsSection()
                 }
             }
             DesktopSettingsSection.PODIO -> {
-                DesktopModeLink(AppMode.PODIO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_PODIO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_PODIO_SUMMARY.text())
                 SettingsGroup("Episodes and subscriptions") {
                     if (settingsRowVisible("Podcast settings", "episodes new episodes refresh auto download skip silence speed opml import export")) com.cosmotune.podio.ui.PodioSettingsSection(
                         com.cosmotune.podio.PodioLibrary.desktopFile(),
@@ -7460,6 +7520,7 @@ private fun DesktopSettingsScreen(
                         modifier = Modifier.padding(start = 24.dp, end = 16.dp).width(340.dp),
                     )
                 }
+                if (!twoPane) com.cosmotune.ui.settings.SettingsModeTabs(selectedCategory, openCategory)
                 Row(Modifier.weight(1f).fillMaxWidth()) {
                     if (twoPane) {
                         // The board's left column: the account card, then the categories as tiles, two columns when there is room.
@@ -7524,9 +7585,7 @@ private fun DesktopSettingsScreen(
                                     val shellSettings = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings
                                     val shellMode = shellSettings?.mode?.collectAsState()?.value
                                     com.cosmotune.ui.settings.SettingsHub(entries = hubEntries, onOpen = openCategory, accountCard = { settingsAccountCard(false) },
-                                        current = com.cosmotune.ui.settings.settingsCategoryOf(shellMode),
-                                        onOpenWatch = com.cosmotune.ui.settings.watchSettingsOpener(shellSettings, onCloseSettings),
-                                        watchCurrent = shellMode == com.cosmotune.design.AppMode.WATCH)
+                                        current = com.cosmotune.ui.settings.settingsCategoryOf(shellMode))
                                 }
                             }
                             else -> CompositionLocalProvider(

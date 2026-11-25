@@ -5,6 +5,7 @@ import com.cosmotune.video.player.EngineTrack
 import com.cosmotune.video.player.MediaInput
 import com.cosmotune.video.player.PlaybackRequest
 import com.cosmotune.video.player.PlayerStatus
+import com.cosmotune.video.player.PlayerErrorKind
 import com.cosmotune.video.player.TrackType
 import com.cosmotune.video.player.UrlKind
 import com.cosmotune.video.player.VideoPlayerEngine
@@ -197,7 +198,11 @@ class EngineWatchPlayer(
             if (best != null) start(best)
             else mutable.update { it.copy(status = WatchPlayerStatus.NOT_FOUND, error =
                 last?.errors?.values?.firstOrNull { it == com.cosmotune.watch.plugins.stremio.BundledTorrentPlayback.DISABLED }
-                    ?: "Your enabled plugins returned no playable copy.") }
+                    ?: when {
+                        last?.timedOut.orEmpty().isNotEmpty() -> "A source timed out before returning a playable copy. Retry or check the source in Plugins."
+                        last?.errors.orEmpty().isNotEmpty() -> "A source could not answer and the others offered no playable copy. Retry or check Plugins."
+                        else -> "Your enabled plugins returned no playable copy."
+                    }) }
         }
     }
 
@@ -206,6 +211,7 @@ class EngineWatchPlayer(
         val target = current.target ?: return
         val attempt = releasePlayback()
         ticker?.cancel()
+        stallSince = 0L
         tried += stream.url to stream.torrentFileIndex
         lastSavedAt = now()
         mutable.update { it.copy(status = WatchPlayerStatus.LOADING, stream = stream, error = null, durationMs = stream.durationMs ?: 0, isLive = stream.isLive || target is PlayTarget.Live) }
@@ -318,7 +324,14 @@ class EngineWatchPlayer(
         // A torrent that stalls (it has been buffering a long while, or its engine gave up) is picked up again once where it stopped,
         // with its peers looked for afresh, before another copy is tried.
         val torrent = s.stream?.takeIf { it.isTorrent }
-        if (torrent != null && status == WatchPlayerStatus.BUFFERING) { if (stallSince == 0L) stallSince = now() } else stallSince = 0L
+        val buffering = status == WatchPlayerStatus.BUFFERING && s.stream?.protocol != StreamProtocol.YOUTUBE
+        if (buffering) {
+            if (stallSince == 0L || snap.bufferedMs > stallBufferedMs) stallSince = now()
+            stallBufferedMs = snap.bufferedMs
+        } else {
+            stallSince = 0L
+            stallBufferedMs = 0L
+        }
         val stalled = torrent != null && (status == WatchPlayerStatus.ERROR || (stallSince > 0 && now() - stallSince >= torrentStallMs))
         if (stalled && resumedTorrent != torrent!!.url to torrent.torrentFileIndex) {
             resumedTorrent = torrent.url to torrent.torrentFileIndex
@@ -330,8 +343,18 @@ class EngineWatchPlayer(
         }
         if (status == WatchPlayerStatus.ERROR) {
             val error = if (s.stream?.isTorrent == true) "The torrent engine could not play this copy. Try another copy with available peers."
-                else snap.error?.message ?: "That source failed"
+                else when (snap.error?.kind) {
+                    PlayerErrorKind.UNSUPPORTED -> "This player does not support this stream format. Try another source."
+                    PlayerErrorKind.DECODER -> "The player could not decode this copy. Try another source."
+                    PlayerErrorKind.NETWORK -> "The connection to this stream failed. Retry or try another source."
+                    PlayerErrorKind.SOURCE_EXPIRED -> "This stream link may have expired. Retry or try another source."
+                    else -> "The player could not start this copy. Retry or try another source."
+                }
             failover(error)
+            return
+        }
+        if (buffering && stallSince > 0 && now() - stallSince >= torrentStallMs) {
+            failover("This stream stopped buffering. Retry or try another source.")
             return
         }
         if (status == WatchPlayerStatus.ENDED && s.isLive) {
@@ -423,6 +446,7 @@ class EngineWatchPlayer(
 
     @Volatile private var loadedUrl: String? = null
     private var stallSince = 0L
+    private var stallBufferedMs = 0L
     /** The torrent already picked up again after a stall in this opening (once each). */
     private var resumedTorrent: Pair<String, Int?>? = null
 

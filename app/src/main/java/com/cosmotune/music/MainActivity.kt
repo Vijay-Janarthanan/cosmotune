@@ -3,6 +3,7 @@ package com.cosmotune.music
 import com.cosmotune.ui.browse.musicRadio
 import android.Manifest
 import android.content.Context
+import com.cosmotune.design.AppMode
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -364,7 +365,7 @@ class MainActivity : AppCompatActivity() {
                 // A measured constraint cannot be stale â€” it is the very width
                 // the split is about to be laid out in.
                 BoxWithConstraints(Modifier.fillMaxSize()) {
-                    com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {
+                    com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) { commonSettings, closeCommonSettings ->
                     // The window's one "Removed · Undo" snackbar, and the slot a page hands its collapsed heading to the top bar through.
                     val orbitUndo = com.cosmotune.ui.orbit.rememberOrbitUndo()
                     val headerSlot = remember { com.cosmotune.ui.orbit.OrbitHeaderSlot() }
@@ -377,6 +378,8 @@ class MainActivity : AppCompatActivity() {
                         windowWidth = maxWidth,
                         windowHeight = maxHeight,
                         appBackdrop = appBackdrop,
+                        commonSettings = commonSettings,
+                        closeCommonSettings = closeCommonSettings,
                     )
                     }
                     }
@@ -443,6 +446,8 @@ private fun CosmotuneApp(
      */
     windowHeight: Dp,
     appBackdrop: LayerBackdrop,
+    commonSettings: com.cosmotune.ui.settings.SettingsCategory? = null,
+    closeCommonSettings: () -> Unit = {},
     viewModel: MainViewModel = viewModel(),
 ) {
     val cosmoShell = checkNotNull(com.cosmotune.ui.theme.LocalCosmoShell.current) { "CosmotuneApp is composed under CosmoLookTheme" }
@@ -465,7 +470,7 @@ private fun CosmotuneApp(
     // connects.
     val openPlayerRequested by PlayerDeepLink.pending.collectAsStateWithLifecycle()
     LaunchedEffect(openPlayerRequested) {
-        if (openPlayerRequested) {
+        if (openPlayerRequested && commonSettings == null) {
             showNowPlaying = true
             PlayerDeepLink.handled()
         }
@@ -480,12 +485,12 @@ private fun CosmotuneApp(
     // Video mode asked for the sign-in; the phone's mode host has made Music the mode, which is where the screen lives.
     val signInRequested by SignInRequest.pending.collectAsStateWithLifecycle()
     LaunchedEffect(signInRequested) {
-        if (signInRequested) {
+        if (signInRequested && commonSettings == null) {
             webSession = WebSessionMode.SIGN_IN
             SignInRequest.handled()
         }
     }
-    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(commonSettings != null) }
     // Replay: the page, the stories over it, and the share sheet over those.
     // Three states rather than one enum because they stack â€” the stories are
     // opened from the page and the share sheet from either, and closing one
@@ -795,7 +800,7 @@ private fun CosmotuneApp(
     // Settings has no tab of its own â€” it sits on top of whatever tab was
     // selected. A pushed album/artist page (from the player, search, etc.)
     // should surface above it rather than being hidden behind it.
-    LaunchedEffect(detail) { if (detail != null) showSettings = false }
+    LaunchedEffect(detail) { if (detail != null && commonSettings == null) showSettings = false }
     LaunchedEffect(detail?.browseId) { detailActiveShelf = null }
     LaunchedEffect(showSettings) {
         if (!showSettings) {
@@ -810,6 +815,7 @@ private fun CosmotuneApp(
     var returnToMode by rememberSaveable { mutableStateOf<com.cosmotune.design.AppMode?>(null) }
     var modeDestination by rememberSaveable { mutableStateOf<ModeNavigationRequest.Destination?>(null) }
     LaunchedEffect(modeNavigation) {
+        if (commonSettings != null) return@LaunchedEffect
         val request = modeNavigation ?: return@LaunchedEffect
         // Music's saved slot may still contain the page that was open when its mode was left.
         // A new menu destination must not be covered by it or reveal it after Sources closes.
@@ -854,6 +860,9 @@ private fun CosmotuneApp(
             // A shared link or a deliberately opened Music page takes precedence over the return trip.
             if (MusicLink.pending.value == null && detail == null) cosmoShell.settings.setMode(origin)
         }
+    }
+    LaunchedEffect(showSettings, webSession, commonSettings) {
+        if (commonSettings != null && !showSettings && webSession == null) closeCommonSettings()
     }
 
     // The Downloads page is a snapshot of the folder, taken when it was opened.
@@ -1456,6 +1465,7 @@ private fun CosmotuneApp(
     // then resolve its catalogue counterpart behind the loading indicators.
     // A failed/identical match simply resumes this untouched video.
     LaunchedEffect(player.song?.videoId, preferMusicOnly) {
+        if (commonSettings != null) return@LaunchedEffect
         val song = player.song ?: return@LaunchedEffect
         if (preferMusicOnly && song.isVideo && song.videoId != keepVideoId) {
             switchToMusicOnly(song, pauseWhileResolving = true)
@@ -1825,6 +1835,7 @@ private fun CosmotuneApp(
      */
     val linkRequest by MusicLink.pending.collectAsStateWithLifecycle()
     LaunchedEffect(linkRequest, controller) {
+        if (commonSettings != null) return@LaunchedEffect
         val request = linkRequest ?: return@LaunchedEffect
         if (request is LinkRequest.ImportPlaylist) {
             dismissPlayer()
@@ -2247,6 +2258,7 @@ private fun CosmotuneApp(
     val listPadding = PaddingValues(
         top = topBarContentPadding(),
         bottom = when {
+            commonSettings != null -> 32.dp
             // From 600 dp the tabs are in the rail: only the mini player stands under the page.
             com.cosmotune.ui.shell.CosmoNav.usesRail(windowWidth) -> if (player.song != null) 112.dp else 32.dp
             player.song != null -> 210.dp
@@ -2705,10 +2717,6 @@ private fun CosmotuneApp(
         // which is what actually closes/minimizes the app.
         BackHandler(enabled = showSettings && !showSpotify && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay) {
             showSettings = false
-            // Only when Settings was the whole of what was on screen. Opened
-            // over Replay or over a release page, closing it reveals that again
-            // rather than throwing both away.
-            if (detail == null && !showReplay) selectedTab = TAB_HOME
         }
         BackHandler(
             enabled = detail == null && !showSettings && !showAccountScrobbling && !showSpotify &&
@@ -2793,7 +2801,7 @@ private fun CosmotuneApp(
             onClick = { onTabSelected(TAB_SEARCH) },
         )
         Row(Modifier.fillMaxSize()) {
-            if (musicRail) {
+            if (musicRail && commonSettings == null) {
                 com.cosmotune.ui.shell.CosmoNavRail(
                     tabs = musicTabs,
                     selectedIndex = musicTabIndex,
@@ -3031,8 +3039,9 @@ private fun CosmotuneApp(
                     } else if (key == "settings") {
                         SettingsScreen(
                             openedFrom = returnToMode,
-                            // The Watch row leaves for Watch's own settings: no trip back to the mode Settings came from.
-                            onClose = { returnToMode = null; modeDestination = null; settingsSubScreen = null; showSettings = false },
+                            initialCategory = commonSettings ?: if (modeDestination == ModeNavigationRequest.Destination.ACCOUNT) {
+                                com.cosmotune.ui.settings.SettingsCategory.ACCOUNT
+                            } else com.cosmotune.ui.settings.SettingsCategory.PLAYBACK,
                             windowWidth = windowWidth,
                             onPlayProviderSongs = { songs, index -> playFrom(songs, index, QueueSource("Provider", PlaybackSourceType.BROWSE)) },
                             signedIn = signedIn,
@@ -3338,6 +3347,29 @@ private fun CosmotuneApp(
                         )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> com.cosmotune.ui.home.HomeSwitch(
+                            continueEntries =
+                                (if (com.cosmotune.design.AppModes.available(AppMode.WATCH)) {
+                                    val watch = remember(context) { com.cosmotune.music.watch.AndroidWatch.repository(context) }
+                                    com.cosmotune.ui.home.watchContinueEntries(watch) { cosmoShell.settings.setMode(AppMode.WATCH) }
+                                } else emptyList()) +
+                                (if (com.cosmotune.design.AppModes.available(AppMode.PODIO) && controller != null && !controlsLocked) {
+                                    com.cosmotune.ui.home.podioContinueEntries(com.cosmotune.podio.PodioRefreshWorker.libraryFile(context),
+                                        player.song?.videoId.takeIf { player.isPlaying }) { episode, position ->
+                                        scope.launch {
+                                            val active = controller ?: return@launch
+                                            try {
+                                                active.playSongs(listOf(episode.song()), 0, position)
+                                                cosmoShell.settings.setMode(AppMode.PODIO)
+                                            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                                            catch (_: Exception) {
+                                                Toast.makeText(context, "Could not resume this episode.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                } else emptyList()) +
+                                (if (com.cosmotune.design.AppModes.available(AppMode.READ)) {
+                                    com.cosmotune.reading.ui.bookContinueEntries { cosmoShell.settings.setMode(AppMode.READ) }
+                                } else emptyList()),
                             discoveryHistory = listeningHistory,
                             discoveryLikedIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
                             followedArtists = com.cosmotune.ui.home.rememberFollowedMusicArtists(java.io.File(context.filesDir, "cosmotune-listening.json"), listeningToolsOpen),
@@ -3931,7 +3963,7 @@ private fun CosmotuneApp(
                         // A settings page has no back of its own: this one steps back as the system's does (the search, then the
                         // page, then Settings itself), so it is the one back button on the screen.
                         showSettings && backDispatcher != null -> ({ backDispatcher.onBackPressed() })
-                        showSettings -> ({ showSettings = false })
+                        showSettings -> ({ if (commonSettings != null) closeCommonSettings() else showSettings = false })
                         showReplay -> ({ showReplay = false })
                         detailActiveShelf != null -> ({ detailActiveShelf = null })
                         detail != null -> ({ viewModel.closeDetail(); Unit })
@@ -4216,7 +4248,7 @@ private fun CosmotuneApp(
 
                 // The floating chrome: under 600 dp the tab bar with the round search button beside it and the mini player above;
                 // from 600 dp the tabs stand in the rail and only the mini player runs along the foot of the page.
-                com.cosmotune.ui.shell.CosmoBottomChrome(
+                if (commonSettings == null) com.cosmotune.ui.shell.CosmoBottomChrome(
                     tabs = musicTabs,
                     selectedIndex = musicTabIndex,
                     onTabSelected = { index -> onTabSelected(MUSIC_DOCK[index]) },

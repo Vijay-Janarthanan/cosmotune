@@ -16,6 +16,7 @@ import com.cosmotune.ui.components.CosmoIcons
 fun PhoneModeProfileButton(settings: CosmoLookSettings, mode: AppMode) {
     val model: MainViewModel = viewModel()
     val account by model.account.collectAsStateWithLifecycle()
+    val commonSettings = com.cosmotune.ui.settings.LocalOpenCommonSettings.current
     fun open(destination: ModeNavigationRequest.Destination) {
         ModeNavigationRequest.open(destination, mode)
         settings.setMode(AppMode.MUSIC)
@@ -25,9 +26,16 @@ fun PhoneModeProfileButton(settings: CosmoLookSettings, mode: AppMode) {
         onClick = { open(ModeNavigationRequest.Destination.ACCOUNT) },
         entries = listOf(
             CosmoDrawerEntry(CosmoIcons.Settings, stringResource(R.string.settings),
-                onClick = { open(ModeNavigationRequest.Destination.SETTINGS) }),
+                onClick = {
+                    if (commonSettings != null) commonSettings(com.cosmotune.ui.settings.settingsCategoryOf(mode)
+                        ?: com.cosmotune.ui.settings.SettingsCategory.PLAYBACK)
+                    else open(ModeNavigationRequest.Destination.SETTINGS)
+                }),
             CosmoDrawerEntry(CosmoIcons.Library, "Sources & providers",
-                onClick = { open(ModeNavigationRequest.Destination.SOURCES) }),
+                onClick = {
+                    if (commonSettings != null) commonSettings(com.cosmotune.ui.settings.SettingsCategory.SOURCES)
+                    else open(ModeNavigationRequest.Destination.SOURCES)
+                }),
         ),
     )
 }

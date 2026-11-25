@@ -403,6 +403,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             queued = queued.entries.size, onQueue = ::openQueue,
             showSpeed = m.speedFor(playingEntry?.show?.id), onShowSpeed = playingEntry?.let { entry -> { speed: Float? -> m.setShowSpeed(entry.show.id, speed) } },
             onBookmark = playingItem?.let { item -> { m.addBookmark(item, playback.positionMs) } },
+            onRetry = playingItem?.let { item -> { m.play(item) } },
             onShareAt = playingEntry?.let { entry -> { m.shareEpisode(entry.episode, entry.show.title, playback.positionMs) } }) { m.playerSheet = false }
         m.episodeSheet?.let { entry -> EpisodeSheet(m, env, entry) { m.episodeSheet = null } }
         if (m.songsOpen) HeardSongsSheet(m, saved.heardSongs) { m.songsOpen = false }

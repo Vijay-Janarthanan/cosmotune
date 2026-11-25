@@ -18,6 +18,32 @@ import kotlin.test.assertTrue
  * with "tv" lists beside them for Live TV. Its ids are its own ("cnc:…"), and it answers whichever kind it is asked for.
  */
 class StremioAnyKindCatalogTest {
+    @Test fun liveGuideUsesDatedPagesAndKeepsTheChannelIdentity() = runBlocking<Unit> {
+        TestServer().use { s ->
+            s.json("/manifest.json", """{"id":"org.fixture.tv","types":["tv"],"resources":["catalog","meta","stream"],
+                "behaviorHints":{"epgProvider":true},"catalogs":[{"type":"tv","id":"live","extra":[{"name":"date"},{"name":"skip"}]}]}""")
+            s.json("/catalog/tv/live.json", """{"metas":[{"id":"fixture:news","name":"Fixture News","type":"tv"}]}""")
+            s.json("/catalog/tv/live/date=2026-09-12.json", """{"metasDetailed":[{"id":"fixture:news","videos":[
+                {"id":"on","title":"Evening News","startTime":"2026-09-12T23:30:00Z","endTime":"2026-09-13T00:15:00Z"}
+            ]}]}""")
+            s.json("/catalog/tv/live/date=2026-09-13.json", """{"metasDetailed":[{"id":"fixture:news","videos":[
+                {"id":"on","title":"Evening News","startTime":"2026-09-12T23:30:00Z","endTime":"2026-09-13T00:15:00Z"},
+                {"id":"next","title":"Weather","startTime":"2026-09-13T00:15:00Z","endTime":"2026-09-13T00:45:00Z"},
+                {"id":"bad","title":"Bad entry","startTime":"2026-09-13T00:45:00Z","endTime":"2026-09-13T00:45:00Z"}
+            ]}]}""")
+            val plugin = StremioPlugin("st-fixture", "Fixture", "TV", StremioClient(s.http(), s.url("/manifest.json")),
+                setOf(Capability.LIVE, Capability.EPG))
+            val channel = plugin.channels().single()
+            val from = java.time.Instant.parse("2026-09-12T23:45:00Z").toEpochMilli()
+            val to = java.time.Instant.parse("2026-09-13T01:00:00Z").toEpochMilli()
+            val programmes = plugin.guide(listOf(channel), from, to)
+            assertEquals(channel.key.id, channel.epgId)
+            assertEquals(listOf("Evening News", "Weather"), programmes.map { it.title })
+            assertTrue(programmes.first().isOnAt(from))
+            assertTrue(programmes.all { it.epgId == channel.epgId })
+        }
+    }
+
     private val manifest = """{"id":"org.cnc","name":"Bridge","version":"1.0.0","resources":["catalog","meta","stream"],
         "types":["movie","series","other","tv"],"catalogs":[
         {"type":"other","id":"mix","name":"Netflix (other)","extra":[{"name":"skip"}]},

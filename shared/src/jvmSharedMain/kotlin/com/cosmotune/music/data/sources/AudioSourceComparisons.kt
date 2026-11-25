@@ -10,7 +10,8 @@ object AudioSourceComparisons {
         SEARCHING("Checking recording and stream"), AVAILABLE("Stream offer resolved"), NO_MATCH("No compatible recording returned"),
         ACCESS_REQUIRED("Sign-in, verification or provider access required"),
         UNSUPPORTED("Required provider feature is not available"), QUALITY_LIMIT("No stream within the requested quality limit"),
-        REQUEST_FAILED("Provider request failed"), UNAVAILABLE("Could not obtain a playable stream"), TIMEOUT("Lookup timed out"), CANCELLED("Lookup stopped"),
+        REQUEST_FAILED("Provider request failed"), UNAVAILABLE("Could not obtain a playable stream"), TIMEOUT("Lookup timed out"),
+        RATE_LIMITED("Provider asked us to slow down"), SERVICE_UNAVAILABLE("Provider service is unavailable"), CANCELLED("Lookup stopped"),
     }
     data class Offer(val id: String, val name: String, val status: Status, val formats: List<StreamFormat> = emptyList(), val httpStatus: Int? = null)
     data class Report(val offers: List<Offer> = emptyList())
@@ -47,14 +48,17 @@ object AudioSourceComparisons {
 
     fun failed(ticket: Ticket, error: Throwable) {
         val message = error.message.orEmpty().lowercase(Locale.ROOT)
+        val httpStatus = Regex("\\bhttp\\s+(\\d{3})\\b").find(message)?.groupValues?.get(1)?.toIntOrNull()
+            ?.takeIf { it in 400..599 }
         val status = when {
+            httpStatus == 429 -> Status.RATE_LIMITED
+            httpStatus == 408 || httpStatus == 504 || error is java.net.SocketTimeoutException -> Status.TIMEOUT
+            httpStatus != null && httpStatus >= 500 -> Status.SERVICE_UNAVAILABLE
             Regex("sign.?in|auth|verif|\\b40[13]\\b|token|session").containsMatchIn(message) -> Status.ACCESS_REQUIRED
             Regex("manifest-aware|ffmpeg|runtime features|native_processing_required|unsupported|not supported|does not expose").containsMatchIn(message) -> Status.UNSUPPORTED
             Regex("bitrate limit|requested bitrate|quality within|capped audio").containsMatchIn(message) -> Status.QUALITY_LIMIT
             else -> Status.REQUEST_FAILED
         }
-        val httpStatus = Regex("\\bhttp\\s+(\\d{3})\\b").find(message)?.groupValues?.get(1)?.toIntOrNull()
-            ?.takeIf { it in 400..599 }
         finish(ticket, status, httpStatus = httpStatus)
     }
 
@@ -63,7 +67,7 @@ object AudioSourceComparisons {
         val report = reports.value[ticket.key] ?: return@synchronized
         reports.value = reports.value + (ticket.key to report.copy(offers = report.offers.map {
             if (it.id != ticket.sourceId) it else it.copy(
-                status = if (status in setOf(Status.UNAVAILABLE, Status.NO_MATCH) && it.status in setOf(Status.ACCESS_REQUIRED, Status.UNSUPPORTED, Status.QUALITY_LIMIT, Status.REQUEST_FAILED)) it.status else status,
+                status = if (status in setOf(Status.UNAVAILABLE, Status.NO_MATCH) && it.status in diagnosed) it.status else status,
                 httpStatus = if (status == Status.AVAILABLE) null else httpStatus ?: it.httpStatus,
                 formats = formats.distinct().take(4).map { format -> format.copy(
                     codec = format.codec?.takeIf { name -> name.matches(Regex("[A-Za-z0-9_./-]{1,60}")) },
@@ -72,6 +76,9 @@ object AudioSourceComparisons {
                     bitDepth = format.bitDepth?.takeIf { depth -> depth in 1..64 }) })
         }))
     }
+
+    private val diagnosed = setOf(Status.ACCESS_REQUIRED, Status.UNSUPPORTED, Status.QUALITY_LIMIT, Status.REQUEST_FAILED,
+        Status.TIMEOUT, Status.RATE_LIMITED, Status.SERVICE_UNAVAILABLE)
 }
 
 /** Technical offer ordering, never a claim that bitrate ranks different lossy codecs or masters. */

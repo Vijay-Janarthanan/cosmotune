@@ -234,6 +234,7 @@ internal fun summaryLine(summary: TitleSummary, lead: String? = null): String = 
 @Composable
 internal fun WatchSetupCard(repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
+    val commonSettings = com.cosmotune.ui.settings.LocalOpenCommonSettings.current
     val plugins by repository.plugins.collectAsState()
     val profiles by repository.profiles.collectAsState()
     val dismissed by repository.setupGuideDismissed.collectAsState()
@@ -252,7 +253,9 @@ internal fun WatchSetupCard(repository: WatchRepository, fonts: OrbitFonts, look
                 }
                 if (step.done) OrbitLabel("Done", fonts, look.dim)
                 else WatchCardChip(step.action, look.ink, fonts, onClick = {
-                    WatchNav.go(if (step.target == com.cosmotune.watch.WatchSetupTarget.PLUGINS) WatchTab.PLUGINS else WatchTab.SETTINGS)
+                    if (step.target == com.cosmotune.watch.WatchSetupTarget.PLUGINS) WatchNav.go(WatchTab.PLUGINS)
+                    else if (commonSettings != null) commonSettings(com.cosmotune.ui.settings.SettingsCategory.WATCH)
+                    else WatchNav.go(WatchTab.SETTINGS)
                 })
             }
         }
@@ -350,11 +353,12 @@ private fun LiveNow(items: List<LiveNowItem>, wide: Boolean, fonts: OrbitFonts, 
 @Composable
 internal fun LiveRow(item: LiveNowItem, fonts: OrbitFonts, look: OrbitLook, clock: () -> Long, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = item.channel
-    WatchRowFrame(look, modifier, onClick = onClick) {
+    WatchRowFrame(look, modifier, height = channelRowHeight(), onClick = onClick) {
         WatchLogoTile(channelMark(c.name), logoFill(c.categories.firstOrNull() ?: c.name), fonts, logoUrl = c.logoUrl)
         Column(Modifier.weight(1f)) {
             Text(c.name, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            WatchLiveLine(item.now?.title?.substringAfter(": "), fonts, look)
+            item.now?.let { p -> WatchLiveLine("Now · ${hm(p.startMs)}–${hm(p.stopMs)} · ${p.title}", fonts, look) }
+            item.next?.let { p -> WatchLiveLine("Next · ${hm(p.startMs)} · ${p.title}", fonts, look) }
         }
     }
 }

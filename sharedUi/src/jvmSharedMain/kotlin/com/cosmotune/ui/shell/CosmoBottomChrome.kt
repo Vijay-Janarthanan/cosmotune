@@ -7,6 +7,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -14,6 +18,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -238,39 +243,43 @@ fun rememberDockClearance(fallback: Dp = 0.dp, gap: Dp = 8.dp): Dp {
 // ---- The tab bar ----
 
 /**
- * The tab bar in Orbit: a 60 dp bar with round ends on the dock's solid ground and a soft shadow, the tabs spread evenly along it as
- * [OrbitDockTab] chips (the chosen one solid ink with its name, the others their icon alone, each named for a screen reader).
+ * The tab bar in Orbit. Labels remain visible, and the bar can scroll when the labels need more room.
  */
 @Composable
 private fun FloatingTabBar(tabs: List<CosmoTab>, selectedIndex: Int, onTabSelected: (Int) -> Unit, modifier: Modifier = Modifier) {
     val look = orbitLook()
     val fonts = orbitFonts()
-    Row(
+    val scroll = rememberScrollState()
+    val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+    BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .height(OrbitDockMetrics.BAR_DP.dp)
             .shadow(16.dp, DOCK_SHAPE, clip = false)
             .clip(DOCK_SHAPE)
             .background(orbitDockFill(look))
             .padding(horizontal = OrbitDockMetrics.PAD_DP.dp)
             .selectableGroup(),
-        horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        tabs.forEachIndexed { index, tab ->
-            TabPill(tab, selected = index == selectedIndex, onClick = { onTabSelected(index) }, fonts = fonts, look = look)
+        val minWidth = (62 * fontScale).dp
+        val tabWidth = (maxWidth / tabs.size.coerceAtLeast(1)).coerceAtLeast(minWidth)
+        Row(Modifier.horizontalScroll(scroll), verticalAlignment = Alignment.CenterVertically) {
+            tabs.forEachIndexed { index, tab ->
+                TabPill(tab, selected = index == selectedIndex, onClick = { onTabSelected(index) }, fonts = fonts, look = look, modifier = Modifier.width(tabWidth))
+            }
         }
     }
 }
 
 /** One tab: an [OrbitDockTab] that plays the select haptic and shrinks to 0.94 under the finger (not under reduced motion). */
 @Composable
-private fun TabPill(tab: CosmoTab, selected: Boolean, onClick: () -> Unit, fonts: OrbitFonts, look: OrbitLook) {
+private fun TabPill(tab: CosmoTab, selected: Boolean, onClick: () -> Unit, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
     val reduced = LocalReducedMotion.current
     val haptics = rememberHaptics()
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val press = remember { Animatable(1f) }
+    val bringIntoView = remember { BringIntoViewRequester() }
+    LaunchedEffect(selected) { if (selected) bringIntoView.bringIntoView() }
     LaunchedEffect(pressed, reduced) { press.animateTo(if (pressed && !reduced) TAB_PRESS_SCALE else 1f, CosmoMotion.press(reduced)) }
     OrbitDockTab(
         label = tab.label,
@@ -282,7 +291,7 @@ private fun TabPill(tab: CosmoTab, selected: Boolean, onClick: () -> Unit, fonts
         fonts = fonts,
         look = look,
         interaction = interaction,
-        modifier = Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value },
+        modifier = modifier.bringIntoViewRequester(bringIntoView).graphicsLayer { scaleX = press.value; scaleY = press.value },
     )
 }
 

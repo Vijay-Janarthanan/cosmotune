@@ -61,6 +61,7 @@ fun HomeSwitch(
     quickLinks: List<HomeQuickLink> = emptyList(),
     onPlayPause: (() -> Unit)? = null,
     playbackTime: (() -> Pair<Long, Long>)? = null,
+    continueEntries: List<ContinueEntry> = emptyList(),
 ) {
     val region by com.cosmotune.music.data.recommendations.DiscoveryPreferences.state.collectAsState()
     val learning by com.cosmotune.music.data.recommendations.LocalPreferenceLearning.status.collectAsState()
@@ -71,11 +72,12 @@ fun HomeSwitch(
             com.cosmotune.music.data.recommendations.DiscoveryFeed.personalShelves(region)
         }
     }
-    val shownState = remember(state, personalShelves) {
-        if (personalShelves.isEmpty()) state else {
+    val shownState = remember(state, personalShelves, region.lead) {
+        if (personalShelves.isEmpty() && state !is UiState.Success) state else {
             val current = (state as? UiState.Success)?.data.orEmpty()
             val sources = personalShelves.mapNotNull { it.sourceId }.toSet()
-            UiState.Success(com.cosmotune.music.data.recommendations.DiscoveryFeed.order(current.filterNot { it.sourceId in sources } + personalShelves))
+            UiState.Success(com.cosmotune.music.data.recommendations.DiscoveryFeed.homeOrder(
+                current.filterNot { it.sourceId in sources } + personalShelves, region.lead))
         }
     }
     var playlistOpen by remember { mutableStateOf(false) }
@@ -113,5 +115,6 @@ fun HomeSwitch(
         quickLinks = quickLinks,
         onPlayPause = onPlayPause,
         playbackTime = playbackTime,
+        continueEntries = continueEntries,
     )
 }

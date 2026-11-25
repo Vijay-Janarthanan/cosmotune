@@ -66,11 +66,15 @@ internal fun videoDrawerEntries(navigator: VideoNavigator): List<CosmoDrawerEntr
     val downloads = stringResource(Res.string.video_drawer_downloads)
     val settings = stringResource(Res.string.video_drawer_settings)
     val importLabel = stringResource(Res.string.video_drawer_import)
-    return remember(navigator, history, downloads, settings, importLabel) {
+    val commonSettings = com.cosmotune.ui.settings.LocalOpenCommonSettings.current
+    return remember(navigator, history, downloads, settings, importLabel, commonSettings) {
         listOf(
             CosmoDrawerEntry(VideoIcons.History, history, onClick = { navigator.push(VideoRoute.History) }),
             CosmoDrawerEntry(CosmoIcons.Download, downloads, onClick = { navigator.push(VideoRoute.Downloads) }),
-            CosmoDrawerEntry(CosmoIcons.Settings, settings, onClick = { navigator.push(VideoRoute.Settings) }),
+            CosmoDrawerEntry(CosmoIcons.Settings, settings, onClick = {
+                if (commonSettings != null) commonSettings(com.cosmotune.ui.settings.SettingsCategory.VIDEO)
+                else navigator.push(VideoRoute.Settings)
+            }),
             CosmoDrawerEntry(VideoIcons.Upload, importLabel, onClick = { navigator.push(VideoRoute.Import) }),
         )
     }

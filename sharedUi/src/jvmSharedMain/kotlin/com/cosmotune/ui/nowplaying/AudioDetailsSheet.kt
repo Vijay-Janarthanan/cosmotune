@@ -93,6 +93,14 @@ fun AudioDetailsSheet(song: Song, hazeState: HazeState, onDismiss: () -> Unit, o
                     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(offer.name + if (offer == current) " · Playing" else "", style = strong, color = if (offer == current) look.accent else look.ink)
                         Text(offer.status.label + (offer.httpStatus?.let { " (HTTP $it)" } ?: ""), style = small, color = look.dim)
+                        val recovery = when (offer.status) {
+                            AudioSourceComparisons.Status.ACCESS_REQUIRED -> "Open Sources to reconnect this provider."
+                            AudioSourceComparisons.Status.TIMEOUT, AudioSourceComparisons.Status.RATE_LIMITED,
+                            AudioSourceComparisons.Status.SERVICE_UNAVAILABLE -> "Keep listening on the current source and try this provider later."
+                            AudioSourceComparisons.Status.QUALITY_LIMIT -> "Raise this provider's quality limit in Sources to include more offers."
+                            else -> null
+                        }
+                        if (recovery != null) Text(recovery, style = small, color = look.dim)
                         offer.formats.forEach { Text("Offered: ${it.summary}", style = small, color = look.ink) }
                         if (offer.status == AudioSourceComparisons.Status.AVAILABLE && offer != current) {
                             Text("Alternative found; the playing stream is shown above. An offer does not confirm successful decoding or justify an audible switch. Compare its values with the decoder input above.", style = small, color = look.dim)

@@ -20,6 +20,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -48,6 +49,10 @@ import com.cosmotune.watch.WatchSort
 import com.cosmotune.watch.WatchYears
 import com.cosmotune.watch.model.TitleSummary
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Watch search's box, chips and last answers, kept for the process per repository: coming back from a title finds the same search. */
 internal class WatchSearchMemory {
@@ -58,7 +63,6 @@ internal class WatchSearchMemory {
     val language = mutableStateOf<WatchLanguage?>(null)
     val source = mutableStateOf<String?>(null)
     @Volatile var found: WatchFound? = null
-    @Volatile var live: List<LiveNowItem> = emptyList()
     /** "Popular now" of each kind, fetched once. */
     val popular = java.util.concurrent.ConcurrentHashMap<WatchKind, WatchFound>()
 
@@ -106,7 +110,7 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
     // Something to ask: words in the box, a filter set (an empty box then browses what matches), or Live TV (its channels).
     val active = torrent == null && (query.trimmed.isNotEmpty() || query.hasFilters || kind == WatchKind.LIVE)
     var found by remember { mutableStateOf(memory.found?.takeIf { it.query == query }) }
-    var live by remember { mutableStateOf(if (found != null) memory.live else emptyList()) }
+    val listings = remember(repository) { Semaphore(3) }
     var searching by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
     val focus = rememberCosmoSearchFocus(focusOnOpen = !active)
@@ -120,14 +124,14 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
 
     LaunchedEffect(query, retry) {
         if (!active) { searching = false; return@LaunchedEffect }
-        if (memory.found?.query == query && retry == 0) { found = memory.found; live = memory.live; return@LaunchedEffect }
+        if (memory.found?.query == query && retry == 0) { found = memory.found; searching = false; return@LaunchedEffect }
         searching = true
         if (query.trimmed.isNotEmpty()) delay(300)
-        val answer = runCatching { repository.find(query, year) }.getOrElse { WatchFound(query, emptyList(), failed = 1) }
-        live = answer.channels.take(8).map { c -> runCatching { repository.nowNext(c) }.getOrDefault(LiveNowItem(c)) }
+        val answer = try { repository.find(query, year) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { WatchFound(query, emptyList(), failed = 1) }
         found = answer
         memory.found = answer
-        memory.live = live
         searching = false
     }
     // The Search button pressed again while on Search: the box is cleared and focused.
@@ -142,7 +146,7 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
         runCatching { repository.find(WatchQuery(kind = popularKind), year) }.getOrNull()?.takeIf { !it.isEmpty }?.let { memory.popular[popularKind] = it; popular = it }
     }
 
-    val shown = found
+    val shown = found?.takeIf { it.query == query }
     val status = when {
         torrent != null -> CosmoSearchStatus.Results(1, "A torrent link")
         !active -> CosmoSearchStatus.Idle
@@ -248,12 +252,22 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
                     WatchCard(s.name, posterLine(s), s.posterUrl ?: s.backdropUrl, s.key.value, fonts, look, onClick = { open(s) }, width = null,
                         onPlay = { actions.play(s) })
                 }
-                if (live.isNotEmpty()) {
+                if (r.channels.isNotEmpty()) {
                     item(key = "search:channels", span = { GridItemSpan(maxLineSpan) }) {
                         OrbitLabel("Channels", fonts, look.dim, Modifier.padding(start = 4.dp, top = if (r.titles.isEmpty()) 0.dp else 8.dp))
                     }
-                    items(live, key = { "c:" + it.channel.key.value }, span = { GridItemSpan(maxLineSpan) }) { item ->
-                        LiveRow(item, fonts, look, clock) { actions.playChannel(item.channel) }
+                    items(r.channels, key = { "c:" + it.key.value }, span = { GridItemSpan(maxLineSpan) }) { channel ->
+                        val item by produceState(LiveNowItem(channel), repository, channel) {
+                            value = LiveNowItem(channel)
+                            try {
+                                listings.withPermit { withTimeoutOrNull(4_000) { repository.nowNext(channel) } }?.let { value = it }
+                            } catch (cancelled: CancellationException) { throw cancelled }
+                            catch (_: Exception) { /* The channel can still play without a listing. */ }
+                        }
+                        LiveRow(item, fonts, look, clock) {
+                            if (query.trimmed.isNotEmpty()) keep(query.trimmed)
+                            actions.playChannel(channel)
+                        }
                     }
                 }
             }

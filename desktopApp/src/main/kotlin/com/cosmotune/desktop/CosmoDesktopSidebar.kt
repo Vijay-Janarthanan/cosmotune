@@ -300,8 +300,9 @@ private fun WatchSidebar() {
             OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Extension, "Plugins", "${plugins.count { it.enabled }} on", lit == com.cosmotune.ui.watch.WatchTab.PLUGINS) {
                 com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.PLUGINS)
             }
-            OrbitNavRow(CosmoIcons.Settings, "Watch settings", null, lit == com.cosmotune.ui.watch.WatchTab.SETTINGS) {
-                com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.SETTINGS)
+            val commonSettings = com.cosmotune.ui.settings.LocalOpenCommonSettings.current
+            OrbitNavRow(CosmoIcons.Settings, "Settings", null, false) {
+                commonSettings?.invoke(com.cosmotune.ui.settings.SettingsCategory.WATCH)
             }
             Spacer(Modifier.weight(1f))
             OrbitNavRoomCard(Modifier.padding(top = 8.dp))

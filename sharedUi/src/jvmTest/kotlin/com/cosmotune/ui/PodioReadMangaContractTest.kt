@@ -127,11 +127,11 @@ class PodioReadMangaContractTest {
         val sheet = code("app/src/main/java/com/cosmotune/music/ui/screens/SettingsSheet.kt")
         assertTrue(sheet.contains("com.cosmotune.podio.PhonePodioSettings()") && sheet.contains("com.cosmotune.reading.ui.ReadSettingsSection()") &&
             sheet.contains("com.cosmotune.manga.ui.MangaSettingsSection()"), "the phone's pages hold the settings")
-        assertTrue(Regex("""ModeLinkRow\(AppMode\.MANGA\b""").containsMatchIn(sheet), "and still lead into the mode")
+        assertTrue("SettingsModeTabs(" in sheet, "the phone switches sections in common Settings")
         val desktop = code("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt")
         assertTrue(desktop.contains("com.cosmotune.podio.ui.PodioSettingsSection(") && desktop.contains("com.cosmotune.manga.ui.MangaSettingsSection()"), "the desktop's too")
         val hub = body("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/settings/SettingsHub.kt", "SettingsHub")
-        assertTrue(hub.contains("SettingsText.GROUP_MODES") && hub.contains("SettingsText.GROUP_GENERAL") && hub.contains("current = shownCurrent"), "Modes above General, this mode tagged")
+        assertTrue(hub.contains("SettingsText.GROUP_MODES") && hub.contains("SettingsText.GROUP_GENERAL") && hub.contains("current = current"), "Modes above General, this mode tagged")
         val sources = body("$manga/MangaSources.kt", "MangaSources")
         assertFalse(sources.contains("Connect Komga library") || sources.contains("Check parser updates") || sources.contains("MangaLibraryTools("), "the Sources tab is the catalogue only")
         assertTrue(code("$manga/MangaSettings.kt").contains("Connect Komga library"), "Komga lives in Settings › Manga")

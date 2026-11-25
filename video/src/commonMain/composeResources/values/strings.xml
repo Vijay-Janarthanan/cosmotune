@@ -10,7 +10,7 @@
     <string name="video_search_voice">Search by voice</string>
     <string name="video_drawer_history">History</string>
     <string name="video_drawer_downloads">Downloads</string>
-    <string name="video_drawer_settings">Video settings</string>
+    <string name="video_drawer_settings">Settings</string>
     <string name="video_drawer_import">Import</string>
     <string name="video_profile_name">Cosmotune</string>
     <string name="video_profile_subtitle">Video, no account</string>

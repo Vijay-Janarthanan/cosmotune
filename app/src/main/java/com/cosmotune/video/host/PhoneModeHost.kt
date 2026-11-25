@@ -12,6 +12,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
@@ -61,7 +63,7 @@ import com.cosmotune.music.playback.MusicLink
  * and draws no such tool.
  */
 @Composable
-fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Unit) {
+fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable (com.cosmotune.ui.settings.SettingsCategory?, () -> Unit) -> Unit) {
     val shell = LocalCosmoShell.current
     val mode = shell?.settings?.mode?.collectAsStateWithLifecycle()?.value ?: AppMode.MUSIC
     val videoShell = shell?.takeIf { mode == AppMode.VIDEO && AppModes.available(AppMode.VIDEO) }
@@ -72,6 +74,10 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     // stored mode, so without this a Music root would stand without its tab bar and its mini player.
     if (shell != null && !AppModes.available(mode)) LaunchedEffect(mode) { shell.settings.setMode(AppMode.MUSIC) }
     val holder = rememberSaveableStateHolder()
+    var commonSettings by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf<com.cosmotune.ui.settings.SettingsCategory?>(null)
+    }
+    val openCommonSettings: (com.cosmotune.ui.settings.SettingsCategory) -> Unit = remember { { commonSettings = it } }
     val fullScreenWindow: com.cosmotune.ui.fullscreen.FullScreenWindowHost = remember {
         { exit, landscape, content -> com.cosmotune.video.ui.watch.WatchFullWindow(exit, landscape, content) }
     }
@@ -148,6 +154,7 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     CompositionLocalProvider(
         LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) },
         com.cosmotune.ui.fullscreen.LocalFullScreenWindow provides fullScreenWindow,
+        com.cosmotune.ui.settings.LocalOpenCommonSettings provides openCommonSettings,
     ) {
         if (shell != null && mode == AppMode.MANGA) holder.SaveableStateProvider("manga") {
             androidx.activity.compose.BackHandler { shell.settings.setMode(AppMode.MUSIC) }
@@ -201,11 +208,23 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
                 }
             }
         }
-        else if (videoShell == null) holder.SaveableStateProvider("music") { music() }
+        else if (videoShell == null) holder.SaveableStateProvider("music") { music(null) {} }
         // While the room screen draws the room's video over the app ([RoomVideo.covered]), Video's pages step aside so the one player
         // has one picture; the holder keeps what they saved, as on a mode flip.
         else if (RoomVideo.covered) Unit
         else holder.SaveableStateProvider("video") { PhoneVideo(videoShell, windowWidth, windowHeight, asked) }
+
+        commonSettings?.let { category ->
+            val closeSettings = { commonSettings = null }
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = closeSettings,
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+            ) {
+                androidx.compose.runtime.key(category) {
+                    music(category, closeSettings)
+                }
+            }
+        }
     }
     }
     }

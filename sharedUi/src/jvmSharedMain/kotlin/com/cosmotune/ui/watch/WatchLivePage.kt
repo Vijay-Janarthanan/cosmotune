@@ -25,8 +25,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -46,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -135,11 +138,11 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
     val channelsState by channelsEntry.collectOnPage()
     // A list that could not load at all reads as empty, as before; one that loaded once stays.
     val channels = channelsState.data ?: if (channelsState.failedEmpty) emptyList() else null
-    val now = remember { clock() }
-    val from = now / 60_000 * 60_000
+    val now by produceState(clock(), clock) { while (true) { value = clock(); delay(30_000) } }
+    val from = now / GUIDE_REFRESH_MS * GUIDE_REFRESH_MS
     val to = from + GUIDE_HOURS * 3_600_000L
-    val guideEntry = remember(pages, filterKey, shown) {
-        pages.entry<GuideWindow>("watch:live:guide:$filterKey:$shown", LIVE_FRESH_MS, CacheCodec.json(GuideWindow.serializer())) {
+    val guideEntry = remember(pages, filterKey, shown, from) {
+        pages.entry<GuideWindow>("watch:live:guide:$filterKey:$shown:$from", LIVE_FRESH_MS, CacheCodec.json(GuideWindow.serializer())) {
             val list = channelsEntry.state.value.data.orEmpty()
             runCatching { repository.guide(list.take(shown), from, to) }.getOrNull() ?: GuideWindow(from, to, emptyList())
         }
@@ -157,6 +160,9 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
     // waits on the guide.
     val guide = guideState.data?.takeIf { it.toMs > now && it.rows.isNotEmpty() }
         ?: channels?.let { list -> GuideWindow(from, to, list.take(shown).map { GuideRow(it, emptyList()) }) }
+    val (scheduled, unscheduled) = remember(guide) {
+        guide?.rows.orEmpty().partition { it.programmes.isNotEmpty() || alwaysLiveLine(it.channel) != null }
+    }
     val yours = plugins.count { !it.builtIn && it.enabled && Capability.LIVE in it.capabilities }
     val side = frame.side
     val scroll = rememberScrollState()
@@ -231,8 +237,21 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
                             if (favouritesOnly) "Star a channel in the guide to keep it here." else "Try another country, language or category, or switch on more plugins.", fonts, look,
                             action = "Show every channel", onAction = ::showAllChannels)
                         window != null && asList && !frame.wide -> GuideList(window, now, fonts, look, clock, playChannel)
-                        window != null -> GuideGrid(window, now, favourites, frame.wide, scroll, fonts, look, actions, played, playedFocus, playChannel)
+                        window != null && scheduled.isNotEmpty() ->
+                            GuideGrid(window.copy(rows = scheduled), now, favourites, frame.wide, scroll, fonts, look, actions, played, playedFocus, playChannel)
                     }
+                }
+            }
+            if ((!asList || frame.wide) && unscheduled.isNotEmpty()) {
+                item(key = "live:channels-heading") {
+                    Text("Channels without listings", style = fonts.section, color = look.ink,
+                        modifier = Modifier.padding(horizontal = side).padding(top = 18.dp, bottom = 6.dp))
+                }
+                items(unscheduled, key = { "live:channel:${it.channel.key.value}" }) { row ->
+                    ChannelCell(row.channel, row.channel.key in favourites, Dp.Unspecified, true, fonts, look,
+                        onPlay = { playChannel(row.channel) }, onStar = { actions.favourite(row.channel, it) },
+                        modifier = Modifier.padding(horizontal = side).fillMaxWidth().height(channelRowHeight())
+                            .then(if (row.channel.key.value == played) Modifier.focusRequester(playedFocus) else Modifier))
                 }
             }
             if ((channels?.size ?: 0) > shown) item(key = "live:more") {
@@ -261,7 +280,9 @@ private fun alwaysLiveLine(channel: Channel): String? =
 private fun categoryName(name: String): String = when (name.lowercase()) { "movies" -> "Films"; "sports" -> "Sport"; else -> name }
 
 private val TIME = DateTimeFormatter.ofPattern("HH:mm")
-private fun hm(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(TIME)
+internal fun hm(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(TIME)
+
+private const val GUIDE_REFRESH_MS = 15 * 60_000L
 
 /**
  * The guide grid (board `.guide`): one card, a head row with "Now · 20:40" and the half hours, then a row per channel with its
@@ -280,6 +301,7 @@ private fun GuideGrid(
     val channelWidth = if (wide) 220.dp else 68.dp
     val span = ((window.toMs - window.fromMs) / 60_000).toInt()
     val gridWidth = perMinute * span
+    val rowHeight = channelRowHeight()
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(look.row)) {
         Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
             if (wide) OrbitLabel("Channel", fonts, look.dim, Modifier.width(channelWidth).padding(start = 16.dp)) else Spacer(Modifier.width(channelWidth))
@@ -298,7 +320,7 @@ private fun GuideGrid(
         }
         window.rows.forEach { row ->
             Box(Modifier.fillMaxWidth().height(1.dp).background(look.ink.copy(alpha = 0.05f)))
-            Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(rowHeight), verticalAlignment = Alignment.CenterVertically) {
                 ChannelCell(row.channel, row.channel.key in favourites, channelWidth, wide, fonts, look, onPlay = { playChannel(row.channel) },
                     onStar = { actions.favourite(row.channel, it) },
                     modifier = if (row.channel.key.value == played) Modifier.focusRequester(playedFocus) else Modifier)
@@ -308,10 +330,6 @@ private fun GuideGrid(
                         if (row.programmes.isEmpty() && always != null) {
                             // An official YouTube live stream has no guide but is on all day: one cell on now across the window.
                             ProgrammeCell(null, always, "On air now", true, gridWidth, 0.dp, fonts, look) { playChannel(row.channel) }
-                        } else if (row.programmes.isEmpty()) {
-                            // A quiet line, not a cell: there is nothing to choose here.
-                            Text("No guide", style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1,
-                                modifier = Modifier.align(Alignment.CenterStart).padding(start = 15.dp))
                         }
                         row.programmes.forEach { p ->
                             val start = maxOf(p.startMs, window.fromMs)
@@ -333,34 +351,38 @@ private fun GuideGrid(
     }
 }
 
+@Composable
+internal fun channelRowHeight() = (64 + (LocalDensity.current.fontScale - 1f).coerceAtLeast(0f) * 36).dp
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ChannelCell(channel: Channel, favourite: Boolean, width: Dp, wide: Boolean, fonts: OrbitFonts, look: OrbitLook, onPlay: () -> Unit, onStar: (Boolean) -> Unit,
     modifier: Modifier = Modifier) {
     val interaction = remember { MutableInteractionSource() }
     Row(
-        modifier.width(width).fillMaxHeight().cosmoFocusRing(interaction, 16.dp).clip(RoundedCornerShape(16.dp))
+        modifier.then(if (width == Dp.Unspecified) Modifier else Modifier.width(width)).fillMaxHeight(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(Modifier.weight(1f).fillMaxHeight().cosmoFocusRing(interaction, 16.dp).clip(RoundedCornerShape(16.dp))
             .combinedClickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClickLabel = "Play ${channel.name}",
                 onLongClickLabel = if (favourite) "Remove from Favourites" else "Add to Favourites", onLongClick = { onStar(!favourite) }, onClick = onPlay)
-            .semantics { contentDescription = channel.name }
-            .padding(start = if (wide) 12.dp else 12.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        WatchLogoTile(channelMark(channel.name), logoFill(channel.categories.firstOrNull() ?: channel.name), fonts, logoUrl = channel.logoUrl, size = if (wide) 46.dp else 44.dp)
-        val live = liveTag(channel)
-        if (wide) Column(Modifier.weight(1f)) {
-            Text(channel.name, style = fonts.title.copy(fontSize = 13.5.sp, lineHeight = 17.sp), color = look.ink, maxLines = if (live != null) 1 else 2, overflow = TextOverflow.Ellipsis)
-            // The free Indian channels and the official YouTube live ones say so under their name (board section 2).
-            if (live != null) WatchLiveLine(live, fonts, look, Modifier.padding(top = 2.dp))
+            .semantics { contentDescription = channel.name }.padding(start = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            WatchLogoTile(channelMark(channel.name), logoFill(channel.categories.firstOrNull() ?: channel.name), fonts, logoUrl = channel.logoUrl, size = if (wide) 46.dp else 44.dp)
+            val live = liveTag(channel)
+            if (wide) Column(Modifier.weight(1f)) {
+                Text(channel.name, style = fonts.title.copy(fontSize = 13.5.sp, lineHeight = 17.sp), color = look.ink, maxLines = if (live != null) 1 else 2, overflow = TextOverflow.Ellipsis)
+                if (live != null) WatchLiveLine(live, fonts, look, Modifier.padding(top = 2.dp))
+            }
         }
         if (wide) {
             val star = remember { MutableInteractionSource() }
             Box(
-                Modifier.cosmoFocusRing(star, 14.dp).clip(RoundedCornerShape(14.dp))
+                Modifier.size(42.dp).cosmoFocusRing(star, 14.dp).clip(RoundedCornerShape(14.dp))
                     .clickable(interactionSource = star, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Checkbox,
-                        onClickLabel = if (favourite) "Remove from Favourites" else "Add to Favourites") { onStar(!favourite) }
-                    .padding(6.dp),
+                        onClickLabel = if (favourite) "Remove from Favourites" else "Add to Favourites") { onStar(!favourite) },
+                contentAlignment = Alignment.Center,
             ) { Text(if (favourite) "★" else "☆", style = fonts.title.copy(fontSize = 16.sp), color = if (favourite) look.accent else look.dim) }
         }
     }

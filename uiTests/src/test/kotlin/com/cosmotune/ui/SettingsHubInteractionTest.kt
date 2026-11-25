@@ -8,7 +8,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -19,11 +24,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
 import com.cosmotune.ui.settings.SettingsCategory
 import com.cosmotune.ui.settings.SettingsCategoryEntry
 import com.cosmotune.ui.settings.SettingsCategoryRail
 import com.cosmotune.ui.settings.SettingsHub
 import com.cosmotune.ui.settings.SettingsItem
+import com.cosmotune.ui.settings.SettingsModeTabs
 import com.cosmotune.ui.settings.SettingsSearchResults
 import com.cosmotune.ui.settings.icon
 import com.cosmotune.ui.theme.CosmoBrandPalettes
@@ -114,5 +121,22 @@ class SettingsHubInteractionTest {
         compose.onNodeWithTag("settings:rail:PLAYBACK").assertIsSelected()
         compose.onNodeWithTag("settings:rail:SOURCES").assertIsNotSelected().performClick()
         compose.runOnIdle { assertEquals(SettingsCategory.SOURCES, selected) }
+    }
+
+    @Test fun videoOpensSelectedAndOtherSectionsAreReachableAtLargeTextSize() {
+        compose.setContent {
+            NewLook {
+                var selected by remember { mutableStateOf(SettingsCategory.VIDEO) }
+                CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
+                    Box(Modifier.size(360.dp, 240.dp)) {
+                        SettingsModeTabs(selected, onSelect = { selected = it })
+                    }
+                }
+            }
+        }
+        compose.onNodeWithTag("settings:mode:VIDEO").assertIsDisplayed().assertIsSelected()
+        compose.onNodeWithTag("settings:mode:WATCH").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithTag("settings:mode:MANGA").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithTag("settings:mode:ALL").performScrollTo().performClick().assertIsSelected()
     }
 }

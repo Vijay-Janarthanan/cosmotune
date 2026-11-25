@@ -1,18 +1,17 @@
 package com.cosmotune.ui.orbit
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -38,7 +38,7 @@ import com.cosmotune.ui.components.cosmoFocusRing
 /*
  * The phone's dock in Orbit (board batch-a, section 4): the small player is the desktop bar's colour card made phone-sized, play
  * standing in a round bite out of its right end ([EndBiteShape], as [OrbitBarMetrics]), and under it the tab bar, Home's chips on
- * a quiet rounded bar: the chosen tab a solid ink chip with its icon and its name, the others their icon alone.
+ * a quiet rounded bar: every tab has a label, and solid ink marks the chosen tab.
  */
 
 /**
@@ -92,9 +92,7 @@ internal object OrbitDockMetrics {
 internal fun orbitDockFill(look: OrbitLook): Color = look.ink.copy(alpha = if (look.dark) 0.10f else 0.07f).compositeOver(look.ground)
 
 /**
- * One tab of the dock: the chosen one ([selected]) a solid ink chip with its [selectedIcon] and [label] in the ground's colour, the
- * others the [icon] alone in the dim ink, named [label] for a screen reader. The chip grows into its name on a short tween. A [count]
- * (Releases' new ones) is a small peach badge on the icon, and sits after the name while the tab is chosen.
+ * One tab with a visible label and one accessibility name, including the unread count.
  */
 @Composable
 internal fun OrbitDockTab(
@@ -111,35 +109,25 @@ internal fun OrbitDockTab(
 ) {
     val fill by animateColorAsState(if (selected) look.ink else Color.Transparent, tween(180), label = "tab-fill")
     val ink by animateColorAsState(if (selected) look.ground else look.dim, tween(180), label = "tab-ink")
-    // A tab that shows only its icon names itself in a tooltip (the selected one has its name written out).
-    val tooltip = rememberOrbitTooltipState()
-    Row(
+    Column(
         modifier
-            .height(OrbitDockMetrics.TAB_DP.dp)
+            .heightIn(min = OrbitDockMetrics.BAR_DP.dp)
             .widthIn(min = OrbitDockMetrics.TAB_DP.dp)
             .cosmoFocusRing(interaction, (OrbitDockMetrics.TAB_DP / 2).dp, floating = true)
             .clip(CircleShape)
             .background(fill)
-            .orbitTooltip(tooltip, enabled = !selected)
             .selectable(selected = selected, interactionSource = interaction, indication = null, role = Role.Tab, onClick = onClick)
-            .then(if (selected) Modifier else Modifier.semantics { contentDescription = orbitTabName(label, count) })
-            .animateContentSize(tween(180))
-            .padding(horizontal = if (selected) 16.dp else 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .semantics { contentDescription = orbitTabName(label, count) }
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
         Box {
             Icon(if (selected) selectedIcon else icon, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
-            if (!selected && count != null && count > 0) OrbitBadge(count, look, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp), ring = orbitDockFill(look))
+            if (count != null && count > 0) OrbitBadge(count, look, Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp).clearAndSetSemantics {}, ring = orbitDockFill(look))
         }
-        if (!selected) OrbitTooltipPill(tooltip, orbitTabName(label, count))
-        if (selected) {
-            Spacer(Modifier.width(8.dp))
-            Text(label, style = fonts.chip, color = ink, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
-            if (count != null && count > 0) {
-                Spacer(Modifier.width(6.dp))
-                OrbitBadge(count, look, ring = null)
-            }
-        }
+        Text(label, modifier = Modifier.clearAndSetSemantics {}, style = fonts.chip.copy(fontSize = 11.sp, lineHeight = 13.sp),
+            color = ink, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center, overflow = TextOverflow.Ellipsis)
     }
 }
 

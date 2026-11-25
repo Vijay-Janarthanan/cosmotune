@@ -104,6 +104,23 @@ internal fun rememberReadingRepository(): Result<ReadingRepository> {
     return remember(manga) { runCatching { ReadingLibrary.of(manga.getOrThrow()) } }
 }
 
+private val resumeBook = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+/** Cross-mode resumes use the reader's normal document and saved-location path. */
+@Composable
+fun bookContinueEntries(openRead: () -> Unit): List<com.cosmotune.ui.home.ContinueEntry> {
+    val repository = rememberReadingRepository().getOrNull() ?: return emptyList()
+    val state = repository.state.collectAsUiState().value
+    return state.books.asSequence().filter { it.id in state.progress && it.id !in state.finished }
+        .sortedByDescending { state.progress[it.id]?.updatedAtMs ?: 0L }.take(2)
+        .map { book ->
+            com.cosmotune.ui.home.ContinueEntry(book.title, listOf("Read", book.authors.joinToString(", ")).filter { it.isNotBlank() }.joinToString(" · ")) {
+                resumeBook.value = book.id
+                openRead()
+            }
+        }.toList()
+}
+
 /** Where Read is: its tab and what is pushed over it. */
 internal class ReadNavigation(tab: String) {
     var tab by mutableStateOf(tab)
@@ -175,6 +192,15 @@ private fun ReadContent(repository: ReadingRepository, pages: PageCache, content
             busy = true
             try { document = repository.openDocument(book.id) }
             finally { busy = false }
+        }
+    }
+    LaunchedEffect(repository) {
+        resumeBook.collect { id ->
+            if (id != null && resumeBook.compareAndSet(id, null)) {
+                val book = repository.state.value.books.firstOrNull { it.id == id }
+                if (book == null) error = "This book is no longer in your library."
+                else { navigation.select(BookTabs.LIBRARY); open(book) }
+            }
         }
     }
     // The page states where it starts before it listens to the desktop sidebar's rows.

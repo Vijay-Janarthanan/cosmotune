@@ -151,6 +151,7 @@ val SettingsCategory.icon: ImageVector
         SettingsCategory.LYRICS -> Icons.Rounded.Lyrics
         SettingsCategory.APPEARANCE -> Icons.Rounded.Palette
         SettingsCategory.VIDEO -> Icons.Rounded.SmartDisplay
+        SettingsCategory.WATCH -> Icons.Rounded.Movie
         SettingsCategory.READ -> Icons.AutoMirrored.Rounded.MenuBook
         SettingsCategory.MANGA -> Icons.Rounded.AutoStories
         SettingsCategory.PODIO -> Icons.Rounded.Podcasts
@@ -169,6 +170,7 @@ private fun SettingsCategory.titleRes(): StringResource? = when (this) {
     SettingsCategory.LYRICS -> Res.string.cosmo_settings_cat_lyrics
     SettingsCategory.APPEARANCE -> Res.string.cosmo_settings_cat_appearance
     SettingsCategory.VIDEO -> Res.string.cosmo_settings_cat_video
+    SettingsCategory.WATCH -> null
     SettingsCategory.READ -> Res.string.cosmo_settings_cat_read
     SettingsCategory.MANGA -> Res.string.cosmo_settings_cat_manga
     SettingsCategory.PODIO -> Res.string.cosmo_settings_cat_podio
@@ -187,6 +189,7 @@ private fun SettingsCategory.blurbRes(): StringResource? = when (this) {
     SettingsCategory.LYRICS -> Res.string.cosmo_settings_cat_lyrics_summary
     SettingsCategory.APPEARANCE -> Res.string.cosmo_settings_cat_appearance_summary
     SettingsCategory.VIDEO -> Res.string.cosmo_settings_cat_video_summary
+    SettingsCategory.WATCH -> null
     SettingsCategory.READ -> Res.string.cosmo_settings_cat_read_summary
     SettingsCategory.MANGA -> Res.string.cosmo_settings_cat_manga_summary
     SettingsCategory.PODIO -> Res.string.cosmo_settings_cat_podio_summary
@@ -198,11 +201,11 @@ private fun SettingsCategory.blurbRes(): StringResource? = when (this) {
 
 /** The category's name ("Playback & audio quality"); the settings home itself has none. */
 @Composable
-fun SettingsCategory.title(): String = titleRes()?.let { stringResource(it) }.orEmpty()
+fun SettingsCategory.title(): String = if (this == SettingsCategory.WATCH) "Watch" else titleRes()?.let { stringResource(it) }.orEmpty()
 
 /** What the category holds, in one line, for the settings home when the screen has no current values to show. */
 @Composable
-fun SettingsCategory.blurb(): String = blurbRes()?.let { stringResource(it) }.orEmpty()
+fun SettingsCategory.blurb(): String = if (this == SettingsCategory.WATCH) "Streams, profiles, subtitles and downloads" else blurbRes()?.let { stringResource(it) }.orEmpty()
 
 /** The other texts both settings screens share: the headers of the new groups and the rows that link elsewhere. */
 enum class SettingsText(internal val res: StringResource) {
@@ -275,7 +278,7 @@ fun List<SettingsCategoryEntry>.asSearchItems(): List<SettingsItem> = map { entr
 const val CATEGORY_ID_PREFIX = "category:"
 
 /** The modes' own pages, which the settings home lists first as "Modes" (board frame 15). */
-val SETTINGS_MODE_PAGES = listOf(SettingsCategory.VIDEO, SettingsCategory.PODIO, SettingsCategory.READ, SettingsCategory.MANGA)
+val SETTINGS_MODE_PAGES = listOf(SettingsCategory.VIDEO, SettingsCategory.WATCH, SettingsCategory.PODIO, SettingsCategory.READ, SettingsCategory.MANGA)
 
 /** The order of the settings home's tiles: the account, the modes, then what you listen to, what is yours, and the rest. */
 private val HUB_ORDER = listOf(SettingsCategory.ACCOUNT) + SETTINGS_MODE_PAGES + listOf(
@@ -289,7 +292,8 @@ fun settingsCategoryOf(mode: com.cosmotune.design.AppMode?): SettingsCategory? =
     com.cosmotune.design.AppMode.PODIO -> SettingsCategory.PODIO
     com.cosmotune.design.AppMode.READ -> SettingsCategory.READ
     com.cosmotune.design.AppMode.MANGA -> SettingsCategory.MANGA
-    com.cosmotune.design.AppMode.VIDEO, com.cosmotune.design.AppMode.WATCH -> SettingsCategory.VIDEO
+    com.cosmotune.design.AppMode.VIDEO -> SettingsCategory.VIDEO
+    com.cosmotune.design.AppMode.WATCH -> SettingsCategory.WATCH
     else -> null
 }
 
@@ -307,6 +311,7 @@ val SettingsCategory.tile: KitTileTint
         SettingsCategory.LYRICS -> KitTileTint.PINK
         SettingsCategory.APPEARANCE -> KitTileTint.BLUE
         SettingsCategory.VIDEO -> KitTileTint.RED
+        SettingsCategory.WATCH -> KitTileTint.GREY
         SettingsCategory.READ -> KitTileTint.ORANGE
         SettingsCategory.MANGA -> KitTileTint.PINK
         SettingsCategory.PODIO -> KitTileTint.PURPLE
@@ -372,8 +377,7 @@ fun SettingsAccountCard(
  * The settings home: [accountCard] first when there is one (it stands in for the Account category), then the modes' own pages under
  * "Modes", the one Settings was opened from ([current]) tagged "This mode", then the rest under "General"; one flat row per category
  * (the redesign's settings rows): its colour tile with the category's icon, its name and its current value on one line, and a chevron.
- * Picking one calls [onOpen]. With [onOpenWatch] a Watch row follows Video's: Watch keeps its settings in its own page, so the row
- * switches to Watch and opens it there ([watchCurrent]: Settings was opened from Watch, so that row says "This mode").
+ * Picking one calls [onOpen] with its category.
  */
 @Composable
 fun SettingsHub(
@@ -382,8 +386,6 @@ fun SettingsHub(
     modifier: Modifier = Modifier,
     accountCard: (@Composable () -> Unit)? = null,
     current: SettingsCategory? = null,
-    onOpenWatch: (() -> Unit)? = null,
-    watchCurrent: Boolean = false,
 ) {
     val shown = hubOrder(entries).filter { accountCard == null || it.category != SettingsCategory.ACCOUNT }
     val (modes, general) = shown.partition { it.category in SETTINGS_MODE_PAGES }
@@ -394,13 +396,9 @@ fun SettingsHub(
             accountCard()
             Spacer(Modifier.height(12.dp))
         }
-        if (modes.isNotEmpty() || onOpenWatch != null) {
+        if (modes.isNotEmpty()) {
             OrbitLabel(SettingsText.GROUP_MODES.text(), fonts, look.dim, Modifier.padding(start = 6.dp, bottom = 8.dp).testTag("settings:hub:modes"))
-            val (video, others) = modes.partition { it.category == SettingsCategory.VIDEO }
-            val shownCurrent = current.takeIf { !watchCurrent }
-            SettingsRows(video, selected = null, onOpen = onOpen, tag = "settings:hub:", current = shownCurrent)
-            if (onOpenWatch != null) WatchSettingsRow(onOpenWatch, watchCurrent)
-            SettingsRows(others, selected = null, onOpen = onOpen, tag = "settings:hub:", current = shownCurrent)
+            SettingsRows(modes, selected = null, onOpen = onOpen, tag = "settings:hub:", current = current)
             OrbitLabel(SettingsText.GROUP_GENERAL.text(), fonts, look.dim, Modifier.padding(start = 6.dp, top = 22.dp, bottom = 8.dp).testTag("settings:hub:general"))
         }
         SettingsRows(general, selected = null, onOpen = onOpen, tag = "settings:hub:")
@@ -437,40 +435,6 @@ private fun SettingsRows(entries: List<SettingsCategoryEntry>, selected: Setting
         }
     }
 }
-
-/** The settings home's Watch row, in the modes' look: its teal tile, "Watch", what its page holds; it opens Watch's own settings. */
-@Composable
-private fun WatchSettingsRow(onClick: () -> Unit, current: Boolean) {
-    val fonts = orbitFonts()
-    val look = orbitLook()
-    val dark = LocalCosmoColors.current.dark
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth()) {
-        OrbitSettingsRow(
-            icon = Icons.Rounded.Movie,
-            fill = remember(dark) { Color(KitTileTint.TEAL.fill(dark)) },
-            title = "Watch",
-            summary = "Viewers, plugins, playback and subtitles",
-            fonts = fonts,
-            look = look,
-            onClick = onClick,
-            modifier = Modifier.testTag("settings:hub:WATCH"),
-        )
-        if (current) com.cosmotune.ui.orbit.WatchBadge(SettingsText.THIS_MODE.text(), fonts, look.accent,
-            Modifier.align(androidx.compose.ui.Alignment.CenterEnd).padding(end = 44.dp).testTag("settings:this-mode"))
-    }
-}
-
-/**
- * The settings home's Watch row's action for a host: Watch becomes the mode and opens on its settings page ([com.cosmotune.ui.watch.WatchTab.SETTINGS]);
- * the host then closes its own Settings. Null while Watch is not available, so the row is not drawn.
- */
-fun watchSettingsOpener(settings: com.cosmotune.settings.CosmoLookSettings?, closeSettings: () -> Unit): (() -> Unit)? =
-    if (settings == null || !com.cosmotune.design.AppModes.available(com.cosmotune.design.AppMode.WATCH)) null
-    else ({
-        com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.SETTINGS)
-        settings.setMode(com.cosmotune.design.AppMode.WATCH)
-        closeSettings()
-    })
 
 /**
  * The search results: [results] best first, each a row of the settings home's look (its category's colour tile, its title, and where

@@ -196,8 +196,10 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     // kept instead (and kept with the page, for the way back from a video): a fresh arrangement only adds the cards that are new.
     val homeKeep = rememberKept("home-stream") { StableFeed() }
     val filter = contentFilter
-    val stream = remember(ranked, all, model.selectedId, settings.homeHiddenVideos, settings.homeHiddenChannels, filter) {
-        homeKeep.update(if (all) "all" else "kiosk:${model.selectedId}", ranked) {
+    // The first subscription or related answer can overtake the generic feed. Subsequent pages keep their scroll order.
+    val feedKey = if (all) "all:$regionKey:${subscriptionsShelf.isNotEmpty()}:${forYou.isNotEmpty()}" else "kiosk:$regionKey:${model.selectedId}"
+    val stream = remember(ranked, feedKey, settings.homeHiddenVideos, settings.homeHiddenChannels, filter) {
+        homeKeep.update(feedKey, ranked) {
             it.id in settings.homeHiddenVideos || (it.channelId != null && it.channelId in settings.homeHiddenChannels) || !filter.keep(it)
         }
     }
@@ -223,6 +225,7 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     val titleError = stringResource(Res.string.video_list_error)
     val titleRetry = stringResource(Res.string.video_retry)
     val openShorts = { navigator.push(VideoRoute.Shorts(ShortsOrigin.Home)) }
+    val commonSettings = com.cosmotune.ui.settings.LocalOpenCommonSettings.current
 
     val refreshAll: () -> Unit = {
         homeKeep.reset(); graph.account.invalidate(); accountFeed?.start(force = true); model.retry(fallback = all)
@@ -241,7 +244,10 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
             modifier = modifier,
             leading = {
                 HomeDiscoveryControls(settings.region, settings.contentLanguage, settings.homeHiddenVideos.size + settings.homeHiddenChannels.size,
-                    onPreferences = { navigator.push(VideoRoute.Settings) },
+                    onPreferences = {
+                        if (commonSettings != null) commonSettings(com.cosmotune.ui.settings.SettingsCategory.VIDEO)
+                        else navigator.push(VideoRoute.Settings)
+                    },
                     onRefresh = refreshAll,
                     onReset = { graph.settings.update { it.copy(homeHiddenVideos = emptySet(), homeHiddenChannels = emptySet()) } })
             },

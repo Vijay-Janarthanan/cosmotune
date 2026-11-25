@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.data.recommendations.DiscoveryPreferences
+import com.cosmotune.music.data.recommendations.DiscoveryLead
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.OrbitChip
 import com.cosmotune.ui.orbit.OrbitChipRow
@@ -52,11 +53,14 @@ fun HomeDiscoveryControls(onRefresh: () -> Unit, onCreatePlaylist: (() -> Unit)?
     var error by remember { mutableStateOf(false) }
     val countries = DiscoveryPreferences.countries
     val languages = DiscoveryPreferences.languages
-    fun save(value: com.cosmotune.music.data.recommendations.DiscoveryRegion) {
+    fun save(value: com.cosmotune.music.data.recommendations.DiscoveryRegion, refresh: Boolean = true) {
         if (saving) return
         saving = true; error = false
         scope.launch {
-            try { withContext(Dispatchers.IO) { DiscoveryPreferences.save(value) }; onRefresh() }
+            try {
+                withContext(Dispatchers.IO) { DiscoveryPreferences.save(value) }
+                if (refresh) onRefresh()
+            }
             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) { error = true }
             finally { saving = false }
@@ -66,6 +70,8 @@ fun HomeDiscoveryControls(onRefresh: () -> Unit, onCreatePlaylist: (() -> Unit)?
     val look = orbitLook()
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         OrbitChipRow(CosmoSpacing.margin) {
+            DiscoveryPicker("home:lead", "Show first", selected.lead.label, selected.lead.name,
+                DiscoveryLead.entries.map { it.name to it.label }, !saving, fonts, look) { save(selected.copy(lead = DiscoveryLead.valueOf(it)), refresh = false) }
             DiscoveryPicker("home:country", "Region", selected.countryLabel, selected.country, countries, !saving, fonts, look) { save(selected.copy(country = it)) }
             DiscoveryPicker(
                 "home:language", "Language", languages.find { it.first == selected.musicLanguage }?.second ?: selected.languageLabel,
@@ -81,7 +87,7 @@ fun HomeDiscoveryControls(onRefresh: () -> Unit, onCreatePlaylist: (() -> Unit)?
             if (saving) OrbitRing(28.dp, look.ink, progress = null, spinning = true, stroke = 1.5.dp, moon = 3.dp, modifier = Modifier.semantics { contentDescription = "Saving" })
         }
         Text(
-            "${selected.countryLabel} charts" + if (selected.musicLanguage.isBlank()) " · Choose a language to explore its music" else " · ${selected.languageLabel} discovery appears first",
+            "${selected.countryLabel} charts · ${selected.languageLabel}",
             style = fonts.body, color = look.dim, modifier = Modifier.padding(horizontal = CosmoSpacing.margin),
         )
         if (error) {

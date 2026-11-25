@@ -198,8 +198,11 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
             retry = if (roomOwnsPlayback) null else ({
                 val start = if (route.target is com.cosmotune.watch.model.PlayTarget.Live) 0L
                     else player.engine.positionMs().takeIf { it > 0 }
-                val selected = player.state.value.takeIf { it.target?.key == route.target.key }?.stream
-                player.open(route.target, route.summary, selected ?: route.stream, startMs = start)
+                val selected = player.state.value.takeIf { it.target?.key == route.target.key }?.stream ?: route.stream
+                val local = selected?.takeIf { it.isTorrent || it.protocol == com.cosmotune.watch.model.StreamProtocol.LOCAL_FILE }
+                // Use the release as a preference when resolving sources again. Local files and torrents can reopen directly.
+                player.open(route.target, route.summary, local, startMs = start, hint = selected?.hint(),
+                    fallback = selected.takeUnless { it == local })
             }),
             toggleMute = player::toggleMute,
             cast = if (roomOwnsPlayback) null else ({ castOpen = true }),
@@ -265,7 +268,10 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
         look = look,
         wide = frame.wide,
         padding = frame.padding,
-        programme = onNow?.now?.title?.substringAfter(": "),
+        programme = onNow?.let { schedule -> listOfNotNull(
+            schedule.now?.let { "Now · ${it.title} · ${hm(it.startMs)}–${hm(it.stopMs)}" },
+            schedule.next?.let { "Next · ${hm(it.startMs)} · ${it.title}" },
+        ).joinToString("\n").ifBlank { null } },
         channels = otherChannels,
         onChannel = { actions.playChannel(it) },
         details = details,
@@ -660,7 +666,7 @@ private fun FilmCard(
             Text(summary?.name ?: "Watch", style = fonts.heroTitle.copy(fontSize = if (slim) 20.sp else 24.sp, lineHeight = if (slim) 22.sp else 26.sp), color = ink,
                 maxLines = if (narrow) 2 else 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp, end = if (narrow) 0.dp else 80.dp))
             // A channel's line is what is on it now when the guide knows; its own line otherwise.
-            (if (state.isLive && programme != null) "On now · $programme" else state.subtitleLine)?.let { Text(it, style = fonts.body, color = ink.copy(alpha = 0.82f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, end = 80.dp)) }
+            (if (state.isLive && programme != null) programme else state.subtitleLine)?.let { Text(it, style = fonts.body, color = ink.copy(alpha = 0.82f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, end = 80.dp)) }
             // A live channel the player keeps a window of can be paused and rewound in it, up to the live picture.
             if (state.isLive && com.cosmotune.watch.LiveShift.canShift(durationMs)) {
                 OrbitProgressLine({ (position().toFloat() / durationMs).coerceIn(0f, 1f) }, ink, Modifier.padding(top = 12.dp, end = 90.dp),
@@ -789,7 +795,7 @@ private fun WatchFullScreen(
     }
     com.cosmotune.ui.fullscreen.FullScreenPlayer(
         title = state.summary?.name ?: "Watch",
-        subtitle = if (state.isLive && programme != null) "On now · $programme" else state.subtitleLine,
+        subtitle = if (state.isLive && programme != null) programme else state.subtitleLine,
         playing = playing, position = position, durationMs = durationMs,
         onPlayPause = controls.playPause, onSeek = controls.seekTo, onLeave = onLeave,
         transport = com.cosmotune.ui.fullscreen.FullScreenTransport.Skip,

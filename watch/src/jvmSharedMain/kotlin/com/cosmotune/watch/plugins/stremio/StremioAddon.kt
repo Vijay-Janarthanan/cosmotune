@@ -34,6 +34,7 @@ data class StremioManifest(
     val configurationRequired: Boolean,
     val p2p: Boolean,
     val adult: Boolean,
+    val epgProvider: Boolean = false,
 ) {
     fun supports(resource: String, type: String, id: String? = null): Boolean {
         return resources.filter { it.name == resource }.any { r ->
@@ -49,6 +50,7 @@ data class StremioManifest(
         if (streams && "movie" in types) add("Films")
         if (streams && "series" in types) add("Series")
         if (streams && ("tv" in types || "channel" in types)) add("Live TV")
+        if (epgProvider) add("Programme guide")
         if (resources.any { it.name == "subtitles" }) add("Subtitles")
         if (catalogs.isNotEmpty()) add("Catalogues")
         if (resources.any { it.name == "meta" } && !streams) add("Details")
@@ -85,7 +87,8 @@ data class StremioManifest(
             val hints = e.child("behaviorHints")
             return StremioManifest(id, e.str("name") ?: id, e.str("version"), e.str("description"), e.str("logo"), e.strings("types"),
                 e.child("idPrefixes")?.let { e.strings("idPrefixes") }, resources, catalogs,
-                hints.bool("configurationRequired") == true, hints.bool("p2p") == true, hints.bool("adult") == true)
+                hints.bool("configurationRequired") == true, hints.bool("p2p") == true, hints.bool("adult") == true,
+                hints.bool("epgProvider") == true)
         }
     }
 }
@@ -105,7 +108,17 @@ class StremioClient(private val http: WatchHttp, manifestUrl: String) {
     suspend fun catalog(type: String, id: String, extra: Map<String, String> = emptyMap()): List<JsonElement> =
         http.getJson(resource("/catalog/${seg(type)}/${seg(id)}${extraPath(extra)}.json"), ttlMs = WatchHttp.HOUR).list("metas")
 
-    suspend fun meta(type: String, id: String): JsonElement? = http.getJson(resource("/meta/${seg(type)}/${seg(id)}.json"), ttlMs = 6 * WatchHttp.HOUR).child("meta")
+    suspend fun guidePage(catalog: StremioCatalog, date: String, skip: Int): List<JsonElement> {
+        val extras = buildMap {
+            put("date", date)
+            if (skip > 0) put("skip", skip.toString())
+        }
+        val answer = http.getJson(resource("/catalog/${seg(catalog.type)}/${seg(catalog.id)}${extraPath(extras)}.json"), ttlMs = 5 * 60_000L)
+        return answer.list("metasDetailed").ifEmpty { answer.list("metas") }
+    }
+
+    suspend fun meta(type: String, id: String, ttlMs: Long = 6 * WatchHttp.HOUR): JsonElement? =
+        http.getJson(resource("/meta/${seg(type)}/${seg(id)}.json"), ttlMs = ttlMs).child("meta")
 
     suspend fun streams(type: String, id: String): List<JsonElement> =
         http.getJson(resource("/stream/${seg(type)}/${seg(id)}.json"), ttlMs = 10 * 60_000L).list("streams")

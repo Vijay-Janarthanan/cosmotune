@@ -18,14 +18,28 @@ object DiscoveryFeed {
         }
     }
 
+    fun homeOrder(shelves: List<HomeShelf>, lead: DiscoveryLead): List<HomeShelf> = order(shelves).sortedBy { shelf ->
+        val id = shelf.sourceId.orEmpty()
+        val first = when (lead) {
+            DiscoveryLead.PERSONAL -> id == "discovery:mix:daily_mix" || id == "discovery:mix:rediscover"
+            DiscoveryLead.REGIONAL -> id.startsWith("discovery:language:") || id.startsWith("discovery:charts:")
+            DiscoveryLead.FOLLOWING -> id == "discovery:mix:followed_releases"
+        }
+        if (first) 0 else 1
+    }
+
     suspend fun personalShelves(region: DiscoveryRegion): List<HomeShelf> = withContext(Dispatchers.Default) {
         val all = MusicCandidateService.snapshot(region)
+        val context = MusicCandidateService.context()
         val language = if (region.musicLanguage.isBlank()) emptyList() else {
             val verified = all.filter { it.language?.equals(region.musicLanguage, true) == true }
             val search = all.filter { it.language == null && it.origin == MusicCandidateOrigin.LANGUAGE_CATALOGUE }
             listOf(verified to true, search to false).mapNotNull { (pool, confirmed) ->
-                val selected = MusicDiscoveryRanker.select(pool, MusicCandidateService.context(), MusicPlaylistKind.REGION, limit = 30,
-                    hidden = LocalPreferenceLearning::lessLikeThis)
+                val songs = pool.map { it.song }
+                val scores = LocalRecommendations.localScores(context.history.firstOrNull() ?: context.library.firstOrNull(), songs)
+                val byTrack = songs.indices.associate { songs[it].videoId to scores[it] }
+                val selected = MusicDiscoveryRanker.select(pool, context, MusicPlaylistKind.REGION, limit = 30,
+                    hidden = LocalPreferenceLearning::lessLikeThis, adjustment = { byTrack[it.videoId] ?: 0f })
                 if (selected.isEmpty()) null else HomeShelf(
                     if (confirmed) "Discover ${region.languageLabel}" else "Matches for ${region.languageLabel}",
                     selected.map { row -> val song = row.song; ShelfItem(song.title, song.artist, song.thumbnailUrl, song.videoId, null, song) },

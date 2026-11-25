@@ -67,13 +67,14 @@ internal fun CosmoDesktopTopBar(
     accountName: String? = null,
     entries: List<CosmoDrawerEntry> = emptyList(),
     onSearch: (() -> Unit)? = null,
+    settingsOpen: Boolean = false,
 ) {
     val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
     // The traffic lights start the bar on macOS; Windows' caption buttons stand over the bar's end ([desktopCaptionClearance]).
     val inlineCaption = compact && DesktopPlatform.isMac && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
     val video = com.cosmotune.video.host.desktopVideoShown()
-    val backEnabled = if (video) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack
-    val back: () -> Unit = if (video) ({ com.cosmotune.video.ui.desktop.VideoDesktopBack.goBack() }) else onBack
+    val backEnabled = if (video && !settingsOpen) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack
+    val back: () -> Unit = if (video && !settingsOpen) ({ com.cosmotune.video.ui.desktop.VideoDesktopBack.goBack() }) else onBack
     DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT)) {
         Row(Modifier.fillMaxSize().desktopCaptionClearance(), verticalAlignment = Alignment.CenterVertically) {
             if (inlineCaption) {

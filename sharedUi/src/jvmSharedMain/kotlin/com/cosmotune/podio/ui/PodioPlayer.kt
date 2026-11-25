@@ -243,7 +243,8 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
 @Composable internal fun EpisodePlayerSheet(playback: PodioPlayback, artUrl: String?, onToggle: () -> Unit, onSeek: (Long) -> Unit, onSpeed: (Float) -> Unit,
     timer: PodioTimer, roomItem: PartyTrack? = null, episode: com.cosmotune.podio.PodcastEpisode? = null, show: String = "",
     catalogue: com.cosmotune.podio.PodioCatalogue? = null, queued: Int = 0, onQueue: (() -> Unit)? = null,
-    showSpeed: Float? = null, onShowSpeed: ((Float?) -> Unit)? = null, onBookmark: (() -> Unit)? = null, onShareAt: (() -> Unit)? = null, onDismiss: () -> Unit) {
+    showSpeed: Float? = null, onShowSpeed: ((Float?) -> Unit)? = null, onBookmark: (() -> Unit)? = null,
+    onShareAt: (() -> Unit)? = null, onRetry: (() -> Unit)? = null, onDismiss: () -> Unit) {
     val fonts = orbitFonts()
     val look = orbitLook()
     val chapters = if (episode != null && catalogue != null) rememberEpisodeChapters(episode, catalogue) else null
@@ -273,7 +274,7 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
             EpisodeLine(known, onSeek, look.ink, fonts, Modifier.fillMaxWidth(), chapters = list, left = true)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 OrbitRoundButton(Icons.Outlined.Replay, "Back 15 seconds", look.ink, { onSeek((playback.positionMs - 15_000).coerceAtLeast(0)) }, size = 50.dp, onInk = look.ground)
-                OrbitPlayButton(playback.playing, onToggle, look, size = 68.dp)
+                OrbitPlayButton(playback.playing, if (playback.error != null) onRetry ?: onToggle else onToggle, look, size = 68.dp)
                 OrbitRoundButton(Icons.Outlined.Forward30, "Forward 30 seconds", look.ink, {
                     onSeek((playback.positionMs + 30_000).let { if (playback.durationMs > 0) it.coerceAtMost(playback.durationMs) else it })
                 }, size = 50.dp, onInk = look.ground)
@@ -290,7 +291,11 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
                 // [roomItem] is the episode as the room would take it; nothing is drawn where rooms are not offered.
                 RoomPlayButton(roomItem, dense = true)
             }
-            if (playback.error != null) Text("Playback failed. Refresh this feed or try another episode.", color = look.accent, style = fonts.body)
+            if (playback.error != null) Text(
+                if (onRetry != null) "This episode stopped playing. Press Play to retry from your saved position."
+                else "This episode stopped playing. Open the show to refresh the feed or try another episode.",
+                color = look.accent, style = fonts.body,
+            )
             val upNext: @Composable RowScope.() -> Unit = {
                 if (onQueue != null) OrbitSelectChip(if (queued > 0) "Up next · $queued" else "Up next", false, fonts, look, onQueue, icon = com.cosmotune.ui.components.CosmoIcons.Queue,
                     haptic = false, modifier = Modifier.testTag("podio:open-queue"))
