@@ -35,7 +35,10 @@ data class NowPlayingEvent(
  * leaves the device unless the listener sets it up; a failing webhook is ignored.
  */
 object NowPlayingOut {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // One at a time, in the order they were published: a pause sent just after a song starts must not reach the webhook or the
+    // file before it.
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
     @Volatile private var last: NowPlayingEvent? = null
 
     /** Swapped by tests: sends [body] to [url]. */
