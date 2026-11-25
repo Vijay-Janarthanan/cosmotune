@@ -34,6 +34,7 @@ class HomeContractTest {
             "discoveryLikedIds: Set<String> = emptySet()",
             "followedArtists: List<com.cosmotune.listening.WatchedArtist> = emptyList()",
             "quickLinks: List<HomeQuickLink> = emptyList()",
+            "continueEntries: List<ContinueEntry> = emptyList()",
             "onPlayPause: (() -> Unit)? = null",
             "playbackTime: (() -> Pair<Long, Long>)? = null",
         ), SourceContract.parameters(file("HomeSwitch.kt"), "HomeSwitch"))
@@ -52,9 +53,10 @@ class HomeContractTest {
         assertTrue(body.contains("PersonalPlaylistDialog("), "the switch owns the optional playlist preview")
         assertTrue("MusicDiscoveryContext(playlistSongs, discoveryHistory, discoveryLikedIds, followedArtists)" in body,
             "all optional discovery inputs contribute to the shared candidate context")
-        val enrichedState = body.substringAfter("val shownState = remember(state, personalShelves)").substringBefore("var playlistOpen")
-        assertTrue("if (personalShelves.isEmpty()) state" in enrichedState,
-            "without local suggestions the original loading/error/success state is retained")
+        val enrichedState = body.substringAfter("val shownState = remember(state, personalShelves, region.lead)").substringBefore("var playlistOpen")
+        // A loaded feed is put in the order Show first asks for; loading and error pass through untouched.
+        assertTrue("if (personalShelves.isEmpty() && state !is UiState.Success) state" in enrichedState,
+            "without local suggestions the original loading/error state is retained")
         assertTrue("(state as? UiState.Success)?.data.orEmpty()" in enrichedState &&
             "current.filterNot { it.sourceId in sources } + personalShelves" in enrichedState,
             "enrichment preserves the online feed and replaces only the local shelf identities")

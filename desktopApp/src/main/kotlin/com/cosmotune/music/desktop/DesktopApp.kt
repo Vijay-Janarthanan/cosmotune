@@ -4146,9 +4146,7 @@ fun CosmotuneDesktopApp() {
                 // The look's ambient ground, under the chrome and the page.
                 backdrop = { com.cosmotune.ui.theme.AmbientBackground(Modifier.fillMaxSize()) },
                 modifier = Modifier.onPreviewKeyEvent { event ->
-                    if (overlays.settingsPage == null && (com.cosmotune.video.host.DesktopModeHost.active ||
-                            com.cosmotune.video.host.DesktopModeHost.mangaActive || com.cosmotune.video.host.DesktopModeHost.podioActive ||
-                            com.cosmotune.video.host.DesktopModeHost.watchActive)) return@onPreviewKeyEvent false
+                    if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive).or(com.cosmotune.video.host.DesktopModeHost.podioActive).or(com.cosmotune.video.host.DesktopModeHost.watchActive)) return@onPreviewKeyEvent false
                     if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
                     when {
                         event.key == Key.MediaPlayPause -> {
@@ -4416,8 +4414,8 @@ fun CosmotuneDesktopApp() {
                                 com.cosmotune.ui.blocks.ModeNav.podioDetail.value = true
                                 cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO)
                             } else {
-                                // Under Read and Manga the bar is Music's: its player opens in Music.
-                                if (cosmoShell?.settings?.mode?.value.let { it == com.cosmotune.design.AppMode.READ || it == com.cosmotune.design.AppMode.MANGA }) cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC)
+                                // Under Read, Manga and Video's pages the bar is Music's: its player opens in Music.
+                                if (cosmoShell?.settings?.mode?.value.let { it == com.cosmotune.design.AppMode.READ || it == com.cosmotune.design.AppMode.MANGA || it == com.cosmotune.design.AppMode.VIDEO }) cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC)
                                 overlays.nowPlaying = true
                             }
                         },
@@ -6322,7 +6320,7 @@ private fun DesktopSettingsScreen(
     }
     val settingsQuery = query
     val searching = settingsQuery.isNotBlank()
-    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.35" }
+    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.36" }
     val highlight = remember { com.cosmotune.ui.settings.SettingsHighlight() }
     // The pages the desktop has: a category with none of its settings here (backup is the phone's) is left out of the list.
     val pages = remember {
@@ -7655,7 +7653,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.35" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.36" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )

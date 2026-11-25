@@ -18,6 +18,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -254,6 +255,8 @@ private fun FloatingTabBar(tabs: List<CosmoTab>, selectedIndex: Int, onTabSelect
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
+            // The board's 60 dp bar, taller only when large text needs room for the names.
+            .heightIn(min = OrbitDockMetrics.BAR_DP.dp)
             .shadow(16.dp, DOCK_SHAPE, clip = false)
             .clip(DOCK_SHAPE)
             .background(orbitDockFill(look))

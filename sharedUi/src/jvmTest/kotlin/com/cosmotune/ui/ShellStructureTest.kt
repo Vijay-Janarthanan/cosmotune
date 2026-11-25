@@ -172,8 +172,9 @@ class ShellStructureTest {
     @Test fun theChosenTabIsASolidChipWithItsNameAndEveryTabIsNamed() {
         val dock = read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitDock.kt")
         val tab = SourceContract.functionBody(dock, "OrbitDockTab")
-        assertTrue("if (selected) {" in tab && "Text(label" in tab, "the chosen tab shows its name")
-        assertTrue("Modifier.semantics { contentDescription = orbitTabName(label, count) }" in tab, "the others are named for a screen reader, with their count")
+        // 1.0.36: every tab shows its name under its icon (the compact tabs relied on icons alone); the chosen one is the solid chip.
+        assertTrue("Text(label" in tab && "if (selected) look.ink else Color.Transparent" in tab, "every tab shows its name, the chosen one on the solid chip")
+        assertTrue(".semantics { contentDescription = orbitTabName(label, count) }" in tab, "every tab is named for a screen reader, with its count")
         assertTrue("OrbitBadge(count, look" in tab, "a count is a peach badge on the tab")
         assertTrue("role = Role.Tab" in tab, "each is a tab")
         val bar = SourceContract.functionBody(chrome, "FloatingTabBar")
@@ -215,7 +216,8 @@ class ShellStructureTest {
         assertEquals(1, Regex(Regex.escape("com.cosmotune.ui.shell.CosmoBottomChrome(")).findAll(text).count(), "the chrome is called once")
         val chromeCall = text.indexOf("com.cosmotune.ui.shell.CosmoBottomChrome(")
         val before = text.substring(0, chromeCall).trimEnd().lines().last().trim()
-        assertTrue(!before.startsWith("if") && !before.startsWith("else"), "the chrome is drawn unconditionally, not behind a test: $before")
+        // The one exception: the second Music root that draws the common Settings over another mode has no tabs of its own.
+        assertTrue(before == "if (commonSettings == null)" || !before.startsWith("if") && !before.startsWith("else"), "the chrome is drawn unconditionally, not behind a test: $before")
         val code = SourceContract.code(text)
         for (old in listOf("glassActive", "GlassNavBar(", "MiniPlayer(", "FloatingBottomBar(")) assertTrue(old !in code, "$old is gone from the phone root")
         for (file in listOf("GlassNavBar.kt", "MiniPlayer.kt", "FloatingBottomBar.kt", "TabDrag.kt", "floatingtabbar")) {

@@ -258,7 +258,7 @@ class DesktopShellContractTest {
 
     @Test fun theTopBarTakesThreeMoreOptionalParametersAndTheAvatarIsTheProfileButton() {
         val names = SourceContract.names(SourceContract.parameters(chrome, "CosmoDesktopTopBar"))
-        assertEquals(listOf("compact", "canGoBack", "onBack", "accountAvatar", "onOpenAccounts", "accountName", "entries", "onSearch"), names)
+        assertEquals(listOf("compact", "canGoBack", "onBack", "accountAvatar", "onOpenAccounts", "accountName", "entries", "onSearch", "settingsOpen"), names)
         val params = SourceContract.parameters(chrome, "CosmoDesktopTopBar")
         assertEquals("accountName: String? = null", params[5])
         assertEquals("entries: List<CosmoDrawerEntry> = emptyList()", params[6])

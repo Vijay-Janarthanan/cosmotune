@@ -109,6 +109,8 @@ internal fun OrbitDockTab(
 ) {
     val fill by animateColorAsState(if (selected) look.ink else Color.Transparent, tween(180), label = "tab-fill")
     val ink by animateColorAsState(if (selected) look.ground else look.dim, tween(180), label = "tab-ink")
+    // Hover or keyboard focus names the tab with its count ("Releases, 3 new"), which the short label under the icon leaves out.
+    val tooltip = rememberOrbitTooltipState()
     Column(
         modifier
             .heightIn(min = OrbitDockMetrics.BAR_DP.dp)
@@ -116,6 +118,7 @@ internal fun OrbitDockTab(
             .cosmoFocusRing(interaction, (OrbitDockMetrics.TAB_DP / 2).dp, floating = true)
             .clip(CircleShape)
             .background(fill)
+            .orbitTooltip(tooltip, enabled = count != null && count > 0)
             .selectable(selected = selected, interactionSource = interaction, indication = null, role = Role.Tab, onClick = onClick)
             .semantics { contentDescription = orbitTabName(label, count) }
             .padding(horizontal = 4.dp, vertical = 6.dp),
@@ -128,6 +131,7 @@ internal fun OrbitDockTab(
         }
         Text(label, modifier = Modifier.clearAndSetSemantics {}, style = fonts.chip.copy(fontSize = 11.sp, lineHeight = 13.sp),
             color = ink, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center, overflow = TextOverflow.Ellipsis)
+        OrbitTooltipPill(tooltip, orbitTabName(label, count))
     }
 }
 

@@ -97,7 +97,7 @@ class RedesignKitContractTest {
         val chrome = code("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/shell/CosmoBottomChrome.kt")
         assertTrue("DockSearchButton(search)" in chrome, "Search is a round button beside the tabs")
         val phone = SourceContract.read("app/src/main/java/com/cosmotune/music/MainActivity.kt")
-        assertTrue("if (musicRail) {" in phone && "com.cosmotune.ui.shell.CosmoNavRail(" in phone, "Music on the phone has the rail from 600 dp")
+        assertTrue("if (musicRail && commonSettings == null) {" in phone && "com.cosmotune.ui.shell.CosmoNavRail(" in phone, "Music on the phone has the rail from 600 dp (not in the common Settings over another mode)")
         assertTrue("showTabs = !musicRail," in phone && "search = musicSearch," in phone)
         assertTrue("count = unreadReleases" in phone, "the Releases tab carries its count")
         val desktop = SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt")

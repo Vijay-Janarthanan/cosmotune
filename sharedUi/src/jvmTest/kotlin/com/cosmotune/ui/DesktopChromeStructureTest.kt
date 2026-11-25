@@ -136,17 +136,18 @@ class DesktopChromeStructureTest {
 
     @Test fun theTopBarIsTheBriefs() {
         val text = chrome
-        // The five of part one, the two the profile drawer needs (P4-13) and the search button of a compact window, all with defaults.
-        assertEquals(listOf("compact", "canGoBack", "onBack", "accountAvatar", "onOpenAccounts", "accountName", "entries", "onSearch"), parameterNames(signature(text, "CosmoDesktopTopBar")))
-        assertTrue("accountName: String? = null" in text && "entries: List<CosmoDrawerEntry> = emptyList()" in text && "onSearch: (() -> Unit)? = null" in text, "the new parameters have defaults, so a call of the first five still compiles")
+        // The five of part one, the two the profile drawer needs (P4-13), the search button of a compact window and whether the common
+        // Settings covers the page (Back then closes Settings, not the mode's page), all with defaults.
+        assertEquals(listOf("compact", "canGoBack", "onBack", "accountAvatar", "onOpenAccounts", "accountName", "entries", "onSearch", "settingsOpen"), parameterNames(signature(text, "CosmoDesktopTopBar")))
+        assertTrue("accountName: String? = null" in text && "entries: List<CosmoDrawerEntry> = emptyList()" in text && "onSearch: (() -> Unit)? = null" in text && "settingsOpen: Boolean = false" in text, "the new parameters have defaults, so a call of the first five still compiles")
         assertTrue("DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT))" in text && "TOP_BAR_HEIGHT: Dp = 56.dp" in text, "a 56 dp drag area")
         assertTrue("compact && DesktopPlatform.isMac && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled" in text, "the traffic lights start a compact window's bar on macOS only")
         assertTrue("Row(Modifier.fillMaxSize().desktopCaptionClearance()" in text, "the bar's end keeps clear of Windows' caption buttons")
         assertTrue("painterResource(Res.drawable.logo_mark)" in text && "Modifier.size(width = 28.dp, height = 18.dp)" in text, "the mark at 28 x 18 dp")
         assertTrue("colorFilter = if (com.cosmotune.ui.theme.LocalCosmoColors.current.dark) null" in text, "untinted (apricot) on the dark theme, the brand's ink on the light one")
         assertTrue("CosmoIcons.ChevronLeft" in text && "CosmoIconButtonStyle.TONAL" in text && "enabled = backEnabled" in text, "a tonal back button")
-        // Y-3: the button is enabled by `backEnabled`, which is canGoBack in Music and Video's own back in Video.
-        assertTrue("val backEnabled = if (video) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack" in text, "Music's rule is the else branch")
+        // Y-3: the button is enabled by `backEnabled`, which is canGoBack in Music (and while the common Settings covers a page) and Video's own back in Video.
+        assertTrue("val backEnabled = if (video && !settingsOpen) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack" in text, "Music's rule is the else branch")
         assertTrue("AVATAR_SIZE: Dp = 36.dp" in text, "a 36 dp avatar")
     }
 

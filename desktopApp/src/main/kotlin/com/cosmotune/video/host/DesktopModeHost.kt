@@ -83,6 +83,17 @@ fun desktopVideoShown(): Boolean {
     return shown
 }
 
+/**
+ * Whether Video's own player has something on (a video or a local file, playing or paused, on its page or in the capsule). Only
+ * then does Music's player bar stand aside in Video mode: while Video plays nothing, music that goes on keeps its control on screen.
+ */
+@Composable
+fun desktopVideoPlaying(): Boolean {
+    val graph = com.cosmotune.video.graph.desktopVideoGraph(build = false) ?: return false
+    val state = graph.playback.state.collectAsState().value
+    return state.item != null && state.status != com.cosmotune.video.player.PlayerStatus.IDLE && state.status != com.cosmotune.video.player.PlayerStatus.ENDED
+}
+
 /** Manga and Read leave the music service running but own page navigation and keyboard input. */
 @Composable
 fun desktopMangaShown(): Boolean {
@@ -213,6 +224,8 @@ internal fun modePagePadding(contentPadding: PaddingValues, compact: Boolean): P
 @Composable
 fun DesktopVideoPage(contentPadding: PaddingValues) {
     val shell = LocalCosmoShell.current ?: return
+    // The pictures of local folders' videos are made with the app's own FFmpeg decoder.
+    remember { installLocalThumbnails() }
     val playing = rememberUpdatedState(LocalCosmoPlaying.current)
     val playPause = rememberUpdatedState(LocalCosmoPlayPause.current)
     val playSong = rememberUpdatedState(LocalDesktopPlaySong.current)
@@ -275,4 +288,35 @@ internal fun desktopModeLinks(settings: CosmoLookSettings): ModeLinks = object :
 fun rememberStableSongAction(action: (Song) -> Unit): (Song) -> Unit {
     val latest = rememberUpdatedState(action)
     return remember { { song: Song -> latest.value(song) } }
+}
+
+/**
+ * Hands Video's local folders the desktop's way to picture a video: the canvas decoder opens the file, steps a second in (past a fade
+ * from black) and gives one frame at most [widthPx] wide, as a JPEG. Null when the file cannot be decoded.
+ */
+internal fun installLocalThumbnails() {
+    if (com.cosmotune.video.ui.local.LocalVideoThumbnails.grab != null) return
+    com.cosmotune.video.ui.local.LocalVideoThumbnails.grab = grab@{ path, widthPx ->
+        val decoder = com.cosmotune.music.desktop.DesktopCanvasDecoder()
+        try {
+            if (decoder.open(path).isFailure) return@grab null
+            val (sourceWidth, sourceHeight) = decoder.sourceSize
+            if (sourceWidth <= 0 || sourceHeight <= 0) return@grab null
+            decoder.showAt(widthPx, widthPx * sourceHeight / sourceWidth)
+            if (decoder.width <= 0 || decoder.height <= 0) return@grab null
+            val pixels = ByteArray(decoder.width * decoder.height * 4)
+            decoder.seekToMs(1_000)
+            if (!decoder.nextFrame(pixels, loop = false)) {
+                decoder.seekToMs(0)
+                if (!decoder.nextFrame(pixels, loop = false)) return@grab null
+            }
+            val info = org.jetbrains.skia.ImageInfo(decoder.width, decoder.height, org.jetbrains.skia.ColorType.BGRA_8888, org.jetbrains.skia.ColorAlphaType.OPAQUE)
+            org.jetbrains.skia.Image.makeRaster(info, pixels, decoder.width * 4)
+                .encodeToData(org.jetbrains.skia.EncodedImageFormat.JPEG, 82)?.bytes
+        } catch (failure: Throwable) {
+            null
+        } finally {
+            decoder.close()
+        }
+    }
 }

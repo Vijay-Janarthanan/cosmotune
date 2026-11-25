@@ -63,6 +63,15 @@ enum class SettingsCategory {
 /** Opens the common Settings surface at a section without changing the active mode. */
 val LocalOpenCommonSettings = staticCompositionLocalOf<((SettingsCategory) -> Unit)?> { null }
 
+/**
+ * The common Settings a host asks a root to draw over the current mode: the section it opens at and how it closes. The phone's
+ * host provides it around a second Music root drawn in a dialog, so the root call and the host's one Music slot stay as the hook
+ * table has them; a root drawn without it is the ordinary one.
+ */
+class CommonSettingsRequest(val category: SettingsCategory, val close: () -> Unit)
+
+val LocalCommonSettingsRequest = staticCompositionLocalOf<CommonSettingsRequest?> { null }
+
 @Composable
 fun SettingsModeTabs(selected: SettingsCategory, onSelect: (SettingsCategory) -> Unit, modifier: Modifier = Modifier) {
     val activeTab = remember { BringIntoViewRequester() }

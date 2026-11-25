@@ -365,7 +365,7 @@ class MainActivity : AppCompatActivity() {
                 // A measured constraint cannot be stale â€” it is the very width
                 // the split is about to be laid out in.
                 BoxWithConstraints(Modifier.fillMaxSize()) {
-                    com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) { commonSettings, closeCommonSettings ->
+                    com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {
                     // The window's one "Removed · Undo" snackbar, and the slot a page hands its collapsed heading to the top bar through.
                     val orbitUndo = com.cosmotune.ui.orbit.rememberOrbitUndo()
                     val headerSlot = remember { com.cosmotune.ui.orbit.OrbitHeaderSlot() }
@@ -378,8 +378,6 @@ class MainActivity : AppCompatActivity() {
                         windowWidth = maxWidth,
                         windowHeight = maxHeight,
                         appBackdrop = appBackdrop,
-                        commonSettings = commonSettings,
-                        closeCommonSettings = closeCommonSettings,
                     )
                     }
                     }
@@ -446,11 +444,13 @@ private fun CosmotuneApp(
      */
     windowHeight: Dp,
     appBackdrop: LayerBackdrop,
-    commonSettings: com.cosmotune.ui.settings.SettingsCategory? = null,
-    closeCommonSettings: () -> Unit = {},
     viewModel: MainViewModel = viewModel(),
 ) {
     val cosmoShell = checkNotNull(com.cosmotune.ui.theme.LocalCosmoShell.current) { "CosmotuneApp is composed under CosmoLookTheme" }
+    // Drawn by the phone host as the common Settings over another mode: only Settings, opened at its section.
+    val commonSettingsRequest = com.cosmotune.ui.settings.LocalCommonSettingsRequest.current
+    val commonSettings = commonSettingsRequest?.category
+    val closeCommonSettings: () -> Unit = commonSettingsRequest?.close ?: {}
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val hazeState = remember { HazeState() }

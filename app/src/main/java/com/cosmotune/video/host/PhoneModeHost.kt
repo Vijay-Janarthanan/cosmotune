@@ -63,7 +63,7 @@ import com.cosmotune.music.playback.MusicLink
  * and draws no such tool.
  */
 @Composable
-fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable (com.cosmotune.ui.settings.SettingsCategory?, () -> Unit) -> Unit) {
+fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Unit) {
     val shell = LocalCosmoShell.current
     val mode = shell?.settings?.mode?.collectAsStateWithLifecycle()?.value ?: AppMode.MUSIC
     val videoShell = shell?.takeIf { mode == AppMode.VIDEO && AppModes.available(AppMode.VIDEO) }
@@ -148,14 +148,32 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable (com.cos
     // The room, around every mode: "Play in room" on any page, the room icon, the full-screen room and its video ([RoomVideo]).
     com.cosmotune.music.ui.room.PhoneRoomRoot(RoomVideo) {
     CompositionLocalProvider(com.cosmotune.ui.live.LocalLiveNow provides live, com.cosmotune.ui.live.LocalLiveNowInPage provides (live != null)) {
-    CompositionLocalProvider(com.cosmotune.ui.blocks.LocalModeProfileAction provides profileAction) {
+    CompositionLocalProvider(
+        com.cosmotune.ui.blocks.LocalModeProfileAction provides profileAction,
+        // Settings in every mode's profile menu opens the common Settings over that mode (drawn below, outside every branch).
+        com.cosmotune.ui.settings.LocalOpenCommonSettings provides openCommonSettings,
+    ) {
     // The one full-screen player's window (Now Playing's Cinema, Video's and Watch's full screen): a dialog drawn into the cutout
     // with the system bars hidden.
     CompositionLocalProvider(
         LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) },
         com.cosmotune.ui.fullscreen.LocalFullScreenWindow provides fullScreenWindow,
-        com.cosmotune.ui.settings.LocalOpenCommonSettings provides openCommonSettings,
     ) {
+        // The common Settings, over whichever mode is drawn: a second Music root in its own window, asked through
+        // LocalCommonSettingsRequest to show only Settings at the chosen section. It belongs to no mode's branch below.
+        commonSettings?.let { category ->
+            val closeSettings = { commonSettings = null }
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = closeSettings,
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+            ) {
+                androidx.compose.runtime.key(category) {
+                    CompositionLocalProvider(
+                        com.cosmotune.ui.settings.LocalCommonSettingsRequest provides com.cosmotune.ui.settings.CommonSettingsRequest(category, closeSettings),
+                    ) { music() }
+                }
+            }
+        }
         if (shell != null && mode == AppMode.MANGA) holder.SaveableStateProvider("manga") {
             androidx.activity.compose.BackHandler { shell.settings.setMode(AppMode.MUSIC) }
             val request = MusicLink.pending.collectAsStateWithLifecycle()
@@ -208,23 +226,11 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable (com.cos
                 }
             }
         }
-        else if (videoShell == null) holder.SaveableStateProvider("music") { music(null) {} }
+        else if (videoShell == null) holder.SaveableStateProvider("music") { music() }
         // While the room screen draws the room's video over the app ([RoomVideo.covered]), Video's pages step aside so the one player
         // has one picture; the holder keeps what they saved, as on a mode flip.
         else if (RoomVideo.covered) Unit
         else holder.SaveableStateProvider("video") { PhoneVideo(videoShell, windowWidth, windowHeight, asked) }
-
-        commonSettings?.let { category ->
-            val closeSettings = { commonSettings = null }
-            androidx.compose.ui.window.Dialog(
-                onDismissRequest = closeSettings,
-                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-            ) {
-                androidx.compose.runtime.key(category) {
-                    music(category, closeSettings)
-                }
-            }
-        }
     }
     }
     }

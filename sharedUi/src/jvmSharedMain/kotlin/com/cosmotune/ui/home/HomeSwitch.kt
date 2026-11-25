@@ -59,9 +59,9 @@ fun HomeSwitch(
     discoveryLikedIds: Set<String> = emptySet(),
     followedArtists: List<com.cosmotune.listening.WatchedArtist> = emptyList(),
     quickLinks: List<HomeQuickLink> = emptyList(),
+    continueEntries: List<ContinueEntry> = emptyList(),
     onPlayPause: (() -> Unit)? = null,
     playbackTime: (() -> Pair<Long, Long>)? = null,
-    continueEntries: List<ContinueEntry> = emptyList(),
 ) {
     val region by com.cosmotune.music.data.recommendations.DiscoveryPreferences.state.collectAsState()
     val learning by com.cosmotune.music.data.recommendations.LocalPreferenceLearning.status.collectAsState()
