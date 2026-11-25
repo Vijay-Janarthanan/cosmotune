@@ -9,7 +9,8 @@ class TvWatchTabsTest {
     fun watchSearchComesFirstAfterTheWatchChipAndSaysWhatItFinds() {
         val tabs = tvWatchSubTabs()
         assertEquals(WatchTab.SEARCH, tabs.first())
-        assertEquals(WatchTab.entries.size - 1, tabs.size)
+        // Home is the Watch chip itself, and Watch's settings live in the common Settings screen.
+        assertEquals(WatchTab.entries.filter { it != WatchTab.HOME && it != WatchTab.SETTINGS }, tabs.sorted())
         assertEquals("Search films & TV", tvWatchTabLabel(WatchTab.SEARCH))
         assertEquals("Films", tvWatchTabLabel(WatchTab.FILMS))
     }

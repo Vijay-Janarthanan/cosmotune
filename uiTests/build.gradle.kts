@@ -30,7 +30,10 @@ tasks.test {
     systemProperty("java.awt.headless", "true")
     // A composition that never goes idle (a frame loop on the plain frame clock) hangs waitForIdle for good; fail instead of
     // holding the build, here and in CI.
-    timeout.set(Duration.ofMinutes(30))
+    // The whole suite takes about three minutes, so a quarter of an hour is a hang, not a slow runner.
+    timeout.set(Duration.ofMinutes(15))
+    // On CI each test is named as it starts, so a test that hangs until the timeout is the last one named in the log.
+    if (System.getenv("CI") != null) testLogging { events("started", "failed", "skipped") }
     // The release runners, the Macs most of all, are slow enough that a UI wait now and then runs out. On CI a failed test
     // runs again, up to twice; a test that fails every time still fails the build.
     if (System.getenv("CI") != null) retry {
