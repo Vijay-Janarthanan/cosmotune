@@ -88,19 +88,27 @@ class WatchHttp(
             val key = cacheKey("STREAM", url, headers)
             val file = cacheDir?.let { File(it, "$key.bin") }
             if (file != null && file.isFile && now() - file.lastModified() < ttlMs) return@withContext file.inputStream().use { read(ungzip(it)) }
-            val response = try { execute(request(url, headers).get().build()) } catch (e: IOException) {
-                if (file != null && file.isFile) return@withContext file.inputStream().use { read(ungzip(it)) }
-                throw e
+            if (file == null) return@withContext execute(request(url, headers).get().build()).use { r -> read(ungzip(Limited(r.body.byteStream(), maxBytes))) }
+            file.parentFile?.mkdirs()
+            val part = File(file.parentFile, file.name + ".part")
+            // A connection reset can come before the answer or halfway through a list of several megabytes: either way it is
+            // asked once more, and if that fails too the copy kept from last time is read, however old.
+            var failure: IOException? = null
+            for (attempt in 0..1) {
+                failure = try {
+                    execute(request(url, headers).get().build()).use { r ->
+                        Limited(r.body.byteStream(), maxBytes).use { input -> part.outputStream().use { input.copyTo(it) } }
+                    }
+                    if (!part.renameTo(file)) { file.delete(); part.renameTo(file) }
+                    null
+                } catch (e: IOException) {
+                    part.delete()
+                    e
+                }
+                if (failure == null) break
             }
-            response.use { r ->
-                val body = r.body
-                if (file == null) return@use read(ungzip(Limited(body.byteStream(), maxBytes)))
-                file.parentFile?.mkdirs()
-                val part = File(file.parentFile, file.name + ".part")
-                Limited(body.byteStream(), maxBytes).use { input -> part.outputStream().use { input.copyTo(it) } }
-                if (!part.renameTo(file)) { file.delete(); part.renameTo(file) }
-                file.inputStream().use { read(ungzip(it)) }
-            }
+            failure?.let { e -> if (!file.isFile) throw e }
+            file.inputStream().use { read(ungzip(it)) }
         }
 
     /** The status, final address and first bytes of [url] (a range GET), for sniffing disguised HLS or DASH. */

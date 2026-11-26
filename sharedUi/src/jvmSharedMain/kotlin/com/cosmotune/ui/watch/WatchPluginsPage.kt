@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -108,7 +109,7 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
     val builtInColumn: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OrbitLabel("Built in · switch on or off", fonts, look.dim, Modifier.padding(horizontal = 6.dp))
-            builtIn.forEach { p -> PluginRow(p, look, fonts, onToggle = { on -> scope.launch { repository.setPluginEnabled(p.id, on) } }) }
+            builtIn.forEach { p -> PluginRow(p, look, fonts, onToggle = { on -> scope.launch { repository.setPluginEnabled(p.id, on) } }, onRetry = { scope.launch { repository.retryPlugin(p.id) } }) }
         }
     }
     val yoursColumn: @Composable () -> Unit = {
@@ -124,7 +125,7 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
                         if (p.perProfileSignIn) OrbitMenuItem("Sign in for this profile", p.profileSignIn ?: "See the server as your own user here") { signingIn = p } else null,
                         if (p.profileSignIn != null) OrbitMenuItem("Use the shared sign-in", "The account the server was added with") { scope.launch { repository.useSharedSignIn(p.id) } } else null,
                         OrbitMenuItem("Remove", "Forget it and its sign-in", CosmoIcons.Close) { scope.launch { repository.removeUserSource(p.id) } },
-                    ))
+                    ), onRetry = { scope.launch { repository.retryPlugin(p.id) } })
             }
             AddCard(fonts, look, Modifier.padding(top = 6.dp)) { adding = true }
             PackCard(fonts, look, onShare = { sharing = true }, onImport = { importing = true })
@@ -259,10 +260,12 @@ internal fun TmdbMark(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PluginRow(p: PluginInfo, look: OrbitLook, fonts: OrbitFonts, onToggle: (Boolean) -> Unit, menu: List<OrbitMenuItem> = emptyList()) {
+private fun PluginRow(p: PluginInfo, look: OrbitLook, fonts: OrbitFonts, onToggle: (Boolean) -> Unit, menu: List<OrbitMenuItem> = emptyList(), onRetry: () -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val line = if (p.error) p.status ?: p.description else listOfNotNull(p.description, p.status?.takeIf { it !in p.description }).joinToString(" · ")
+    val line = if (p.error) pluginProblemLine(p.status) else listOfNotNull(p.description, p.status?.takeIf { it !in p.description }).joinToString(" · ")
     WatchPluginCard(p.name, line, p.badge, fonts, look, error = p.error) {
+        // A plugin that failed is asked again from here, rather than waiting for the app's next look at it.
+        if (p.error && p.enabled) WatchCardChip("Try again", look.ink, fonts, onRetry, Modifier.testTag("plugin:retry:${p.id}"))
         if (menu.isNotEmpty()) Box {
             WatchRoundButton(CosmoIcons.More, "More for ${p.name}", look, onClick = { open = true }, size = 36.dp)
             OrbitMenu(open, onDismiss = { open = false }, items = menu, fonts = fonts, look = look, header = p.name)
@@ -714,3 +717,19 @@ internal fun ImportPackDialog(repository: WatchRepository, fonts: OrbitFonts, lo
     }
 }
 
+
+/**
+ * What a failing plugin's card says: that it didn't answer, with the reason in plain words where the network gave a known one
+ * ("Connection reset" is the server closing the connection, usually for a moment).
+ */
+internal fun pluginProblemLine(problem: String?): String {
+    val p = problem?.trim().orEmpty()
+    val why = when {
+        p.isEmpty() || p.equals("Not responding", true) -> "it took too long"
+        p.contains("reset", true) || p.contains("closed", true) || p.contains("end of stream", true) -> "the connection dropped"
+        p.contains("timeout", true) || p.contains("timed out", true) -> "it took too long"
+        p.contains("unable to resolve", true) || p.contains("unknownhost", true) || p.contains("no address", true) -> "this device is offline or can't find it"
+        else -> null
+    }
+    return if (why != null) "Didn't answer: $why." else "Didn't answer: $p"
+}

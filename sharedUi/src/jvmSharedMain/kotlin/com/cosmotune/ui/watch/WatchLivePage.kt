@@ -40,6 +40,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.testTag
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -88,6 +90,7 @@ import com.cosmotune.watch.GuideWindow
 import com.cosmotune.watch.model.Channel
 import com.cosmotune.watch.model.EpgProgramme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.cosmotune.watch.plugin.Capability
 import java.time.Instant
 import java.time.ZoneId
@@ -116,6 +119,7 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
     }
     val facets = facetsEntry.collectOnPage().value.data
     val plugins by repository.plugins.collectAsState()
+    val scope = rememberCoroutineScope()
     val favourites by repository.favouriteChannels.collectAsState()
     var country by rememberSaveable { mutableStateOf<String?>(null) }
     var language by rememberSaveable { mutableStateOf<String?>(null) }
@@ -224,6 +228,15 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
             }
             if (channelsState.refreshFailed) item(key = "live:refresh-failed") {
                 RefreshFailedNote(onRetry = { channelsEntry.refresh() }, modifier = Modifier.padding(start = side + 6.dp, top = 14.dp))
+            }
+            val failing = plugins.filter { it.enabled && it.error && Capability.LIVE in it.capabilities }
+            if (failing.isNotEmpty()) item(key = "live:source-failed") {
+                MissingSourcesNote(failing.map { it.name }, fonts, look, Modifier.padding(start = side + 6.dp, end = side, top = 14.dp)) {
+                    scope.launch {
+                        failing.forEach { repository.retryPlugin(it.id) }
+                        channelsEntry.refresh(); facetsEntry.refresh()
+                    }
+                }
             }
             item(key = "live:guide") {
                 val list = channels
@@ -509,5 +522,23 @@ private fun WatchCatchupDialog(channel: Channel, now: Long, actions: WatchAction
                 }
             }
         }
+    }
+}
+
+/**
+ * The live sources that did not answer (a connection reset, a timeout), so their channels are missing from the list and from
+ * search, with Try again: the list itself stays usable underneath.
+ */
+@Composable
+internal fun MissingSourcesNote(names: List<String>, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, onRetry: () -> Unit) {
+    val who = if (names.size == 1) names.single() else names.dropLast(1).joinToString(", ") + " and " + names.last()
+    Row(
+        modifier.testTag("live:source-failed").clip(RoundedCornerShape(18.dp)).background(look.chip)
+            .clickable(role = Role.Button, onClickLabel = "Try again", onClick = onRetry).padding(horizontal = 14.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("$who didn't answer, so ${if (names.size == 1) "its" else "their"} channels are missing.", style = fonts.body.copy(fontSize = 12.5.sp),
+            color = look.dim, modifier = Modifier.weight(1f, fill = false))
+        Text("Try again", style = fonts.body.copy(fontSize = 12.5.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = look.ink)
     }
 }

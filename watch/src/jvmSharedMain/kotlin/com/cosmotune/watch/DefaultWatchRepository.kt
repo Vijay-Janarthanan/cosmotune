@@ -74,6 +74,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -223,6 +224,8 @@ class DefaultWatchRepository(
     private val channelLock = Mutex()
     @Volatile private var channelCache: Pair<Long, Map<WatchKey, List<Channel>>>? = null
     @Volatile private var channelRefreshing = false
+    /** Whether a live source failed (or ran out of time) while [channelCache] was made, so its channels are missing from it. */
+    @Volatile private var channelMissing = false
     /** The merged, name-joined list of every channel, kept for the [channelCache] map it was made from. */
     @Volatile private var mergedChannels: Pair<Map<WatchKey, List<Channel>>, List<Channel>>? = null
     @Volatile private var channelSources: List<String> = emptyList()
@@ -369,7 +372,10 @@ class DefaultWatchRepository(
     private suspend fun <T> each(plugins: List<WatchPlugin>, block: suspend (WatchPlugin) -> T): List<Pair<WatchPlugin, T?>> = coroutineScope {
         plugins.map { p ->
             async {
-                p to runCatching { withTimeoutOrNull(config.timeoutMs) { block(p) } }.onFailure { report(p.id, it) }.getOrNull()
+                p to runCatching { withTimeoutOrNull(config.timeoutMs) { block(p) } }
+                    .onFailure { report(p.id, it) }
+                    .onSuccess { if (it != null) answered(p.id) }
+                    .getOrNull()
             }
         }.awaitAll()
     }
@@ -377,6 +383,23 @@ class DefaultWatchRepository(
     private fun report(id: String, error: Throwable) {
         if (error is kotlinx.coroutines.CancellationException) return
         status.value = status.value + (id to ((error.message ?: "Not responding") to true))
+    }
+
+    /** A plugin that answered is no longer shown as failing on the Plugins and Live pages. */
+    private fun answered(id: String) {
+        if (status.value[id]?.second == true) status.value = status.value - id
+    }
+
+    override suspend fun retryPlugin(id: String) {
+        val plugin = activePlugins().firstOrNull { it.id == id } ?: return
+        status.value = status.value - id
+        if (Capability.LIVE in plugin.capabilities) channelCache = null
+        // health() is null when the plugin answers; a plugin that takes longer than any other call may is not responding.
+        val problem = try { withTimeout(config.timeoutMs) { plugin.health() } }
+            catch (_: kotlinx.coroutines.TimeoutCancellationException) { "Not responding" }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { e.message ?: "Not responding" }
+        status.value = if (problem == null) status.value - id else status.value + (id to (problem to true))
     }
 
     override suspend fun setPluginEnabled(id: String, enabled: Boolean) {
@@ -911,10 +934,13 @@ class DefaultWatchRepository(
     /**
      * Every channel of the switched-on live plugins, by key; a key listed by two plugins keeps both. A list older than half an
      * hour still answers at once, and a fresh one is fetched behind it, so a search never waits for every live source again.
+     * A list that a source failed to answer is kept only [MISSING_SOURCE_MS]: the next ask after that waits for the sources again,
+     * so the failed one's channels (iptv-org's, after a connection reset) come back instead of staying away for half an hour.
      */
     private suspend fun channelsByKey(): Map<WatchKey, List<Channel>> {
         val liveIds = activePlugins().filter { Capability.LIVE in it.capabilities }.map { it.id }
         val cached = channelCache?.takeIf { channelSources == liveIds } ?: return loadChannels()
+        if (channelMissing && config.now() - cached.first >= MISSING_SOURCE_MS) return loadChannels()
         if (config.now() - cached.first >= 30 * 60_000L && !channelRefreshing) {
             channelRefreshing = true
             scope.launch { try { loadChannels() } finally { channelRefreshing = false } }
@@ -927,13 +953,14 @@ class DefaultWatchRepository(
         // Kept half an hour, for the same live sources: an add-on that arrived by cloud sync (not through addUserSource, which
         // drops the copy) is asked at once too. A caller that waited for the lock finds the list the one before it fetched.
         val liveIds = live.map { it.id }
-        channelCache?.takeIf { config.now() - it.first < 30 * 60_000L && channelSources == liveIds }?.let { return it.second }
+        val keep = if (channelMissing) MISSING_SOURCE_MS else 30 * 60_000L
+        channelCache?.takeIf { config.now() - it.first < keep && channelSources == liveIds }?.let { return it.second }
         val lists = each(live) { it.channels() }
         val byKey = LinkedHashMap<WatchKey, MutableList<Channel>>()
         for ((_, list) in lists) for (c in list.orEmpty()) byKey.getOrPut(c.key) { mutableListOf() } += c
         val result: Map<WatchKey, List<Channel>> = byKey
         // Nothing from any plugin (offline, or each one still loading past its time) is not kept, so the next ask tries again.
-        if (result.isNotEmpty()) { channelCache = config.now() to result; channelSources = liveIds }
+        if (result.isNotEmpty()) { channelCache = config.now() to result; channelSources = liveIds; channelMissing = lists.any { it.second == null } }
         result
     }
 
@@ -1356,6 +1383,8 @@ class DefaultWatchRepository(
         /** The built-in plugins that play films for free, asked for the featured card. */
         private val FREE_FILM_PLUGINS = setOf(BuiltInPlugins.PLUTO, BuiltInPlugins.PLEX, BuiltInPlugins.YOUTUBE, BuiltInPlugins.ARCHIVE, BuiltInPlugins.PUBLIC_DOMAIN)
         private const val GUIDE_DISMISSED = "watch.guide.dismissed"
+        /** How long a channel list that a live source failed to answer is kept before the sources are asked again. */
+        internal const val MISSING_SOURCE_MS = 2 * 60_000L
         /** A device setting: the most Watch's cache may hold, in megabytes. */
         private const val CACHE_LIMIT = "watch.cache.limit"
         /** The source of catch-up items: a channel's past programmes, played from its archive. */

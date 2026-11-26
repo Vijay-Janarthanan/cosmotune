@@ -308,6 +308,12 @@ interface WatchRepository {
     /** External subtitles (OpenSubtitles and other subtitle plugins), [languages] first. */
     suspend fun subtitles(target: PlayTarget, stream: Stream?, languages: List<String> = emptyList()): List<Subtitle>
 
+    /**
+     * Asks plugin [id] again after it failed (a connection reset, a timeout): its error is cleared, a live plugin's channels are
+     * fetched afresh on the next ask, and [plugins] shows the new answer.
+     */
+    suspend fun retryPlugin(id: String) {}
+
     // Live TV
     suspend fun channels(filter: ChannelFilter = ChannelFilter()): List<Channel>
     suspend fun channel(key: WatchKey): Channel?
