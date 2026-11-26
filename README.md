@@ -260,8 +260,8 @@ Cosmotune works with no account. If you want your playlists to follow you from p
 
 ## Download
 
-Version 1.0.36. The links below always fetch the newest release.
-[1.0.36 release notes](docs/releases/1.0.36.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
+Version 1.0.37. The links below always fetch the newest release.
+[1.0.37 release notes](docs/releases/1.0.37.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 ### Android
 
